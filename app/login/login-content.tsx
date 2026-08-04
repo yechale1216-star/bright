@@ -26,26 +26,12 @@ function LoginContent() {
     const schoolList = Array.isArray(schools) ? schools : []
     
     setTimeout(() => {
-      if (schoolList.length > 1) {
-        console.log(`[Login] Redirecting to school selection (${schoolList.length} schools)`)
-        window.location.href = '/auth/school-select'
-        return
-      }
-      
-      console.log(`[Login] Single school found. Redirecting to dashboard for role: ${role}`)
-      
       if (role === 'admin' || role === 'school_admin' || role === 'school-admin') {
-        if (user?.onboardingCompleted === false) {
-          router.push('/onboarding')
-        } else {
-          router.push('/school/admin')
-        }
+        router.push('/school/admin')
       } else if (role === 'teacher') {
         router.push('/school/teacher')
       } else if (role === 'parent') {
         router.push('/parent/dashboard')
-      } else if (role === 'super_admin') {
-        router.push('/super-admin')
       } else {
         router.push('/school/admin')
       }

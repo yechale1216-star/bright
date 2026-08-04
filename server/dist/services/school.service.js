@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setSchoolSuspended = exports.getSchoolDetails = exports.getStreams = exports.getSections = exports.getGrades = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.updateSchool = exports.createSchool = void 0;
+exports.getStreams = exports.getSections = exports.getGrades = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.updateSchool = exports.createSchool = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const school_id_1 = require("../utils/school-id");
 const createSchool = async (data) => {
@@ -13,7 +13,6 @@ const createSchool = async (data) => {
             id: data.id,
             name: data.name,
             schoolId: customId,
-            subscriptionStatus: 'ACTIVE',
             settings: {
                 create: {
                     school_name: data.name,
@@ -34,7 +33,6 @@ const updateSchool = async (id, data) => {
         where: { id },
         data: {
             name: data.name,
-            subscriptionStatus: data.subscriptionStatus
         },
         include: {
             settings: true
@@ -95,75 +93,3 @@ const getStreams = async (schoolId) => {
     });
 };
 exports.getStreams = getStreams;
-/** Returns rich school details for the super-admin view */
-const getSchoolDetails = async (id) => {
-    const school = await db_1.default.school.findUnique({
-        where: { id },
-        include: {
-            settings: true,
-            subscription: { include: { plan: true } },
-        },
-    });
-    if (!school)
-        return null;
-    const [userCount, studentCount] = await Promise.all([
-        db_1.default.user.count({ where: { schoolId: id } }),
-        db_1.default.student.count({ where: { schoolId: id } }),
-    ]);
-    let adminUser = await db_1.default.user.findFirst({
-        where: {
-            schoolId: id,
-            role: { equals: 'admin', mode: 'insensitive' }
-        },
-        select: { id: true, full_name: true, email: true, phone: true },
-        orderBy: { createdAt: 'asc' }
-    });
-    // Fallback: If no 'admin' role found, just take the first user ever created for this school
-    if (!adminUser) {
-        adminUser = await db_1.default.user.findFirst({
-            where: { schoolId: id },
-            select: { id: true, full_name: true, email: true, phone: true },
-            orderBy: { createdAt: 'asc' }
-        });
-    }
-    return { ...school, userCount, studentCount, adminUser };
-};
-exports.getSchoolDetails = getSchoolDetails;
-/** Suspend or unsuspend a school */
-const setSchoolSuspended = async (id, suspend, suspendReason) => {
-    return await db_1.default.$transaction(async (tx) => {
-        // 1. Update School record — persist reason & timestamp
-        const school = await tx.school.update({
-            where: { id },
-            data: {
-                subscriptionStatus: suspend ? 'SUSPENDED' : 'ACTIVE',
-                suspendedAt: suspend ? new Date() : null,
-                suspendReason: suspend ? (suspendReason || null) : null,
-            },
-            include: { subscription: true }
-        });
-        // 2. Sync Subscription status if it exists
-        if (school.subscription) {
-            await tx.schoolSubscription.update({
-                where: { id: school.subscription.id },
-                data: { status: suspend ? 'suspended' : 'active' }
-            });
-        }
-        // 3. Write audit log
-        await tx.auditLog.create({
-            data: {
-                schoolId: id,
-                action: suspend ? 'SCHOOL_SUSPENDED' : 'SCHOOL_UNSUSPENDED',
-                entity_type: 'School',
-                entity_id: id,
-                new_values: {
-                    subscriptionStatus: suspend ? 'SUSPENDED' : 'ACTIVE',
-                    suspendedAt: suspend ? new Date().toISOString() : null,
-                    suspendReason: suspend ? (suspendReason || null) : null,
-                },
-            }
-        });
-        return school;
-    });
-};
-exports.setSchoolSuspended = setSchoolSuspended;

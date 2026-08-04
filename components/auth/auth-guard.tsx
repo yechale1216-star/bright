@@ -22,7 +22,6 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
 
   // Helper: get the correct home dashboard for a role
   const getDashboardForRole = (role: string): string => {
-    if (role === "super_admin") return "/super-admin"
     if (role === "teacher") return "/school/teacher"
     if (role === "parent") return "/parent/dashboard"
     if (role === "admin" || role === "school_admin") return "/school/admin"
@@ -140,33 +139,6 @@ interface PermissionGuardProps {
 }
 
 export function PermissionGuard({ children, requiredFeature, fallback }: PermissionGuardProps) {
-  const { features, permissionsLoading } = useAuth()
-
-  if (permissionsLoading) {
-    return <PageSkeleton variant="dashboard" />
-  }
-
-  const hasAccess = features && features.includes(requiredFeature)
-
-  if (!hasAccess) {
-    if (fallback) {
-      return <>{fallback}</>
-    }
-
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
-        <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-          <ShieldAlert className="w-6 h-6" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-lg font-bold text-foreground">Access Restricted</h3>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            This feature requires the '{requiredFeature.replace(/_/g, " ")}' subscription permission which is not enabled for your school.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
+  // In Single-School Edition, all features are granted — no plan restrictions
   return <>{children}</>
 }

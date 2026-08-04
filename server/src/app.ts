@@ -32,9 +32,6 @@ import attendanceAnalyticsRoutes from './routes/attendance-analytics.routes';
 import messageRoutes from './routes/message.routes';
 import authRoutes from './routes/auth.routes';
 import promotionRoutes from './routes/promotion.routes';
-import subscriptionRoutes from './routes/subscription.routes';
-import paymentRoutes from './routes/payment.routes';
-import superAdminRoutes from './routes/super-admin.routes';
 import groupRoutes from './routes/group.routes';
 import announcementRoutes from './routes/announcement.routes';
 import callRoutes from './routes/call.routes';
@@ -220,15 +217,9 @@ app.post('/api/calls/public-reject', async (req, res) => {
   res.status(200).json({ success: true });
 });
 
-// Apply Tenant Isolation & Auth Middleware to all API routes
+// Apply Auth Middleware to all API routes
 app.use('/api', tenantMiddleware);
-// Block write operations for suspended or expired schools (super_admin is exempt)
 app.use('/api', subscriptionGuard);
-
-// Subscription & Feature Management
-app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/super-admin', superAdminRoutes);
 
 // Other API routes are already covered by the /api middleware
 

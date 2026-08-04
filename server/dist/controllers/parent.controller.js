@@ -41,13 +41,10 @@ const parentService = __importStar(require("../services/parent.service"));
 const db_1 = __importDefault(require("../config/db"));
 /**
  * Helper to verify that the requested phone belongs to the authenticated user.
- * If the user is a super_admin, we bypass this check.
  */
 const verifyPhoneOwnership = async (req, requestedPhone) => {
     if (!req.user?.id)
         return false;
-    if (req.user.role === 'super_admin')
-        return true;
     const user = await db_1.default.user.findUnique({
         where: { id: req.user.id }
     });
@@ -165,7 +162,7 @@ const markAsRead = async (req, res, next) => {
         const notification = await db_1.default.parentNotification.findUnique({
             where: { id }
         });
-        if (notification && notification.studentId && req.user?.role !== 'super_admin') {
+        if (notification && notification.studentId) {
             if (!req.user)
                 return res.status(401).json({ success: false, message: 'Unauthorized' });
             const link = await db_1.default.parentStudentLink.findFirst({
@@ -193,7 +190,7 @@ const deleteNotification = async (req, res, next) => {
         const notification = await db_1.default.parentNotification.findUnique({
             where: { id }
         });
-        if (notification && notification.studentId && req.user?.role !== 'super_admin') {
+        if (notification && notification.studentId) {
             if (!req.user)
                 return res.status(401).json({ success: false, message: 'Unauthorized' });
             const link = await db_1.default.parentStudentLink.findFirst({

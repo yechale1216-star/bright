@@ -1,14 +1,9 @@
 /**
- * Zetime Database RESET Script
+ * Zetime Single-School Edition — Database RESET Script
  * ─────────────────────────────────────────────────────────────────
- * Wipes ALL schools, users, students, teachers, attendance — every
- * tenant record — while KEEPING:
- *   • subscription_plans + features + plan_features
- *   • platform_configs
- *   • addons
- *
- * After the wipe it re-seeds ONLY the super-admin account so the
- * platform is immediately usable for fresh onboarding.
+ * Wipes ALL school data while keeping database structure intact.
+ * After the wipe it re-seeds the default School Administrator so
+ * the system is immediately usable.
  *
  * Run:
  *   npx ts-node prisma/reset-db.ts
@@ -20,11 +15,15 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('\n⚠️   ZETIME DATABASE RESET\n');
-  console.log('This will permanently delete ALL schools, users, and data.');
-  console.log('Subscription plans, features, and platform config are kept.\n');
+  console.log('\n⚠️   ZETIME DATABASE RESET (Single-School Edition)\n');
+  console.log('This will permanently delete ALL data and re-seed the school admin.\n');
 
   // ── Step 1: Delete in safe dependency order ──────────────────────────────
+
+  console.log('🗑️   Deleting timetable data …');
+  await prisma.timetableSlot.deleteMany({});
+  await prisma.timetable.deleteMany({});
+  await prisma.timetablePeriod.deleteMany({});
 
   console.log('🗑️   Deleting messaging & call data …');
   await prisma.callHistory.deleteMany({});
@@ -36,7 +35,13 @@ async function main() {
   await prisma.conversationMember.deleteMany({});
   await prisma.conversation.deleteMany({});
 
+  console.log('🗑️   Deleting discipline data …');
+  await prisma.disciplineFollowUp.deleteMany({});
+  await prisma.studentDiscipline.deleteMany({});
+  await prisma.disciplineCategory.deleteMany({});
+
   console.log('🗑️   Deleting attendance & notifications …');
+  await prisma.attendanceEditRequest.deleteMany({});
   await prisma.attendance.deleteMany({});
   await prisma.parentNotification.deleteMany({});
   await prisma.attendanceReport.deleteMany({});
@@ -51,6 +56,10 @@ async function main() {
   await prisma.teacher.deleteMany({});
 
   console.log('🗑️   Deleting academic structure …');
+  await prisma.academicTerm.deleteMany({});
+  await prisma.academicYear.deleteMany({});
+  await prisma.subject.deleteMany({});
+  await prisma.classroom.deleteMany({});
   await prisma.grade.deleteMany({});
   await prisma.section.deleteMany({});
   await prisma.stream.deleteMany({});
@@ -58,9 +67,8 @@ async function main() {
   console.log('🗑️   Deleting school-level records …');
   await prisma.auditLog.deleteMany({});
   await prisma.supportTicket.deleteMany({});
-  await prisma.schoolFeatureOverride.deleteMany({});
-  await prisma.schoolAddon.deleteMany({});
-  await prisma.schoolSubscription.deleteMany({});
+  await prisma.userNotification.deleteMany({});
+  await prisma.systemRole.deleteMany({});
   await prisma.schoolSettings.deleteMany({});
   await prisma.parentPreferences.deleteMany({});
   await prisma.pendingRegistration.deleteMany({});
@@ -69,35 +77,43 @@ async function main() {
   console.log('🗑️   Deleting all users …');
   await prisma.user.deleteMany({});
 
-  console.log('🗑️   Deleting all schools …');
+  console.log('🗑️   Deleting the school …');
   await prisma.school.deleteMany({});
 
-  console.log('\n✅  All tenant data cleared.\n');
+  console.log('\n✅  All data cleared.\n');
 
-  // ── Step 2: Re-seed the super admin ─────────────────────────────────────
+  // ── Step 2: Re-seed the school and School Administrator ─────────────────
 
-  console.log('👑  Re-creating Super Admin …');
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'superadmin@zetime.com' },
-    update: {},
-    create: {
-      email: 'superadmin@zetime.com',
-      password_hash: 'superadmin123',
-      full_name: 'Super Administrator',
-      role: 'super_admin',
-      phone: '+251911000001',
-      is_active: true,
-    },
+  console.log('🏫  Re-creating School …');
+  const school = await prisma.school.create({
+    data: {
+      name: 'My School',
+      schoolEmail: 'admin@myschool.edu',
+      schoolId: 'SCH-0001',
+    }
   });
-  console.log(`   ✓ ${superAdmin.full_name} (${superAdmin.email})\n`);
+  console.log(`   ✓ School: ${school.name} (${school.id})\n`);
+
+  console.log('👑  Re-creating School Administrator …');
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@myschool.edu',
+      password_hash: 'admin123',
+      full_name: 'School Administrator',
+      role: 'admin',
+      is_active: true,
+      schoolId: school.id,
+    }
+  });
+  console.log(`   ✓ ${admin.full_name} (${admin.email})\n`);
 
   // ── Summary ──────────────────────────────────────────────────────────────
   console.log('═══════════════════════════════════════════════');
   console.log('🎉  Database is clean and ready!\n');
-  console.log('  SUPER ADMIN LOGIN');
-  console.log('  Email    : superadmin@zetime.com');
-  console.log('  Password : superadmin123\n');
-  console.log('  You can now onboard new schools from the Super Admin panel.');
+  console.log('  SCHOOL ADMIN LOGIN');
+  console.log('  Email    : admin@myschool.edu');
+  console.log('  Password : admin123\n');
+  console.log('  You can now configure the school from the Admin dashboard.');
   console.log('═══════════════════════════════════════════════\n');
 }
 

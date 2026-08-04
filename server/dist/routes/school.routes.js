@@ -40,56 +40,8 @@ const express_1 = require("express");
 const tenant_middleware_1 = require("../middleware/tenant.middleware");
 const db_1 = __importDefault(require("../config/db"));
 const schoolService = __importStar(require("../services/school.service"));
-const onboardingService = __importStar(require("../services/onboarding.service"));
-const SuperAdminService = __importStar(require("../services/super-admin.service"));
 const router = (0, express_1.Router)();
-// Create a school (Super Admin Only)
-router.post('/', (0, tenant_middleware_1.authorize)(['super_admin']), async (req, res, next) => {
-    try {
-        const { name, address, adminName, adminEmail, adminPhone, tier } = req.body;
-        if (!name || !adminName || !adminEmail || !address) {
-            return res.status(400).json({ success: false, message: 'School name, address, admin name, and admin email are required' });
-        }
-        const { school, admin } = await onboardingService.startOnboarding({
-            schoolName: name,
-            address,
-            adminName,
-            adminEmail,
-            adminPhone,
-            subscriptionTier: tier || 'free'
-        });
-        res.status(201).json({
-            success: true,
-            data: {
-                id: school.id,
-                schoolId: school.schoolId,
-                name: school.name,
-                subscriptionStatus: school.subscriptionStatus,
-                adminUser: {
-                    email: admin.email,
-                    generatedPassword: admin.generatedPassword
-                }
-            }
-        });
-    }
-    catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to create school'
-        });
-    }
-});
-// Get all schools (Super Admin only)
-router.get('/', (0, tenant_middleware_1.authorize)(['super_admin']), async (req, res, next) => {
-    try {
-        const schools = await schoolService.getAllSchools();
-        res.status(200).json({ success: true, data: schools });
-    }
-    catch (error) {
-        next(error);
-    }
-});
-// Get all grades for a school
+// Get all grades for current school
 router.get('/me/grades', async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
@@ -102,7 +54,7 @@ router.get('/me/grades', async (req, res, next) => {
         next(error);
     }
 });
-// Get all sections for a school
+// Get all sections for current school
 router.get('/me/sections', async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
@@ -115,7 +67,7 @@ router.get('/me/sections', async (req, res, next) => {
         next(error);
     }
 });
-// Get all streams for a school
+// Get all streams for current school
 router.get('/me/streams', async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
@@ -128,77 +80,40 @@ router.get('/me/streams', async (req, res, next) => {
         next(error);
     }
 });
-// Complete onboarding: save school profile + settings, mark onboarding done
-router.post('/onboarding', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
-    try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const { schoolEmail, address, logoUrl, academicYear, attendanceMode, attendanceThreshold, allowLateMark, } = req.body;
-        // Use centralized service to mark as complete
-        await onboardingService.updateOnboardingStatus(schoolId, 'SETUP_COMPLETE');
-        // Update school record email
-        if (schoolEmail !== undefined) {
-            await db_1.default.school.update({
-                where: { id: schoolId },
-                data: { schoolEmail },
-            });
-        }
-        // Update school settings
-        await db_1.default.schoolSettings.upsert({
-            where: { schoolId },
-            create: {
-                schoolId,
-                school_address: address,
-                academic_year: academicYear,
-                attendance_mode: attendanceMode || 'session_based',
-                attendance_threshold: attendanceThreshold ?? 75,
-                allow_late_mark: allowLateMark ?? true,
-                school_logo: logoUrl,
-            },
-            update: {
-                ...(address !== undefined && { school_address: address }),
-                ...(academicYear !== undefined && { academic_year: academicYear }),
-                ...(attendanceMode !== undefined && { attendance_mode: attendanceMode }),
-                ...(attendanceThreshold !== undefined && { attendance_threshold: attendanceThreshold }),
-                ...(allowLateMark !== undefined && { allow_late_mark: allowLateMark }),
-                ...(logoUrl !== undefined && { school_logo: logoUrl }),
-            },
-        });
-        res.status(200).json({ success: true, message: 'Onboarding completed' });
-    }
-    catch (error) {
-        next(error);
-    }
-});
 // ─── Help Desk (Support Tickets & Feedback) ──────────────────────────────────────────────
-router.get('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'super_admin']), async (req, res, next) => {
+router.get('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
         if (!schoolId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const data = await SuperAdminService.getSupportTickets({
-            schoolId,
-            status: req.query.status,
-            page: req.query.page ? parseInt(req.query.page) : 1,
-            limit: req.query.limit ? parseInt(req.query.limit) : 20,
+        const tickets = await db_1.default.supportTicket.findMany({
+            where: { schoolId },
+            orderBy: { createdAt: 'desc' }
         });
-        res.json({ success: true, data });
+        res.json({ success: true, data: tickets });
     }
     catch (error) {
         next(error);
     }
 });
-router.post('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'super_admin']), async (req, res, next) => {
+router.post('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
         const authorId = req.user?.id;
         if (!schoolId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const ticket = await SuperAdminService.createTicket({
-            ...req.body,
-            schoolId,
-            authorId,
+        const { subject, message, category, priority } = req.body;
+        const ticket = await db_1.default.supportTicket.create({
+            data: {
+                ticketNumber: `TCK-${Date.now()}`,
+                schoolId,
+                authorId,
+                subject: subject || 'Support Ticket',
+                description: message || '',
+                category: category || 'GENERAL',
+                priority: priority || 'MEDIUM',
+                status: 'OPEN',
+            }
         });
         res.status(201).json({ success: true, data: ticket });
     }
@@ -206,7 +121,7 @@ router.post('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 
         next(error);
     }
 });
-// Get school by ID (UUID or SCH-XXXX)
+// Get school by ID
 router.get('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -220,34 +135,6 @@ router.get('/:id', async (req, res, next) => {
         if (!school)
             return res.status(404).json({ success: false, message: 'School not found' });
         res.status(200).json({ success: true, data: school });
-    }
-    catch (error) {
-        next(error);
-    }
-});
-// Get rich school details (super admin only)
-router.get('/:id/details', (0, tenant_middleware_1.authorize)(['super_admin']), async (req, res, next) => {
-    try {
-        const school = await schoolService.getSchoolDetails(req.params.id);
-        if (!school)
-            return res.status(404).json({ success: false, message: 'School not found' });
-        res.status(200).json({ success: true, data: school });
-    }
-    catch (error) {
-        next(error);
-    }
-});
-// Suspend / Unsuspend a school (super admin only)
-router.patch('/:id/suspend', (0, tenant_middleware_1.authorize)(['super_admin']), async (req, res, next) => {
-    try {
-        const { suspend, suspendReason } = req.body;
-        if (typeof suspend !== 'boolean') {
-            return res.status(400).json({ success: false, message: '`suspend` must be a boolean' });
-        }
-        const school = await schoolService.setSchoolSuspended(req.params.id, suspend, suspendReason);
-        // Immediately bust the status cache so the change takes effect on next request
-        (0, tenant_middleware_1.invalidateSchoolStatusCache)(req.params.id);
-        res.status(200).json({ success: true, data: school, message: suspend ? 'School suspended' : 'School unsuspended' });
     }
     catch (error) {
         next(error);

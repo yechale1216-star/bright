@@ -5,11 +5,9 @@ import prisma from '../config/db';
 
 /**
  * Helper to verify that the requested phone belongs to the authenticated user.
- * If the user is a super_admin, we bypass this check.
  */
 const verifyPhoneOwnership = async (req: AuthenticatedRequest, requestedPhone: string): Promise<boolean> => {
   if (!req.user?.id) return false;
-  if (req.user.role === 'super_admin') return true;
 
   const user = await prisma.user.findUnique({
     where: { id: req.user.id }
@@ -132,7 +130,7 @@ export const markAsRead = async (req: AuthenticatedRequest, res: Response, next:
     const notification = await prisma.parentNotification.findUnique({
       where: { id }
     });
-    if (notification && notification.studentId && req.user?.role !== 'super_admin') {
+    if (notification && notification.studentId) {
       if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
       const link = await prisma.parentStudentLink.findFirst({
         where: { parentId: req.user.id, studentId: notification.studentId }
@@ -160,7 +158,7 @@ export const deleteNotification = async (req: AuthenticatedRequest, res: Respons
     const notification = await prisma.parentNotification.findUnique({
       where: { id }
     });
-    if (notification && notification.studentId && req.user?.role !== 'super_admin') {
+    if (notification && notification.studentId) {
       if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
       const link = await prisma.parentStudentLink.findFirst({
         where: { parentId: req.user.id, studentId: notification.studentId }

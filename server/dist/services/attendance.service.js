@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkMarkAttendance = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.resolveTeacherId = void 0;
+exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.resolveTeacherId = void 0;
 exports.calculateDistanceMeters = calculateDistanceMeters;
 const db_1 = __importDefault(require("../config/db"));
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -214,85 +214,7 @@ const markAttendance = async (data, schoolId) => {
         }
     }).catch(err => console.error('[AuditLog] Attendance error:', err));
     // Intercept and create parent notification if status is Absent, Late, or Excused
-    if (status && (status.toLowerCase() === 'absent' || status.toLowerCase() === 'late' || status.toLowerCase() === 'excused')) {
-        try {
-            const statusLower = status.toLowerCase();
-            const type = statusLower;
-            const typePush = statusLower === 'absent' ? 'absent_arrival' : statusLower === 'late' ? 'late_arrival' : 'excused_arrival';
-            const isFemale = student.gender?.toLowerCase() === 'female';
-            const isAbsent = statusLower === 'absent';
-            const isLate = statusLower === 'late';
-            const isExcused = statusLower === 'excused';
-            const title = isAbsent
-                ? (isFemale ? `${student.fullName} ዛሬ ቀርታለች` : `${student.fullName} ዛሬ ቀርቷል`)
-                : isLate
-                    ? (isFemale ? `${student.fullName} ዛሬ ዘግይታለች` : `${student.fullName} ዛሬ ዘግይቷል`)
-                    : (isFemale ? `${student.fullName} ፈቃድ አላት` : `${student.fullName} ፈቃድ አለው`);
-            const parentLinks = await db_1.default.parentStudentLink.findMany({
-                where: { studentId: student.id },
-                include: { parent: true }
-            });
-            const firstParentName = parentLinks[0]?.parent?.full_name || 'ወላጅ';
-            const message = isAbsent
-                ? (isFemale
-                    ? `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በትምህርት ቤት አልተገኘችም ። የልጅዎ መደበኛ የትምህርት ተሳትፎ ለትምህርታዊ እድገቷ እጅግ አስፈላጊ በመሆኑ፣ እባክዎ የቀረችበትን ምክንያት ለትምህርት ቤታችን ያሳውቁ። ለትብብርዎ እናመሰግናለን።`
-                    : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በትምህርት ቤት አልተገኘም። የልጅዎ መደበኛ የትምህርት ተሳትፎ ለትምህርታዊ እድገቱ እጅግ አስፈላጊ በመሆኑ፣ እባክዎ የቀረበትን ምክንያት ለትምህርት ቤታችን ያሳውቁ። ለትብብርዎ እናመሰግናለን።`)
-                : isLate
-                    ? (isFemale
-                        ? `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} ወደ ትምህርት ቤት ዘግይታ ደርሳለች። በሰዓቱ መገኘት ለትምህርት ጥራትና ለሥነ-ምግባር ከፍተኛ አስተዋጽኦ ስላለው፣ ሁልጊዜ በሰዓቱ እንድትገኝ እንዲያሳስቡልን በአክብሮት እንጠይቃለን። ለትብብርዎ እናመሰግናለን።`
-                        : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} ወደ ትምህርት ቤት በመደበኛው ሰዓት ሳይደርስ ዘግይቶ ተገኝቷል። በሰዓቱ መገኘት ለትምህርት እና ለሥነ-ምግባር ጠቃሚ መሆኑን ለልጅዎ እንዲያስታውሱት በአክብሮት እንጠይቃለን። ለትብብርዎ እናመሰግናለን።`)
-                    : (isFemale
-                        ? `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በተሰጠው ፈቃድ መሰረት ከትምህርት ቀርታለች። በሚቀጥለው የትምህርት ቀን በትምህርቷ ላይ እንድትገኝ እንጠብቃለን። ስለ ትብብርዎ እናመሰግናለን።`
-                        : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በተሰጠው ፈቃድ መሰረት ከትምህርት ቀርቷል። በሚቀጥለው የትምህርት ቀን በትምህርቱ ላይ እንዲገኝ እንጠብቃለን። ለትብብርዎ እናመሰግናለን።`);
-            await db_1.default.parentNotification.create({
-                data: {
-                    schoolId,
-                    studentId: student.id,
-                    type,
-                    title,
-                    message,
-                    isRead: false
-                }
-            });
-            const { sendCategoryNotification } = require('./notification.service');
-            const school = await db_1.default.school.findUnique({
-                where: { id: schoolId },
-                select: { name: true }
-            });
-            const schoolName = school?.name || 'ZeTime School';
-            const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
-            for (const link of parentLinks) {
-                if (link.parent && link.parent.pushToken) {
-                    if (link.parent.phone) {
-                        const prefs = await db_1.default.parentPreferences.findUnique({
-                            where: { parentPhone_schoolId: { parentPhone: link.parent.phone, schoolId } }
-                        });
-                        if (prefs && !prefs.pushNotifications) {
-                            continue;
-                        }
-                    }
-                    const specificParentName = link.parent.full_name || firstParentName;
-                    const parentSpecificMessage = message.replace(firstParentName, specificParentName);
-                    await sendCategoryNotification(link.parent.pushToken, {
-                        type: typePush,
-                        title: schoolName,
-                        body: parentSpecificMessage,
-                        route: `/parent/attendance`,
-                        studentId: student.id,
-                        schoolId,
-                        schoolName,
-                        categoryLabel,
-                        tag: `attendance-${student.id}`
-                    }).catch((err) => {
-                        console.error(`Failed to dispatch push to parent ${link.parentId}:`, err);
-                    });
-                }
-            }
-        }
-        catch (notificationError) {
-            console.error("Failed to create parent notification or send push:", notificationError);
-        }
-    }
+    await (0, exports.sendAttendanceParentNotification)(student, status, dateStr, schoolId);
     return result;
 };
 exports.markAttendance = markAttendance;
@@ -516,6 +438,94 @@ const getAttendanceAuditLogs = async (schoolId) => {
     });
 };
 exports.getAttendanceAuditLogs = getAttendanceAuditLogs;
+const sendAttendanceParentNotification = async (student, status, dateStr, schoolId) => {
+    if (!status)
+        return;
+    const statusLower = status.toLowerCase();
+    if (statusLower !== 'absent' && statusLower !== 'late' && statusLower !== 'excused') {
+        return;
+    }
+    try {
+        const type = statusLower;
+        const typePush = statusLower === 'absent' ? 'absent_arrival' : statusLower === 'late' ? 'late_arrival' : 'excused_arrival';
+        const isFemale = student.gender?.toLowerCase() === 'female';
+        const isAbsent = statusLower === 'absent';
+        const isLate = statusLower === 'late';
+        const title = isAbsent
+            ? (isFemale ? `${student.fullName} ዛሬ ቀርታለች` : `${student.fullName} ዛሬ ቀርቷል`)
+            : isLate
+                ? (isFemale ? `${student.fullName} ዛሬ ዘግይታለች` : `${student.fullName} ዛሬ ዘግይቷል`)
+                : (isFemale ? `${student.fullName} ፈቃድ አላት` : `${student.fullName} ፈቃድ አለው`);
+        const parentLinks = await db_1.default.parentStudentLink.findMany({
+            where: { studentId: student.id },
+            include: { parent: true }
+        });
+        if (!parentLinks || parentLinks.length === 0) {
+            console.log(`[ParentNotification] No linked parent found for student ${student.fullName} (${student.id})`);
+            return;
+        }
+        const firstParentName = parentLinks[0]?.parent?.full_name || 'ወላጅ';
+        const message = isAbsent
+            ? (isFemale
+                ? `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በትምህርት ቤት አልተገኘችም ። የልጅዎ መደበኛ የትምህርት ተሳትፎ ለትምህርታዊ እድገቷ እጅግ አስፈላጊ በመሆኑ፣ እባክዎ የቀረችበትን ምክንያት ለትምህርት ቤታችን ያሳውቁ። ለትብብርዎ እናመሰግናለን።`
+                : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በትምህርት ቤት አልተገኘም። የልጅዎ መደበኛ የትምህርት ተሳትፎ ለትምህርታዊ እድገቱ እጅግ አስፈላጊ በመሆኑ፣ እባክዎ የቀረበትን ምክንያት ለትምህርት ቤታችን ያሳውቁ። ለትብብርዎ እናመሰግናለን።`)
+            : isLate
+                ? (isFemale
+                    ? `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} ወደ ትምህርት ቤት ዘግይታ ደርሳለች። በሰዓቱ መገኘት ለትምህርት ጥራትና ለሥነ-ምግባር ከፍተኛ አስተዋጽኦ ስላለው፣ ሁልጊዜ በሰዓቱ እንድትገኝ እንዲያሳስቡልን በአክብሮት እንጠይቃለን። ለትብብርዎ እናመሰግናለን።`
+                    : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} ወደ ትምህርት ቤት በመደበኛው ሰዓት ሳይደርስ ዘግይቶ ተገኝቷል። በሰዓቱ መገኘት ለትምህርት እና ለሥነ-ምግባር ጠቃሚ መሆኑን ለልጅዎ እንዲያስታውሱት በአክብሮት እንጠይቃለን። ለትብብርዎ እናመሰግናለን።`)
+                : (isFemale
+                    ? `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በተሰጠው ፈቃድ መሰረት ከትምህርት ቀርታለች። በሚቀጥለው የትምህርት ቀን በትምህርቷ ላይ እንድትገኝ እንጠብቃለን። ስለ ትብብርዎ እናመሰግናለን።`
+                    : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በተሰጠው ፈቃድ መሰረት ከትምህርት ቀርቷል። በሚቀጥለው የትምህርት ቀን በትምህርቱ ላይ እንዲገኝ እንጠብቃለን። ለትብብርዎ እናመሰግናለን።`);
+        await db_1.default.parentNotification.create({
+            data: {
+                schoolId,
+                studentId: student.id,
+                type,
+                title,
+                message,
+                isRead: false
+            }
+        });
+        const { sendCategoryNotification } = require('./notification.service');
+        const school = await db_1.default.school.findUnique({
+            where: { id: schoolId },
+            select: { name: true }
+        });
+        const schoolName = school?.name || 'ZeTime School';
+        const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
+        for (const link of parentLinks) {
+            if (link.parent && link.parent.pushToken) {
+                if (link.parent.phone) {
+                    const prefs = await db_1.default.parentPreferences.findUnique({
+                        where: { parentPhone_schoolId: { parentPhone: link.parent.phone, schoolId } }
+                    });
+                    if (prefs && !prefs.pushNotifications) {
+                        continue;
+                    }
+                }
+                const specificParentName = link.parent.full_name || firstParentName;
+                const parentSpecificMessage = message.replace(firstParentName, specificParentName);
+                await sendCategoryNotification(link.parent.pushToken, {
+                    type: typePush,
+                    title: schoolName,
+                    body: parentSpecificMessage,
+                    route: `/parent/attendance`,
+                    studentId: student.id,
+                    schoolId,
+                    schoolName,
+                    categoryLabel,
+                    tag: `attendance-${student.id}`
+                }).catch((err) => {
+                    console.error(`Failed to dispatch push to parent ${link.parentId}:`, err);
+                });
+            }
+        }
+    }
+    catch (notificationError) {
+        console.error("Failed to create parent notification or send push:", notificationError);
+    }
+};
+exports.sendAttendanceParentNotification = sendAttendanceParentNotification;
 const bulkMarkAttendance = async (records, schoolId, meta) => {
     if (!Array.isArray(records) || records.length === 0)
         return [];
@@ -568,7 +578,6 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     const existingMap = new Map(existingRecords.map(e => [e.studentId, e]));
     // Build atomic transaction queries
     const txOps = [];
-    const processedResults = [];
     for (const record of records) {
         const student = studentMap.get(record.studentId);
         if (!student)
@@ -607,6 +616,37 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     }
     // Execute all upserts in a single DB round-trip transaction
     const results = await db_1.default.$transaction(txOps);
+    // Build status summary for admin notification
+    const presentCount = records.filter(r => r.status?.toLowerCase() === 'present').length;
+    const lateCount = records.filter(r => r.status?.toLowerCase() === 'late').length;
+    const absentCount = records.filter(r => r.status?.toLowerCase() === 'absent').length;
+    const excusedCount = records.filter(r => r.status?.toLowerCase() === 'excused').length;
+    // Determine grade/section from first valid student record
+    const firstStudent = records.map(r => studentMap.get(r.studentId)).find(Boolean);
+    const gradeLabel = firstStudent ? `${firstStudent.fullName.split(' ')[0]}'s class` : 'A class';
+    // Fire admin notification in background (does not block response)
+    (0, exports.sendAdminAttendanceNotification)({
+        schoolId,
+        teacherId: resolvedTeacherId,
+        dateStr,
+        session: session || null,
+        totalCount: results.length,
+        presentCount,
+        lateCount,
+        absentCount,
+        excusedCount,
+    }).catch(err => {
+        console.error('[BulkAttendance] Admin notification dispatch error:', err);
+    });
+    // Asynchronously send parent notifications for absent, late, or excused students
+    for (const record of records) {
+        const student = studentMap.get(record.studentId);
+        if (student) {
+            (0, exports.sendAttendanceParentNotification)(student, record.status, dateStr, schoolId).catch(err => {
+                console.error(`[BulkAttendance] Parent notification dispatch error for student ${student.id}:`, err);
+            });
+        }
+    }
     // Background audit log
     db_1.default.auditLog.create({
         data: {
@@ -620,3 +660,78 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     return results;
 };
 exports.bulkMarkAttendance = bulkMarkAttendance;
+/**
+ * Notifies all school admins (with a registered push token) when a teacher submits attendance.
+ * Sent asynchronously after the bulk upsert — never blocks the teacher's response.
+ */
+const sendAdminAttendanceNotification = async (params) => {
+    const { schoolId, teacherId, dateStr, session, totalCount, presentCount, lateCount, absentCount, excusedCount } = params;
+    try {
+        const { sendCategoryNotification } = require('./notification.service');
+        // Fetch school name and all admin users with a push token in parallel
+        const [school, adminUsers, teacher] = await Promise.all([
+            db_1.default.school.findUnique({ where: { id: schoolId }, select: { name: true } }),
+            db_1.default.user.findMany({
+                where: {
+                    schoolId,
+                    role: 'admin',
+                    pushToken: { not: null },
+                    is_active: true,
+                },
+                select: { id: true, pushToken: true },
+            }),
+            teacherId
+                ? db_1.default.teacher.findUnique({ where: { id: teacherId }, select: { name: true } })
+                : null,
+        ]);
+        if (!adminUsers || adminUsers.length === 0)
+            return;
+        const schoolName = school?.name || 'School';
+        const teacherName = teacher?.name || 'A teacher';
+        const sessionLabel = session ? ` (${session})` : '';
+        // Build compact status summary: e.g. "✅ 28  ⚠️ 2  ❌ 1"
+        const parts = [];
+        if (presentCount > 0)
+            parts.push(`✅ ${presentCount} Present`);
+        if (lateCount > 0)
+            parts.push(`⏰ ${lateCount} Late`);
+        if (absentCount > 0)
+            parts.push(`❌ ${absentCount} Absent`);
+        if (excusedCount > 0)
+            parts.push(`📝 ${excusedCount} Excused`);
+        const summary = parts.join('  ') || `${totalCount} students`;
+        const title = `Attendance Submitted — ${schoolName}`;
+        const body = `${teacherName} submitted attendance for ${dateStr}${sessionLabel}.\n${summary}`;
+        const expiredIds = [];
+        for (const admin of adminUsers) {
+            if (!admin.pushToken)
+                continue;
+            const result = await sendCategoryNotification(admin.pushToken, {
+                type: 'attendance_submitted',
+                title,
+                body,
+                route: '/school/admin',
+                schoolId,
+                schoolName,
+                categoryLabel: 'Attendance Alert',
+                tag: `attendance-admin-${schoolId}-${dateStr}`,
+            }).catch((err) => {
+                console.error(`[AdminNotification] Push error for admin ${admin.id}:`, err);
+                return null;
+            });
+            if (result === 'EXPIRED_TOKEN')
+                expiredIds.push(admin.id);
+        }
+        // Clear stale tokens
+        if (expiredIds.length > 0) {
+            db_1.default.user.updateMany({
+                where: { id: { in: expiredIds } },
+                data: { pushToken: null },
+            }).catch(() => { });
+        }
+    }
+    catch (err) {
+        console.error('[AdminNotification] Failed to send admin attendance notification:', err);
+    }
+};
+exports.sendAdminAttendanceNotification = sendAdminAttendanceNotification;

@@ -143,7 +143,7 @@ router.put('/:id', async (req, res, next) => {
         if (!requestingUserId) {
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         }
-        const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin' || requestingUserRole === 'super_admin';
+        const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin';
         // Non-admins can only update themselves
         if (!isAdmin && requestingUserId !== targetUserId) {
             return res.status(403).json({ success: false, message: 'Forbidden: You cannot modify another user\'s profile' });

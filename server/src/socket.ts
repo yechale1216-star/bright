@@ -72,32 +72,7 @@ async function safeRedis<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 // School suspension cache
 // ─────────────────────────────────────────────────────────────────────────────
 async function isSchoolSuspended(schoolId: string): Promise<boolean> {
-  if (!schoolId) return false;
-
-  // Check cache
-  if (isRedisAvailable()) {
-    const cached = await safeRedis(() => pubClient.get(KEY.schoolStatus(schoolId)), null);
-    if (cached !== null) return cached === 'SUSPENDED';
-  } else {
-    const cached = memSchoolStatus.get(schoolId);
-    if (cached && cached.expires > Date.now()) return cached.status === 'SUSPENDED';
-  }
-
-  try {
-    const school = await prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { subscriptionStatus: true },
-    });
-    const status = (school?.subscriptionStatus || 'ACTIVE').toUpperCase();
-    if (isRedisAvailable()) {
-      await safeRedis(() => pubClient.setex(KEY.schoolStatus(schoolId), TTL.schoolStatus, status), null);
-    } else {
-      memSchoolStatus.set(schoolId, { status, expires: Date.now() + TTL.schoolStatus * 1000 });
-    }
-    return status === 'SUSPENDED';
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

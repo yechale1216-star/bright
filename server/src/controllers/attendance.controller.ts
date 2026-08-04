@@ -115,7 +115,7 @@ export const approveEditRequest = async (req: AuthenticatedRequest, res: Respons
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin' && req.user?.role !== 'super_admin') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin') {
       return res.status(403).json({ success: false, message: 'Only School Admin can approve edit requests' });
     }
     const result = await attendanceService.approveEditRequest(
@@ -136,7 +136,7 @@ export const rejectEditRequest = async (req: AuthenticatedRequest, res: Response
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin' && req.user?.role !== 'super_admin') {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin') {
       return res.status(403).json({ success: false, message: 'Only School Admin can reject edit requests' });
     }
     const result = await attendanceService.rejectEditRequest(

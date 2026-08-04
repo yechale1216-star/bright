@@ -58,16 +58,6 @@ const getMemberships = async (userId) => {
             });
         }
     }
-    // 4. Special case: Super Admin (allowed everywhere)
-    if (user?.role === 'super_admin') {
-        if (!memberships.some(m => m.role === 'super_admin')) {
-            memberships.push({
-                id: 'global',
-                name: 'Zetime Platform',
-                role: 'super_admin'
-            });
-        }
-    }
     return memberships;
 };
 exports.getMemberships = getMemberships;
@@ -78,12 +68,6 @@ exports.getMemberships = getMemberships;
  */
 const resolveRoleInSchool = async (userId, schoolId, requestedRole) => {
     if (!userId || !schoolId)
-        return null;
-    // Super Admin bypass
-    const globalUser = await db_1.default.user.findUnique({ where: { id: userId } });
-    if (globalUser?.role === 'super_admin')
-        return 'super_admin';
-    if (schoolId === 'global')
         return null;
     // 1. If a specific role is requested, validate it specifically
     if (requestedRole) {

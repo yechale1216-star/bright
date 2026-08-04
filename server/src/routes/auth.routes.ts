@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import * as userService from '../services/user.service';
 import * as schoolService from '../services/school.service';
-import * as onboardingService from '../services/onboarding.service';
 import { getMemberships } from '../services/auth_resolution.service';
 import { generateToken, verifyToken } from '../utils/jwt';
 import { sendResetPasswordEmail, sendVerificationEmail } from '../utils/email';
@@ -95,34 +94,21 @@ router.post('/login', loginLimiter, async (req: Request, res: Response, next: Ne
     // Resolve all memberships for this user
     const memberships = await getMemberships(user.id);
     
-    if (memberships.length === 0 && user.role !== 'super_admin') {
+    if (memberships.length === 0) {
       return res.status(403).json({ success: false, message: 'Account exists but no school associations found.' });
     }
 
     // Determine default/active school for initial token
-    // Prioritize the schoolId set on the User record if it exists and is in memberships
     let activeMembership = memberships.find(m => m.id === user.schoolId && m.role === user.role) || memberships[0];
-    
-    // If user is super_admin, they might not have a school membership
-    if (user.role === 'super_admin' && !activeMembership) {
-      activeMembership = {
-        id: 'global',
-        name: 'Zetime Platform',
-        role: 'super_admin'
-      };
-    }
 
     let schoolName = activeMembership?.name || 'My School';
     let schoolLogo = activeMembership?.logo || '';
-    let onboardingCompleted = false;
+    let onboardingCompleted = true;
 
     if (activeMembership && activeMembership.id !== 'global') {
       const school = await schoolService.getSchoolById(activeMembership.id);
-      if (school) {
-        onboardingCompleted = school.onboardingCompleted ?? false;
-        if (school.settings) {
-          schoolLogo = school.settings.school_logo || schoolLogo;
-        }
+      if (school && school.settings) {
+        schoolLogo = school.settings.school_logo || schoolLogo;
       }
     }
 
@@ -167,16 +153,20 @@ router.post('/login', loginLimiter, async (req: Request, res: Response, next: Ne
 // Signup (Admin creates school and account)
 router.post('/signup', validateSignup, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password, name, schoolName, schoolAddress, phone } = req.body;
+    const { email, password, name, schoolName, phone } = req.body;
 
-    const { school, admin } = await onboardingService.startOnboarding({
-      schoolName,
-      address: schoolAddress,
-      adminName: name,
-      adminEmail: email,
-      adminPhone: phone,
-      adminPassword: password,
-      subscriptionTier: 'free'
+    let school = (await schoolService.getAllSchools())[0];
+    if (!school) {
+      school = await schoolService.createSchool({ name: schoolName || 'My School' });
+    }
+
+    const admin = await userService.createUser({
+      email,
+      password,
+      name,
+      role: 'admin',
+      phone,
+      schoolId: school.id,
     });
 
     // Generate a cryptographically secure 6-digit verification code
@@ -219,7 +209,7 @@ router.post('/signup', validateSignup, async (req: Request, res: Response, next:
         user: {
           id: admin.id,
           email: admin.email,
-          name: admin.name,
+          name: admin.full_name,
           role: admin.role,
           schoolId: school.id,
           customSchoolId: school.schoolId,
@@ -227,8 +217,8 @@ router.post('/signup', validateSignup, async (req: Request, res: Response, next:
         },
         schoolName: school.name,
         schoolLogo: '',
-        onboardingCompleted: false,
-        onboardingStatus: school.onboardingStatus,
+        onboardingCompleted: true,
+        onboardingStatus: 'SETUP_COMPLETE',
         requiresEmailVerification: true,
       }
     });

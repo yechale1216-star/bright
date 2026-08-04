@@ -104,7 +104,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin' || requestingUserRole === 'super_admin';
+    const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin';
 
     // Non-admins can only update themselves
     if (!isAdmin && requestingUserId !== targetUserId) {

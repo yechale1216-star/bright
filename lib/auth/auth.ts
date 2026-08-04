@@ -31,7 +31,6 @@ export interface User {
   schoolName: string
   schoolLogo?: string
   teacherId: string
-  isSuperAdmin: boolean
   profile_photo?: string
   onboardingCompleted?: boolean
   isVerified?: boolean
@@ -102,7 +101,6 @@ class AuthService {
         schoolName,
         schoolLogo,
         teacherId: dbUser.teacher_id || "",
-        isSuperAdmin: dbUser.role === "super_admin",
         profile_photo: dbUser.profile_photo || "",
         onboardingCompleted: data.data.onboardingCompleted ?? true,
       }
@@ -222,7 +220,6 @@ class AuthService {
         schoolName: data.schoolName || "My School",
         schoolLogo: data.schoolLogo || "",
         teacherId: "",
-        isSuperAdmin: false,
         profile_photo: "",
       };
 
@@ -364,7 +361,6 @@ class AuthService {
         schoolName: data.data.schoolName || credentials.schoolName || "My School",
         schoolLogo: data.data.schoolLogo || "",
         teacherId: "",
-        isSuperAdmin: false,
         profile_photo: newUser.profile_photo || "",
         onboardingCompleted: false, // new accounts always start onboarding
         isVerified: newUser.isVerified ?? data.data.user?.isVerified ?? false,
@@ -754,7 +750,6 @@ class AuthService {
   }
 
   isAuthenticated(): boolean { return this.getCurrentUser() !== null }
-  isSuperAdmin(): boolean { return this.getCurrentUser()?.role === "super_admin" || false }
   isAdmin(): boolean { return this.getCurrentUser()?.role === "admin" || false }
   isTeacher(): boolean { return this.getCurrentUser()?.role === "teacher" || false }
 

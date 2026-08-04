@@ -75,36 +75,7 @@ async function safeRedis(fn, fallback) {
 // School suspension cache
 // ─────────────────────────────────────────────────────────────────────────────
 async function isSchoolSuspended(schoolId) {
-    if (!schoolId)
-        return false;
-    // Check cache
-    if ((0, redis_1.isRedisAvailable)()) {
-        const cached = await safeRedis(() => redis_1.pubClient.get(KEY.schoolStatus(schoolId)), null);
-        if (cached !== null)
-            return cached === 'SUSPENDED';
-    }
-    else {
-        const cached = memSchoolStatus.get(schoolId);
-        if (cached && cached.expires > Date.now())
-            return cached.status === 'SUSPENDED';
-    }
-    try {
-        const school = await db_1.default.school.findUnique({
-            where: { id: schoolId },
-            select: { subscriptionStatus: true },
-        });
-        const status = (school?.subscriptionStatus || 'ACTIVE').toUpperCase();
-        if ((0, redis_1.isRedisAvailable)()) {
-            await safeRedis(() => redis_1.pubClient.setex(KEY.schoolStatus(schoolId), TTL.schoolStatus, status), null);
-        }
-        else {
-            memSchoolStatus.set(schoolId, { status, expires: Date.now() + TTL.schoolStatus * 1000 });
-        }
-        return status === 'SUSPENDED';
-    }
-    catch {
-        return false;
-    }
+    return false;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // User info cache

@@ -102,11 +102,21 @@ class PromotionService {
         // 2. Stream Validation for Ethiopian Secondary Schools (Grade 10 -> 11)
         if (toGradeId && toGradeId !== 'GRADUATE') {
             const toGrade = await db_1.default.grade.findUnique({ where: { id: toGradeId } });
-            const fromGrade = gradeId ? await db_1.default.grade.findUnique({ where: { id: gradeId } }) : null;
             // If promoting to Grade 11 or 12, stream is REQUIRED
             const toGradeNum = parseInt((toGrade?.name || '').replace(/[^\d]/g, '')) || 0;
             if (toGradeNum >= 11 && !toStreamId) {
                 throw new Error('Stream assignment (Natural or Social Science) is required when promoting to Grade 11 or 12');
+            }
+            // If toStreamId is a name rather than a UUID, resolve/create it
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (toStreamId && !uuidRegex.test(toStreamId)) {
+                // It's a stream name - upsert it for this school
+                const streamRecord = await db_1.default.stream.upsert({
+                    where: { schoolId_name: { schoolId, name: toStreamId } },
+                    create: { name: toStreamId, schoolId },
+                    update: {},
+                });
+                toStreamId = streamRecord.id;
             }
             // If promoting to Grade <= 10, ensure stream is null
             if (toGradeNum > 0 && toGradeNum <= 10) {

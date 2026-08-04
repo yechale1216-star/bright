@@ -114,6 +114,17 @@ const createStudent = async (data, schoolId) => {
     if (!studentId) {
         studentId = await (0, exports.getNextStudentId)(schoolId);
     }
+    // Stream Validation (Ethiopian Standards)
+    const gradeName = String(data.grade || '').trim();
+    const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
+    if (!isNaN(gradeNum)) {
+        if (gradeNum >= 11 && !data.stream) {
+            throw new Error(`Stream selection (Natural/Social Science) is required for ${gradeName}.`);
+        }
+        if (gradeNum <= 10) {
+            data.stream = null; // Enforce no stream for Grades 1-10
+        }
+    }
     // Create or connect relations with schoolId scoping
     const newStudent = await db_1.default.student.create({
         data: {
@@ -427,13 +438,28 @@ const updateStudent = async (id, data, schoolId) => {
             }
         };
     }
-    if (data.stream) {
+    // Stream: enforce grade-based rules
+    //   - If grade is known and <= 10: always disconnect stream
+    //   - If grade is >= 11 and stream is provided: connect/create
+    //   - If stream is explicitly empty/null/"" and grade provided: disconnect
+    const gradeName = String(data.grade || '').trim();
+    const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
+    if (!isNaN(gradeNum) && gradeNum <= 10) {
+        // Grades 1-10 must NOT have a stream
+        updateData.streamId = null;
+    }
+    else if (data.stream) {
+        // Grade 11+ with explicit stream: connect or create
         updateData.stream = {
             connectOrCreate: {
                 where: { schoolId_name: { schoolId, name: data.stream } },
                 create: { name: data.stream, schoolId }
             }
         };
+    }
+    else if ('stream' in data && !data.stream) {
+        // Explicit stream removal (stream sent as '' or null)
+        updateData.streamId = null;
     }
     const updatedStudent = await db_1.default.student.update({
         where: { id, schoolId },

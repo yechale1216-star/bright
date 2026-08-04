@@ -234,12 +234,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     else if (currentPath.startsWith('/school/registrar')) profileHeaders["x-requested-role"] = 'registrar'
     else if (currentPath.startsWith('/school/discipline-officer')) profileHeaders["x-requested-role"] = 'discipline_officer'
     else if (currentPath.startsWith('/school/call-center')) profileHeaders["x-requested-role"] = 'call_center'
-    else if (currentPath.startsWith('/super-admin')) profileHeaders["x-requested-role"] = 'super_admin'
 
     // PARALLEL REVALIDATION:
-    // Profile and features are independent — fire both network requests simultaneously.
-    // This halves the background revalidation time compared to sequential awaits.
-    const needsFeatures = currentUser?.role !== "super_admin" && currentUser?.role !== "parent" && !!currentUser?.schoolId
+    const needsFeatures = currentUser?.role !== "parent" && !!currentUser?.schoolId
     const featuresSchoolId = currentUser?.schoolId || schoolId
 
     const profilePromise = fetch(`${getApiUrl()}/api/users/profile`, {
@@ -248,12 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       credentials: 'include'
     })
 
-    const featuresPromise = needsFeatures
-      ? fetch(`${getApiUrl()}/api/subscriptions/schools/${featuresSchoolId}/features`, {
-          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-          credentials: 'include'
-        })
-      : Promise.resolve(null)
+    const featuresPromise: Promise<Response | null> = Promise.resolve(null) // All features granted in Single-School Edition
 
     console.log(`[AuthContext][validateSession] Parallel revalidation | path: ${currentPath} | role: ${profileHeaders['x-requested-role'] || 'none'}`)
 
@@ -331,22 +323,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (profileJson.success && profileJson.data) {
           const dbUser = profileJson.data
 
-          if (currentUser && dbUser.id !== currentUser.id) {
-            console.info(`[AuthContext][validateSession] Session updated from ${currentUser.id} to ${dbUser.id} — resyncing user data.`)
-            currentUser = {
-              id: dbUser.id,
-              email: dbUser.email,
-              phone: dbUser.phone || "",
-              name: dbUser.full_name || dbUser.name,
-              role: dbUser.role,
-              schoolId: dbUser.schoolId || dbUser.school_id || "",
-              schoolName: dbUser.schoolName || "",
-              schoolLogo: dbUser.schoolLogo || "",
-              teacherId: dbUser.teacher_id || "",
-              isSuperAdmin: dbUser.role === "super_admin",
-              profile_photo: dbUser.profile_photo || "",
-              onboardingCompleted: dbUser.onboardingCompleted ?? false,
-            }
+          const currentUser2: any = currentUser!
+          currentUser = {
+            id: dbUser.id,
+            email: dbUser.email,
+            phone: dbUser.phone || "",
+            name: dbUser.full_name || dbUser.name,
+            role: dbUser.role,
+            schoolId: dbUser.schoolId || dbUser.school_id || "",
+            schoolName: dbUser.schoolName || "",
+            schoolLogo: dbUser.schoolLogo || "",
+            teacherId: dbUser.teacher_id || "",
+            profile_photo: dbUser.profile_photo || "",
+            onboardingCompleted: dbUser.onboardingCompleted ?? false,
           }
 
           const currentPath2 = typeof window !== "undefined" ? window.location.pathname : pathname
@@ -402,51 +391,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthLoading(false)
     }
 
-    // Resolve features (was already in-flight while profile was resolving)
+    // In Single-School Edition, all features are always granted
     if (currentUser) {
-      if (currentUser.role === "super_admin" || currentUser.role === "parent") {
-        setFeatures([])
-        localStorage.setItem("attendance_features", JSON.stringify([]))
-        setPermissionsLoading(false)
-        return
-      }
-
-      if (!currentUser.schoolId) {
-        setFeatures([])
-        setPermissionsLoading(false)
-        return
-      }
-
-      try {
-        const featRes = await featuresPromise
-        if (!featRes || !featRes.ok) {
-          throw new Error(`Features fetch returned status ${featRes?.status ?? 'null'}`)
-        }
-
-        const featJson = await featRes.json()
-        if (featJson.success && Array.isArray(featJson.data)) {
-          setFeatures(featJson.data)
-          localStorage.setItem("attendance_features", JSON.stringify(featJson.data))
-          setError(null)
-        } else {
-          throw new Error("Features API returned success: false")
-        }
-      } catch (err) {
-        console.warn("[AuthContext][validateSession] Features fetch failed, falling back to cached features:", err)
-        if (cachedFeaturesStr) {
-          try {
-            setFeatures(JSON.parse(cachedFeaturesStr))
-            console.log("[AuthContext][validateSession] Loaded features from local storage cache")
-          } catch {
-            setFeatures([])
-          }
-        } else {
-          setFeatures([])
-        }
-        setError(null)
-      } finally {
-        setPermissionsLoading(false)
-      }
+      setFeatures([])
+      localStorage.setItem("attendance_features", JSON.stringify([]))
+      setPermissionsLoading(false)
     } else {
       setFeatures(null)
       setPermissionsLoading(false)

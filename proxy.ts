@@ -16,7 +16,6 @@ const PUBLIC_ROOT_FILES = new Set([
   "/ethiopian_admin_attendance.png",
   "/ethiopian_admin_attendance_v2.png",
   "/ethiopian_admin_attendance_v3.png",
-  "/zetime_branding_professional.png",
   "/firebase-messaging-sw.js",
   "/firebase-cloud-messaging-push-scope"
 ])
@@ -31,7 +30,6 @@ export function proxy(request: NextRequest) {
   // API authentication will be handled by individual route handlers
   if (pathname.startsWith("/api/")) {
     const response = NextResponse.next()
-    // Add security headers
     response.headers.set("X-Content-Type-Options", "nosniff")
     response.headers.set("X-Frame-Options", "DENY")
     response.headers.set("X-XSS-Protection", "1; mode=block")
@@ -40,19 +38,15 @@ export function proxy(request: NextRequest) {
   }
 
   // Public paths that don't require authentication
-  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/about", "/privacy", "/terms", "/pricing", "/onboarding"]
+  const publicPaths = ["/", "/login", "/forgot-password", "/reset-password", "/about", "/privacy", "/terms"]
   const isPublicPath = publicPaths.includes(pathname)
 
-  // Super admin and protected routes will handle auth on the client side using localStorage
-  const isProtectedPath = !isPublicPath && !pathname.startsWith("/super-admin")
+  const isProtectedPath = !isPublicPath
 
   const sessionToken = request.cookies.get("session")?.value
 
-  // Only redirect to login if it's a protected path AND there's no session token
-  // For school, super-admin, parent and auth paths, we rely on client-side localStorage auth
   if (isProtectedPath && !sessionToken && 
       !pathname.startsWith('/school/') && 
-      !pathname.startsWith('/super-admin') && 
       !pathname.startsWith('/parent/') &&
       !pathname.startsWith('/auth/')) {
     const loginUrl = new URL("/login", request.url)

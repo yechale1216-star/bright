@@ -65,23 +65,12 @@ export default function HomePage() {
       const schools = availableStr ? JSON.parse(availableStr) : [];
       const xSchoolId = localStorage.getItem('x-school-id');
 
-      if (schools.length > 1 && !xSchoolId) {
-        router.replace('/auth/school-select');
-        return;
-      }
-
-      if (user?.role === 'super_admin') {
-        router.replace('/super-admin');
-      } else if (user?.role === 'teacher') {
+      if (user?.role === 'teacher') {
         router.replace('/school/teacher');
       } else if (user?.role === 'parent') {
         router.replace('/parent/dashboard');
       } else {
-        if (user?.onboardingCompleted === false) {
-          router.replace('/onboarding');
-        } else {
-          router.replace('/school/admin');
-        }
+        router.replace('/school/admin');
       }
     }
   }, [router]);

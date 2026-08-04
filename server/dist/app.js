@@ -65,9 +65,6 @@ const attendance_analytics_routes_1 = __importDefault(require("./routes/attendan
 const message_routes_1 = __importDefault(require("./routes/message.routes"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const promotion_routes_1 = __importDefault(require("./routes/promotion.routes"));
-const subscription_routes_1 = __importDefault(require("./routes/subscription.routes"));
-const payment_routes_1 = __importDefault(require("./routes/payment.routes"));
-const super_admin_routes_1 = __importDefault(require("./routes/super-admin.routes"));
 const group_routes_1 = __importDefault(require("./routes/group.routes"));
 const announcement_routes_1 = __importDefault(require("./routes/announcement.routes"));
 const call_routes_1 = __importDefault(require("./routes/call.routes"));
@@ -81,28 +78,45 @@ const parentController = __importStar(require("./controllers/parent.controller")
 const socket_1 = require("./socket");
 const app = (0, express_1.default)();
 // Middleware
-const allowedOrigins = [
+const defaultAllowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:3002',
+    'http://127.0.0.1:3000',
+    'https://zetime.pro.et',
+    'https://www.zetime.pro.et',
     'https://zetime.vercel.app',
     'https://zetime.app',
     'capacitor://localhost',
     'https://localhost'
 ];
+if (process.env.FRONTEND_URL) {
+    defaultAllowedOrigins.push(process.env.FRONTEND_URL.replace(/\/$/, ''));
+}
+if (process.env.APP_URL) {
+    defaultAllowedOrigins.push(process.env.APP_URL.replace(/\/$/, ''));
+}
+if (process.env.ALLOWED_ORIGINS) {
+    process.env.ALLOWED_ORIGINS.split(',').forEach(o => defaultAllowedOrigins.push(o.trim().replace(/\/$/, '')));
+}
 app.use((0, compression_1.default)());
 app.use((0, cors_1.default)({
     origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, native apps, or curl requests)
         if (!origin)
             return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
-            callback(null, true);
-        }
-        else if (process.env.NODE_ENV !== 'production') {
+        // Check allowlist
+        const isAllowed = defaultAllowedOrigins.includes(origin) ||
+            origin.startsWith('http://localhost:') ||
+            origin.startsWith('http://127.0.0.1:') ||
+            origin.startsWith('http://192.168.') ||
+            origin.startsWith('http://10.') ||
+            origin.startsWith('http://172.');
+        if (isAllowed || process.env.NODE_ENV !== 'production') {
             callback(null, true);
         }
         else {
-            callback(new Error('Not allowed by CORS'));
+            callback(null, false);
         }
     },
     credentials: true,
@@ -217,14 +231,9 @@ app.post('/api/calls/public-reject', async (req, res) => {
     }
     res.status(200).json({ success: true });
 });
-// Apply Tenant Isolation & Auth Middleware to all API routes
+// Apply Auth Middleware to all API routes
 app.use('/api', tenant_middleware_1.tenantMiddleware);
-// Block write operations for suspended or expired schools (super_admin is exempt)
 app.use('/api', tenant_middleware_1.subscriptionGuard);
-// Subscription & Feature Management
-app.use('/api/subscriptions', subscription_routes_1.default);
-app.use('/api/payments', payment_routes_1.default);
-app.use('/api/super-admin', super_admin_routes_1.default);
 // Other API routes are already covered by the /api middleware
 // Routes
 app.use('/api/students', student_routes_1.default);
