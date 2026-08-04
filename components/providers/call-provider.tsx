@@ -8,7 +8,6 @@ import { authService } from '@/lib/auth/auth';
 import { useToast } from '@/hooks/use-toast';
 import { NativeBridge } from '@/lib/utils/native-bridge';
 import { App } from '@capacitor/app';
-import { useSuspension } from '@/lib/context/suspension-context';
 import { useAuth } from '@/lib/context/auth-context';
 import { useSocket } from '@/components/providers/socket-provider';
 
@@ -42,7 +41,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [callType, setCallType] = useState<'VOICE' | 'VIDEO'>('VOICE');
   const [isWaitingForOffer, setIsWaitingForOffer] = useState(false);
   const { toast } = useToast();
-  const { isSuspended } = useSuspension();
+  const isSuspended = false; // Single-School Edition — never suspended
 
   const [isAppActive, setIsAppActive] = useState(true);
   const isAppActiveRef = useRef(true);

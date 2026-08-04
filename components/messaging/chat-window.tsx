@@ -37,7 +37,6 @@ import { fileTransferManager } from '@/lib/utils/file-transfer-manager';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/context/language-context';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useSuspension } from '@/lib/context/suspension-context';
 import { Badge } from '@/components/ui/badge';
 import { MessageActionSheet } from '@/components/messaging/message-action-sheet';
 
@@ -107,7 +106,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   const { t } = useLanguage();
   const isMobile = useIsMobile();
   const { initiateCall, status: callStatus } = useCall();
-  const { isSuspended } = useSuspension();
+  const isSuspended = false; // Single-School Edition — never suspended
 
   const [inputValue, setInputValue] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);

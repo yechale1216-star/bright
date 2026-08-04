@@ -20,31 +20,6 @@ import { PageSkeleton } from '@/components/ui/page-skeleton'
 import { LanguageProvider } from '@/lib/context/language-context'
 
 import { clearMessageCache } from '@/lib/utils/message-cache'
-import { SuspensionProvider, useSuspension } from '@/lib/context/suspension-context'
-
-function SuspendedBanner() {
-  const { isSuspended, suspendedAt, suspendReason } = useSuspension()
-  if (!isSuspended) return null
-  return (
-    <div className="flex items-start gap-3 px-4 py-3 bg-red-600 text-white text-sm font-medium z-50">
-      <ShieldBan className="w-4 h-4 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <span className="font-bold">Account Suspended.</span>{' '}
-        <span>You can view existing data but cannot create, edit, or delete anything.</span>
-        {suspendedAt && (
-          <span className="block text-red-200 text-xs mt-0.5">
-            Suspended on {new Date(suspendedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-            {suspendReason && ` · Reason: ${suspendReason}`}
-          </span>
-        )}
-      </div>
-      <Link href="/school/admin/support" className="flex-shrink-0 flex items-center gap-1 bg-white/20 hover:bg-white/30 transition px-2 py-1 rounded text-xs font-semibold whitespace-nowrap">
-        <HeadphonesIcon className="w-3 h-3" />
-        Contact Support
-      </Link>
-    </div>
-  )
-}
 
 export default function TeacherClientLayout({
   children,
@@ -104,8 +79,7 @@ export default function TeacherClientLayout({
 
   return (
     <AuthGuard allowedRoles={['teacher']}>
-      <SuspensionProvider>
-        <LanguageProvider>
+      <LanguageProvider>
             <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
               
               <aside className="hidden md:flex w-64 border-r border-border bg-card/70 dark:bg-slate-900/70 backdrop-blur-xl flex-col relative z-20">
@@ -204,7 +178,6 @@ export default function TeacherClientLayout({
                   className={cn("flex-1 flex flex-col overflow-auto focus:outline-none relative", !isCommunicationPage && "pb-20 md:pb-0")}
                   onScroll={handleMainScroll}
                 >
-                  <SuspendedBanner />
                   <div className="flex-1 flex flex-col min-h-0">
                     {children}
                   </div>
@@ -227,7 +200,6 @@ export default function TeacherClientLayout({
               </div>
             </div>
         </LanguageProvider>
-      </SuspensionProvider>
     </AuthGuard>
   )
 }

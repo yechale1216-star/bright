@@ -15,15 +15,9 @@ import { useSchool } from '@/lib/context/school-context'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { useRouter } from 'next/navigation'
 import { notifications } from '@/lib/utils/notifications'
-import { SubscriptionProvider } from '@/lib/context/subscription-context'
-
 import { Logo } from '@/components/logo'
 import { TopNav } from '@/components/layout/top-nav'
-import { SuspensionProvider } from '@/lib/context/suspension-context'
 
-import { apiUrl } from '@/lib/api-config'
-const API_URL = apiUrl;
-import { clearMessageCache } from '@/lib/utils/message-cache'
 
 
 
@@ -112,9 +106,7 @@ export default function SchoolAdminClientLayout({
 
   return (
     <AuthGuard allowedRoles={['admin', 'school_admin']}>
-      <SuspensionProvider>
-        <SubscriptionProvider>
-            <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
+      <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
               <div className="absolute inset-0 pointer-events-none z-0">
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[120px] animate-pulse" />
                 <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[120px] animate-pulse" />
@@ -246,8 +238,6 @@ export default function SchoolAdminClientLayout({
                 )}
               </div>
             </div>
-        </SubscriptionProvider>
-      </SuspensionProvider>
     </AuthGuard>
   )
 }
