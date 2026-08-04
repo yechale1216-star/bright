@@ -4,7 +4,7 @@
  */
 
 // Backend API URL
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://zetime-backend.onrender.com";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://zetime-backend-dmlv.onrender.com";
 
 // Real-time Socket URL (often same as API URL)
 export const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || API_URL;
