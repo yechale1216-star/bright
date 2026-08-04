@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, User, CheckSquare, BarChart2, BookOpen,
-  Settings, LogOut, CreditCard, MessageSquare, Phone, TrendingUp, ShieldBan,
-  X, ChevronRight, Megaphone, HeadphonesIcon, MessageCircle, ShieldAlert, ShieldCheck
+  Settings, LogOut, MessageSquare, Phone, TrendingUp,
+  X, ChevronRight, Megaphone, MessageCircle, ShieldAlert, ShieldCheck
 } from 'lucide-react'
 import { cn } from "@/lib/utils/utils"
 
@@ -19,37 +19,13 @@ import { SubscriptionProvider } from '@/lib/context/subscription-context'
 
 import { Logo } from '@/components/logo'
 import { TopNav } from '@/components/layout/top-nav'
-import { SuspensionProvider, useSuspension } from '@/lib/context/suspension-context'
+import { SuspensionProvider } from '@/lib/context/suspension-context'
 
 import { apiUrl } from '@/lib/api-config'
 const API_URL = apiUrl;
 import { clearMessageCache } from '@/lib/utils/message-cache'
 
-function SuspendedBanner() {
-  const { isSuspended, suspendedAt, suspendReason } = useSuspension()
 
-  if (!isSuspended) return null
-
-  return (
-    <div className="flex items-start gap-3 px-4 py-3 bg-red-600 text-white text-sm font-medium z-50">
-      <ShieldBan className="w-4 h-4 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <span className="font-bold">Account Suspended.</span>{' '}
-        <span>You can view existing data but cannot create, edit, or delete anything.</span>
-        {suspendedAt && (
-          <span className="block text-red-200 text-xs mt-0.5">
-            Suspended on {new Date(suspendedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-            {suspendReason && ` · Reason: ${suspendReason}`}
-          </span>
-        )}
-      </div>
-      <Link href="/school/admin/support" className="flex-shrink-0 flex items-center gap-1 bg-white/20 hover:bg-white/30 transition px-2 py-1 rounded text-xs font-semibold whitespace-nowrap">
-        <HeadphonesIcon className="w-3 h-3" />
-        Contact Support
-      </Link>
-    </div>
-  )
-}
 
 export default function SchoolAdminClientLayout({
   children,
@@ -101,13 +77,6 @@ export default function SchoolAdminClientLayout({
     (window as any).goBack = () => router.push('/school/admin')
   }, [router])
 
-  React.useEffect(() => {
-    if (user?.role === 'admin' && user?.onboardingCompleted === false) {
-      if (pathname !== "/onboarding") {
-        router.replace('/onboarding')
-      }
-    }
-  }, [user, router, pathname])
 
   React.useEffect(() => {
     setSidebarOpen(false)
@@ -137,8 +106,6 @@ export default function SchoolAdminClientLayout({
     { href: '/school/admin/reports', icon: <BookOpen className="w-5 h-5" />, label: 'Reports', show: true },
     { href: '/school/admin/discipline', icon: <ShieldAlert className="w-5 h-5" />, label: 'Discipline', show: true },
     { href: '/school/admin/promotion', icon: <TrendingUp className="w-5 h-5" />, label: 'Promotion', show: true },
-    { href: '/school/admin/subscription', icon: <CreditCard className="w-5 h-5" />, label: 'Subscription', show: true },
-    { href: '/school/admin/support', icon: <HeadphonesIcon className="w-5 h-5" />, label: 'Help Desk', show: true },
     { href: '/school/admin/settings', icon: <Settings className="w-5 h-5" />, label: 'Settings', show: true },
     { href: '/school/admin/profile', icon: <User className="w-5 h-5" />, label: 'Profile', show: true },
   ]
@@ -258,7 +225,6 @@ export default function SchoolAdminClientLayout({
                   )}
                   onScroll={handleMainScroll}
                 >
-                  <SuspendedBanner />
                   <div className="flex-1 flex flex-col min-h-0">
                     {children}
                   </div>

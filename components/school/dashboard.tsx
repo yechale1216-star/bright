@@ -11,7 +11,6 @@ import { QuickActions } from "@/components/school/quick-actions"
 import { useToast } from "@/hooks/use-toast"
 import { authService } from "@/lib/auth/auth"
 import { useAuth } from "@/lib/context/auth-context"
-import { useSubscription } from "@/lib/context/subscription-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -68,20 +67,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // Consume the authenticated user from AuthContext — this is the single source of truth
   // for tenant identity. We NEVER read schoolId directly from localStorage here.
   const { user: authUser } = useAuth()
-  const { subscription } = useSubscription()
   const { settings } = useSchoolSettings()
   const isSessionBased = settings?.attendanceMode === "session_based"
-
-  // Derive trial info from shared subscription context (no extra API call)
-  const trialInfo = (subscription?.status === "trial" || subscription?.status === "expired")
-    ? {
-        status: subscription.status,
-        daysLeft: subscription.trialEndsAt
-          ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / 86400000))
-          : 0,
-        maxStudents: subscription.studentCount || 100,
-      }
-    : null
+  // Single-School Edition — no trial or subscription limits
+  const trialInfo = null
 
   // CRITICAL TENANT ISOLATION GUARD:
   // Only load dashboard data once AuthContext has confirmed a non-empty schoolId.
