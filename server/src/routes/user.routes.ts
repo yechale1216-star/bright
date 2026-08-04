@@ -1,8 +1,19 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import * as userService from '../services/user.service';
 import { AuthenticatedRequest, authorize } from '../middleware/tenant.middleware';
 
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please try again in a minute.' },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
 const router = Router();
+
 
 // Get current user profile
 router.get('/profile', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -136,16 +147,21 @@ router.delete('/:id', authorize(['admin', 'school_admin']), async (req: Authenti
   } catch (error) { next(error); }
 });
 
-// Verify password (legacy or internal)
-router.post('/verify-password', async (req: Request, res: Response, next: NextFunction) => {
+// Verify password (internal-use only — never returns user data to unauthenticated callers)
+router.post('/verify-password', loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, valid: false, message: 'Email and password are required' });
+    }
     const user = await userService.getUserByEmail(email);
-    if (!user) return res.status(200).json({ success: false, valid: false, message: 'User not found' });
+    if (!user) return res.status(200).json({ success: true, valid: false });
     const valid = userService.verifyPassword(password, user.password_hash);
-    res.status(200).json({ success: true, valid, data: valid ? user : null });
+    // SECURITY: Never return user data to unauthenticated callers
+    res.status(200).json({ success: true, valid });
   } catch (error) { next(error); }
 });
+
 
 // Get all schools this user belongs to
 router.get('/me/schools', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

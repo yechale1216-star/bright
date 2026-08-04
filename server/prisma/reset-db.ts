@@ -95,13 +95,15 @@ async function main() {
   console.log(`   ✓ School: ${school.name} (${school.id})\n`);
 
   console.log('👑  Re-creating School Administrator …');
+  const bcrypt = require('bcryptjs');
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@myschool.edu',
-      password_hash: 'admin123',
+      email: 'abinet21x@gmail.com',
+      password_hash: bcrypt.hashSync('q123456', 10),
       full_name: 'School Administrator',
       role: 'admin',
       is_active: true,
+      is_verified: true,
       schoolId: school.id,
     }
   });
@@ -111,8 +113,9 @@ async function main() {
   console.log('═══════════════════════════════════════════════');
   console.log('🎉  Database is clean and ready!\n');
   console.log('  SCHOOL ADMIN LOGIN');
-  console.log('  Email    : admin@myschool.edu');
-  console.log('  Password : admin123\n');
+  console.log('  Email    : abinet21x@gmail.com');
+  console.log('  Password : q123456\n');
+
   console.log('  You can now configure the school from the Admin dashboard.');
   console.log('═══════════════════════════════════════════════\n');
 }

@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import * as parentService from './parent.service';
+import { getSchoolLimits } from './subscription.service';
 
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student: any) => {
@@ -74,7 +75,6 @@ export const createStudent = async (data: any, schoolId: string) => {
   }
 
   // Enforce SaaS student limits
-  const { getSchoolLimits } = require('./subscription.service');
   const limits = await getSchoolLimits(schoolId);
   const currentCount = await prisma.student.count({ where: { schoolId } });
 
@@ -435,7 +435,7 @@ export const updateStudent = async (id: string, data: any, schoolId: string) => 
 
   if (!isNaN(gradeNum) && gradeNum <= 10) {
     // Grades 1-10 must NOT have a stream
-    updateData.streamId = null;
+    updateData.stream = { disconnect: true };
   } else if (data.stream) {
     // Grade 11+ with explicit stream: connect or create
     updateData.stream = {
@@ -446,7 +446,7 @@ export const updateStudent = async (id: string, data: any, schoolId: string) => 
     };
   } else if ('stream' in data && !data.stream) {
     // Explicit stream removal (stream sent as '' or null)
-    updateData.streamId = null;
+    updateData.stream = { disconnect: true };
   }
 
   const updatedStudent = await prisma.student.update({ 

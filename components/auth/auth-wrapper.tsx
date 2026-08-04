@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { LoginForm } from "./login-form"
-import { AdminSignupForm } from "./admin-signup-form"
 import { ForgotPasswordForm } from "./forgot-password-form"
 import { ResetPasswordForm } from "./reset-password-form"
+
 
 import { ArrowLeft, Download } from 'lucide-react'
 
 import { useLanguage } from "@/lib/context/language-context"
 
-type AuthView = "login" | "admin-signup" | "forgot-password" | "reset-password"
+type AuthView = "login" | "forgot-password" | "reset-password"
 
 interface AuthWrapperProps {
   onAuthSuccess: () => void
@@ -87,10 +87,6 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
   }
 
   const renderAuthForm = () => {
-    if (currentView === "admin-signup") {
-      return <AdminSignupForm onSignupSuccess={onAuthSuccess} onBack={() => setCurrentView("login")} />
-    }
-
     if (currentView === "forgot-password") {
       return <ForgotPasswordForm onBackToLogin={() => setCurrentView("login")} />
     }
@@ -99,11 +95,14 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
       return <ResetPasswordForm token={resetToken} onResetSuccess={handleResetSuccess} />
     }
 
+    // Default: standard login form
+    // NOTE: onShowAdminSignup is intentionally NOT passed — in the single-school
+    // edition, account creation is only available during initial setup (/setup)
+    // or by the School Administrator through the user management interface.
     return (
       <LoginForm
         onLoginSuccess={onAuthSuccess}
         onShowForgotPassword={() => setCurrentView("forgot-password")}
-        onShowAdminSignup={() => setCurrentView("admin-signup")}
       />
     )
   }

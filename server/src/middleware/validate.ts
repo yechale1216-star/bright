@@ -74,10 +74,10 @@ export const validateAttendance = (req: Request, res: Response, next: NextFuncti
 export const validateSignup = (req: Request, res: Response, next: NextFunction) => {
   const { email, password, name, schoolName, schoolAddress, phone } = req.body;
 
-  if (!email || !password || !name || !schoolName || !schoolAddress) {
+  if (!email || !password || !name || !schoolName) {
     return res.status(400).json({
       success: false,
-      message: 'Missing required fields. Required: email, password, name, schoolName, schoolAddress',
+      message: 'Missing required fields. Required: email, password, name, schoolName',
     });
   }
 

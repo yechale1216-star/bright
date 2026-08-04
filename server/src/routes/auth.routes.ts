@@ -38,6 +38,37 @@ const checkEmailLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
 });
 
+// Rate limiter for phone/email check — prevents user enumeration probing
+const checkPhoneLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests.' },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
+// Strict limiter for OTP endpoints (verify-email, resend-verification)
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many verification attempts. Please wait 15 minutes.' },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
+// Push token limiter — prevents FCM token flooding
+const pushTokenLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests.' },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
+
 const router = Router();
 
 // Check email availability
@@ -55,7 +86,7 @@ router.get('/check-email', checkEmailLimiter, async (req: Request, res: Response
 });
 
 // Check phone availability
-router.get('/check-phone', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/check-phone', checkPhoneLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { phone } = req.query;
     if (!phone || typeof phone !== 'string') {
@@ -150,85 +181,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response, next: Ne
   }
 });
 
-// Signup (Admin creates school and account)
-router.post('/signup', validateSignup, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { email, password, name, schoolName, phone } = req.body;
 
-    let school = (await schoolService.getAllSchools())[0];
-    if (!school) {
-      school = await schoolService.createSchool({ name: schoolName || 'My School' });
-    }
-
-    const admin = await userService.createUser({
-      email,
-      password,
-      name,
-      role: 'admin',
-      phone,
-      schoolId: school.id,
-    });
-
-    // Generate a cryptographically secure 6-digit verification code
-    const verificationCode = crypto.randomInt(100000, 999999).toString();
-    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    await prisma.user.update({
-      where: { id: admin.id },
-      data: {
-        verification_token: verificationCode,
-        verification_token_expires: verificationExpires,
-        is_verified: false
-      }
-    });
-
-    // Send verification email (non-blocking — don't fail signup if email fails)
-    sendVerificationEmail(admin.email, verificationCode).catch(err =>
-      console.error('[Signup] Failed to send verification email:', err)
-    );
-
-    const token = generateToken({
-      id: admin.id,
-      email: admin.email,
-      role: admin.role,
-      schoolId: school.id,
-      customSchoolId: school.schoolId || '',
-    });
-
-    res.cookie('attendance_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-    });
-
-    res.status(201).json({
-      success: true,
-      data: {
-        token,
-        user: {
-          id: admin.id,
-          email: admin.email,
-          name: admin.full_name,
-          role: admin.role,
-          schoolId: school.id,
-          customSchoolId: school.schoolId,
-          isVerified: false,
-        },
-        schoolName: school.name,
-        schoolLogo: '',
-        onboardingCompleted: true,
-        onboardingStatus: 'SETUP_COMPLETE',
-        requiresEmailVerification: true,
-      }
-    });
-  } catch (error) {
-    res.status(400).json({ 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Signup failed' 
-    });
-  }
-});
 
 // Logout
 router.post('/logout', async (req: Request, res: Response) => {
@@ -326,7 +279,7 @@ router.post('/reset-password', async (req: Request, res: Response, next: NextFun
 
 // POST /api/auth/push-token — save or refresh the FCM push token for the authenticated user
 // Called by NativeBridge every time the app starts or the FCM token rotates.
-router.post('/push-token', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/push-token', pushTokenLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { token } = req.body;
     if (!token || typeof token !== 'string') {
@@ -363,7 +316,7 @@ router.post('/push-token', async (req: Request, res: Response, next: NextFunctio
 });
 
 // Verify Email (6-digit code)
-router.post('/verify-email', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/verify-email', otpLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -402,7 +355,7 @@ router.post('/verify-email', async (req: Request, res: Response, next: NextFunct
 });
 
 // Resend Verification Code
-router.post('/resend-verification', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/resend-verification', otpLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -413,12 +366,12 @@ router.post('/resend-verification', async (req: Request, res: Response, next: Ne
       where: { email: email.toLowerCase().trim() }
     });
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'No account found with this email' });
-    }
-
-    if (user.is_verified) {
-      return res.status(400).json({ success: false, message: 'This email is already verified' });
+    // Always return success to prevent email enumeration
+    if (!user || user.is_verified) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an unverified account exists with that email, a new code has been sent.'
+      });
     }
 
     const verificationCode = crypto.randomInt(100000, 999999).toString();
@@ -436,7 +389,7 @@ router.post('/resend-verification', async (req: Request, res: Response, next: Ne
 
     res.status(200).json({
       success: true,
-      message: 'A new verification code has been sent to your email.'
+      message: 'If an unverified account exists with that email, a new code has been sent.'
     });
   } catch (error) {
     next(error);

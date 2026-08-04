@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../config/db';
+import { getSchoolLimits } from './subscription.service';
 
 export const getUserByEmail = async (email: string) => {
   return await prisma.user.findUnique({ 
@@ -134,7 +135,6 @@ export const createUser = async (data: any) => {
 
   // Enforce SaaS user limits
   if (schoolId) {
-    const { getSchoolLimits } = require('./subscription.service');
     const limits = await getSchoolLimits(schoolId);
     
     // Only count active users in this school
@@ -289,10 +289,11 @@ export const deleteUser = async (id: string, schoolId: string) => {
 };
 
 export const verifyPassword = (plain: string, hash: string): boolean => {
-  if (hash.startsWith('$2')) {
-    try { return bcrypt.compareSync(plain, hash); } catch { return false; }
+  if (!hash || !hash.startsWith('$2')) {
+    // Reject non-hashed passwords — all passwords must be bcrypt hashed
+    return false;
   }
-  return plain === hash;
+  try { return bcrypt.compareSync(plain, hash); } catch { return false; }
 };
 
 export const createPasswordResetToken = async (email: string) => {

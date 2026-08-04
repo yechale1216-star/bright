@@ -81,9 +81,12 @@ app.use(cors({
     const isAllowed = defaultAllowedOrigins.includes(origin) || 
                       origin.startsWith('http://localhost:') || 
                       origin.startsWith('http://127.0.0.1:') ||
-                      origin.startsWith('http://192.168.') ||
-                      origin.startsWith('http://10.') ||
-                      origin.startsWith('http://172.');
+                      // Local network origins only allowed outside production
+                      (process.env.NODE_ENV !== 'production' && (
+                        origin.startsWith('http://192.168.') ||
+                        origin.startsWith('http://10.') ||
+                        origin.startsWith('http://172.')
+                      ));
 
     if (isAllowed || process.env.NODE_ENV !== 'production') {
       callback(null, true);

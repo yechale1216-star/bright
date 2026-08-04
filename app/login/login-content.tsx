@@ -23,8 +23,6 @@ function LoginContent() {
     console.log(`[LoginPage] handleAuthSuccess | role: ${role} | schools: ${schools?.length || 0}`)
     
     // 2. Perform redirection with a tiny delay to let AuthContext settle
-    const schoolList = Array.isArray(schools) ? schools : []
-    
     setTimeout(() => {
       if (role === 'admin' || role === 'school_admin' || role === 'school-admin') {
         router.push('/school/admin')
@@ -54,4 +52,5 @@ export default function LoginPage() {
     </Suspense>
   )
 }
+
 
