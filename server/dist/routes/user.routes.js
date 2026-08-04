@@ -32,10 +32,22 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const userService = __importStar(require("../services/user.service"));
 const tenant_middleware_1 = require("../middleware/tenant.middleware");
+const loginLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please try again in a minute.' },
+    skip: () => process.env.NODE_ENV === 'test',
+});
 const router = (0, express_1.Router)();
 // Get current user profile
 router.get('/profile', async (req, res, next) => {
@@ -176,15 +188,19 @@ router.delete('/:id', (0, tenant_middleware_1.authorize)(['admin', 'school_admin
         next(error);
     }
 });
-// Verify password (legacy or internal)
-router.post('/verify-password', async (req, res, next) => {
+// Verify password (internal-use only — never returns user data to unauthenticated callers)
+router.post('/verify-password', loginLimiter, async (req, res, next) => {
     try {
         const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ success: false, valid: false, message: 'Email and password are required' });
+        }
         const user = await userService.getUserByEmail(email);
         if (!user)
-            return res.status(200).json({ success: false, valid: false, message: 'User not found' });
+            return res.status(200).json({ success: true, valid: false });
         const valid = userService.verifyPassword(password, user.password_hash);
-        res.status(200).json({ success: true, valid, data: valid ? user : null });
+        // SECURITY: Never return user data to unauthenticated callers
+        res.status(200).json({ success: true, valid });
     }
     catch (error) {
         next(error);

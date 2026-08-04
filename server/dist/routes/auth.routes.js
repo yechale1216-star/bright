@@ -44,7 +44,6 @@ const schoolService = __importStar(require("../services/school.service"));
 const auth_resolution_service_1 = require("../services/auth_resolution.service");
 const jwt_1 = require("../utils/jwt");
 const email_1 = require("../utils/email");
-const validate_1 = require("../middleware/validate");
 const db_1 = __importDefault(require("../config/db"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Rate limiters — applied per IP to prevent brute force and credential stuffing
@@ -72,6 +71,33 @@ const checkEmailLimiter = (0, express_rate_limit_1.default)({
     message: { success: false, message: 'Too many requests.' },
     skip: () => process.env.NODE_ENV === 'test',
 });
+// Rate limiter for phone/email check — prevents user enumeration probing
+const checkPhoneLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests.' },
+    skip: () => process.env.NODE_ENV === 'test',
+});
+// Strict limiter for OTP endpoints (verify-email, resend-verification)
+const otpLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many verification attempts. Please wait 15 minutes.' },
+    skip: () => process.env.NODE_ENV === 'test',
+});
+// Push token limiter — prevents FCM token flooding
+const pushTokenLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests.' },
+    skip: () => process.env.NODE_ENV === 'test',
+});
 const router = (0, express_1.Router)();
 // Check email availability
 router.get('/check-email', checkEmailLimiter, async (req, res, next) => {
@@ -88,7 +114,7 @@ router.get('/check-email', checkEmailLimiter, async (req, res, next) => {
     }
 });
 // Check phone availability
-router.get('/check-phone', async (req, res, next) => {
+router.get('/check-phone', checkPhoneLimiter, async (req, res, next) => {
     try {
         const { phone } = req.query;
         if (!phone || typeof phone !== 'string') {
@@ -169,76 +195,6 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     }
     catch (error) {
         next(error);
-    }
-});
-// Signup (Admin creates school and account)
-router.post('/signup', validate_1.validateSignup, async (req, res, next) => {
-    try {
-        const { email, password, name, schoolName, phone } = req.body;
-        let school = (await schoolService.getAllSchools())[0];
-        if (!school) {
-            school = await schoolService.createSchool({ name: schoolName || 'My School' });
-        }
-        const admin = await userService.createUser({
-            email,
-            password,
-            name,
-            role: 'admin',
-            phone,
-            schoolId: school.id,
-        });
-        // Generate a cryptographically secure 6-digit verification code
-        const verificationCode = crypto_1.default.randomInt(100000, 999999).toString();
-        const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-        await db_1.default.user.update({
-            where: { id: admin.id },
-            data: {
-                verification_token: verificationCode,
-                verification_token_expires: verificationExpires,
-                is_verified: false
-            }
-        });
-        // Send verification email (non-blocking — don't fail signup if email fails)
-        (0, email_1.sendVerificationEmail)(admin.email, verificationCode).catch(err => console.error('[Signup] Failed to send verification email:', err));
-        const token = (0, jwt_1.generateToken)({
-            id: admin.id,
-            email: admin.email,
-            role: admin.role,
-            schoolId: school.id,
-            customSchoolId: school.schoolId || '',
-        });
-        res.cookie('attendance_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
-        });
-        res.status(201).json({
-            success: true,
-            data: {
-                token,
-                user: {
-                    id: admin.id,
-                    email: admin.email,
-                    name: admin.full_name,
-                    role: admin.role,
-                    schoolId: school.id,
-                    customSchoolId: school.schoolId,
-                    isVerified: false,
-                },
-                schoolName: school.name,
-                schoolLogo: '',
-                onboardingCompleted: true,
-                onboardingStatus: 'SETUP_COMPLETE',
-                requiresEmailVerification: true,
-            }
-        });
-    }
-    catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error instanceof Error ? error.message : 'Signup failed'
-        });
     }
 });
 // Logout
@@ -330,7 +286,7 @@ router.post('/reset-password', async (req, res, next) => {
 });
 // POST /api/auth/push-token — save or refresh the FCM push token for the authenticated user
 // Called by NativeBridge every time the app starts or the FCM token rotates.
-router.post('/push-token', async (req, res, next) => {
+router.post('/push-token', pushTokenLimiter, async (req, res, next) => {
     try {
         const { token } = req.body;
         if (!token || typeof token !== 'string') {
@@ -362,7 +318,7 @@ router.post('/push-token', async (req, res, next) => {
     }
 });
 // Verify Email (6-digit code)
-router.post('/verify-email', async (req, res, next) => {
+router.post('/verify-email', otpLimiter, async (req, res, next) => {
     try {
         const { email, code } = req.body;
         if (!email || !code) {
@@ -397,7 +353,7 @@ router.post('/verify-email', async (req, res, next) => {
     }
 });
 // Resend Verification Code
-router.post('/resend-verification', async (req, res, next) => {
+router.post('/resend-verification', otpLimiter, async (req, res, next) => {
     try {
         const { email } = req.body;
         if (!email) {
@@ -406,11 +362,12 @@ router.post('/resend-verification', async (req, res, next) => {
         const user = await db_1.default.user.findUnique({
             where: { email: email.toLowerCase().trim() }
         });
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'No account found with this email' });
-        }
-        if (user.is_verified) {
-            return res.status(400).json({ success: false, message: 'This email is already verified' });
+        // Always return success to prevent email enumeration
+        if (!user || user.is_verified) {
+            return res.status(200).json({
+                success: true,
+                message: 'If an unverified account exists with that email, a new code has been sent.'
+            });
         }
         const verificationCode = crypto_1.default.randomInt(100000, 999999).toString();
         const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -424,7 +381,7 @@ router.post('/resend-verification', async (req, res, next) => {
         await (0, email_1.sendVerificationEmail)(user.email, verificationCode);
         res.status(200).json({
             success: true,
-            message: 'A new verification code has been sent to your email.'
+            message: 'If an unverified account exists with that email, a new code has been sent.'
         });
     }
     catch (error) {

@@ -469,17 +469,7 @@ export function Settings() {
                       onCheckedChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
                     />
                   </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>SMS Notifications</Label>
-                      <p className="typography-body text-muted-foreground">Send attendance notifications via SMS</p>
-                    </div>
-                    <Switch
-                      checked={settings.smsNotifications || false}
-                      onCheckedChange={(checked) => setSettings({ ...settings, smsNotifications: checked })}
-                    />
-                  </div>
+
                   <Separator />
                   <div className="flex items-center justify-between">
                     <div>

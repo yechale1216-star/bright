@@ -1,41 +1,101 @@
-# Render Blueprint for Zetime Backend Only
+# Render Blueprint for Zetime Full Stack Application
+# Configures both Backend (Express/Prisma/Socket.IO) and Frontend (Next.js)
+version: "1"
+
 services:
+  # ---------------------------------------------------------------------------
   # Express Node.js Backend Service
+  # ---------------------------------------------------------------------------
   - type: web
-    plan: free
     name: zetime-backend
-    env: node
+    runtime: node
+    plan: free
+    region: oregon
     rootDir: server
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: NODE_VERSION
         value: 20
       - key: PORT
         value: 5000
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
+      - key: APP_URL
+        value: https://zetime-backend.onrender.com
       - key: FRONTEND_URL
-        sync: false
+        fromService:
+          type: web
+          name: zetime-frontend
+          property: url
       - key: DATABASE_URL
         sync: false
       - key: DIRECT_URL
         sync: false
+      - key: REDIS_URL
+        sync: false
       - key: RESEND_API_KEY
         sync: false
-      - key: APP_URL
-        value: https://zetime-backend.onrender.com
-      - key: TWILIO_ACCOUNT_SID
+      - key: CHAPA_SECRET_KEY
         sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_PHONE_NUMBER
-        sync: false
-      - key: TWILIO_MESSAGING_SERVICE_SID
+      - key: ALLOWED_ORIGINS
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
       - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # Next.js Frontend Web Service
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: zetime-frontend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: zetime-backend
+          property: url
+      - key: NEXT_PUBLIC_SOCKET_URL
+        fromService:
+          type: web
+          name: zetime-backend
+          property: url
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://zetime-frontend.onrender.com
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_VAPID_KEY
         sync: false

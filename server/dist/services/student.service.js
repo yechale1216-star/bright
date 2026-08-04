@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.getNextStudentId = exports.getAllStudents = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const parentService = __importStar(require("./parent.service"));
+const subscription_service_1 = require("./subscription.service");
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student) => {
     if (!student)
@@ -104,8 +105,7 @@ const createStudent = async (data, schoolId) => {
         throw new Error('School context invalid - Please logout and login again (database was likely reset)');
     }
     // Enforce SaaS student limits
-    const { getSchoolLimits } = require('./subscription.service');
-    const limits = await getSchoolLimits(schoolId);
+    const limits = await (0, subscription_service_1.getSchoolLimits)(schoolId);
     const currentCount = await db_1.default.student.count({ where: { schoolId } });
     if (limits.maxStudents !== -1 && currentCount >= limits.maxStudents) {
         throw new Error(`Student limit reached (${limits.maxStudents}). Please upgrade your Zetime plan to add more students.`);
@@ -446,7 +446,7 @@ const updateStudent = async (id, data, schoolId) => {
     const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
     if (!isNaN(gradeNum) && gradeNum <= 10) {
         // Grades 1-10 must NOT have a stream
-        updateData.streamId = null;
+        updateData.stream = { disconnect: true };
     }
     else if (data.stream) {
         // Grade 11+ with explicit stream: connect or create
@@ -459,7 +459,7 @@ const updateStudent = async (id, data, schoolId) => {
     }
     else if ('stream' in data && !data.stream) {
         // Explicit stream removal (stream sent as '' or null)
-        updateData.streamId = null;
+        updateData.stream = { disconnect: true };
     }
     const updatedStudent = await db_1.default.student.update({
         where: { id, schoolId },

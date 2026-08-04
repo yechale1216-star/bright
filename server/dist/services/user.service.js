@@ -7,6 +7,7 @@ exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPassw
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_1 = __importDefault(require("../config/db"));
+const subscription_service_1 = require("./subscription.service");
 const getUserByEmail = async (email) => {
     return await db_1.default.user.findUnique({
         where: { email },
@@ -132,8 +133,7 @@ const createUser = async (data) => {
     const schoolId = data.schoolId || null;
     // Enforce SaaS user limits
     if (schoolId) {
-        const { getSchoolLimits } = require('./subscription.service');
-        const limits = await getSchoolLimits(schoolId);
+        const limits = await (0, subscription_service_1.getSchoolLimits)(schoolId);
         // Only count active users in this school
         const currentCount = await db_1.default.user.count({
             where: { schoolId, is_active: true }
@@ -284,15 +284,16 @@ const deleteUser = async (id, schoolId) => {
 };
 exports.deleteUser = deleteUser;
 const verifyPassword = (plain, hash) => {
-    if (hash.startsWith('$2')) {
-        try {
-            return bcryptjs_1.default.compareSync(plain, hash);
-        }
-        catch {
-            return false;
-        }
+    if (!hash || !hash.startsWith('$2')) {
+        // Reject non-hashed passwords — all passwords must be bcrypt hashed
+        return false;
     }
-    return plain === hash;
+    try {
+        return bcryptjs_1.default.compareSync(plain, hash);
+    }
+    catch {
+        return false;
+    }
 };
 exports.verifyPassword = verifyPassword;
 const createPasswordResetToken = async (email) => {
