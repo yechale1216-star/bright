@@ -372,6 +372,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSessionId(storedSessionId)
           localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
           if (updatedUser.schoolId) localStorage.setItem("x-school-id", updatedUser.schoolId)
+          
+          // Cache User Profile & School Logo to IndexedDB asynchronously
+          import("@/lib/utils/indexeddb-store").then(({ cacheUserProfile, cacheSchoolLogo }) => {
+            cacheUserProfile(updatedUser)
+            if (updatedUser.schoolLogo && updatedUser.schoolId) {
+              cacheSchoolLogo(updatedUser.schoolId, updatedUser.schoolLogo)
+            }
+          }).catch(err => console.warn("IndexedDB cache error:", err))
+
           currentUser = updatedUser
         } else {
           throw new Error("Profile API returned success: false")

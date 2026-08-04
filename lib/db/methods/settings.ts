@@ -36,7 +36,7 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
       }
     )
     const s = result.data
-    return {
+    const settingsData = {
       schoolName: s.school_name || "Zetime School",
       schoolPhone: s.school_phone || "",
       schoolAddress: s.school_address || "",
@@ -56,6 +56,14 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
       allowedRadiusMeters: s.allowed_radius_meters ?? 200,
       allowOutsideAttendance: s.allow_outside_attendance ?? true,
     }
+
+    if (settingsData.schoolLogo && schoolId) {
+      import("@/lib/utils/indexeddb-store").then(({ cacheSchoolLogo }) => {
+        cacheSchoolLogo(schoolId, settingsData.schoolLogo)
+      }).catch(() => {})
+    }
+
+    return settingsData
   } catch (error) {
     // If settings are not found (404), return default settings. Otherwise, propagate the error.
     if (error instanceof RequestError && error.type === "not_found") {

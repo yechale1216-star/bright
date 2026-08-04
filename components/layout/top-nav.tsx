@@ -35,15 +35,22 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
   const [logoError, setLogoError] = React.useState(false)
   const [mounted, setMounted] = React.useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false)
+  const [cachedLogo, setCachedLogo] = React.useState<string | null>(null)
   const { theme, setTheme } = useTheme()
 
   React.useEffect(() => {
     setMounted(true)
-  }, [])
+    // Fetch cached logo from IndexedDB for instant display
+    import("@/lib/utils/indexeddb-store").then(({ getCachedSchoolLogo }) => {
+      getCachedSchoolLogo(activeSchool?.id || user?.schoolId).then(logo => {
+        if (logo) setCachedLogo(logo)
+      })
+    }).catch(() => {})
+  }, [activeSchool?.id, user?.schoolId])
 
   const schoolName = activeSchool ? activeSchool.name : (user?.schoolName || "Zetime Portal")
   const schoolLogo = activeSchool ? (activeSchool.logo || "") : (user?.schoolLogo || "")
-  const logoUrl = schoolLogo || ""
+  const logoUrl = schoolLogo || cachedLogo || ""
 
   const handleLogout = async () => {
     await logout()

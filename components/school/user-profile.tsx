@@ -29,15 +29,33 @@ export function UserProfile() {
 
   const loadUserProfile = async () => {
     try {
+      // 1. Instantly hydrate from IndexedDB for 0ms offline rendering
+      const { getCachedUserProfile, getCachedSchoolLogo, cacheUserProfile } = await import("@/lib/utils/indexeddb-store")
+      const idbUser = await getCachedUserProfile()
+      if (idbUser) {
+        setUser(normalizeUser(idbUser))
+        setFormData({
+          full_name: idbUser.name || idbUser.full_name || "",
+          email: idbUser.email || "",
+          phone: idbUser.phone || "",
+          profile_photo: idbUser.profile_photo || "",
+        })
+        setIsLoading(false)
+      }
+
+      // 2. Fetch latest user session and settings
       const currentUser = authService.getCurrentUser() as any
       if (currentUser) {
-        setUser(normalizeUser(currentUser))
+        const normalized = normalizeUser(currentUser)
+        setUser(normalized)
         setFormData({
           full_name: currentUser.name || currentUser.full_name || "",
           email: currentUser.email || "",
           phone: currentUser.phone || "",
           profile_photo: currentUser.profile_photo || "",
         })
+        await cacheUserProfile(normalized)
+        
         const schoolDetails = await db.getSettings()
         setSchool(schoolDetails)
       }

@@ -11,7 +11,7 @@ services:
     plan: free
     region: oregon
     rootDir: server
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install && npx prisma generate && npx prisma db push --accept-data-loss && npm run build
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
@@ -41,8 +41,8 @@ services:
       - key: CHAPA_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false
+        value: https://twwmcoqipwqihlhxczvq.supabase.co
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false
+        value: sb_publishable_3_ygC_Dr3BUXVX6qt3VmDQ_Q1ViHWbl
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
