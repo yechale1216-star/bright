@@ -29,7 +29,7 @@ class Database extends BaseDatabase {
   async bulkAddStudents(studentsData: Partial<Student>[]): Promise<any> {
     const schoolId = this.getSchoolId()
     if (!schoolId) throw new Error("School ID not found")
-    return await apiFetch<{ success: boolean; data: any }>(
+    const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/students/bulk`,
       {
         method: "POST",
@@ -37,6 +37,8 @@ class Database extends BaseDatabase {
         body: JSON.stringify({ students: studentsData }),
       }
     )
+    queryCache.invalidate(`students_${schoolId}`)
+    return result
   }
 
   async updateStudent(id: string, data: Partial<Student>): Promise<void> {

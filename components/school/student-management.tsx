@@ -602,7 +602,7 @@ export function StudentManagement() {
       )
       setImportPreviewData(null)
       setShowUploadDialog(false)
-      loadStudents() // Refresh list
+      await loadStudents() // Force refresh student list after bulk import
     } catch (error: any) {
       console.error("Bulk add error:", error)
       notifications.error("Import Failed", "An error occurred during final data persistence.")
