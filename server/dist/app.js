@@ -233,7 +233,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
 });
 // Apply Auth Middleware to all API routes
 app.use('/api', tenant_middleware_1.tenantMiddleware);
-app.use('/api', tenant_middleware_1.subscriptionGuard);
 // Other API routes are already covered by the /api middleware
 // Routes
 app.use('/api/students', student_routes_1.default);

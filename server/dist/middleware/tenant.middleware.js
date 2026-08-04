@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.featureGuard = exports.subscriptionGuard = exports.invalidateSchoolStatusCache = exports.authorize = exports.tenantMiddleware = void 0;
+exports.featureGuard = exports.authorize = exports.tenantMiddleware = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const auth_resolution_service_1 = require("../services/auth_resolution.service");
 const redis_1 = require("../redis");
@@ -100,23 +100,11 @@ const authorize = (roles) => {
     };
 };
 exports.authorize = authorize;
-/** Call this after a school status change */
-const invalidateSchoolStatusCache = async (schoolId) => {
-    await (0, redis_1.cacheDel)(`substatus:${schoolId}`);
-};
-exports.invalidateSchoolStatusCache = invalidateSchoolStatusCache;
-/**
- * Subscription Guard (Pass-through in Single-School Edition)
- */
-const subscriptionGuard = async (req, res, next) => {
-    next();
-};
-exports.subscriptionGuard = subscriptionGuard;
 /**
  * Feature Guard (All features granted in Single-School Edition)
  */
-const featureGuard = (featureKey) => {
-    return async (req, res, next) => {
+const featureGuard = (_featureKey) => {
+    return (_req, _res, next) => {
         next();
     };
 };

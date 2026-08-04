@@ -1,6 +1,12 @@
 // Mock data + operations — swap for Supabase/Neon in production.
-import type { AddonSelection, BillingPeriod, SubscriptionStatus, TierPlan } from "@/lib/utils/subscription-types"
-import { calculateDynamicPrice, TIER_CONFIG } from "@/lib/utils/pricing-utils"
+
+export type TierPlan = string;
+export type BillingPeriod = string;
+export type SubscriptionStatus = string;
+export type AddonSelection = any;
+
+const calculateDynamicPrice = (..._args: any[]) => ({ effectiveMonthly: 0, currentPeriodTotal: 0, breakdown: [] });
+const TIER_CONFIG = {};
 
 export interface School {
   id: string

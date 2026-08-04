@@ -119,23 +119,13 @@ export const authorize = (roles: string[]) => {
   };
 };
 
-/** Call this after a school status change */
-export const invalidateSchoolStatusCache = async (schoolId: string) => {
-  await cacheDel(`substatus:${schoolId}`);
-};
-
-/**
- * Subscription Guard (Pass-through in Single-School Edition)
- */
-export const subscriptionGuard = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  next();
-};
-
 /**
  * Feature Guard (All features granted in Single-School Edition)
  */
-export const featureGuard = (featureKey: string) => {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const featureGuard = (_featureKey: string) => {
+  return (_req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
     next();
   };
 };
+
+

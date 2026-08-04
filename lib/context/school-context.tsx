@@ -39,7 +39,6 @@ function getAuthHeaders(): Record<string, string> {
     if (pathname.startsWith('/parent')) headers["x-requested-role"] = 'parent';
     else if (pathname.startsWith('/school/teacher')) headers["x-requested-role"] = 'teacher';
     else if (pathname.startsWith('/school/admin')) headers["x-requested-role"] = 'school_admin';
-    else if (pathname.startsWith('/super-admin')) headers["x-requested-role"] = 'super_admin';
   }
   
   return headers
