@@ -18,9 +18,12 @@ export async function getStudents(headers: any, schoolId: string, forceRefetch =
   return queryCache.fetch(
     `students_${schoolId}`,
     async () => {
+      const url = forceRefetch
+        ? `${API_URL}/api/students?_t=${Date.now()}`
+        : `${API_URL}/api/students`
       const result = await apiFetch<{ success: boolean; data: any[] }>(
-        `${API_URL}/api/students`,
-        { headers }
+        url,
+        { headers, cache: "no-store" }
       )
       return (result.data || []).map((s: any) => ({
         ...s,

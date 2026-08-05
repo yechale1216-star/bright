@@ -425,14 +425,14 @@ export function StudentManagement() {
         await db.updateStudent(editingStudent.id, formData)
         notifications.success("Student Updated Successfully", "The student information has been updated.")
 
-        await loadStudents()
+        await loadStudents(false, true)
         setIsAddModalOpen(false)
         resetForm()
       } else {
         await db.addStudent(formData)
         notifications.success("Student Enrolled Successfully", "New student has been added to the system.")
 
-        await loadStudents()
+        await loadStudents(false, true)
         setShowSuccess(true)
         setTimeout(() => {
           setIsAddModalOpen(false)
@@ -506,7 +506,7 @@ export function StudentManagement() {
     try {
       await db.deleteStudent(id)
       notifications.success("Success", "Student deleted successfully")
-      await loadStudents()
+      await loadStudents(false, true)
     } catch (error: any) {
       console.error("[StudentManagement] Delete error:", error);
       notifications.error("Deletion Failed", error.message || "Failed to delete student. Please try again.");

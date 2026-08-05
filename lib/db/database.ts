@@ -323,8 +323,8 @@ class Database extends BaseDatabase {
   }
 
   // ─── TEACHER ASSIGNMENTS ──────────────────────────────────────────────────
-  async getTeacherAssignments(schoolId?: string, teacherId?: string): Promise<TeacherAssignment[]> {
-    return teachers.getTeacherAssignments(this.getApiHeaders(), schoolId || this.getSchoolId(), teacherId)
+  async getTeacherAssignments(schoolId?: string, teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
+    return teachers.getTeacherAssignments(this.getApiHeaders(), schoolId || this.getSchoolId(), teacherId, forceRefetch)
   }
 
   async assignTeacherToClass(

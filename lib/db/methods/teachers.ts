@@ -9,9 +9,12 @@ export async function getTeachers(headers: any, schoolId?: string, forceRefetch 
   return queryCache.fetch(
     `teachers_${activeSchoolId}`,
     async () => {
+      const url = forceRefetch
+        ? `${API_URL}/api/users?role=teacher&_t=${Date.now()}`
+        : `${API_URL}/api/users?role=teacher`
       const result = await apiFetch<{ success: boolean; data: any[] }>(
-        `${API_URL}/api/users?role=teacher`,
-        { headers }
+        url,
+        { headers, cache: "no-store" }
       )
       return (result.data || []).filter((u: any) => u.role === "teacher")
     },
@@ -25,10 +28,14 @@ export async function getTeacherAssignments(headers: any, schoolId?: string, tea
   return queryCache.fetch(
     cacheKey,
     async () => {
-      const params = teacherId ? `?teacherId=${teacherId}` : ""
+      const params = new URLSearchParams()
+      if (teacherId) params.append("teacherId", teacherId)
+      if (forceRefetch) params.append("_t", Date.now().toString())
+      const queryString = params.toString()
+      const url = `${API_URL}/api/assignments${queryString ? `?${queryString}` : ""}`
       const result = await apiFetch<{ success: boolean; data: any[] }>(
-        `${API_URL}/api/assignments${params}`,
-        { headers }
+        url,
+        { headers, cache: "no-store" }
       )
       const formatField = (val: any) => {
         if (!val) return ""

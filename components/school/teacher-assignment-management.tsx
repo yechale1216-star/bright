@@ -210,7 +210,7 @@ export function TeacherAssignmentManagement() {
 
       setShowSuccess(true)
       // Background refresh to sync real data (no skeleton)
-      loadAllData(schoolId, true)
+      loadAllData(schoolId, true, true)
       setTimeout(() => {
         setShowSuccess(false)
         setIsDialogOpen(false)
@@ -219,7 +219,7 @@ export function TeacherAssignmentManagement() {
     } catch (error: any) {
       notifications.error("Error", error.message)
       // Revert on failure
-      loadAllData(schoolId, true)
+      loadAllData(schoolId, true, true)
     } finally {
       setIsAssigning(false)
     }
@@ -255,12 +255,12 @@ export function TeacherAssignmentManagement() {
       await db.removeTeacherAssignment(assignmentId)
       notifications.success("Assignment Removed", "Teacher assignment has been removed.")
       // Background sync (no skeleton)
-      loadAllData(schoolId, true)
+      loadAllData(schoolId, true, true)
     } catch (error: any) {
       console.error("[v0] Deletion failed:", error)
       notifications.error("Delete Failed", error.message || "Failed to remove assignment")
       // Revert optimistic update on failure
-      loadAllData(schoolId, true)
+      loadAllData(schoolId, true, true)
     } finally {
       setDeletingId(null)
     }
