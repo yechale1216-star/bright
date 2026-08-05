@@ -102,13 +102,21 @@ export function TeacherAssignmentManagement() {
       }
     }
     initializeAndLoad()
+
+    const handleTeacherChanged = () => {
+      const storedSchoolId = localStorage.getItem("x-school-id") || ""
+      loadAllData(storedSchoolId, true, true)
+    }
+
+    window.addEventListener("teacherDataChanged", handleTeacherChanged)
+    return () => window.removeEventListener("teacherDataChanged", handleTeacherChanged)
   }, [])
 
-  const loadAllData = async (school: string, isBackground = false) => {
+  const loadAllData = async (school: string, isBackground = false, forceRefetch = false) => {
     try {
       if (!isBackground && assignments.length === 0) setIsLoading(true)
       const [teachersData, assignmentsData, gradesData, sectionsData, streamsData] = await Promise.all([
-        db.getTeachers(),
+        db.getTeachers(forceRefetch),
         db.getTeacherAssignments(),
         db.getGrades(),
         db.getSections(),

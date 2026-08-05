@@ -118,6 +118,16 @@ async function handleResponse(res: Response, defaultErrorMsg: string) {
   return await res.json();
 }
 
+import { queryCache } from './utils/query-cache';
+
+function notifyDisciplineDataChanged() {
+  queryCache.invalidate(/^discipline_/);
+  queryCache.invalidate('discipline_');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('disciplineDataChanged'));
+  }
+}
+
 export const DisciplineApi = {
   async getCategories(): Promise<DisciplineCategory[]> {
     const res = await fetch(`${API_URL}/api/discipline/categories`, { headers: getAuthHeaders() });
@@ -132,6 +142,7 @@ export const DisciplineApi = {
       body: JSON.stringify({ name, description })
     });
     const data = await handleResponse(res, 'Failed to create category');
+    notifyDisciplineDataChanged();
     return data.data;
   },
 
@@ -141,6 +152,7 @@ export const DisciplineApi = {
       headers: getAuthHeaders()
     });
     await handleResponse(res, 'Failed to delete category');
+    notifyDisciplineDataChanged();
   },
 
   async getIncidents(params: Record<string, any> = {}): Promise<{
@@ -174,6 +186,7 @@ export const DisciplineApi = {
       body: JSON.stringify(payload)
     });
     const data = await handleResponse(res, 'Failed to create incident');
+    notifyDisciplineDataChanged();
     return data.data;
   },
 
@@ -184,6 +197,7 @@ export const DisciplineApi = {
       body: JSON.stringify(payload)
     });
     const data = await handleResponse(res, 'Failed to update incident');
+    notifyDisciplineDataChanged();
     return data.data;
   },
 
@@ -193,6 +207,7 @@ export const DisciplineApi = {
       headers: getAuthHeaders()
     });
     await handleResponse(res, 'Failed to delete incident');
+    notifyDisciplineDataChanged();
   },
 
   async acknowledgeIncident(id: string, notes?: string): Promise<StudentDiscipline> {
@@ -202,6 +217,7 @@ export const DisciplineApi = {
       body: JSON.stringify({ notes })
     });
     const data = await handleResponse(res, 'Failed to acknowledge incident');
+    notifyDisciplineDataChanged();
     return data.data;
   },
 
@@ -212,6 +228,7 @@ export const DisciplineApi = {
       body: JSON.stringify(payload)
     });
     const data = await handleResponse(res, 'Failed to add follow-up');
+    notifyDisciplineDataChanged();
     return data.data;
   },
 

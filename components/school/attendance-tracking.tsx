@@ -119,13 +119,23 @@ export function AttendanceTracking() {
     loadStudents()
     fetchEditRequests()
 
+    const handleAttendanceChanged = () => {
+      loadAttendanceForDate(true)
+      fetchEditRequests()
+    }
+
+    window.addEventListener("attendanceDataChanged", handleAttendanceChanged)
+
     // Background polling for "instant" updates (every 30 seconds)
     const pollInterval = setInterval(() => {
       loadAttendanceForDate(true)
       fetchEditRequests()
     }, 30000)
 
-    return () => clearInterval(pollInterval)
+    return () => {
+      window.removeEventListener("attendanceDataChanged", handleAttendanceChanged)
+      clearInterval(pollInterval)
+    }
   }, [])
 
   const fetchEditRequests = async () => {

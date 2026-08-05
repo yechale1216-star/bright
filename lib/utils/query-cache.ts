@@ -73,9 +73,14 @@ class QueryCache {
     const now = Date.now()
     const cached = this.memoryCache.get(key) as CacheEntry<T> | undefined
 
+    if (forceRefetch) {
+      perfMonitor.recordCacheAccess(false, key)
+      return this.executeAndCache(key, fetcher, persist)
+    }
+
     if (cached) {
       perfMonitor.recordCacheAccess(true, key)
-      const isStale = now - cached.timestamp > staleTime || forceRefetch
+      const isStale = now - cached.timestamp > staleTime
 
       if (!isStale) {
         // Cache is fresh! Return immediately.

@@ -18,8 +18,8 @@ class Database extends BaseDatabase {
     return students.getNextStudentId(this.getApiHeaders())
   }
 
-  async getStudents(): Promise<Student[]> {
-    return students.getStudents(this.getApiHeaders(), this.getSchoolId())
+  async getStudents(forceRefetch = false): Promise<Student[]> {
+    return students.getStudents(this.getApiHeaders(), this.getSchoolId(), forceRefetch)
   }
 
   async addStudent(student: Partial<Student>): Promise<Student> {
@@ -37,7 +37,11 @@ class Database extends BaseDatabase {
         body: JSON.stringify({ students: studentsData }),
       }
     )
-    queryCache.invalidate(`students_${schoolId}`)
+    queryCache.invalidate(/^students_/)
+    queryCache.invalidate("students_")
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("studentDataChanged"))
+    }
     return result
   }
 
@@ -226,7 +230,13 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    queryCache.invalidate(`settings_${schoolId}`)
+    queryCache.invalidate(/^settings_/)
+    queryCache.invalidate(/^grades_/)
+    queryCache.invalidate(/^sections_/)
+    queryCache.invalidate(/^streams_/)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("settingsDataChanged"))
+    }
   }
 
   async resetSettings(): Promise<void> {
@@ -235,16 +245,33 @@ class Database extends BaseDatabase {
     await apiFetch(
       `${API_URL}/api/settings`,
       {
-        method: "PUT",
+        method: "POST",
         headers: this.getApiHeaders(),
         body: JSON.stringify(settings.defaultSettings()),
       }
     )
+    queryCache.invalidate(/^settings_/)
+    queryCache.invalidate(/^grades_/)
+    queryCache.invalidate(/^sections_/)
+    queryCache.invalidate(/^streams_/)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("settingsDataChanged"))
+    }
   }
 
   // ─── TEACHERS ─────────────────────────────────────────────────────────────
-  async getTeachers(): Promise<any[]> {
-    return teachers.getTeachers(this.getApiHeaders(), this.getSchoolId())
+  private notifyTeacherDataChanged() {
+    queryCache.invalidate(/^teachers_/)
+    queryCache.invalidate(/^assignments_/)
+    queryCache.invalidate("teachers_")
+    queryCache.invalidate("assignments_")
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("teacherDataChanged"))
+    }
+  }
+
+  async getTeachers(forceRefetch = false): Promise<any[]> {
+    return teachers.getTeachers(this.getApiHeaders(), this.getSchoolId(), forceRefetch)
   }
 
   async createTeacher(teacherData: any): Promise<any> {
@@ -264,12 +291,11 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    queryCache.invalidate(`teachers_${schoolId}`)
+    this.notifyTeacherDataChanged()
     return result.data
   }
 
   async updateTeacher(teacherId: string, teacherData: any): Promise<void> {
-    const schoolId = this.getSchoolId()
     await apiFetch(
       `${API_URL}/api/users/${teacherId}`,
       {
@@ -278,11 +304,10 @@ class Database extends BaseDatabase {
         body: JSON.stringify(teacherData),
       }
     )
-    if (schoolId) queryCache.invalidate(`teachers_${schoolId}`)
+    this.notifyTeacherDataChanged()
   }
 
   async deleteTeacher(teacherId: string): Promise<void> {
-    const schoolId = this.getSchoolId()
     await apiFetch(
       `${API_URL}/api/users/${teacherId}`,
       {
@@ -290,7 +315,11 @@ class Database extends BaseDatabase {
         headers: this.getApiHeaders(),
       }
     )
-    if (schoolId) queryCache.invalidate(`teachers_${schoolId}`)
+    this.notifyTeacherDataChanged()
+  }
+
+  async restoreTeacher(teacherId: string): Promise<void> {
+    await this.updateTeacher(teacherId, { is_active: true })
   }
 
   // ─── TEACHER ASSIGNMENTS ──────────────────────────────────────────────────
@@ -318,7 +347,10 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    queryCache.invalidate(`assignments_${schoolId}`)
+    queryCache.invalidate(/^assignments_/)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('teacherDataChanged'))
+    }
     return result.data
   }
 
@@ -331,7 +363,10 @@ class Database extends BaseDatabase {
         headers: this.getApiHeaders(),
       }
     )
-    if (schoolId) queryCache.invalidate(`assignments_${schoolId}`)
+    queryCache.invalidate(/^assignments_/)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('teacherDataChanged'))
+    }
   }
 
   async updateTeacherAssignment(assignmentId: string, data: any): Promise<void> {
@@ -350,7 +385,10 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    if (schoolId) queryCache.invalidate(`assignments_${schoolId}`)
+    queryCache.invalidate(/^assignments_/)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('teacherDataChanged'))
+    }
   }
 
   // ─── ACADEMIC ENTITIES ────────────────────────────────────────────────────

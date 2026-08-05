@@ -13,7 +13,7 @@ export async function getNextStudentId(headers: any): Promise<string> {
   return result.data
 }
 
-export async function getStudents(headers: any, schoolId: string): Promise<Student[]> {
+export async function getStudents(headers: any, schoolId: string, forceRefetch = false): Promise<Student[]> {
   if (!schoolId) return []
   return queryCache.fetch(
     `students_${schoolId}`,
@@ -22,13 +22,21 @@ export async function getStudents(headers: any, schoolId: string): Promise<Stude
         `${API_URL}/api/students`,
         { headers }
       )
-      return result.data.map((s: any) => ({
+      return (result.data || []).map((s: any) => ({
         ...s,
         schoolId: schoolId,
       }))
     },
-    { staleTime: 60_000 }
+    { staleTime: 60_000, forceRefetch }
   )
+}
+
+function notifyStudentDataChanged() {
+  queryCache.invalidate(/^students_/)
+  queryCache.invalidate("students_")
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("studentDataChanged"))
+  }
 }
 
 export async function addStudent(headers: any, schoolId: string, student: Partial<Student>): Promise<Student> {
@@ -41,7 +49,7 @@ export async function addStudent(headers: any, schoolId: string, student: Partia
       body: JSON.stringify(student),
     }
   )
-  queryCache.invalidate(`students_${schoolId}`)
+  notifyStudentDataChanged()
   return {
     ...result.data,
     schoolId: schoolId,
@@ -57,7 +65,7 @@ export async function updateStudent(headers: any, id: string, data: Partial<Stud
       body: JSON.stringify(data),
     }
   )
-  queryCache.invalidate("students_")
+  notifyStudentDataChanged()
 }
 
 export async function deleteStudent(headers: any, id: string): Promise<void> {
@@ -68,5 +76,5 @@ export async function deleteStudent(headers: any, id: string): Promise<void> {
       headers,
     }
   )
-  queryCache.invalidate("students_")
+  notifyStudentDataChanged()
 }

@@ -3,7 +3,7 @@ import type { TeacherAssignment } from "../types"
 import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 import { queryCache } from "@/lib/utils/query-cache"
 
-export async function getTeachers(headers: any, schoolId?: string): Promise<any[]> {
+export async function getTeachers(headers: any, schoolId?: string, forceRefetch = false): Promise<any[]> {
   const activeSchoolId = schoolId || headers["x-school-id"] || ""
   if (!activeSchoolId) return []
   return queryCache.fetch(
@@ -13,13 +13,13 @@ export async function getTeachers(headers: any, schoolId?: string): Promise<any[
         `${API_URL}/api/users?role=teacher`,
         { headers }
       )
-      return result.data.filter((u: any) => u.role === "teacher")
+      return (result.data || []).filter((u: any) => u.role === "teacher")
     },
-    { staleTime: 60_000, persist: true }
+    { staleTime: 60_000, persist: true, forceRefetch }
   )
 }
 
-export async function getTeacherAssignments(headers: any, schoolId?: string, teacherId?: string): Promise<TeacherAssignment[]> {
+export async function getTeacherAssignments(headers: any, schoolId?: string, teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
   if (!schoolId) return []
   const cacheKey = `assignments_${schoolId}_${teacherId || "all"}`
   return queryCache.fetch(
@@ -36,7 +36,7 @@ export async function getTeacherAssignments(headers: any, schoolId?: string, tea
         if (typeof val === "object" && val !== null && val.name) return String(val.name)
         return ""
       }
-      return result.data.map((a: any) => ({
+      return (result.data || []).map((a: any) => ({
         id: a.id,
         teacher_id: a.teacher_id,
         schoolId: a.schoolId,
@@ -59,6 +59,6 @@ export async function getTeacherAssignments(headers: any, schoolId?: string, tea
         } : undefined,
       }))
     },
-    { staleTime: 60_000, persist: true }
+    { staleTime: 60_000, persist: true, forceRefetch }
   )
 }

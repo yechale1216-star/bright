@@ -14,6 +14,17 @@ import { API_URL } from '@/lib/api-config'
 import { notifications } from '@/lib/utils/notifications'
 import Link from 'next/link'
 import { PhoneInput } from '@/components/ui/phone-input'
+import { queryCache } from '@/lib/utils/query-cache'
+
+function notifyUserDataChanged() {
+  queryCache.invalidate(/^users_/)
+  queryCache.invalidate(/^teachers_/)
+  queryCache.invalidate(/^assignments_/)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('userDataChanged'))
+    window.dispatchEvent(new CustomEvent('teacherDataChanged'))
+  }
+}
 
 const ROLE_BADGES: Record<string, { label: string; color: string }> = {
   admin: { label: 'School Admin', color: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' },
@@ -86,6 +97,12 @@ export default function UsersAndRolesPage() {
 
   useEffect(() => {
     fetchData()
+
+    const handleUserChanged = () => {
+      fetchData()
+    }
+    window.addEventListener("userDataChanged", handleUserChanged)
+    return () => window.removeEventListener("userDataChanged", handleUserChanged)
   }, [])
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -106,6 +123,7 @@ export default function UsersAndRolesPage() {
       notifications.success('User Created', `Added ${createForm.full_name} as ${ROLE_BADGES[createForm.role]?.label || createForm.role}`)
       setShowCreateModal(false)
       setCreateForm({ full_name: '', email: '', phone: '', password: '', role: 'registrar' })
+      notifyUserDataChanged()
       fetchData()
     } catch (err: any) {
       notifications.error('Creation Failed', err.message || 'Could not create user.')
@@ -151,6 +169,7 @@ export default function UsersAndRolesPage() {
 
       notifications.success('User Updated', `Updated profile for ${editForm.full_name}`)
       setEditingUser(null)
+      notifyUserDataChanged()
       fetchData()
     } catch (err: any) {
       notifications.error('Update Failed', err.message || 'Could not update user.')
@@ -170,6 +189,7 @@ export default function UsersAndRolesPage() {
       })
 
       notifications.success('Status Changed', `${u.full_name} is now ${newStatus ? 'Active' : 'Inactive'}`)
+      notifyUserDataChanged()
       fetchData()
     } catch (err: any) {
       notifications.error('Status Toggle Failed', err.message || 'Could not change user status.')
@@ -189,6 +209,7 @@ export default function UsersAndRolesPage() {
       })
 
       notifications.success('User Deleted', `Removed ${u.full_name} from school staff.`)
+      notifyUserDataChanged()
       fetchData()
     } catch (err: any) {
       notifications.error('Delete Failed', err.message || 'Could not delete user.')

@@ -135,12 +135,21 @@ export function StudentManagement() {
     loadStudents()
     fetchNextStudentId()
 
+    const handleStudentChanged = () => {
+      loadStudents(true, true)
+    }
+
+    window.addEventListener("studentDataChanged", handleStudentChanged)
+
     // Background polling for "instant" updates (every 10 seconds)
     const pollInterval = setInterval(() => {
-      loadStudents(true)
+      loadStudents(true, true)
     }, 10000)
 
-    return () => clearInterval(pollInterval)
+    return () => {
+      window.removeEventListener("studentDataChanged", handleStudentChanged)
+      clearInterval(pollInterval)
+    }
   }, [])
 
   const filteredStudents = useMemo(() => {
@@ -177,11 +186,11 @@ export function StudentManagement() {
     })
   }, [students, searchTerm, gradeFilter, streamFilter, sectionFilter, isTeacher])
 
-  const loadStudents = async (isBackground = false) => {
+  const loadStudents = async (isBackground = false, forceRefetch = false) => {
     if (!isBackground && students.length === 0) setIsLoading(true)
     try {
       const user = authService.getCurrentUser()
-      const studentsData = await db.getStudents()
+      const studentsData = await db.getStudents(forceRefetch)
       
       if (user?.role === "teacher") {
         // Fetch teacher's assigned classes

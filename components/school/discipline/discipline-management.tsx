@@ -215,6 +215,14 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
   useEffect(() => {
     fetchAnalyticsAndCategories();
+
+    const handleDisciplineChanged = () => {
+      fetchIncidents();
+      fetchAnalyticsAndCategories();
+    };
+
+    window.addEventListener("disciplineDataChanged", handleDisciplineChanged);
+    return () => window.removeEventListener("disciplineDataChanged", handleDisciplineChanged);
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

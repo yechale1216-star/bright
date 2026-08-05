@@ -79,6 +79,12 @@ export function Settings() {
         setIsEditingSchoolInfo(true)
       }
     }
+
+    const handleSettingsChanged = () => {
+      loadSettings()
+    }
+    window.addEventListener("settingsDataChanged", handleSettingsChanged)
+    return () => window.removeEventListener("settingsDataChanged", handleSettingsChanged)
   }, [])
 
 

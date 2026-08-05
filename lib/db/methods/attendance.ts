@@ -15,6 +15,14 @@ export function mapAttendance(r: any, schoolId: string): AttendanceRecord {
   }
 }
 
+function notifyAttendanceDataChanged() {
+  queryCache.invalidate(/^attendance_/)
+  queryCache.invalidate("attendance_")
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("attendanceDataChanged"))
+  }
+}
+
 export async function getAttendance(headers: any, schoolId: string): Promise<AttendanceRecord[]> {
   if (!schoolId) return []
   return queryCache.fetch(
@@ -69,9 +77,7 @@ export async function markAttendance(
     }
   )
 
-  // Invalidate all attendance caches for this school so dashboards get fresh data
-  queryCache.invalidate(`attendance_all_${schoolId}`)
-  queryCache.invalidate(`attendance_date_${schoolId}_`)
+  notifyAttendanceDataChanged()
 }
 
 export async function createEditRequest(headers: any, payload: { studentId?: string; gradeId?: string; sectionId?: string; date: string; session?: string | null; reason?: string }): Promise<any> {
@@ -83,6 +89,7 @@ export async function createEditRequest(headers: any, payload: { studentId?: str
       body: JSON.stringify(payload),
     }
   )
+  notifyAttendanceDataChanged()
   return result.data
 }
 
@@ -104,6 +111,7 @@ export async function approveEditRequest(headers: any, requestId: string, adminN
       body: JSON.stringify({ adminNote }),
     }
   )
+  notifyAttendanceDataChanged()
   return result.data
 }
 
@@ -116,6 +124,7 @@ export async function rejectEditRequest(headers: any, requestId: string, adminNo
       body: JSON.stringify({ adminNote }),
     }
   )
+  notifyAttendanceDataChanged()
   return result.data
 }
 
