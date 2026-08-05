@@ -21,11 +21,11 @@ import {
   Globe,
   Sparkles,
   ShieldAlert,
+  Users,
 } from "lucide-react"
 import { parentDb } from "@/lib/db/parent-db"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Logo } from "@/components/logo"
 import { TopNav } from "@/components/layout/top-nav"
 import { useTheme } from "@/components/theme-provider"
 
@@ -245,7 +245,18 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-card/70 dark:bg-slate-900/70 backdrop-blur-xl border-r border-border shrink-0 select-none relative z-20">
-        <div className="p-6 border-b border-border"><Logo href="/parent/dashboard" /></div>
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border/80">
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Users className="w-5 h-5 text-blue-500" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-sm tracking-tight text-foreground">Parent Portal</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+            </div>
+            <p className="text-[11px] font-medium text-muted-foreground truncate">{currentUser?.name || 'Parent'}</p>
+          </div>
+        </div>
 
         <div className="p-4 border-b border-border">
           <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="w-full flex items-center justify-between p-2.5 bg-muted/50 rounded-xl border border-border/10">
@@ -265,13 +276,13 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
             <Link key={link.href} href={link.href} className={cn(
               "flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold group",
               isActive(link.href)
-                ? "bg-primary/15 text-primary shadow-sm"
-                : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                ? "bg-primary/15 text-primary shadow-sm font-bold"
+                : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary"
             )}>
               <div className="flex items-center gap-3">
                 <span className={cn(
                   "transition-colors",
-                  isActive(link.href) ? "text-primary" : "text-slate-500 group-hover:text-foreground"
+                  isActive(link.href) ? "text-primary" : "text-primary/70 group-hover:text-primary"
                 )}>{link.icon}</span>
                 <span>{link.label}</span>
               </div>
@@ -332,15 +343,28 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card dark:bg-slate-900 border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-5 border-b border-border flex justify-between items-center">
-          <Logo size="sm" href="/parent/dashboard" />
-          <button onClick={() => setSidebarOpen(false)}><X className="w-5 h-5" /></button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Users className="w-5 h-5 text-blue-500" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-sm tracking-tight text-foreground">Parent Portal</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+              </div>
+              <p className="text-[11px] font-medium text-muted-foreground truncate">{currentUser?.name || 'Parent'}</p>
+            </div>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground ml-auto">
+            <X className="w-5 h-5" />
+          </button>
         </div>
         <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1">
           {navLinks.map(link => (
             <Link key={link.href} href={link.href} onClick={() => setSidebarOpen(false)}>
-              <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1", isActive(link.href) ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted")}>
-                {link.icon} <span className="flex-1">{link.label}</span> {isActive(link.href) && <ChevronRight className="w-4 h-4" />}
+              <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all", isActive(link.href) ? "bg-primary/15 text-primary font-bold" : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary")}>
+                <span className={isActive(link.href) ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{link.icon}</span> <span className="flex-1">{link.label}</span> {isActive(link.href) && <ChevronRight className="w-4 h-4" />}
               </div>
             </Link>
           ))}

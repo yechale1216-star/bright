@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 // ── Site-wide constants ─────────────────────────────────────────────────────────
-export const SITE_NAME = "Zetime"
+export const SITE_NAME = "Addis Hiwot School"
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://zetime.pro.et"
 export const DEFAULT_OG_IMAGE = "/zetime_branding_professional.png"
 export const TWITTER_HANDLE = "@zetime_app"

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, LogOut, User, CheckSquare, BarChart2, BookOpen, 
-  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert
+  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap
 } from 'lucide-react'
 import { useAuth } from '@/lib/context/auth-context'
 import { useSchool } from '@/lib/context/school-context'
@@ -14,7 +14,6 @@ import { useRouter } from 'next/navigation'
 import { notifications } from '@/lib/utils/notifications'
 import { cn } from '@/lib/utils/utils'
 import { useTheme } from '@/components/theme-provider'
-import { Logo } from '@/components/logo'
 import { TopNav } from '@/components/layout/top-nav'
 import { PageSkeleton } from '@/components/ui/page-skeleton'
 import { LanguageProvider } from '@/lib/context/language-context'
@@ -84,7 +83,18 @@ export default function TeacherClientLayout({
               
               <aside className="hidden md:flex w-64 border-r border-border bg-card/70 dark:bg-slate-900/70 backdrop-blur-xl flex-col relative z-20">
                 <div className="h-16 px-4 border-b border-border flex items-center justify-between">
-                  <Logo size="sm" href="/school/teacher" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <GraduationCap className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+                      </div>
+                      <p className="text-[11px] font-medium text-muted-foreground truncate">{user?.name || 'Teacher'}</p>
+                    </div>
+                  </div>
                 </div>
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
                   {navItems.map(item => (
@@ -130,18 +140,31 @@ export default function TeacherClientLayout({
                 "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card dark:bg-slate-900 border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
                 sidebarOpen ? "translate-x-0" : "-translate-x-full"
               )}>
-                <div className="p-5 border-b border-border flex justify-between items-center">
-                   <Logo size="sm" href="/school/teacher" />
-                   <button onClick={() => setSidebarOpen(false)}><X className="w-5 h-5" /></button>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <GraduationCap className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+                      </div>
+                      <p className="text-[11px] font-medium text-muted-foreground truncate">{user?.name || 'Teacher'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground ml-auto">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
                  <nav className="flex-1 overflow-y-auto min-h-0 p-4 space-y-1">
                    {navItems.map(item => (
                      <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
                         <div className={cn(
-                          "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1",
-                          isActive(item.href) ? 'bg-primary/15 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all",
+                          isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
                         )}>
-                          {item.icon}
+                          <span className={isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'}>{item.icon}</span>
                           <span className="flex-1">{item.label}</span>
                           {isActive(item.href) && <ChevronRight className="w-4 h-4" />}
                         </div>
@@ -208,10 +231,10 @@ function NavLink({ href, icon, label, active }: { href: string, icon: React.Reac
   return (
     <Link href={href}>
       <div className={cn(
-        "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0",
-        active ? "bg-primary/15 text-primary shadow-sm" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+        "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0 group",
+        active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary"
       )}>
-        <span className={active ? "text-primary" : "text-slate-500"}>{icon}</span>
+        <span className={active ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{icon}</span>
         <span>{label}</span>
       </div>
     </Link>

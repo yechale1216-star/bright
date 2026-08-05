@@ -15,7 +15,6 @@ import { useSchool } from '@/lib/context/school-context'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { useRouter } from 'next/navigation'
 import { notifications } from '@/lib/utils/notifications'
-import { Logo } from '@/components/logo'
 import { TopNav } from '@/components/layout/top-nav'
 
 
@@ -125,9 +124,20 @@ export default function SchoolAdminClientLayout({
                   sidebarOpen ? "translate-x-0" : "-translate-x-full"
                 )}
               >
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card/80 backdrop-blur-xl">
-                  <Logo size="sm" href="/school/admin" />
-                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <ShieldCheck className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-sm tracking-tight text-foreground">Admin Portal</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+                      </div>
+                      <p className="text-[11px] font-medium text-muted-foreground truncate">{user?.name || 'School Admin'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground ml-auto">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -137,9 +147,12 @@ export default function SchoolAdminClientLayout({
                     <Link key={item.href} href={item.href}>
                       <div className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-semibold group",
-                        isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
                       )}>
-                        <span className={isActive(item.href) ? 'text-primary' : 'text-slate-500 group-hover:text-foreground'}>{item.icon}</span>
+                        <span className={cn(
+                          "transition-colors flex-shrink-0",
+                          isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                        )}>{item.icon}</span>
                         <span className="flex-1">{item.label}</span>
                         {isActive(item.href) && <ChevronRight className="w-4 h-4" />}
                       </div>
@@ -161,21 +174,29 @@ export default function SchoolAdminClientLayout({
                 isCollapsed ? "w-20" : "w-64"
               )}>
                 <div className="h-16 px-4 border-b border-border flex items-center justify-between">
-                  {!isCollapsed && <Logo size="sm" href="/school/admin" />}
-                  {isCollapsed && (
-                    <div className="mx-auto">
-                      <Logo size="sm" href="/school/admin" iconOnly />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <ShieldCheck className="w-5 h-5 text-primary" />
                     </div>
-                  )}
+                    {!isCollapsed && (
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-extrabold text-sm tracking-tight text-foreground">Admin Portal</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+                        </div>
+                        <p className="text-[11px] font-medium text-muted-foreground truncate">{user?.name || 'School Admin'}</p>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     className={cn(
-                      "p-2 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                      "p-1.5 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
                       isCollapsed && "mx-auto mt-2"
                     )}
                     title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                   >
-                    {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <X className="w-5 h-5 opacity-0 hover:opacity-100 hidden" />}
+                    <ChevronRight className={cn("w-4 h-4 transition-transform duration-300", !isCollapsed && "rotate-180")} />
                   </button>
                 </div>
 
@@ -248,11 +269,11 @@ function NavLink({ href, icon, label, active, isCollapsed }: { href: string, ico
       <div className={cn(
         "flex items-center gap-3 rounded-xl transition-all duration-200 text-sm font-semibold group",
         isCollapsed ? "justify-center p-3" : "px-4 py-2.5",
-        active ? 'bg-primary/15 text-primary shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+        active ? 'bg-primary/15 text-primary shadow-2xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
       )}>
         <span className={cn(
           "transition-colors flex-shrink-0",
-          active ? 'text-primary' : 'text-slate-500 group-hover:text-foreground'
+          active ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
         )}>{icon}</span>
         {!isCollapsed && <span className="truncate">{label}</span>}
       </div>

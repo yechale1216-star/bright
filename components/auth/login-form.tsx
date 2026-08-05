@@ -391,7 +391,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
               <div className="space-y-2">
                 <Label htmlFor="email" className="typography-label text-slate-800 dark:text-slate-300">Email Address</Label>
                 <div className="relative group">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 group-focus-within:text-blue-700 dark:group-focus-within:text-blue-400 transition-colors">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 group-focus-within:text-fuchsia-700 dark:group-focus-within:text-fuchsia-400 transition-colors">
                     <Mail className="w-4 h-4" />
                   </div>
                   <Input
@@ -401,7 +401,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
                     value={credentials.email}
                     onChange={(e) => setCredentials((prev) => ({ ...prev, email: e.target.value }))}
                     required
-                    className="typography-body pl-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all rounded-xl"
+                    className="typography-body pl-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-fuchsia-500/20 focus:border-fuchsia-600 transition-all rounded-xl"
                   />
                 </div>
               </div>
@@ -413,13 +413,13 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
                     variant="link"
                     type="button"
                     onClick={onShowForgotPassword}
-                    className="typography-label text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 h-auto p-0 font-bold"
+                    className="typography-label text-fuchsia-700 dark:text-fuchsia-400 hover:text-fuchsia-800 dark:hover:text-fuchsia-300 h-auto p-0 font-bold"
                   >
                     Forgot password?
                   </Button>
                 </div>
                 <div className="relative group">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 group-focus-within:text-blue-700 dark:group-focus-within:text-blue-400 transition-colors">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-500 group-focus-within:text-fuchsia-700 dark:group-focus-within:text-fuchsia-400 transition-colors">
                     <Lock className="w-4 h-4" />
                   </div>
                   <Input
@@ -429,7 +429,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
                     value={credentials.password}
                     onChange={(e) => setCredentials((prev) => ({ ...prev, password: e.target.value }))}
                     required
-                    className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all rounded-xl"
+                    className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-fuchsia-500/20 focus:border-fuchsia-600 transition-all rounded-xl"
                   />
                   <button
                     type="button"
@@ -446,7 +446,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
                   id="remember" 
                   checked={rememberMe}
                   onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  className="rounded-md border-slate-400 dark:border-white/20 data-[state=checked]:bg-blue-600"
+                  className="rounded-md border-slate-400 dark:border-white/20 data-[state=checked]:bg-fuchsia-700"
                 />
                 <label
                   htmlFor="remember"
@@ -459,7 +459,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
 
             <Button 
               type="submit" 
-              className="typography-card-title w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98]"
+              className="typography-card-title w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-fuchsia-900/20 transition-all active:scale-[0.98]"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -502,13 +502,13 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
             <div className="flex items-center gap-2 bg-slate-200/50 dark:bg-white/5 p-1.5 px-3 rounded-full border border-slate-300 dark:border-white/10">
               <button 
                 onClick={() => setLanguage('en')}
-                className={`typography-label text-[10px] px-2 py-0.5 rounded transition-colors font-bold ${language === 'en' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-500 hover:text-slate-900'}`}
+                className={`typography-label text-[10px] px-2 py-0.5 rounded transition-colors font-bold ${language === 'en' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-slate-600 dark:text-slate-500 hover:text-slate-900'}`}
               >
                 EN
               </button>
               <button 
                 onClick={() => setLanguage('am')}
-                className={`typography-label text-[10px] px-2 py-0.5 rounded transition-colors font-bold ${language === 'am' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-500 hover:text-slate-900'}`}
+                className={`typography-label text-[10px] px-2 py-0.5 rounded transition-colors font-bold ${language === 'am' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-slate-600 dark:text-slate-500 hover:text-slate-900'}`}
               >
                 አማ
               </button>

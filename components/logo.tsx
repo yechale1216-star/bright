@@ -71,32 +71,40 @@ export const Logo: React.FC<LogoProps> = ({
   };
 
   const content = (
-    <div className={cn("flex items-center gap-3 group", className)}>
-      <div className={cn("transition-transform group-hover:scale-105 duration-300 flex-shrink-0 relative overflow-hidden rounded-xl", dimensions[size].cls)}>
+    <div className={cn("flex flex-col items-center text-center gap-2 group", className)}>
+      <div className={cn("transition-transform group-hover:scale-105 duration-300 flex-shrink-0 relative overflow-hidden rounded-full shadow-md", dimensions[size].cls)}>
         <div className="absolute inset-0 bg-white/20 blur-xl rounded-full dark:opacity-50 opacity-0 transition-opacity" />
         {imgError ? (
-          <div className="rounded-xl overflow-hidden">
+          <div className="rounded-full overflow-hidden">
             <ZetimeFallbackLogo size={dimensions[size].px} />
           </div>
         ) : (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src="/zetime-logo.png"
-            alt="Zetime Logo"
+            alt="Addis Hiwot School Logo"
             width={dimensions[size].px}
             height={dimensions[size].px}
-            className="object-contain w-full h-full relative z-10 dark:drop-shadow-[0_0_10px_rgba(147,197,253,0.5)] rounded-xl"
+            className="object-cover w-full h-full relative z-10 dark:drop-shadow-[0_0_10px_rgba(147,197,253,0.5)] rounded-full"
             onError={() => setImgError(true)}
           />
         )}
       </div>
       {showText && (
-        <span className={cn(
-          "font-black tracking-tighter transition-all duration-300 group-hover:tracking-normal drop-shadow-sm text-slate-900 dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-r dark:from-blue-400 dark:to-indigo-300 dark:text-white",
-          textSizes[size]
-        )}>
-          ZETIME
-        </span>
+        <div className="flex flex-col items-center text-center space-y-0.5 min-w-0">
+          <span className={cn(
+            "font-black tracking-tight text-slate-900 dark:text-white leading-snug",
+            size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm md:text-base' : size === 'lg' ? 'text-base md:text-lg' : 'text-xl md:text-2xl'
+          )}>
+            አዲስ ህይወት ትምህርት ቤት
+          </span>
+          <span className={cn(
+            "font-black tracking-tight text-slate-900 dark:text-white leading-snug",
+            size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm md:text-base' : size === 'lg' ? 'text-base md:text-lg' : 'text-xl md:text-2xl'
+          )}>
+            Addis Hiwot School
+          </span>
+        </div>
       )}
     </div>
   );

@@ -30,11 +30,11 @@ messaging.onBackgroundMessage((payload) => {
   } else if (payload.notification) {
     // Generic notification fallback
     const { title, body } = payload.notification;
-    self.registration.showNotification(title || 'Zetime', {
+    self.registration.showNotification(title || 'Addis Hiwot School', {
       body: body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      tag: 'zetime-general',
+      tag: 'addis-hiwot-general',
       data: data,
     });
   }
