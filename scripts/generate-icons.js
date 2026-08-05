@@ -34,18 +34,18 @@ async function generateIcons() {
     const outDir = path.join(RES_DIR, folder);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-    // ic_launcher.png - square with rounded corners handled by Android
+    // ic_launcher.png - solid purple background with emblem
     const launcherPath = path.join(outDir, 'ic_launcher.png');
     await sharp(SOURCE)
-      .resize(size, size, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+      .resize(size, size, { fit: 'cover', background: { r: 163, g: 73, b: 163, alpha: 1 } })
       .png()
       .toFile(launcherPath);
     console.log(`Created ${folder}/ic_launcher.png (${size}x${size})`);
 
-    // ic_launcher_round.png - same image, Android applies circular mask
+    // ic_launcher_round.png - solid purple background with emblem
     const roundPath = path.join(outDir, 'ic_launcher_round.png');
     await sharp(SOURCE)
-      .resize(size, size, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+      .resize(size, size, { fit: 'cover', background: { r: 163, g: 73, b: 163, alpha: 1 } })
       .png()
       .toFile(roundPath);
     console.log(`Created ${folder}/ic_launcher_round.png (${size}x${size})`);
@@ -60,9 +60,9 @@ async function generateIcons() {
     const iconSize = Math.round(size * 0.66);
     const foregroundPath = path.join(outDir, 'ic_launcher_foreground.png');
     
-    // Create the icon at the safe-zone size
+    // Create the icon at the safe-zone size with transparent background
     const iconBuffer = await sharp(SOURCE)
-      .resize(iconSize, iconSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+      .resize(iconSize, iconSize, { fit: 'contain', background: { r: 163, g: 73, b: 163, alpha: 0 } })
       .png()
       .toBuffer();
 
@@ -72,7 +72,7 @@ async function generateIcons() {
         width: size,
         height: size,
         channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 0 }
+        background: { r: 163, g: 73, b: 163, alpha: 0 }
       }
     })
       .composite([{
@@ -99,12 +99,12 @@ async function generateIcons() {
   fs.writeFileSync(path.join(anydpiDir, 'ic_launcher_round.xml'), adaptiveIconXml);
   console.log('Created mipmap-anydpi-v26/ic_launcher.xml and ic_launcher_round.xml');
 
-  // Create the background color resource
+  // Create the background color resource - USE MATCHING PURPLE #A349A3 (NO WHITE SPACE!)
   const valuesDir = path.join(RES_DIR, 'values');
   const colorsPath = path.join(valuesDir, 'ic_launcher_background.xml');
   const colorsXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#A349A3</color>
 </resources>
 `;
   fs.writeFileSync(colorsPath, colorsXml);

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Zetime</string>
-    <string name="title_activity_main">Zetime</string>
+    <string name="app_name">Addis Hiwot</string>
+    <string name="title_activity_main">Addis Hiwot</string>
     <string name="package_name">com.zetime.app</string>
     <string name="custom_url_scheme">com.zetime.app</string>
 </resources>

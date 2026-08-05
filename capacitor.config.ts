@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.zetime.app',
-  appName: 'Zetime',
+  appName: 'Addis Hiwot',
   webDir: 'out',
   plugins: {
     SplashScreen: {

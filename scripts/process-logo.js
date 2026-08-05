@@ -13,54 +13,73 @@ async function processImage() {
     .toBuffer();
 
   const size = 512;
-  const emblemSize = 420; // leaves safe-zone margin inside the 512px circle
+  const emblemSize = 420; // safe margin
 
   const resizedEmblem = await sharp(emblemSquare)
     .resize(emblemSize, emblemSize, { fit: 'contain', background: { r: 163, g: 73, b: 163, alpha: 1 } })
     .toBuffer();
 
-  // Create a 512x512 purple circle (#A349A3)
-  const radius = size / 2;
-  const circleSvg = Buffer.from(
-    `<svg width="${size}" height="${size}"><circle cx="${radius}" cy="${radius}" r="${radius}" fill="#A349A3"/></svg>`
-  );
+  // Create a 512x512 solid purple (#A349A3) background canvas (full bleed)
+  const basePurple = await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: { r: 163, g: 73, b: 163, alpha: 1 }
+    }
+  }).png().toBuffer();
 
-  const baseCircle = await sharp(circleSvg).png().toBuffer();
-
-  // Composite emblem centered on the purple circle
-  const composited = await sharp(baseCircle)
+  // Composite emblem centered on the purple background
+  const composited = await sharp(basePurple)
     .composite([{ input: resizedEmblem, gravity: 'center' }])
     .png()
     .toBuffer();
 
-  // Apply circular mask to ensure transparent corners outside circle
+  // Also create a circular masked version for web logos
+  const radius = size / 2;
   const maskSvg = Buffer.from(
     `<svg width="${size}" height="${size}"><circle cx="${radius}" cy="${radius}" r="${radius}" fill="#000"/></svg>`
   );
 
-  const finalBuffer = await sharp(composited)
+  const circularBuffer = await sharp(composited)
     .composite([{ input: maskSvg, blend: 'dest-in' }])
     .png()
     .toBuffer();
 
-  const targets = [
-    'c:/Users/PHOTO NATIONAL/zetimer/public/zetime-logo.png',
-    'c:/Users/PHOTO NATIONAL/zetimer/public/zetime_branding_professional.png',
+  // Save solid full-bleed purple version for launcher icons / app icons (no white space)
+  const solidTargets = [
     'c:/Users/PHOTO NATIONAL/zetimer/public/icon-512.png',
     'c:/Users/PHOTO NATIONAL/zetimer/public/icon-192.png',
-    'c:/Users/PHOTO NATIONAL/zetimer/out/zetime-logo.png',
     'c:/Users/PHOTO NATIONAL/zetimer/out/icon-512.png',
     'c:/Users/PHOTO NATIONAL/zetimer/out/icon-192.png',
     'c:/Users/PHOTO NATIONAL/zetimer/android/app/src/main/res/drawable/zetime_icon.png',
     'c:/Users/PHOTO NATIONAL/zetimer/android/app/src/main/res/drawable/splash.png'
   ];
 
-  for (const target of targets) {
+  // Save circular version for web display
+  const circularTargets = [
+    'c:/Users/PHOTO NATIONAL/zetimer/public/zetime-logo.png',
+    'c:/Users/PHOTO NATIONAL/zetimer/public/zetime_branding_professional.png',
+    'c:/Users/PHOTO NATIONAL/zetimer/out/zetime-logo.png'
+  ];
+
+  for (const target of solidTargets) {
     try {
       const dir = path.dirname(target);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(target, finalBuffer);
-      console.log('Saved processed circular logo to:', target);
+      fs.writeFileSync(target, composited);
+      console.log('Saved solid purple logo to:', target);
+    } catch (e) {
+      console.log('Error writing to target:', target, e.message);
+    }
+  }
+
+  for (const target of circularTargets) {
+    try {
+      const dir = path.dirname(target);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(target, circularBuffer);
+      console.log('Saved circular web logo to:', target);
     } catch (e) {
       console.log('Error writing to target:', target, e.message);
     }
