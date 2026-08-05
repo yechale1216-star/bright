@@ -224,7 +224,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
     { href: "/parent/attendance", label: t("attendance"), icon: <Calendar /> },
     { href: "/parent/discipline", label: t("discipline"), icon: <ShieldAlert /> },
     { href: "/parent/profile", label: t("profile"), icon: <User /> },
-    { href: "/parent/feedback", label: "Feedback", icon: <Sparkles /> },
   ]
 
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()

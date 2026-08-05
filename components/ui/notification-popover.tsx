@@ -246,11 +246,6 @@ export function NotificationPopover() {
             open ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
           )}
         />
-        {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white border-2 border-background">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
       </Button>
 
       {/* Dropdown */}
