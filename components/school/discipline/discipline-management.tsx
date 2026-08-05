@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldAlert,
   Plus,
@@ -118,6 +118,17 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const [streamFilter, setStreamFilter] = useState('ALL');
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
+
+  // Refs to hold current filter/pagination values for stable event callbacks
+  // (prevents stale closure bug in event listeners & polling intervals)
+  const pageRef = useRef(page);
+  const searchRef = useRef(search);
+  const severityFilterRef = useRef(severityFilter);
+  const statusFilterRef = useRef(statusFilter);
+  const categoryFilterRef = useRef(categoryFilter);
+  const streamFilterRef = useRef(streamFilter);
+  const startDateFilterRef = useRef(startDateFilter);
+  const endDateFilterRef = useRef(endDateFilter);
   
   // Students List for Wizard
   const [students, setStudents] = useState<any[]>([]);
@@ -167,19 +178,31 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   // Upload progress helper
   const [isUploading, setIsUploading] = useState(false);
 
-  const fetchIncidents = async () => {
+  // Sync refs whenever state changes so callbacks always read fresh values
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { searchRef.current = search; }, [search]);
+  useEffect(() => { severityFilterRef.current = severityFilter; }, [severityFilter]);
+  useEffect(() => { statusFilterRef.current = statusFilter; }, [statusFilter]);
+  useEffect(() => { categoryFilterRef.current = categoryFilter; }, [categoryFilter]);
+  useEffect(() => { streamFilterRef.current = streamFilter; }, [streamFilter]);
+  useEffect(() => { startDateFilterRef.current = startDateFilter; }, [startDateFilter]);
+  useEffect(() => { endDateFilterRef.current = endDateFilter; }, [endDateFilter]);
+
+  // Stable fetch — reads from refs so it is safe to call from event listeners
+  // and polling intervals without creating stale closures
+  const fetchIncidentsStable = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await DisciplineApi.getIncidents({
-        page,
+        page: pageRef.current,
         limit: 15,
-        search,
-        severity: severityFilter === 'ALL' ? undefined : severityFilter,
-        status: statusFilter === 'ALL' ? undefined : statusFilter,
-        categoryName: categoryFilter === 'ALL' ? undefined : categoryFilter,
-        streamId: streamFilter === 'ALL' ? undefined : streamFilter,
-        startDate: startDateFilter || undefined,
-        endDate: endDateFilter || undefined
+        search: searchRef.current,
+        severity: severityFilterRef.current === 'ALL' ? undefined : severityFilterRef.current,
+        status: statusFilterRef.current === 'ALL' ? undefined : statusFilterRef.current,
+        categoryName: categoryFilterRef.current === 'ALL' ? undefined : categoryFilterRef.current,
+        streamId: streamFilterRef.current === 'ALL' ? undefined : streamFilterRef.current,
+        startDate: startDateFilterRef.current || undefined,
+        endDate: endDateFilterRef.current || undefined
       });
       setIncidents(res.items);
       setTotal(res.total);
@@ -189,7 +212,10 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Convenience alias for direct calls with current state (no ref indirection needed)
+  const fetchIncidents = fetchIncidentsStable;
 
   const fetchAnalyticsAndCategories = async () => {
     try {
@@ -210,25 +236,39 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   };
 
   useEffect(() => {
-    fetchIncidents();
-  }, [page, severityFilter, statusFilter, categoryFilter, streamFilter, startDateFilter, endDateFilter]);
+    fetchIncidentsStable();
+  }, [page, search, severityFilter, statusFilter, categoryFilter, streamFilter, startDateFilter, endDateFilter, fetchIncidentsStable]);
 
   useEffect(() => {
     fetchAnalyticsAndCategories();
 
+    // Use stable ref-based fetch so the listener always uses current filter values
     const handleDisciplineChanged = () => {
-      fetchIncidents();
+      fetchIncidentsStable();
       fetchAnalyticsAndCategories();
     };
 
     window.addEventListener("disciplineDataChanged", handleDisciplineChanged);
-    return () => window.removeEventListener("disciplineDataChanged", handleDisciplineChanged);
-  }, []);
+
+    // Background polling every 30 seconds for multi-user/multi-tab sync
+    const pollInterval = setInterval(() => {
+      fetchIncidentsStable();
+      fetchAnalyticsAndCategories();
+    }, 30_000);
+
+    return () => {
+      window.removeEventListener("disciplineDataChanged", handleDisciplineChanged);
+      clearInterval(pollInterval);
+    };
+  }, [fetchIncidentsStable]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchIncidents();
+    // fetchIncidentsStable reads searchRef which is synced via useEffect,
+    // but since setPage(1) is async, we call after a microtask to ensure
+    // pageRef is updated before the fetch runs
+    setTimeout(() => fetchIncidentsStable(), 0);
   };
 
   // On-demand student search for wizard Step 1

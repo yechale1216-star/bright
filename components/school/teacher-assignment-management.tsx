@@ -109,7 +109,19 @@ export function TeacherAssignmentManagement() {
     }
 
     window.addEventListener("teacherDataChanged", handleTeacherChanged)
-    return () => window.removeEventListener("teacherDataChanged", handleTeacherChanged)
+
+    // Background polling every 60 seconds for multi-user/multi-device sync
+    let pollSchoolId = ""
+    const getSchoolIdForPoll = () => localStorage.getItem("x-school-id") || ""
+    const pollInterval = setInterval(() => {
+      const sid = getSchoolIdForPoll()
+      if (sid) loadAllData(sid, true, false)
+    }, 60_000)
+
+    return () => {
+      window.removeEventListener("teacherDataChanged", handleTeacherChanged)
+      clearInterval(pollInterval)
+    }
   }, [])
 
   const loadAllData = async (school: string, isBackground = false, forceRefetch = false) => {

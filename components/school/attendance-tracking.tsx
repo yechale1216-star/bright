@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { Input } from "@/components/ui/input"
@@ -95,6 +95,12 @@ export function AttendanceTracking() {
   const [showUnmarkedOnly, setShowUnmarkedOnly] = useState(false)
   const [uiType, setUiType] = useState<"card_based" | "tabular">("card_based")
 
+  // Refs so event listeners & polling intervals always use the current date/session
+  // instead of the stale closure values from mount time
+  const selectedDateRef = useRef(selectedDate)
+  const selectedSessionRef = useRef(selectedSession)
+  const studentsRef = useRef<Student[]>([])
+
   // Attendance Edit Permission & Audit Log state
   const [editRequests, setEditRequests] = useState<any[]>([])
   const [auditLogs, setAuditLogs] = useState<any[]>([])
@@ -120,15 +126,16 @@ export function AttendanceTracking() {
     fetchEditRequests()
 
     const handleAttendanceChanged = () => {
-      loadAttendanceForDate(true)
+      // Read from refs to always use the current date/session (not stale closure values)
+      loadAttendanceForDateStable(true)
       fetchEditRequests()
     }
 
     window.addEventListener("attendanceDataChanged", handleAttendanceChanged)
 
-    // Background polling for "instant" updates (every 30 seconds)
+    // Background polling every 30 seconds
     const pollInterval = setInterval(() => {
-      loadAttendanceForDate(true)
+      loadAttendanceForDateStable(true)
       fetchEditRequests()
     }, 30000)
 
@@ -219,6 +226,11 @@ export function AttendanceTracking() {
     return !hasApproved
   }
 
+  // Keep refs in sync with state
+  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate])
+  useEffect(() => { selectedSessionRef.current = selectedSession; }, [selectedSession])
+  useEffect(() => { studentsRef.current = students; }, [students])
+
   useEffect(() => {
     loadAttendanceForDate()
   }, [selectedDate, students, selectedSession, settings?.attendanceMode])
@@ -280,6 +292,54 @@ export function AttendanceTracking() {
       setIsLoading(false)
     }
   }
+
+  // Stable version of loadAttendanceForDate — reads from refs so it's safe
+  // to call from event listeners and polling intervals
+  const loadAttendanceForDateStable = useCallback(async (isBackground = false) => {
+    const currentStudents = studentsRef.current
+    const currentDate = selectedDateRef.current
+    const currentSession = selectedSessionRef.current
+    if (currentStudents.length === 0) return
+
+    try {
+      const isSessionBased = settings?.attendanceMode === "session_based"
+
+      const attendanceRecords = await db.getAttendanceByDateAndMode(
+        currentDate,
+        isSessionBased ? currentSession : null
+      )
+
+      const filteredRecords = isSessionBased
+        ? attendanceRecords.filter(
+            (r: any) => r.session?.toLowerCase() === currentSession.toLowerCase()
+          )
+        : attendanceRecords.filter(
+            (r: any) => r.session === null || r.session === undefined || r.session === ""
+          )
+
+      const newAttendanceState: AttendanceState = {}
+
+      currentStudents.forEach((student) => {
+        newAttendanceState[student.id] = {
+          status: null,
+          note: "",
+        }
+      })
+
+      filteredRecords.forEach((record) => {
+        if (newAttendanceState[record.student_id]) {
+          newAttendanceState[record.student_id] = {
+            status: record.status?.toLowerCase() as any,
+            note: record.note || "",
+          }
+        }
+      })
+
+      setAttendanceState(newAttendanceState)
+    } catch (error: any) {
+      notifications.error("Error", error.message || "Failed to load attendance records")
+    }
+  }, [settings?.attendanceMode])
 
   const loadAttendanceForDate = async (isBackground = false) => {
     if (students.length === 0) return

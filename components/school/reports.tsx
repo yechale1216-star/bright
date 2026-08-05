@@ -67,6 +67,11 @@ export function Reports() {
     const user = authService.getCurrentUser()
     setIsAdmin(user?.role === "admin")
     loadStudents()
+
+    // Refresh student list when students are added/edited/deleted from another module
+    const handleStudentChanged = () => loadStudents()
+    window.addEventListener("studentDataChanged", handleStudentChanged)
+    return () => window.removeEventListener("studentDataChanged", handleStudentChanged)
   }, [])
 
   useEffect(() => {

@@ -89,7 +89,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       loadDashboardData(true)
     }, 10000)
 
-    return () => clearInterval(pollInterval)
+    // Also react immediately to student/teacher CRUD events so stats update
+    // without waiting for the next poll cycle
+    const handleDataChanged = () => loadDashboardData(true)
+    window.addEventListener("studentDataChanged", handleDataChanged)
+    window.addEventListener("teacherDataChanged", handleDataChanged)
+    window.addEventListener("attendanceDataChanged", handleDataChanged)
+
+    return () => {
+      clearInterval(pollInterval)
+      window.removeEventListener("studentDataChanged", handleDataChanged)
+      window.removeEventListener("teacherDataChanged", handleDataChanged)
+      window.removeEventListener("attendanceDataChanged", handleDataChanged)
+    }
   }, [confirmedSchoolId]) // Re-run if schoolId ever changes (e.g. super-admin switching context)
 
   // Re-compute chart/stats when attendance mode setting changes
