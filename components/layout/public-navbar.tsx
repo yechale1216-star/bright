@@ -34,10 +34,7 @@ export function PublicNavbar() {
 
   const navLinks = [
     { href: '/', label: 'Home' },
-    { href: '/about', label: 'About' },
     { href: '/pricing', label: 'Pricing' },
-    { href: '/privacy', label: 'Privacy' },
-    { href: '/terms', label: 'Terms' },
   ];
 
   const isActive = (path: string) => {

@@ -106,6 +106,7 @@ const AudioStream = React.memo(({ stream }: { stream: MediaStream | null }) => {
       ref={audioRef}
       autoPlay
       playsInline
+      data-remote-audio="true"
       className="sr-only" // Hide visually without display:none so media engine keeps track active
     />
   );

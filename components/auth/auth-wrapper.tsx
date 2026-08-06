@@ -142,10 +142,7 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
 
         <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
            <div className="typography-label flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[10px] text-slate-500 dark:text-slate-500 uppercase font-black mb-6">
-              <a href="/about" className="hover:text-blue-700 dark:hover:text-blue-400 transition-colors tracking-widest">{t("about")}</a>
               <a href="/pricing" className="hover:text-blue-700 dark:hover:text-blue-400 transition-colors tracking-widest">{t("pricing")}</a>
-              <a href="/privacy" className="hover:text-blue-700 dark:hover:text-blue-400 transition-colors tracking-widest">PRIVACY</a>
-              <a href="/terms" className="hover:text-blue-700 dark:hover:text-blue-400 transition-colors tracking-widest">{t("terms")}</a>
            </div>
            <div className="text-[10px] text-slate-500/40 dark:text-slate-400/40 font-medium uppercase tracking-[0.3em]">
             &copy; {new Date().getFullYear()} Zetime &bull; Management Suite

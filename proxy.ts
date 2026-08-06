@@ -38,7 +38,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Public paths that don't require authentication
-  const publicPaths = ["/", "/login", "/forgot-password", "/reset-password", "/about", "/privacy", "/terms"]
+  const publicPaths = ["/", "/login", "/forgot-password", "/reset-password"]
   const isPublicPath = publicPaths.includes(pathname)
 
   const isProtectedPath = !isPublicPath

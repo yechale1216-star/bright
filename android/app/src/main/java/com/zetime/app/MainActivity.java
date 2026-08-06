@@ -58,7 +58,9 @@ public class MainActivity extends BridgeActivity {
                 settings.setCacheMode(android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK);
                 // Enable database storage for offline capability
                 settings.setDatabaseEnabled(true);
-                android.util.Log.d("MainActivity", "WebView performance settings applied (cache, DOM storage, media)");
+                // Enable Geolocation for attendance tracking GPS verification
+                settings.setGeolocationEnabled(true);
+                android.util.Log.d("MainActivity", "WebView performance settings applied (cache, DOM storage, media, geolocation)");
             }
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "Error configuring WebView settings", e);

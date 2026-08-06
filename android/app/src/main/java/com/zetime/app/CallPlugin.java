@@ -28,6 +28,10 @@ import com.getcapacitor.annotation.Permission;
         @Permission(
             alias = "microphone",
             strings = { Manifest.permission.RECORD_AUDIO }
+        ),
+        @Permission(
+            alias = "location",
+            strings = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }
         )
     }
 )
@@ -272,32 +276,65 @@ public class CallPlugin extends Plugin implements CallManager.CallBannerListener
                             android.media.AudioManager.AUDIOFOCUS_GAIN);
                 }
 
-                // 3. Enable hardware AEC / NS / AGC using the session ID from AudioManager
-                //    These operate at the driver level, independently of WebRTC software effects.
-                try {
-                    int sessionId = am.generateAudioSessionId();
-                    if (AcousticEchoCanceler.isAvailable()) {
-                        AcousticEchoCanceler aec = AcousticEchoCanceler.create(sessionId);
-                        if (aec != null) { aec.setEnabled(true); Log.d(TAG, "AEC enabled"); }
-                    }
-                    if (NoiseSuppressor.isAvailable()) {
-                        NoiseSuppressor ns = NoiseSuppressor.create(sessionId);
-                        if (ns != null) { ns.setEnabled(true); Log.d(TAG, "NS enabled"); }
-                    }
-                    if (AutomaticGainControl.isAvailable()) {
-                        AutomaticGainControl agc = AutomaticGainControl.create(sessionId);
-                        if (agc != null) { agc.setEnabled(true); Log.d(TAG, "AGC enabled"); }
-                    }
-                } catch (Exception effectEx) {
-                    Log.w(TAG, "Hardware audio effects not available: " + effectEx.getMessage());
-                }
-
                 Log.d(TAG, "Audio: MODE_IN_COMMUNICATION, speakerphone=" + useSpeaker);
             }
             call.resolve();
         } catch (Exception e) {
             Log.e(TAG, "setAudioModeInCall failed", e);
             call.reject(e.getMessage());
+        }
+    }
+
+    /**
+     * Check if device location services (GPS) are turned on at the system level.
+     */
+    @PluginMethod
+    public void isLocationEnabled(PluginCall call) {
+        try {
+            android.location.LocationManager lm = (android.location.LocationManager) getContext().getSystemService(android.content.Context.LOCATION_SERVICE);
+            boolean gpsEnabled = false;
+            boolean networkEnabled = false;
+            if (lm != null) {
+                try { gpsEnabled = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER); } catch (Exception ignored) {}
+                try { networkEnabled = lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER); } catch (Exception ignored) {}
+            }
+            JSObject ret = new JSObject();
+            ret.put("enabled", gpsEnabled || networkEnabled);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to check location services: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Open App System Details Settings screen (useful when permission is permanently denied).
+     */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            android.net.Uri uri = android.net.Uri.fromParts("package", getContext().getPackageName(), null);
+            intent.setData(uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to open app settings: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Open Device Location Source Settings screen (useful when GPS is turned off).
+     */
+    @PluginMethod
+    public void openLocationSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to open location settings: " + e.getMessage());
         }
     }
 

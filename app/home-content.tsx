@@ -540,7 +540,7 @@ export default function HomePage() {
               variant="outline"
               className="h-14 px-10 rounded-2xl border-slate-300 dark:border-slate-800 font-bold text-lg"
             >
-              <Link href="/about">Learn More About Zetime</Link>
+              <Link href="/login">Sign In to Zetime</Link>
             </Button>
           </div>
         </section>

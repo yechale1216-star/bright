@@ -52,6 +52,9 @@ interface CallPlugin {
   setAudioModeInCall: (options?: { speakerphone?: boolean }) => Promise<void>;
   setAudioModeNormal: () => Promise<void>;
   setSpeakerphone: (options: { enabled: boolean }) => Promise<void>;
+  isLocationEnabled: () => Promise<{ enabled: boolean }>;
+  openAppSettings: () => Promise<void>;
+  openLocationSettings: () => Promise<void>;
 }
 
 const CallPlugin = registerPlugin<CallPlugin>('CallPlugin');
@@ -421,6 +424,81 @@ export const NativeBridge = {
         await CallPlugin.setSpeakerphone({ enabled });
       } catch (e) {
         console.warn('[NativeBridge] setSpeakerphone failed (non-fatal):', e);
+      }
+    }
+  },
+
+  /**
+   * Request native Android location permission (ACCESS_FINE_LOCATION & ACCESS_COARSE_LOCATION)
+   */
+  requestLocationPermission: async (): Promise<string> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        console.log('[NativeBridge] Requesting location permission...');
+        const res = await CallPlugin.requestPermissions({ permissions: ['location'] });
+        console.log('[NativeBridge] Location permission result:', res);
+        return res?.location || 'granted';
+      } catch (e) {
+        console.warn('CallPlugin: requestLocationPermission failed', e);
+        return 'denied';
+      }
+    }
+    return 'granted';
+  },
+
+  /**
+   * Check current location permission state
+   */
+  checkLocationPermission: async (): Promise<string> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const res = await CallPlugin.checkPermissions();
+        return res?.location || 'prompt';
+      } catch (e) {
+        console.warn('CallPlugin: checkLocationPermission failed', e);
+      }
+    }
+    return 'granted';
+  },
+
+  /**
+   * Check if device location services (GPS) are enabled at system level
+   */
+  isLocationServicesEnabled: async (): Promise<boolean> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const res = await CallPlugin.isLocationEnabled();
+        return res.enabled !== false;
+      } catch (e) {
+        console.warn('CallPlugin: isLocationEnabled failed', e);
+        return true;
+      }
+    }
+    return true;
+  },
+
+  /**
+   * Open app settings (for permanently denied permissions)
+   */
+  openAppSettings: async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await CallPlugin.openAppSettings();
+      } catch (e) {
+        console.warn('CallPlugin: openAppSettings failed', e);
+      }
+    }
+  },
+
+  /**
+   * Open location source settings (for disabled GPS)
+   */
+  openLocationSettings: async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await CallPlugin.openLocationSettings();
+      } catch (e) {
+        console.warn('CallPlugin: openLocationSettings failed', e);
       }
     }
   },

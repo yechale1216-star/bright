@@ -255,6 +255,10 @@ export const useWebRTC = (options: WebRTCOptions) => {
     isInitiator.current = false;
     callIdRef.current = null;
     conversationIdRef.current = null;
+
+    if (NativeBridge.isNative()) {
+      NativeBridge.setAudioModeNormal().catch(() => {});
+    }
   }, []);
 
   const initiateIceRestart = useCallback(async (targetUserId: string) => {
@@ -290,9 +294,10 @@ export const useWebRTC = (options: WebRTCOptions) => {
         setCallDuration(Math.floor((Date.now() - startMs) / 1000));
       }, 1000);
 
-      // Switch audio to in-call mode on native
+      // Switch audio to in-call mode on native (earpiece for voice calls, speaker for video calls unless toggled)
       if (NativeBridge.isNative()) {
-        NativeBridge.setAudioModeInCall(true).catch(() => {});
+        const useSpeaker = callType.current === 'VIDEO' || isSpeakerOn;
+        NativeBridge.setAudioModeInCall(useSpeaker).catch(() => {});
       }
     }
   }, []);
@@ -584,7 +589,7 @@ export const useWebRTC = (options: WebRTCOptions) => {
 
     // Restore normal audio mode
     if (NativeBridge.isNative()) {
-      NativeBridge.setAudioModeInCall(false).catch(() => {});
+      NativeBridge.setAudioModeNormal().catch(() => {});
     }
 
     cleanupAll();

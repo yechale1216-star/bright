@@ -569,13 +569,48 @@ export function AttendanceTracking() {
           return
         }
 
+        // Native Android Pre-flight: Check System GPS & Request Runtime Permissions
+        if (NativeBridge.isNative()) {
+          const gpsActive = await NativeBridge.isLocationServicesEnabled()
+          if (!gpsActive) {
+            notifications.error(
+              "GPS Turned Off",
+              "Device Location Services (GPS) are turned off. Please turn on Location in Settings to submit attendance.",
+              {
+                action: {
+                  label: "Open Settings",
+                  onClick: () => NativeBridge.openLocationSettings(),
+                }
+              }
+            )
+            setIsSaving(false)
+            return
+          }
+
+          const permResult = await NativeBridge.requestLocationPermission()
+          if (permResult === 'denied' || permResult === 'prompt-with-rationale') {
+            notifications.error(
+              "Location Permission Required",
+              "Location permission is required to verify school proximity. Please enable location access in App Settings.",
+              {
+                action: {
+                  label: "Open Settings",
+                  onClick: () => NativeBridge.openAppSettings(),
+                }
+              }
+            )
+            setIsSaving(false)
+            return
+          }
+        }
+
         notifications.info("Verifying Location", "Fetching GPS location to verify school proximity...")
 
         try {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
               enableHighAccuracy: true,
-              timeout: 10000,
+              timeout: 12000,
               maximumAge: 0,
             })
           })
@@ -613,13 +648,21 @@ export function AttendanceTracking() {
         } catch (geoError: any) {
           let msg = "Failed to obtain GPS coordinates."
           if (geoError.code === 1) {
-            msg = "Location permission denied. Please enable location access in browser/device settings to submit attendance."
+            msg = "Location permission denied. Please grant location permission in Settings to submit attendance."
           } else if (geoError.code === 2) {
-            msg = "GPS location unavailable. Please check your device location services."
+            msg = "GPS location unavailable. Please verify your device location services are enabled."
           } else if (geoError.code === 3) {
             msg = "Location request timed out. Please try again."
           }
-          notifications.error("GPS Verification Failed", msg)
+          notifications.error("GPS Verification Failed", msg, {
+            action: geoError.code === 1 ? {
+              label: "Open Settings",
+              onClick: () => NativeBridge.openAppSettings(),
+            } : geoError.code === 2 ? {
+              label: "Open Location Settings",
+              onClick: () => NativeBridge.openLocationSettings(),
+            } : undefined
+          })
           setIsSaving(false)
           return
         }

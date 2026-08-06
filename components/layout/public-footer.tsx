@@ -140,31 +140,31 @@ export function PublicFooter() {
             </h4>
             <ul className="space-y-2.5 text-xs font-medium text-slate-600 dark:text-slate-400">
               <li>
-                <Link href="/about" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
+                <Link href="/login" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-blue-500" />
                   Dual Attendance Modes
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
+                <Link href="/login" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
                   <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
                   Discipline Management
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
+                <Link href="/login" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
                   <MessageSquare className="w-3.5 h-3.5 text-violet-500" />
                   Real-time Messaging & Calls
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
+                <Link href="/login" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
                   <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
                   Android PWA & Native App
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
+                <Link href="/login" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
                   <UserCheck className="w-3.5 h-3.5 text-amber-500" />
                   Guardian Verification
                 </Link>
@@ -218,20 +218,10 @@ export function PublicFooter() {
             </h4>
             <ul className="space-y-2.5 text-xs font-medium text-slate-600 dark:text-slate-400">
               <li>
-                <Link href="/privacy" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link href="/privacy" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                   AES-256 Data Encryption
-                </Link>
+                </span>
               </li>
               <li>
                 <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
@@ -271,17 +261,8 @@ export function PublicFooter() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link href="/about" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              About
-            </Link>
             <Link href="/pricing" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
               Pricing
-            </Link>
-            <Link href="/privacy" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              Terms
             </Link>
           </div>
         </div>
