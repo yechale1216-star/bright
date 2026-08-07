@@ -4,16 +4,17 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { parentDb, type ParentNotification } from "@/lib/db/parent-db"
 import { useLanguage } from "@/lib/context/language-context"
-import { formatLocalizedDate, formatEthiopianDateDMY, formatEthiopianDateTimeDMY } from "@/lib/utils/date-utils"
+import { formatEthiopianDateDMY, formatEthiopianDateTimeDMY } from "@/lib/utils/date-utils"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import {
   Bell, CheckCheck, Trash2, BellOff,
-  Clock, XCircle,
-  AlertTriangle, Info, UserX, X,
-  Filter, RefreshCw, GraduationCap, ShieldAlert,
-  LogOut, Loader2, Sparkles, CheckCircle2,
+  Clock, XCircle, AlertTriangle, Info,
+  UserX, X, Search, RefreshCw,
+  GraduationCap, ShieldAlert, LogOut,
+  CheckCircle2, ChevronRight, Sparkles,
 } from "lucide-react"
 
+// ── Auth helper ───────────────────────────────────────────────────────────────
 function isLoggedIn(): boolean {
   if (typeof window === "undefined") return false
   const token = localStorage.getItem("attendance_token")
@@ -21,6 +22,7 @@ function isLoggedIn(): boolean {
   return !!(token && user)
 }
 
+// ── Date grouping ─────────────────────────────────────────────────────────────
 function getDayLabel(dateStr: string): string {
   const date = new Date(dateStr)
   if (isNaN(date.getTime())) return dateStr
@@ -32,8 +34,9 @@ function getDayLabel(dateStr: string): string {
   return formatEthiopianDateDMY(date)
 }
 
-
-function groupNotificationsByDay(notifications: ParentNotification[]): { label: string; items: ParentNotification[] }[] {
+function groupNotificationsByDay(
+  notifications: ParentNotification[]
+): { label: string; items: ParentNotification[] }[] {
   const groups: { [key: string]: ParentNotification[] } = {}
   for (const n of notifications) {
     const label = getDayLabel(n.createdAt)
@@ -43,126 +46,126 @@ function groupNotificationsByDay(notifications: ParentNotification[]): { label: 
   return Object.entries(groups).map(([label, items]) => ({ label, items }))
 }
 
+// ── Type configurations ───────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<string, {
   icon: React.ReactNode
-  bg: string
-  border: string
-  badge: string
-  badgeText: string
-  accentBar: string
-  glow: string
-  dot: string
+  iconBg: string
+  iconBorder: string
+  pillBg: string
+  pillText: string
+  accentColor: string
+  label: string
 }> = {
   absent: {
-    icon: <XCircle className="w-5 h-5 text-rose-400" />,
-    bg: "bg-rose-500/8",
-    border: "border-rose-500/20",
-    badge: "bg-rose-500/15 text-rose-300 border border-rose-500/25",
-    badgeText: "ABSENT",
-    accentBar: "from-rose-500 to-rose-600",
-    glow: "shadow-rose-500/10",
-    dot: "bg-rose-400",
+    icon: <XCircle className="w-[18px] h-[18px]" />,
+    iconBg: "bg-rose-500/15",
+    iconBorder: "border-rose-500/25",
+    pillBg: "bg-rose-500/15",
+    pillText: "text-rose-400",
+    accentColor: "bg-rose-500",
+    label: "ABSENT",
   },
   late: {
-    icon: <Clock className="w-5 h-5 text-amber-400" />,
-    bg: "bg-amber-500/8",
-    border: "border-amber-500/20",
-    badge: "bg-amber-500/15 text-amber-300 border border-amber-500/25",
-    badgeText: "LATE",
-    accentBar: "from-amber-500 to-orange-500",
-    glow: "shadow-amber-500/10",
-    dot: "bg-amber-400",
+    icon: <Clock className="w-[18px] h-[18px]" />,
+    iconBg: "bg-amber-500/15",
+    iconBorder: "border-amber-500/25",
+    pillBg: "bg-amber-500/15",
+    pillText: "text-amber-400",
+    accentColor: "bg-amber-500",
+    label: "LATE",
   },
-
   emergency: {
-    icon: <ShieldAlert className="w-5 h-5 text-red-400" />,
-    bg: "bg-red-600/10",
-    border: "border-red-500/25",
-    badge: "bg-red-600/20 text-red-200 border border-red-500/30",
-    badgeText: "URGENT",
-    accentBar: "from-red-500 to-rose-600",
-    glow: "shadow-red-500/15",
-    dot: "bg-red-400",
+    icon: <ShieldAlert className="w-[18px] h-[18px]" />,
+    iconBg: "bg-red-500/15",
+    iconBorder: "border-red-500/25",
+    pillBg: "bg-red-500/15",
+    pillText: "text-red-400",
+    accentColor: "bg-red-500",
+    label: "URGENT",
   },
   warning: {
-    icon: <AlertTriangle className="w-5 h-5 text-orange-400" />,
-    bg: "bg-orange-500/8",
-    border: "border-orange-500/20",
-    badge: "bg-orange-500/15 text-orange-300 border border-orange-500/25",
-    badgeText: "WARNING",
-    accentBar: "from-orange-500 to-amber-500",
-    glow: "shadow-orange-500/10",
-    dot: "bg-orange-400",
+    icon: <AlertTriangle className="w-[18px] h-[18px]" />,
+    iconBg: "bg-orange-500/15",
+    iconBorder: "border-orange-500/25",
+    pillBg: "bg-orange-500/15",
+    pillText: "text-orange-400",
+    accentColor: "bg-orange-500",
+    label: "WARNING",
   },
   info: {
-    icon: <Info className="w-5 h-5 text-sky-400" />,
-    bg: "bg-sky-500/8",
-    border: "border-sky-500/20",
-    badge: "bg-sky-500/15 text-sky-300 border border-sky-500/25",
-    badgeText: "INFO",
-    accentBar: "from-sky-500 to-blue-500",
-    glow: "shadow-sky-500/10",
-    dot: "bg-sky-400",
+    icon: <Info className="w-[18px] h-[18px]" />,
+    iconBg: "bg-sky-500/15",
+    iconBorder: "border-sky-500/25",
+    pillBg: "bg-sky-500/15",
+    pillText: "text-sky-400",
+    accentColor: "bg-sky-500",
+    label: "INFO",
   },
 }
 
 function getTypeConfig(type: string) {
   return TYPE_CONFIG[type?.toLowerCase()] ?? {
-    icon: <Bell className="w-5 h-5 text-slate-400" />,
-    bg: "bg-slate-800/30",
-    border: "border-slate-700/30",
-    badge: "bg-slate-700/40 text-slate-400 border border-slate-700/30",
-    badgeText: (type || "INFO").toUpperCase(),
-    accentBar: "from-slate-600 to-slate-700",
-    glow: "shadow-slate-500/5",
-    dot: "bg-slate-500",
+    icon: <Bell className="w-[18px] h-[18px]" />,
+    iconBg: "bg-slate-700/40",
+    iconBorder: "border-slate-700/40",
+    pillBg: "bg-slate-700/30",
+    pillText: "text-slate-400",
+    accentColor: "bg-slate-500",
+    label: (type || "INFO").toUpperCase(),
   }
 }
 
-function TodayStatusPanel({ notifications }: { notifications: ParentNotification[] }) {
+// ── Today Snapshot ────────────────────────────────────────────────────────────
+function TodaySnapshot({ notifications }: { notifications: ParentNotification[] }) {
   const todayNotes = notifications.filter(n => getDayLabel(n.createdAt) === "Today")
-  const absentToday = todayNotes.filter(n => n.type === "absent").length
-  const lateToday = todayNotes.filter(n => n.type === "late").length
-  const warningToday = todayNotes.filter(n => n.type === "warning").length
-  const allGood = absentToday === 0 && lateToday === 0 && warningToday === 0
+  const absent = todayNotes.filter(n => n.type === "absent").length
+  const late = todayNotes.filter(n => n.type === "late").length
+  const warning = todayNotes.filter(n => n.type === "warning").length
+  const allGood = absent === 0 && late === 0 && warning === 0
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/80 to-slate-800/60 border border-white/5 p-4 mb-4">
-      <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full blur-2xl opacity-30 ${allGood ? "bg-emerald-500" : "bg-rose-500"}`} />
-      <div className="relative">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className={`h-7 w-7 rounded-xl flex items-center justify-center ${allGood ? "bg-emerald-500/20" : "bg-rose-500/20"}`}>
-              {allGood
-                ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                : <GraduationCap className="w-4 h-4 text-rose-400" />
-              }
-            </div>
-            <span className="text-xs font-bold text-slate-300 tracking-wide">Today's Snapshot</span>
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-slate-900 to-slate-800/80 p-4 mb-3">
+      {/* Glow */}
+      <div className={`absolute -top-8 -right-8 w-32 h-32 rounded-full blur-3xl opacity-20 pointer-events-none ${allGood ? "bg-emerald-400" : "bg-rose-500"}`} />
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${allGood ? "bg-emerald-500/20" : "bg-rose-500/20"}`}>
+            {allGood
+              ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              : <GraduationCap className="w-4 h-4 text-rose-400" />
+            }
           </div>
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
-            {formatEthiopianDateDMY(new Date())}
-          </span>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Today's Snapshot</p>
+            <p className="text-[10px] text-slate-600 font-medium">{formatEthiopianDateDMY(new Date())}</p>
+          </div>
         </div>
+
         {allGood ? (
-          <div className="flex items-center gap-3 py-2">
-            <div className="flex-1">
-              <p className="text-sm font-bold text-emerald-400">All Clear Today ??</p>
-              <p className="text-xs text-slate-500 mt-0.5">No attendance issues reported</p>
-            </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <Sparkles className="w-3 h-3 text-emerald-400" />
+            <span className="text-[11px] font-bold text-emerald-400">All Clear</span>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { count: absentToday, label: "Absent", color: "text-rose-400", activeBg: "bg-rose-500/12 border-rose-500/25" },
-              { count: lateToday, label: "Late", color: "text-amber-400", activeBg: "bg-amber-500/12 border-amber-500/25" },
-              { count: warningToday, label: "Warning", color: "text-orange-400", activeBg: "bg-orange-500/12 border-orange-500/25" },
-            ].map(({ count, label, color, activeBg }) => (
-              <div key={label} className={`rounded-xl p-2.5 text-center border transition-all ${count > 0 ? activeBg : "bg-white/3 border-white/5"}`}>
-                <div className={`text-xl font-black ${count > 0 ? color : "text-slate-600"}`}>{count}</div>
-                <div className={`text-[10px] font-bold uppercase tracking-wide mt-0.5 ${count > 0 ? color : "text-slate-600"}`}>{label}</div>
+          <div className="flex items-center gap-2">
+            {absent > 0 && (
+              <div className="text-center px-2.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <p className="text-base font-black text-rose-400 leading-none">{absent}</p>
+                <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wide mt-0.5">Absent</p>
               </div>
-            ))}
+            )}
+            {late > 0 && (
+              <div className="text-center px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <p className="text-base font-black text-amber-400 leading-none">{late}</p>
+                <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wide mt-0.5">Late</p>
+              </div>
+            )}
+            {warning > 0 && (
+              <div className="text-center px-2.5 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                <p className="text-base font-black text-orange-400 leading-none">{warning}</p>
+                <p className="text-[9px] font-bold text-orange-500 uppercase tracking-wide mt-0.5">Warn</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -170,73 +173,84 @@ function TodayStatusPanel({ notifications }: { notifications: ParentNotification
   )
 }
 
+// ── Signed-out wall ───────────────────────────────────────────────────────────
 function SignedOutWall() {
   const router = useRouter()
   return (
-    <div className="min-h-screen bg-[#070d1a] flex flex-col items-center justify-center px-6">
-      <div className="flex flex-col items-center text-center gap-6 max-w-xs">
+    <div className="min-h-screen bg-[#060c18] flex flex-col items-center justify-center px-6">
+      <div className="flex flex-col items-center text-center gap-6 max-w-xs w-full">
         <div className="relative">
-          <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/8 flex items-center justify-center shadow-2xl">
-            <UserX className="h-10 w-10 text-slate-400" />
+          <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/8 flex items-center justify-center shadow-2xl">
+            <UserX className="h-9 w-9 text-slate-500" />
           </div>
-          <div className="absolute -bottom-2 -right-2 h-9 w-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shadow-lg">
-            <ShieldAlert className="h-4 w-4 text-amber-400" />
+          <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
+            <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
           </div>
         </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold text-white">You're signed out</h2>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Sign in to your Zetime account to see attendance alerts and notifications.
+        <div className="space-y-1.5">
+          <h2 className="text-lg font-bold text-white">You're signed out</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Sign in to see your attendance alerts and notifications.
           </p>
         </div>
         <button
           onClick={() => router.push("/login")}
-          className="w-full flex items-center justify-center gap-2 py-3.5 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] transition-all rounded-2xl font-bold text-white text-sm shadow-lg shadow-emerald-900/40"
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 font-bold text-white text-sm active:scale-[0.98] transition-transform shadow-xl shadow-indigo-900/40"
         >
           <LogOut className="h-4 w-4 rotate-180" />
-          Sign In to View Notifications
+          Sign In
         </button>
       </div>
     </div>
   )
 }
 
+// ── Notification Card ─────────────────────────────────────────────────────────
 function NotificationCard({
-  notification, cfg, title, message, time, onRead, onDelete,
+  notification, cfg, title, message, time, onDelete, onClick,
 }: {
   notification: ParentNotification
   cfg: ReturnType<typeof getTypeConfig>
   title: string
   message: string
   time: string
-  onRead: () => void
   onDelete: (e: React.MouseEvent) => void
+  onClick: () => void
 }) {
   const isUnread = !notification.isRead
+
   return (
-    <div
-      onClick={isUnread ? onRead : undefined}
-      className={`group relative overflow-hidden rounded-2xl border transition-all duration-200 cursor-pointer ${
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985] ${
         isUnread
-          ? `${cfg.bg} ${cfg.border} shadow-lg ${cfg.glow} hover:border-white/15 active:scale-[0.99]`
-          : "bg-white/3 border-white/5 hover:bg-white/5 active:scale-[0.99]"
+          ? "bg-white/[0.04] border-white/10 shadow-lg"
+          : "bg-white/[0.02] border-white/[0.05]"
       }`}
     >
+      {/* Left accent bar for unread */}
       {isUnread && (
-        <div className={`absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b ${cfg.accentBar} rounded-l-2xl`} />
+        <div className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${cfg.accentColor} opacity-80`} />
       )}
-      <div className={`flex items-start gap-3 p-4 ${isUnread ? "pl-5" : "pl-4"}`}>
-        <div className={`relative shrink-0 h-11 w-11 rounded-2xl flex items-center justify-center border ${cfg.bg} ${cfg.border}`}>
+
+      <div className="flex items-start gap-3 p-3.5 pl-4">
+        {/* Icon */}
+        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border ${cfg.iconBg} ${cfg.iconBorder} ${cfg.pillText} mt-0.5`}>
           {cfg.icon}
+          {/* Unread dot on icon */}
           {isUnread && (
-            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${cfg.dot} ring-2 ring-[#070d1a]`} />
+            <span className={`absolute top-3 left-3.5 w-2 h-2 rounded-full ${cfg.accentColor} ring-2 ring-[#060c18]`} />
           )}
         </div>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-1.5">
+          {/* Top row: pill + student + delete */}
+          <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg tracking-widest uppercase ${cfg.badge}`}>
-                {cfg.badgeText}
+              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${cfg.pillBg} ${cfg.pillText}`}>
+                {cfg.label}
               </span>
               {notification.student?.fullName && (
                 <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
@@ -247,31 +261,45 @@ function NotificationCard({
             </div>
             <button
               onClick={onDelete}
-              className="h-7 w-7 rounded-xl bg-white/4 flex items-center justify-center text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all active:scale-90 shrink-0 opacity-0 group-hover:opacity-100"
+              className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-slate-700 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all opacity-0 group-hover:opacity-100"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className={`text-sm font-bold leading-snug ${isUnread ? "text-white" : "text-slate-400"}`}>{title}</p>
-          <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2 mt-0.5">{message}</p>
+
+          {/* Title */}
+          <p className={`text-sm font-semibold leading-snug truncate ${isUnread ? "text-white" : "text-slate-400"}`}>
+            {title}
+          </p>
+
+          {/* Message preview */}
+          <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2 mt-0.5">
+            {message}
+          </p>
+
+          {/* Bottom row: time + read badge */}
           <div className="flex items-center justify-between mt-2">
-            <span className="text-[10px] text-slate-600 font-medium flex items-center gap-1">
-              <Clock className="w-2.5 h-2.5" />{time}
+            <span className="text-[10px] text-slate-600 flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5" />
+              {time}
             </span>
-            {!isUnread && (
+            {!isUnread ? (
               <span className="text-[9px] font-bold text-slate-600 flex items-center gap-1 uppercase tracking-wider">
                 <CheckCheck className="w-3 h-3 text-emerald-600" />Read
               </span>
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
             )}
           </div>
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ParentNotifications() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [signedOut, setSignedOut] = useState(false)
@@ -283,9 +311,9 @@ export default function ParentNotifications() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  // ── Auth & load ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const loggedIn = isLoggedIn()
-    if (!loggedIn) { setSignedOut(true); setAuthChecked(true); setIsLoading(false); return }
+    if (!isLoggedIn()) { setSignedOut(true); setAuthChecked(true); setIsLoading(false); return }
     setAuthChecked(true)
     loadData()
   }, [])
@@ -296,15 +324,16 @@ export default function ParentNotifications() {
   }, [])
 
   const loadData = async () => {
-    const userStr = localStorage.getItem("attendance_current_user") || localStorage.getItem("auth_user") || sessionStorage.getItem("auth_user")
+    const userStr =
+      localStorage.getItem("attendance_current_user") ||
+      localStorage.getItem("auth_user") ||
+      sessionStorage.getItem("auth_user")
     if (userStr) {
       try {
         const user = JSON.parse(userStr)
         setCurrentUser(user)
         const phone = user.phone || user.phoneNumber
-        if (phone) {
-          await fetchNotificationsList(phone)
-        }
+        if (phone) await fetchNotificationsList(phone)
       } catch (e) { console.error("[Notifications] Load error:", e) }
     }
     setIsLoading(false)
@@ -317,72 +346,69 @@ export default function ParentNotifications() {
     return () => window.removeEventListener("studentChanged", handler)
   }, [authChecked, signedOut])
 
-  const handleMarkAsRead = async (notificationId: string) => {
+  // ── Actions ─────────────────────────────────────────────────────────────────
+  const handleMarkAsRead = async (id: string) => {
     if (!currentUser?.phone) return
-    const success = await parentDb.markNotificationAsRead(notificationId)
-    if (success) {
-      setNotificationsList(prev => prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n))
+    const ok = await parentDb.markNotificationAsRead(id)
+    if (ok) {
+      setNotificationsList(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
       window.dispatchEvent(new Event("refreshNotifications"))
     }
   }
 
-  const handleDelete = async (e: React.MouseEvent, notificationId: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    setNotificationsList(prev => prev.filter(n => n.id !== notificationId))
-    if (selectedNotif?.id === notificationId) setSelectedNotif(null)
+    setNotificationsList(prev => prev.filter(n => n.id !== id))
+    if (selectedNotif?.id === id) setSelectedNotif(null)
     window.dispatchEvent(new Event("refreshNotifications"))
     try {
-      await parentDb.deleteNotification(notificationId)
-    } catch (err) {
-      console.error("[Notifications] Delete error:", err)
+      await parentDb.deleteNotification(id)
+    } catch {
       if (currentUser?.phone) await fetchNotificationsList(currentUser.phone)
     }
   }
 
   const handleMarkAllAsRead = async () => {
     if (!currentUser?.phone) return
-    const success = await parentDb.markAllNotificationsAsRead(currentUser.phone)
-    if (success) {
+    const ok = await parentDb.markAllNotificationsAsRead(currentUser.phone)
+    if (ok) {
       setNotificationsList(prev => prev.map(n => ({ ...n, isRead: true })))
       window.dispatchEvent(new Event("refreshNotifications"))
     }
   }
 
   const handleRefresh = async () => {
-    if (!currentUser?.phone) return
+    if (!currentUser?.phone || isRefreshing) return
     setIsRefreshing(true)
     await fetchNotificationsList(currentUser.phone)
     setIsRefreshing(false)
   }
 
-  const formatNotificationTime = (dateStr: string) =>
-    formatEthiopianDateTimeDMY(dateStr)
-
-  const localizeNotification = (notification: ParentNotification): { title: string; message: string } => {
-    const studentName = notification.student?.fullName?.split(" ")[0] || ""
-    const isFemale = notification.student?.gender?.toLowerCase() === "female"
+  // ── Localization ────────────────────────────────────────────────────────────
+  const localizeNotification = (n: ParentNotification): { title: string; message: string } => {
+    const studentName = n.student?.fullName?.split(" ")[0] || ""
+    const isFemale = n.student?.gender?.toLowerCase() === "female"
     const suffix = isFemale ? "_f" : ""
-    const formattedDate = formatEthiopianDateDMY(notification.createdAt)
+    const formattedDate = formatEthiopianDateDMY(n.createdAt)
     const vars = {
-      name: studentName,
-      StudentName: studentName,
-      "Parent Name": "ወላጅ",
-      parentName: "ወላጅ",
-      date: formattedDate,
-      Date: formattedDate,
+      name: studentName, StudentName: studentName,
+      "Parent Name": "ወላጅ", parentName: "ወላጅ",
+      date: formattedDate, Date: formattedDate,
     }
-    switch (notification.type as string) {
-      case "absent": return { title: t(("alert_absent_title" + suffix) as any, vars), message: t(("alert_absent_msg" + suffix) as any, vars) }
-      case "late": return { title: t(("alert_late_title" + suffix) as any, vars), message: t(("alert_late_msg" + suffix) as any, vars) }
+    switch (n.type as string) {
+      case "absent":  return { title: t(("alert_absent_title"  + suffix) as any, vars), message: t(("alert_absent_msg"  + suffix) as any, vars) }
+      case "late":    return { title: t(("alert_late_title"    + suffix) as any, vars), message: t(("alert_late_msg"    + suffix) as any, vars) }
       case "excused": return { title: t(("alert_excused_title" + suffix) as any, vars), message: t(("alert_excused_msg" + suffix) as any, vars) }
       case "warning": return { title: t(("alert_warning_title" + suffix) as any, vars), message: t(("alert_warning_msg" + suffix) as any, vars) }
-      default: return { title: notification.title, message: notification.message }
+      default:        return { title: n.title, message: n.message }
     }
   }
 
+  // ── Guards ──────────────────────────────────────────────────────────────────
   if (!authChecked || (authChecked && signedOut)) return <SignedOutWall />
   if (isLoading) return <PageSkeleton variant="cards" />
 
+  // ── Derived data ────────────────────────────────────────────────────────────
   const unreadCount = notificationsList.filter(n => !n.isRead).length
   const totalCount = notificationsList.length
 
@@ -390,174 +416,206 @@ export default function ParentNotifications() {
     const matchesType = filterType === "all" || n.type === filterType
     const matchesUnread = !showUnreadOnly || !n.isRead
     const { title, message } = localizeNotification(n)
-    const matchesSearch = !searchTerm || title.toLowerCase().includes(searchTerm.toLowerCase()) || message.toLowerCase().includes(searchTerm.toLowerCase())
+    const q = searchTerm.toLowerCase()
+    const matchesSearch = !q || title.toLowerCase().includes(q) || message.toLowerCase().includes(q)
     return matchesType && matchesUnread && matchesSearch
   })
   const grouped = groupNotificationsByDay(filtered)
 
-  const filterOptions: { key: typeof filterType; label: string; emoji: string; activeColor: string }[] = [
-    { key: "all", label: "All", emoji: "🔔", activeColor: "bg-white/10 text-white border-white/20" },
-    { key: "absent", label: "Absent", emoji: "❌", activeColor: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
-    { key: "late", label: "Late", emoji: "⏰", activeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-    { key: "emergency", label: "Urgent", emoji: "🚨", activeColor: "bg-red-500/15 text-red-300 border-red-500/30" },
-    { key: "warning", label: "Warning", emoji: "⚠️", activeColor: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
+  const filterOptions: { key: typeof filterType; label: string; emoji: string }[] = [
+    { key: "all",       label: "All",     emoji: "🔔" },
+    { key: "absent",    label: "Absent",  emoji: "❌" },
+    { key: "late",      label: "Late",    emoji: "⏰" },
+    { key: "emergency", label: "Urgent",  emoji: "🚨" },
+    { key: "warning",   label: "Warning", emoji: "⚠️" },
   ]
 
-  return (
-    <div className="min-h-screen bg-[#070d1a] text-slate-100 relative overflow-x-hidden">
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/5 rounded-full blur-[80px] pointer-events-none" />
-      <div className="fixed bottom-0 right-0 w-[300px] h-[300px] bg-purple-600/5 rounded-full blur-[80px] pointer-events-none" />
+  const filterActiveClass: Record<string, string> = {
+    all:       "bg-white/10 text-white border-white/20",
+    absent:    "bg-rose-500/15 text-rose-300 border-rose-500/30",
+    late:      "bg-amber-500/15 text-amber-300 border-amber-500/30",
+    emergency: "bg-red-500/15 text-red-300 border-red-500/30",
+    warning:   "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  }
 
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-30 bg-[#070d1a]/90 backdrop-blur-2xl border-b border-white/5">
-        <div className="px-4 py-4 max-w-4xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center">
-                  <Bell className="w-4 h-4 text-indigo-400" />
-                </div>
-                <h1 className="text-xl font-black text-white tracking-tight">Notifications</h1>
+  // ── Render ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#060c18] text-slate-100 relative overflow-x-hidden">
+
+      {/* Ambient glows */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[280px] bg-violet-600/5 rounded-full blur-[90px] pointer-events-none" />
+      <div className="fixed bottom-0 right-0 w-[260px] h-[260px] bg-indigo-600/6 rounded-full blur-[80px] pointer-events-none" />
+
+      {/* ── Sticky Header ───────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 bg-[#060c18]/85 backdrop-blur-2xl border-b border-white/[0.06]">
+        <div className="px-4 pt-4 pb-3 max-w-2xl mx-auto">
+
+          {/* Title row */}
+          <div className="flex items-center justify-between mb-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/25 to-indigo-500/15 border border-violet-500/20 flex items-center justify-center shrink-0">
+                <Bell className="w-4 h-4 text-violet-400" />
               </div>
-              <p className="text-xs pl-11 mt-0.5">
-                {unreadCount > 0
-                  ? <span className="text-indigo-400 font-bold">{unreadCount} unread • {totalCount} total</span>
-                  : <span className="text-slate-500">All caught up!</span>
-                }
-              </p>
+              <div>
+                <h1 className="text-[17px] font-black text-white tracking-tight leading-none">Notifications</h1>
+                <p className="text-[11px] mt-0.5">
+                  {unreadCount > 0
+                    ? <span className="text-violet-400 font-semibold">{unreadCount} unread · {totalCount} total</span>
+                    : <span className="text-slate-500">All caught up</span>
+                  }
+                </p>
+              </div>
             </div>
+
+            {/* Action buttons */}
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[11px] font-bold text-indigo-400 hover:bg-indigo-500/20 active:scale-95 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-[11px] font-bold text-violet-400 active:scale-95 transition-transform"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  <span className="hidden sm:block">Mark all read</span>
+                  <span className="hidden sm:block">Mark read</span>
                 </button>
               )}
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="h-9 w-9 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all"
-                title="Refresh notifications"
+                className="w-9 h-9 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center active:scale-95 transition-transform"
               >
                 <RefreshCw className={`w-4 h-4 text-slate-400 ${isRefreshing ? "animate-spin" : ""}`} />
               </button>
             </div>
           </div>
 
-          {/* Search Bar & Unread Toggle */}
-          <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
-            <div className="relative flex-1 w-full">
+          {/* Search + Unread toggle */}
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search alerts by title or content..."
+                placeholder="Search notifications…"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/8 rounded-xl pl-8.5 pr-8 py-2 text-[13px] text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/40 transition-colors"
+                style={{ paddingLeft: "2.25rem" }}
               />
-              <Filter className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
             <button
               onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-              className={`w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
-                showUnreadOnly ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
+                showUnreadOnly
+                  ? "bg-violet-500/15 text-violet-300 border-violet-500/25"
+                  : "bg-white/[0.04] text-slate-500 border-white/8"
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${showUnreadOnly ? "bg-indigo-400 animate-pulse" : "bg-slate-500"}`} />
-              Unread only ({unreadCount})
+              <span className={`w-1.5 h-1.5 rounded-full ${showUnreadOnly ? "bg-violet-400 animate-pulse" : "bg-slate-600"}`} />
+              {unreadCount}
             </button>
           </div>
+
+          {/* Filter chips */}
+          {totalCount > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+              {filterOptions.map(opt => {
+                const count = opt.key === "all"
+                  ? totalCount
+                  : notificationsList.filter(n => n.type === opt.key).length
+                if (opt.key !== "all" && count === 0) return null
+                const isActive = filterType === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setFilterType(opt.key)}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all active:scale-95 ${
+                      isActive ? filterActiveClass[opt.key] : "text-slate-500 border-white/[0.06] bg-white/[0.03] hover:text-slate-300"
+                    }`}
+                  >
+                    <span className="text-[10px]">{opt.emoji}</span>
+                    {opt.label}
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20" : "bg-white/8"}`}>
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* NOTIFICATIONS CONTENT */}
-      <div className="px-4 pb-32 pt-4 max-w-4xl mx-auto">
+      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      <div className="px-4 pb-28 pt-4 max-w-2xl mx-auto">
+
+        {/* Today snapshot (only if there are today notifications) */}
         {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
-          <TodayStatusPanel notifications={notificationsList} />
+          <TodaySnapshot notifications={notificationsList} />
         )}
 
-        {/* Filter chips */}
-        {notificationsList.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 no-scrollbar">
-            {filterOptions.map(opt => {
-              const count = opt.key === "all"
-                ? notificationsList.length
-                : notificationsList.filter(n => n.type === opt.key).length
-              if (opt.key !== "all" && count === 0) return null
-              return (
-                <button
-                  key={opt.key}
-                  onClick={() => setFilterType(opt.key)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
-                    filterType === opt.key
-                      ? opt.activeColor
-                      : "text-slate-500 border-white/6 bg-white/3 hover:text-slate-300 hover:bg-white/6"
-                  }`}
-                >
-                  <span>{opt.emoji}</span>
-                  {opt.label}
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${filterType === opt.key ? "bg-white/20" : "bg-white/8"}`}>
-                    {count}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Empty State */}
+        {/* Empty state */}
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center gap-3 bg-white/3 border border-white/6 rounded-2xl p-8 max-w-sm mx-auto my-8">
-            <div className="rounded-full bg-slate-800/60 p-4 border border-white/10">
-              <BellOff className="h-7 w-7 text-slate-400" />
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/8 flex items-center justify-center">
+              <BellOff className="w-7 h-7 text-slate-600" />
             </div>
             <div>
-              <p className="text-base font-semibold text-slate-200">All caught up!</p>
-              <p className="text-xs text-slate-400 mt-1">No notifications yet.</p>
+              <p className="text-base font-bold text-slate-300">All caught up!</p>
+              <p className="text-sm text-slate-600 mt-1">
+                {searchTerm || filterType !== "all" || showUnreadOnly
+                  ? "No notifications match your filters."
+                  : "No notifications yet."}
+              </p>
             </div>
+            {(searchTerm || filterType !== "all" || showUnreadOnly) && (
+              <button
+                onClick={() => { setSearchTerm(""); setFilterType("all"); setShowUnreadOnly(false) }}
+                className="text-xs font-bold text-violet-400 underline underline-offset-2"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {grouped.map(({ label, items }) => (
               <div key={label}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/5" />
-                  <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/3 border border-white/5">
-                    {label === "Today" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />}
+                {/* Day divider */}
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="h-px flex-1 bg-white/[0.05]" />
+                  <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.05] shrink-0">
+                    {label === "Today" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                    )}
                     {label}
-                    <span className="text-slate-700">• {items.length}</span>
+                    <span className="text-slate-700">· {items.length}</span>
                   </span>
-                  <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/5" />
+                  <div className="h-px flex-1 bg-white/[0.05]" />
                 </div>
-                <div className="space-y-2.5">
+
+                {/* Cards */}
+                <div className="space-y-2">
                   {items.map(notification => {
                     const cfg = getTypeConfig(notification.type)
                     const { title, message } = localizeNotification(notification)
                     return (
-                      <div
+                      <NotificationCard
                         key={notification.id}
+                        notification={notification}
+                        cfg={cfg}
+                        title={title}
+                        message={message}
+                        time={formatEthiopianDateTimeDMY(notification.createdAt)}
                         onClick={() => {
                           if (!notification.isRead) handleMarkAsRead(notification.id)
                           setSelectedNotif(notification)
                         }}
-                      >
-                        <NotificationCard
-                          notification={notification}
-                          cfg={cfg}
-                          title={title}
-                          message={message}
-                          time={formatNotificationTime(notification.createdAt)}
-                          onRead={() => handleMarkAsRead(notification.id)}
-                          onDelete={(e) => handleDelete(e, notification.id)}
-                        />
-                      </div>
+                        onDelete={e => handleDelete(e, notification.id)}
+                      />
                     )
                   })}
                 </div>
@@ -567,56 +625,80 @@ export default function ParentNotifications() {
         )}
       </div>
 
-      {/* Detailed View Modal */}
-      {selectedNotif && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200 relative">
-            <button
-              onClick={() => setSelectedNotif(null)}
-              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                <Bell className="w-5 h-5 text-indigo-400" />
+      {/* ── Detail Modal ────────────────────────────────────────────────────── */}
+      {selectedNotif && (() => {
+        const cfg = getTypeConfig(selectedNotif.type)
+        const { title, message } = localizeNotification(selectedNotif)
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+            {/* Bottom sheet on mobile, centered modal on sm+ */}
+            <div className="bg-[#0d1527] border border-white/10 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-250 relative overflow-hidden">
+
+              {/* Coloured header strip */}
+              <div className={`h-1 w-full ${cfg.accentColor} opacity-60`} />
+
+              <div className="p-5 space-y-4">
+                {/* Close */}
+                <button
+                  onClick={() => setSelectedNotif(null)}
+                  className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/[0.06] hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                {/* Icon + type pill + title */}
+                <div className="flex items-start gap-3 pr-8">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center border shrink-0 ${cfg.iconBg} ${cfg.iconBorder} ${cfg.pillText}`}>
+                    {cfg.icon}
+                  </div>
+                  <div>
+                    <span className={`inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md mb-1 ${cfg.pillBg} ${cfg.pillText}`}>
+                      {cfg.label}
+                    </span>
+                    <h3 className="text-[15px] font-bold text-white leading-snug">{title}</h3>
+                  </div>
+                </div>
+
+                {/* Message body */}
+                <div className="bg-white/[0.04] border border-white/8 rounded-2xl p-4 text-sm text-slate-300 leading-relaxed">
+                  {message}
+                </div>
+
+                {/* Meta row */}
+                <div className="flex items-center justify-between text-[11px] text-slate-600">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" />
+                    {formatEthiopianDateTimeDMY(selectedNotif.createdAt)}
+                  </span>
+                  {selectedNotif.student?.fullName && (
+                    <span className="flex items-center gap-1.5 font-semibold text-violet-400">
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      {selectedNotif.student.fullName}
+                    </span>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={e => handleDelete(e, selectedNotif.id)}
+                    className="flex-1 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[13px] font-bold text-rose-400 active:scale-[0.97] transition-transform flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setSelectedNotif(null)}
+                    className="flex-1 py-3 rounded-xl bg-white/8 hover:bg-white/12 text-[13px] font-bold text-white active:scale-[0.97] transition-transform"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest px-2 py-0.5 rounded-md bg-indigo-500/10">
-                  {selectedNotif.type}
-                </span>
-                <h3 className="text-lg font-bold text-white mt-1">{localizeNotification(selectedNotif).title}</h3>
-              </div>
-            </div>
-            <div className="p-4 rounded-2xl bg-white/3 border border-white/5 text-sm text-slate-300 leading-relaxed">
-              {localizeNotification(selectedNotif).message}
-            </div>
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
-              <span>{formatNotificationTime(selectedNotif.createdAt)}</span>
-              {selectedNotif.student?.fullName && (
-                <span className="flex items-center gap-1 font-medium text-indigo-300">
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  {selectedNotif.student.fullName}
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={(e) => handleDelete(e, selectedNotif.id)}
-                className="flex-1 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Delete
-              </button>
-              <button
-                onClick={() => setSelectedNotif(null)}
-                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition-all"
-              >
-                Close
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
