@@ -8,8 +8,8 @@ import { formatLocalizedDate, formatEthiopianDateDMY, formatEthiopianDateTimeDMY
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import {
   Bell, CheckCheck, Trash2, BellOff,
-  Clock, XCircle, Megaphone,
-  AlertTriangle, Info, UserX, X, ChevronRight,
+  Clock, XCircle,
+  AlertTriangle, Info, UserX, X,
   Filter, RefreshCw, GraduationCap, ShieldAlert,
   LogOut, Loader2, Sparkles, CheckCircle2,
 } from "lucide-react"
@@ -73,16 +73,7 @@ const TYPE_CONFIG: Record<string, {
     glow: "shadow-amber-500/10",
     dot: "bg-amber-400",
   },
-  announcement: {
-    icon: <Megaphone className="w-5 h-5 text-blue-400" />,
-    bg: "bg-blue-500/8",
-    border: "border-blue-500/20",
-    badge: "bg-blue-500/15 text-blue-300 border border-blue-500/25",
-    badgeText: "SCHOOL",
-    accentBar: "from-blue-500 to-indigo-500",
-    glow: "shadow-blue-500/10",
-    dot: "bg-blue-400",
-  },
+
   emergency: {
     icon: <ShieldAlert className="w-5 h-5 text-red-400" />,
     bg: "bg-red-600/10",
@@ -195,7 +186,7 @@ function SignedOutWall() {
         <div className="space-y-2">
           <h2 className="text-xl font-bold text-white">You're signed out</h2>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Sign in to your Zetime account to see attendance alerts and school announcements.
+            Sign in to your Zetime account to see attendance alerts and notifications.
           </p>
         </div>
         <button
@@ -285,7 +276,7 @@ export default function ParentNotifications() {
   const [authChecked, setAuthChecked] = useState(false)
   const [signedOut, setSignedOut] = useState(false)
   const [notificationsList, setNotificationsList] = useState<ParentNotification[]>([])
-  const [filterType, setFilterType] = useState<"all" | "absent" | "late" | "announcement" | "emergency" | "warning">("all")
+  const [filterType, setFilterType] = useState<"all" | "absent" | "late" | "emergency" | "warning">("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [selectedNotif, setSelectedNotif] = useState<ParentNotification | null>(null)
@@ -408,7 +399,6 @@ export default function ParentNotifications() {
     { key: "all", label: "All", emoji: "🔔", activeColor: "bg-white/10 text-white border-white/20" },
     { key: "absent", label: "Absent", emoji: "❌", activeColor: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
     { key: "late", label: "Late", emoji: "⏰", activeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-    { key: "announcement", label: "School", emoji: "📢", activeColor: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
     { key: "emergency", label: "Urgent", emoji: "🚨", activeColor: "bg-red-500/15 text-red-300 border-red-500/30" },
     { key: "warning", label: "Warning", emoji: "⚠️", activeColor: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
   ]
