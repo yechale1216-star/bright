@@ -721,6 +721,7 @@ export default function ParentNotifications() {
           </div>
         )
       })()}
+      </div>
     </>
   )
 }
