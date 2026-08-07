@@ -215,14 +215,28 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
 /**
  * Get Parent Portal notifications.
  */
-export const getNotifications = async (phone: string, schoolId: string) => {
+export const getNotifications = async (
+  phone: string,
+  schoolId: string,
+  options?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    type?: string;
+    search?: string;
+    isRead?: boolean;
+    startDate?: string;
+    endDate?: string;
+    sort?: 'desc' | 'asc';
+  }
+) => {
   const cleanPhone = normalizePhoneNumber(phone);
 
   const user = await prisma.user.findUnique({ 
     where: { phone: cleanPhone } 
   });
   
-  if (!user) return [];
+  if (!user) return options?.page ? { data: [], total: 0, page: 1, limit: 20 } : [];
 
   const links = await prisma.parentStudentLink.findMany({
     where: { parentId: user.id, schoolId },
@@ -230,15 +244,72 @@ export const getNotifications = async (phone: string, schoolId: string) => {
   });
   const studentIds = links.map(l => l.studentId);
 
+  const whereClause: any = {
+    schoolId,
+    OR: [
+      { studentId: { in: studentIds } },
+      { studentId: null }
+    ]
+  };
+
+  if (options?.category && options.category !== 'ALL' && options.category !== 'all') {
+    whereClause.category = options.category;
+  }
+
+  if (options?.type && options.type !== 'ALL' && options.type !== 'all') {
+    whereClause.type = options.type;
+  }
+
+  if (options?.isRead !== undefined) {
+    whereClause.isRead = options.isRead;
+  }
+
+  if (options?.search && options.search.trim() !== '') {
+    const q = options.search.trim();
+    whereClause.AND = [
+      {
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { message: { contains: q, mode: 'insensitive' } },
+        ]
+      }
+    ];
+  }
+
+  if (options?.startDate || options?.endDate) {
+    whereClause.createdAt = {};
+    if (options.startDate) whereClause.createdAt.gte = new Date(options.startDate);
+    if (options.endDate) whereClause.createdAt.lte = new Date(options.endDate);
+  }
+
+  const sortOrder = options?.sort || 'desc';
+
+  if (options?.page && options?.limit) {
+    const page = Math.max(1, options.page);
+    const limit = Math.max(1, Math.min(100, options.limit));
+    const skip = (page - 1) * limit;
+
+    const [notifications, total] = await Promise.all([
+      prisma.parentNotification.findMany({
+        where: whereClause,
+        orderBy: { createdAt: sortOrder },
+        skip,
+        take: limit,
+        include: {
+          student: {
+            select: { id: true, fullName: true, gender: true }
+          }
+        }
+      }),
+      prisma.parentNotification.count({ where: whereClause })
+    ]);
+
+    return { data: notifications, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
   const notifications = await prisma.parentNotification.findMany({
-    where: {
-      schoolId,
-      OR: [
-        { studentId: { in: studentIds } },
-        { studentId: null }
-      ]
-    },
-    orderBy: { createdAt: 'desc' },
+    where: whereClause,
+    orderBy: { createdAt: sortOrder },
     include: {
       student: {
         select: { id: true, fullName: true, gender: true }

@@ -220,12 +220,10 @@ function NotificationCard({
   const isUnread = !notification.isRead
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       onClick={onClick}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
-      className={`group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985] cursor-pointer ${
+      className={`group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985] ${
         isUnread
           ? "bg-white/[0.04] border-white/10 shadow-lg"
           : "bg-white/[0.02] border-white/[0.05]"
@@ -262,7 +260,6 @@ function NotificationCard({
               )}
             </div>
             <button
-              type="button"
               onClick={onDelete}
               className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-slate-700 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all opacity-0 group-hover:opacity-100"
             >
@@ -296,13 +293,14 @@ function NotificationCard({
           </div>
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ParentNotifications() {
   const { t } = useLanguage()
+  const router = useRouter()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [signedOut, setSignedOut] = useState(false)
@@ -310,6 +308,9 @@ export default function ParentNotifications() {
   const [filterType, setFilterType] = useState<"all" | "absent" | "late" | "emergency" | "warning">("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
+  const [dateRange, setDateRange] = useState<"all" | "today" | "week" | "month">("all")
+  const [displayLimit, setDisplayLimit] = useState(15)
   const [selectedNotif, setSelectedNotif] = useState<ParentNotification | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -411,19 +412,44 @@ export default function ParentNotifications() {
   if (!authChecked || (authChecked && signedOut)) return <SignedOutWall />
   if (isLoading) return <PageSkeleton variant="cards" />
 
-  // ── Derived data ────────────────────────────────────────────────────────────
+  // ── Derived data & Filtering ────────────────────────────────────────────────
   const unreadCount = notificationsList.filter(n => !n.isRead).length
   const totalCount = notificationsList.length
 
-  const filtered = notificationsList.filter(n => {
-    const matchesType = filterType === "all" || n.type === filterType
-    const matchesUnread = !showUnreadOnly || !n.isRead
-    const { title, message } = localizeNotification(n)
-    const q = searchTerm.toLowerCase()
-    const matchesSearch = !q || title.toLowerCase().includes(q) || message.toLowerCase().includes(q)
-    return matchesType && matchesUnread && matchesSearch
-  })
-  const grouped = groupNotificationsByDay(filtered)
+  const filtered = notificationsList
+    .filter(n => {
+      const matchesType = filterType === "all" || n.type === filterType
+      const matchesUnread = !showUnreadOnly || !n.isRead
+
+      // Date range filtering
+      let matchesDate = true
+      if (dateRange !== "all") {
+        const notifDate = new Date(n.createdAt)
+        const now = new Date()
+        if (dateRange === "today") {
+          matchesDate = notifDate.toDateString() === now.toDateString()
+        } else if (dateRange === "week") {
+          const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          matchesDate = notifDate >= oneWeekAgo
+        } else if (dateRange === "month") {
+          const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          matchesDate = notifDate >= oneMonthAgo
+        }
+      }
+
+      const { title, message } = localizeNotification(n)
+      const q = searchTerm.toLowerCase()
+      const matchesSearch = !q || title.toLowerCase().includes(q) || message.toLowerCase().includes(q)
+      return matchesType && matchesUnread && matchesDate && matchesSearch
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime()
+      const timeB = new Date(b.createdAt).getTime()
+      return sortOrder === "newest" ? timeB - timeA : timeA - timeB
+    })
+
+  const paginatedList = filtered.slice(0, displayLimit)
+  const grouped = groupNotificationsByDay(paginatedList)
 
   const filterOptions: { key: typeof filterType; label: string; emoji: string }[] = [
     { key: "all",       label: "All",     emoji: "🔔" },
@@ -499,35 +525,67 @@ export default function ParentNotifications() {
             </div>
           </div>
 
-          {/* Search + Unread toggle */}
-          <div className="flex gap-2 mb-3">
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search notifications…"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/8 rounded-xl pl-8.5 pr-8 py-2 text-[13px] text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/40 transition-colors"
-                style={{ paddingLeft: "2.25rem" }}
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+          {/* Search + Unread toggle + Date Range & Sort controls */}
+          <div className="space-y-2 mb-3">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search notifications…"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full bg-white/[0.04] border border-white/8 rounded-xl pl-8.5 pr-8 py-2 text-[13px] text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/40 transition-colors"
+                  style={{ paddingLeft: "2.25rem" }}
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
+                  showUnreadOnly
+                    ? "bg-violet-500/15 text-violet-300 border-violet-500/25"
+                    : "bg-white/[0.04] text-slate-500 border-white/8"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${showUnreadOnly ? "bg-violet-400 animate-pulse" : "bg-slate-600"}`} />
+                Unread ({unreadCount})
+              </button>
             </div>
-            <button
-              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
-                showUnreadOnly
-                  ? "bg-violet-500/15 text-violet-300 border-violet-500/25"
-                  : "bg-white/[0.04] text-slate-500 border-white/8"
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${showUnreadOnly ? "bg-violet-400 animate-pulse" : "bg-slate-600"}`} />
-              {unreadCount}
-            </button>
+
+            {/* Date Range & Sort selector */}
+            <div className="flex items-center justify-between text-[11px] pt-0.5">
+              <div className="flex items-center gap-1">
+                {[
+                  { key: "all", label: "All Time" },
+                  { key: "today", label: "Today" },
+                  { key: "week", label: "This Week" },
+                  { key: "month", label: "This Month" },
+                ].map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setDateRange(d.key as any)}
+                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                      dateRange === d.key
+                        ? "bg-violet-500/20 text-violet-300 border-violet-500/30"
+                        : "bg-white/[0.02] text-slate-500 border-white/[0.05] hover:text-slate-300"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setSortOrder(s => s === "newest" ? "oldest" : "newest")}
+                className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/8 text-slate-400 hover:text-white font-bold transition-all"
+              >
+                {sortOrder === "newest" ? "Newest ↓" : "Oldest ↑"}
+              </button>
+            </div>
           </div>
 
           {/* Filter chips */}
@@ -632,6 +690,21 @@ export default function ParentNotifications() {
                 </div>
               </div>
             ))}
+
+            {/* Load More Pagination */}
+            {displayLimit < filtered.length && (
+              <div className="pt-4 flex justify-center">
+                <button
+                  onClick={() => setDisplayLimit(prev => prev + 15)}
+                  className="px-5 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-xs font-bold text-violet-300 transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <span>Load More Notifications</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-violet-500/20 text-[10px] text-violet-300">
+                    {filtered.length - displayLimit} remaining
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
