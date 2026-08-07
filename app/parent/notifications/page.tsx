@@ -440,29 +440,15 @@ export default function ParentNotifications() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* ════════ DESKTOP backdrop ════════ */}
-      <div className="hidden md:flex fixed inset-0 z-40 items-start justify-end bg-black/30 backdrop-blur-sm" />
+    <div className="min-h-screen bg-[#060c18] text-slate-100 relative overflow-x-hidden rounded-3xl">
 
-      {/* ════════ PAGE / PANEL ════════
-          mobile : full-screen, no radius
-          desktop: fixed right-side panel, rounded, shadow, scroll ═══════════ */}
-      <div className={[
-        /* shared */
-        "bg-[#060c18] text-slate-100 relative overflow-hidden flex flex-col",
-        /* mobile — full screen */
-        "min-h-screen w-full",
-        /* desktop — narrow panel on the right */
-        "md:fixed md:top-4 md:right-4 md:bottom-4 md:w-[420px] md:min-h-0 md:rounded-3xl md:shadow-2xl md:shadow-black/60 md:border md:border-white/[0.08] md:z-50",
-      ].join(" ")}>
+      {/* Ambient glows */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[280px] bg-violet-600/5 rounded-full blur-[90px] pointer-events-none" />
+      <div className="fixed bottom-0 right-0 w-[260px] h-[260px] bg-indigo-600/6 rounded-full blur-[80px] pointer-events-none" />
 
-      {/* Ambient glows (clipped to panel) */}
-      <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[300px] h-[200px] bg-violet-600/10 rounded-full blur-[70px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[180px] h-[180px] bg-indigo-600/8 rounded-full blur-[60px] pointer-events-none" />
-
-      {/* ── Sticky Header ─────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-[#060c18]/90 backdrop-blur-2xl border-b border-white/[0.06] shrink-0">
-        <div className="px-4 pt-4 pb-3">
+      {/* ── Sticky Header ───────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 bg-[#060c18]/85 backdrop-blur-2xl border-b border-white/[0.06]">
+        <div className="px-4 pt-4 pb-3 max-w-2xl mx-auto">
 
           {/* Title row */}
           <div className="flex items-center justify-between mb-3.5">
@@ -571,8 +557,8 @@ export default function ParentNotifications() {
         </div>
       </div>
 
-      {/* ── Content ─────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 pb-10 pt-4">
+      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      <div className="px-4 pb-28 pt-4 max-w-2xl mx-auto">
 
         {/* Today snapshot (only if there are today notifications) */}
         {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
@@ -721,7 +707,6 @@ export default function ParentNotifications() {
           </div>
         )
       })()}
-      </div>
-    </>
+    </div>
   )
 }
