@@ -577,13 +577,7 @@ export function AttendanceTracking() {
           if (!gpsActive) {
             notifications.error(
               "GPS Turned Off",
-              "Device Location Services (GPS) are turned off. Please turn on Location in Settings to submit attendance.",
-              {
-                action: {
-                  label: "Open Settings",
-                  onClick: () => NativeBridge.openLocationSettings(),
-                }
-              }
+              "Device Location Services (GPS) are turned off. Please turn on Location in Settings to submit attendance."
             )
             setIsSaving(false)
             return
@@ -593,13 +587,7 @@ export function AttendanceTracking() {
           if (permResult === 'denied' || permResult === 'prompt-with-rationale') {
             notifications.error(
               "Location Permission Required",
-              "Location permission is required to verify school proximity. Please enable location access in App Settings.",
-              {
-                action: {
-                  label: "Open Settings",
-                  onClick: () => NativeBridge.openAppSettings(),
-                }
-              }
+              "Location permission is required to verify school proximity. Please enable location access in App Settings."
             )
             setIsSaving(false)
             return
@@ -656,15 +644,7 @@ export function AttendanceTracking() {
           } else if (geoError.code === 3) {
             msg = "Location request timed out. Please try again."
           }
-          notifications.error("GPS Verification Failed", msg, {
-            action: geoError.code === 1 ? {
-              label: "Open Settings",
-              onClick: () => NativeBridge.openAppSettings(),
-            } : geoError.code === 2 ? {
-              label: "Open Location Settings",
-              onClick: () => NativeBridge.openLocationSettings(),
-            } : undefined
-          })
+          notifications.error("GPS Verification Failed", msg)
           setIsSaving(false)
           return
         }

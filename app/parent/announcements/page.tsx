@@ -18,8 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { parentDatabase, ParentNotification } from "@/lib/db/parent-db"
 import { useLanguage } from "@/lib/context/language-context"
-import { formatEthiopianDateDMY } from "@/lib/utils/date-utils"
-import { format } from "date-fns"
+import { formatLocalizedDate, formatLocalizedTime } from "@/lib/utils/date-utils"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 
 export default function AnnouncementsPage() {
@@ -159,11 +158,11 @@ export default function AnnouncementsPage() {
                           <div className="flex items-center gap-3 mt-1">
                             <span className="typography-label text-muted-foreground flex items-center gap-1.5 text-xs">
                               <Calendar className="w-3 h-3" />
-                              {formatEthiopianDateDMY(item.createdAt)}
+                              {formatLocalizedDate(item.createdAt, language, { month: "short", day: "numeric", year: "numeric" })}
                             </span>
                             <span className="typography-label text-muted-foreground flex items-center gap-1.5 text-xs">
                               <Clock className="w-3 h-3" />
-                              {format(new Date(item.createdAt), 'hh:mm a')}
+                              {formatLocalizedTime(item.createdAt, language)}
                             </span>
                           </div>
                         </div>

@@ -21,10 +21,11 @@ import { toast } from 'sonner';
 
 import { DisciplineApi, StudentDiscipline } from '@/lib/discipline-service';
 import { useLanguage } from '@/lib/context/language-context';
+import { formatLocalizedDate } from '@/lib/utils/date-utils';
 
 export default function ParentDisciplinePage() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const [incidents, setIncidents] = useState<StudentDiscipline[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -213,7 +214,7 @@ export default function ParentDisciplinePage() {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {t('reported_for', {
                           name: inc.student?.fullName || '',
-                          date: new Date(inc.date).toLocaleDateString(),
+                          date: formatLocalizedDate(inc.date, language),
                           time: inc.time || '',
                           reporter: inc.reportedByName || t('staff')
                         })}
@@ -275,7 +276,7 @@ export default function ParentDisciplinePage() {
                 </div>
                 <DialogTitle className="text-xl font-bold mt-2">{selectedIncident.title}</DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  {t('child_label')}: <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedIncident.student?.fullName}</span> | {t('date_label')}: {new Date(selectedIncident.date).toLocaleDateString()}
+                  {t('child_label')}: <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedIncident.student?.fullName}</span> | {t('date_label')}: {formatLocalizedDate(selectedIncident.date, language)}
                 </DialogDescription>
               </DialogHeader>
 
@@ -321,7 +322,7 @@ export default function ParentDisciplinePage() {
                       <div key={fu.id} className="text-xs border-b last:border-b-0 pb-2 mb-2 space-y-1">
                         <div className="flex justify-between font-medium">
                           <span>{fu.authorName || t('staff')}</span>
-                          <span className="text-muted-foreground">{new Date(fu.createdAt).toLocaleDateString()}</span>
+                          <span className="text-muted-foreground">{formatLocalizedDate(fu.createdAt, language)}</span>
                         </div>
                         <p className="text-slate-700 dark:text-slate-300">{fu.note}</p>
                       </div>

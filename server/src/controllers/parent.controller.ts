@@ -112,26 +112,8 @@ export const getNotifications = async (req: AuthenticatedRequest, res: Response,
       return res.status(403).json({ success: false, message: "Forbidden: You cannot access another parent's data." });
     }
 
-    const { page, limit, category, type, search, isRead, startDate, endDate, sort } = req.query;
-
-    const options: any = {};
-    if (page) options.page = parseInt(String(page), 10);
-    if (limit) options.limit = parseInt(String(limit), 10);
-    if (category) options.category = String(category);
-    if (type) options.type = String(type);
-    if (search) options.search = String(search);
-    if (isRead !== undefined && isRead !== '') options.isRead = isRead === 'true';
-    if (startDate) options.startDate = String(startDate);
-    if (endDate) options.endDate = String(endDate);
-    if (sort === 'asc' || sort === 'desc') options.sort = sort;
-
-    const result = await parentService.getNotifications(phone, schoolId, Object.keys(options).length > 0 ? options : undefined);
-
-    if (result && typeof result === 'object' && 'total' in result) {
-      res.status(200).json({ success: true, ...result });
-    } else {
-      res.status(200).json({ success: true, data: result });
-    }
+    const notifications = await parentService.getNotifications(phone, schoolId);
+    res.status(200).json({ success: true, data: notifications });
   } catch (error: any) {
     next(error);
   }

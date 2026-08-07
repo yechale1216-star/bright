@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import { formatLocalizedDate } from "@/lib/utils/date-utils"
 import { db } from "@/lib/db/database"
-import { toEthiopianDate, ET_MONTHS_AM, ET_MONTHS_EN } from "@/lib/utils/ethiopian-calendar"
+import { toEthiopianDate, ethiopicToJDN, jdnToGregorian, ET_MONTHS_AM, ET_MONTHS_EN } from "@/lib/utils/ethiopian-calendar"
 import { useRef } from "react"
 
 import { apiUrl } from "@/lib/api-config"
@@ -281,10 +281,6 @@ export default function AttendanceHistory() {
     return (Math.floor(jdn + 1.5) % 7) // 0 = Sunday, 1 = Monday etc.
   }
 
-  function ethiopicToJDN(year: number, month: number, day: number): number {
-    const era = 1723856
-    return era + 365 * year + Math.floor(year / 4) + 30 * month + day - 1
-  }
 
   const getDaysInMonth = (year: number, month: number) => {
     if (language === 'am') return getEthioDaysInMonth(year, month)
@@ -345,19 +341,6 @@ export default function AttendanceHistory() {
     calendarCells.push({ day: d, dateStr })
   }
 
-  function jdnToGregorian(jdn: number): Date {
-    const z = Math.floor(jdn + 0.5)
-    const a = Math.floor((z - 1867216.25) / 36524.25)
-    const b = z + 1 + a - Math.floor(a / 4)
-    const c = b + 1524
-    const d = Math.floor((c - 122.1) / 365.25)
-    const e = Math.floor(365.25 * d)
-    const g = Math.floor((c - e) / 30.6001)
-    const day = c - e - Math.floor(30.6001 * g)
-    const month = g < 14 ? g - 2 : g - 14
-    const year = month > 1 ? d - 4716 : d - 4715
-    return new Date(year, month, day)
-  }
 
   // Find attendance status for a calendar day
   const getDayAttendance = (dateStr: string) => {

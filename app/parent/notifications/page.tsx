@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { parentDb, type ParentNotification } from "@/lib/db/parent-db"
 import { useLanguage } from "@/lib/context/language-context"
-import { formatEthiopianDateDMY, formatEthiopianDateTimeDMY } from "@/lib/utils/date-utils"
+import { formatLocalizedDate, formatLocalizedDateTime } from "@/lib/utils/date-utils"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import {
   Bell, CheckCheck, Trash2, BellOff,
@@ -23,23 +23,24 @@ function isLoggedIn(): boolean {
 }
 
 // ── Date grouping ─────────────────────────────────────────────────────────────
-function getDayLabel(dateStr: string): string {
+function getDayLabel(dateStr: string, language: any = "en"): string {
   const date = new Date(dateStr)
   if (isNaN(date.getTime())) return dateStr
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  if (days === 0) return "Today"
-  if (days === 1) return "Yesterday"
-  return formatEthiopianDateDMY(date)
+  if (days === 0) return language === "am" ? "ዛሬ" : "Today"
+  if (days === 1) return language === "am" ? "ትላንት" : "Yesterday"
+  return formatLocalizedDate(dateStr, language)
 }
 
 function groupNotificationsByDay(
-  notifications: ParentNotification[]
+  notifications: ParentNotification[],
+  language: any = "en"
 ): { label: string; items: ParentNotification[] }[] {
   const groups: { [key: string]: ParentNotification[] } = {}
   for (const n of notifications) {
-    const label = getDayLabel(n.createdAt)
+    const label = getDayLabel(n.createdAt, language)
     if (!groups[label]) groups[label] = []
     groups[label].push(n)
   }
@@ -116,8 +117,9 @@ function getTypeConfig(type: string) {
 }
 
 // ── Today Snapshot ────────────────────────────────────────────────────────────
-function TodaySnapshot({ notifications }: { notifications: ParentNotification[] }) {
-  const todayNotes = notifications.filter(n => getDayLabel(n.createdAt) === "Today")
+function TodaySnapshot({ notifications, language }: { notifications: ParentNotification[]; language: any }) {
+  const todayLabel = language === "am" ? "ዛሬ" : "Today"
+  const todayNotes = notifications.filter(n => getDayLabel(n.createdAt, language) === todayLabel)
   const absent = todayNotes.filter(n => n.type === "absent").length
   const late = todayNotes.filter(n => n.type === "late").length
   const warning = todayNotes.filter(n => n.type === "warning").length
@@ -137,7 +139,7 @@ function TodaySnapshot({ notifications }: { notifications: ParentNotification[] 
           </div>
           <div>
             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Today's Snapshot</p>
-            <p className="text-[10px] text-slate-600 font-medium">{formatEthiopianDateDMY(new Date())}</p>
+            <p className="text-[10px] text-slate-600 font-medium">{formatLocalizedDate(new Date(), language)}</p>
           </div>
         </div>
 
@@ -299,8 +301,8 @@ function NotificationCard({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ParentNotifications() {
-  const { t } = useLanguage()
   const router = useRouter()
+  const { t, language } = useLanguage()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const [signedOut, setSignedOut] = useState(false)
@@ -308,9 +310,6 @@ export default function ParentNotifications() {
   const [filterType, setFilterType] = useState<"all" | "absent" | "late" | "emergency" | "warning">("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
-  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
-  const [dateRange, setDateRange] = useState<"all" | "today" | "week" | "month">("all")
-  const [displayLimit, setDisplayLimit] = useState(15)
   const [selectedNotif, setSelectedNotif] = useState<ParentNotification | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -393,7 +392,7 @@ export default function ParentNotifications() {
     const studentName = n.student?.fullName?.split(" ")[0] || ""
     const isFemale = n.student?.gender?.toLowerCase() === "female"
     const suffix = isFemale ? "_f" : ""
-    const formattedDate = formatEthiopianDateDMY(n.createdAt)
+    const formattedDate = formatLocalizedDate(n.createdAt, language)
     const vars = {
       name: studentName, StudentName: studentName,
       "Parent Name": "ወላጅ", parentName: "ወላጅ",
@@ -412,44 +411,19 @@ export default function ParentNotifications() {
   if (!authChecked || (authChecked && signedOut)) return <SignedOutWall />
   if (isLoading) return <PageSkeleton variant="cards" />
 
-  // ── Derived data & Filtering ────────────────────────────────────────────────
+  // ── Derived data ────────────────────────────────────────────────────────────
   const unreadCount = notificationsList.filter(n => !n.isRead).length
   const totalCount = notificationsList.length
 
-  const filtered = notificationsList
-    .filter(n => {
-      const matchesType = filterType === "all" || n.type === filterType
-      const matchesUnread = !showUnreadOnly || !n.isRead
-
-      // Date range filtering
-      let matchesDate = true
-      if (dateRange !== "all") {
-        const notifDate = new Date(n.createdAt)
-        const now = new Date()
-        if (dateRange === "today") {
-          matchesDate = notifDate.toDateString() === now.toDateString()
-        } else if (dateRange === "week") {
-          const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          matchesDate = notifDate >= oneWeekAgo
-        } else if (dateRange === "month") {
-          const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-          matchesDate = notifDate >= oneMonthAgo
-        }
-      }
-
-      const { title, message } = localizeNotification(n)
-      const q = searchTerm.toLowerCase()
-      const matchesSearch = !q || title.toLowerCase().includes(q) || message.toLowerCase().includes(q)
-      return matchesType && matchesUnread && matchesDate && matchesSearch
-    })
-    .sort((a, b) => {
-      const timeA = new Date(a.createdAt).getTime()
-      const timeB = new Date(b.createdAt).getTime()
-      return sortOrder === "newest" ? timeB - timeA : timeA - timeB
-    })
-
-  const paginatedList = filtered.slice(0, displayLimit)
-  const grouped = groupNotificationsByDay(paginatedList)
+  const filtered = notificationsList.filter(n => {
+    const matchesType = filterType === "all" || n.type === filterType
+    const matchesUnread = !showUnreadOnly || !n.isRead
+    const { title, message } = localizeNotification(n)
+    const q = searchTerm.toLowerCase()
+    const matchesSearch = !q || title.toLowerCase().includes(q) || message.toLowerCase().includes(q)
+    return matchesType && matchesUnread && matchesSearch
+  })
+  const grouped = groupNotificationsByDay(filtered, language)
 
   const filterOptions: { key: typeof filterType; label: string; emoji: string }[] = [
     { key: "all",       label: "All",     emoji: "🔔" },
@@ -525,67 +499,35 @@ export default function ParentNotifications() {
             </div>
           </div>
 
-          {/* Search + Unread toggle + Date Range & Sort controls */}
-          <div className="space-y-2 mb-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search notifications…"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full bg-white/[0.04] border border-white/8 rounded-xl pl-8.5 pr-8 py-2 text-[13px] text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/40 transition-colors"
-                  style={{ paddingLeft: "2.25rem" }}
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
-                  showUnreadOnly
-                    ? "bg-violet-500/15 text-violet-300 border-violet-500/25"
-                    : "bg-white/[0.04] text-slate-500 border-white/8"
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${showUnreadOnly ? "bg-violet-400 animate-pulse" : "bg-slate-600"}`} />
-                Unread ({unreadCount})
-              </button>
+          {/* Search + Unread toggle */}
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search notifications…"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/8 rounded-xl pl-8.5 pr-8 py-2 text-[13px] text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/40 transition-colors"
+                style={{ paddingLeft: "2.25rem" }}
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-
-            {/* Date Range & Sort selector */}
-            <div className="flex items-center justify-between text-[11px] pt-0.5">
-              <div className="flex items-center gap-1">
-                {[
-                  { key: "all", label: "All Time" },
-                  { key: "today", label: "Today" },
-                  { key: "week", label: "This Week" },
-                  { key: "month", label: "This Month" },
-                ].map((d) => (
-                  <button
-                    key={d.key}
-                    onClick={() => setDateRange(d.key as any)}
-                    className={`px-2.5 py-1 rounded-lg font-bold border transition-all ${
-                      dateRange === d.key
-                        ? "bg-violet-500/20 text-violet-300 border-violet-500/30"
-                        : "bg-white/[0.02] text-slate-500 border-white/[0.05] hover:text-slate-300"
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setSortOrder(s => s === "newest" ? "oldest" : "newest")}
-                className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/8 text-slate-400 hover:text-white font-bold transition-all"
-              >
-                {sortOrder === "newest" ? "Newest ↓" : "Oldest ↑"}
-              </button>
-            </div>
+            <button
+              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all active:scale-95 ${
+                showUnreadOnly
+                  ? "bg-violet-500/15 text-violet-300 border-violet-500/25"
+                  : "bg-white/[0.04] text-slate-500 border-white/8"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${showUnreadOnly ? "bg-violet-400 animate-pulse" : "bg-slate-600"}`} />
+              {unreadCount}
+            </button>
           </div>
 
           {/* Filter chips */}
@@ -622,8 +564,11 @@ export default function ParentNotifications() {
       <div className="px-4 pb-28 pt-4 max-w-2xl mx-auto">
 
         {/* Today snapshot (only if there are today notifications) */}
-        {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
-          <TodaySnapshot notifications={notificationsList} />
+        {notificationsList.some(n => {
+          const lbl = getDayLabel(n.createdAt, language)
+          return lbl === "Today" || lbl === "ዛሬ"
+        }) && (
+          <TodaySnapshot notifications={notificationsList} language={language} />
         )}
 
         {/* Empty state */}
@@ -657,7 +602,7 @@ export default function ParentNotifications() {
                 <div className="flex items-center gap-3 mb-2.5">
                   <div className="h-px flex-1 bg-white/[0.05]" />
                   <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.05] shrink-0">
-                    {label === "Today" && (
+                    {(label === "Today" || label === "ዛሬ") && (
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
                     )}
                     {label}
@@ -678,7 +623,7 @@ export default function ParentNotifications() {
                         cfg={cfg}
                         title={title}
                         message={message}
-                        time={formatEthiopianDateTimeDMY(notification.createdAt)}
+                        time={formatLocalizedDateTime(notification.createdAt, language)}
                         onClick={() => {
                           if (!notification.isRead) handleMarkAsRead(notification.id)
                           setSelectedNotif(notification)
@@ -690,21 +635,6 @@ export default function ParentNotifications() {
                 </div>
               </div>
             ))}
-
-            {/* Load More Pagination */}
-            {displayLimit < filtered.length && (
-              <div className="pt-4 flex justify-center">
-                <button
-                  onClick={() => setDisplayLimit(prev => prev + 15)}
-                  className="px-5 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-xs font-bold text-violet-300 transition-all active:scale-95 flex items-center gap-2"
-                >
-                  <span>Load More Notifications</span>
-                  <span className="px-1.5 py-0.5 rounded-md bg-violet-500/20 text-[10px] text-violet-300">
-                    {filtered.length - displayLimit} remaining
-                  </span>
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -752,7 +682,7 @@ export default function ParentNotifications() {
                 <div className="flex items-center justify-between text-[11px] text-slate-600">
                   <span className="flex items-center gap-1.5">
                     <Clock className="w-3 h-3" />
-                    {formatEthiopianDateTimeDMY(selectedNotif.createdAt)}
+                    {formatLocalizedDateTime(selectedNotif.createdAt, language)}
                   </span>
                   {selectedNotif.student?.fullName && (
                     <span className="flex items-center gap-1.5 font-semibold text-violet-400">

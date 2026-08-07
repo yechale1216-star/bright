@@ -6,6 +6,8 @@
 import { Language } from "../i18n/translations";
 import {
   toEthiopianDate,
+  getAddisAbabaDateParts,
+  gregorianToJDN,
   ET_MONTHS_AM,
   ET_MONTHS_EN,
   formatEthiopianDateDMY,
@@ -13,7 +15,6 @@ import {
 } from "./ethiopian-calendar";
 
 export { formatEthiopianDateDMY, formatEthiopianDateTimeDMY };
-
 
 export interface DateOptions {
   month?: "long" | "short" | "numeric";
@@ -41,12 +42,15 @@ export function formatLocalizedDate(
   options: DateOptions = { month: "short", day: "numeric" }
 ): string {
   try {
-    const date = new Date(dateInput);
-    if (isNaN(date.getTime())) return String(dateInput);
+    if (!dateInput) return "";
 
     // Ethiopian Calendar for Amharic
     if (language === "am") {
-      const ec = toEthiopianDate(date);
+      const parts = getAddisAbabaDateParts(dateInput);
+      const ec = toEthiopianDate(dateInput);
+      const jdn = gregorianToJDN(parts.year, parts.month, parts.day);
+      const dayOfWeekIndex = Math.floor(jdn + 1.5) % 7; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
       let result = "";
       
       const getPeriod = (h: number) => {
@@ -56,11 +60,11 @@ export function formatLocalizedDate(
         return "ሌሊት";
       };
 
-      const hours24 = date.getHours();
+      const hours24 = parts.hours;
       const period = getPeriod(hours24);
       let displayHours = hours24 % 12;
       displayHours = displayHours ? displayHours : 12;
-      const minutes = date.getMinutes().toString().padStart(2, '0');
+      const minutes = String(parts.minutes).padStart(2, '0');
 
       // Just Time?
       if (options.hour && options.minute && !options.month && !options.day && !options.year && !options.weekday) {
@@ -68,7 +72,7 @@ export function formatLocalizedDate(
       }
 
       if (options.weekday) {
-        result += options.weekday === 'short' ? amharicShortDays[date.getDay()] : amharicDays[date.getDay()];
+        result += options.weekday === 'short' ? amharicShortDays[dayOfWeekIndex] : amharicDays[dayOfWeekIndex];
         result += "፣ ";
       }
       if (options.month) {
@@ -88,11 +92,17 @@ export function formatLocalizedDate(
       return result.trim().replace(/፣\s*$/, '');
     }
 
-    // Default English localization
+    // Default English localization (Gregorian calendar in Africa/Addis_Ababa timezone)
+    const dateObj = typeof dateInput === "string" && dateInput.length === 10 && !dateInput.includes("T")
+      ? new Date(`${dateInput}T00:00:00.000Z`)
+      : new Date(dateInput);
+
+    if (isNaN(dateObj.getTime())) return String(dateInput);
+
     return new Intl.DateTimeFormat("en-US", {
       ...options as any,
       timeZone: "Africa/Addis_Ababa",
-    }).format(date);
+    }).format(dateObj);
   } catch (error) {
     console.error("Error formatting date:", error);
     return String(dateInput);
@@ -113,32 +123,34 @@ export function formatLocalizedTime(
 }
 
 /**
- * Specific Gregorian to Ethiopian Calendar (EC) conversion
- * Simple implementation for display purposes
+ * Formats full date and time into a localized string
  */
-export function toEthiopianDateString(dateInput: string | Date | number): string {
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) return "";
-
-  // The Ethiopian calendar is approximately 7-8 years behind Gregorian.
-  // This is a simplified conversion logic.
-  // For a production app, we'd use a dedicated library like 'ethiopian-date'.
-  // But we can approximate for UI display of 'standards'.
-  
-  // Meskerem 1 (New Year) is typically Sept 11 or 12.
-  
-  // Real EC calculation is complex, but let's provide a "Standard" formatter 
-  // that at least uses Amharic names for Gregorian if EC logic is not fully available.
-  return new Intl.DateTimeFormat("am-ET", {
-    year: "numeric",
-    month: "long",
+export function formatLocalizedDateTime(
+  dateInput: string | Date | number,
+  language: Language = "en"
+): string {
+  return formatLocalizedDate(dateInput, language, {
+    month: "short",
     day: "numeric",
-    timeZone: "Africa/Addis_Ababa",
-  }).format(date);
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
- * Gets a relative time string (e.g., "Just now", "2 mins ago")
+ * Ethiopian Calendar date string representation
+ */
+export function toEthiopianDateString(dateInput: string | Date | number): string {
+  return formatLocalizedDate(dateInput, "am", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/**
+ * Gets a relative time string (e.g., "Just now", "2 mins ago") or localized date
  */
 export function getRelativeTimeString(
   dateInput: string | Date | number,
@@ -146,16 +158,18 @@ export function getRelativeTimeString(
   t: (key: any) => string
 ): string {
   const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return String(dateInput);
+  
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffInSeconds < 60) return t("just_now");
+  if (diffInSeconds >= 0 && diffInSeconds < 60) return t("just_now");
   
-  // For simplicity, we fallback to localized short date if it's older than a minute
-  return formatLocalizedDate(date, language, {
+  return formatLocalizedDate(dateInput, language, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit"
   });
 }
+
