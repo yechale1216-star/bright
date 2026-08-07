@@ -11,7 +11,7 @@ import {
   Clock, XCircle, AlertTriangle, Info,
   UserX, X, Search, RefreshCw,
   GraduationCap, ShieldAlert, LogOut,
-  CheckCircle2, ChevronRight, Sparkles,
+  CheckCircle2, ChevronRight, Sparkles, ArrowLeft,
 } from "lucide-react"
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
@@ -440,19 +440,41 @@ export default function ParentNotifications() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#060c18] text-slate-100 relative overflow-x-hidden">
+    <>
+      {/* ════════ DESKTOP backdrop ════════ */}
+      <div className="hidden md:flex fixed inset-0 z-40 items-start justify-end bg-black/30 backdrop-blur-sm" />
 
-      {/* Ambient glows */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[280px] bg-violet-600/5 rounded-full blur-[90px] pointer-events-none" />
-      <div className="fixed bottom-0 right-0 w-[260px] h-[260px] bg-indigo-600/6 rounded-full blur-[80px] pointer-events-none" />
+      {/* ════════ PAGE / PANEL ════════
+          mobile : full-screen, no radius
+          desktop: fixed right-side panel, rounded, shadow, scroll ═══════════ */}
+      <div className={[
+        /* shared */
+        "bg-[#060c18] text-slate-100 relative overflow-hidden flex flex-col",
+        /* mobile — full screen */
+        "min-h-screen w-full",
+        /* desktop — narrow panel on the right */
+        "md:fixed md:top-4 md:right-4 md:bottom-4 md:w-[420px] md:min-h-0 md:rounded-3xl md:shadow-2xl md:shadow-black/60 md:border md:border-white/[0.08] md:z-50",
+      ].join(" ")}>
 
-      {/* ── Sticky Header ───────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-[#060c18]/85 backdrop-blur-2xl border-b border-white/[0.06]">
-        <div className="px-4 pt-4 pb-3 max-w-2xl mx-auto">
+      {/* Ambient glows (clipped to panel) */}
+      <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-[300px] h-[200px] bg-violet-600/10 rounded-full blur-[70px] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[180px] h-[180px] bg-indigo-600/8 rounded-full blur-[60px] pointer-events-none" />
+
+      {/* ── Sticky Header ─────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 bg-[#060c18]/90 backdrop-blur-2xl border-b border-white/[0.06] shrink-0">
+        <div className="px-4 pt-4 pb-3">
 
           {/* Title row */}
           <div className="flex items-center justify-between mb-3.5">
             <div className="flex items-center gap-2.5">
+              {/* Back arrow */}
+              <button
+                onClick={() => router.back()}
+                className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white active:scale-90 transition-all shrink-0"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/25 to-indigo-500/15 border border-violet-500/20 flex items-center justify-center shrink-0">
                 <Bell className="w-4 h-4 text-violet-400" />
               </div>
@@ -549,8 +571,8 @@ export default function ParentNotifications() {
         </div>
       </div>
 
-      {/* ── Content ─────────────────────────────────────────────────────────── */}
-      <div className="px-4 pb-28 pt-4 max-w-2xl mx-auto">
+      {/* ── Content ─────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-4 pb-10 pt-4">
 
         {/* Today snapshot (only if there are today notifications) */}
         {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
@@ -699,6 +721,6 @@ export default function ParentNotifications() {
           </div>
         )
       })()}
-    </div>
+    </>
   )
 }
