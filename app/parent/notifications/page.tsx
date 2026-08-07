@@ -286,6 +286,9 @@ export default function ParentNotifications() {
   const [signedOut, setSignedOut] = useState(false)
   const [notificationsList, setNotificationsList] = useState<ParentNotification[]>([])
   const [filterType, setFilterType] = useState<"all" | "absent" | "late" | "announcement" | "emergency" | "warning">("all")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+  const [selectedNotif, setSelectedNotif] = useState<ParentNotification | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -335,6 +338,7 @@ export default function ParentNotifications() {
   const handleDelete = async (e: React.MouseEvent, notificationId: string) => {
     e.stopPropagation()
     setNotificationsList(prev => prev.filter(n => n.id !== notificationId))
+    if (selectedNotif?.id === notificationId) setSelectedNotif(null)
     window.dispatchEvent(new Event("refreshNotifications"))
     try {
       await parentDb.deleteNotification(notificationId)
@@ -391,7 +395,13 @@ export default function ParentNotifications() {
   const unreadCount = notificationsList.filter(n => !n.isRead).length
   const totalCount = notificationsList.length
 
-  const filtered = filterType === "all" ? notificationsList : notificationsList.filter(n => n.type === filterType)
+  const filtered = notificationsList.filter(n => {
+    const matchesType = filterType === "all" || n.type === filterType
+    const matchesUnread = !showUnreadOnly || !n.isRead
+    const { title, message } = localizeNotification(n)
+    const matchesSearch = !searchTerm || title.toLowerCase().includes(searchTerm.toLowerCase()) || message.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesType && matchesUnread && matchesSearch
+  })
   const grouped = groupNotificationsByDay(filtered)
 
   const filterOptions: { key: typeof filterType; label: string; emoji: string; activeColor: string }[] = [
@@ -410,23 +420,23 @@ export default function ParentNotifications() {
 
       {/* Sticky Header */}
       <div className="sticky top-0 z-30 bg-[#070d1a]/90 backdrop-blur-2xl border-b border-white/5">
-        <div className="px-4 py-4">
+        <div className="px-4 py-4 max-w-4xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center">
                   <Bell className="w-4 h-4 text-indigo-400" />
                 </div>
                 <h1 className="text-xl font-black text-white tracking-tight">Notifications</h1>
               </div>
-              <p className="text-xs pl-10 mt-0.5">
+              <p className="text-xs pl-11 mt-0.5">
                 {unreadCount > 0
                   ? <span className="text-indigo-400 font-bold">{unreadCount} unread • {totalCount} total</span>
                   : <span className="text-slate-500">All caught up!</span>
                 }
               </p>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
@@ -440,16 +450,45 @@ export default function ParentNotifications() {
                 onClick={handleRefresh}
                 disabled={isRefreshing}
                 className="h-9 w-9 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all"
+                title="Refresh notifications"
               >
                 <RefreshCw className={`w-4 h-4 text-slate-400 ${isRefreshing ? "animate-spin" : ""}`} />
               </button>
             </div>
           </div>
+
+          {/* Search Bar & Unread Toggle */}
+          <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
+            <div className="relative flex-1 w-full">
+              <input
+                type="text"
+                placeholder="Search alerts by title or content..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 pl-9 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all"
+              />
+              <Filter className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+              className={`w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                showUnreadOnly ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30" : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${showUnreadOnly ? "bg-indigo-400 animate-pulse" : "bg-slate-500"}`} />
+              Unread only ({unreadCount})
+            </button>
+          </div>
         </div>
       </div>
 
       {/* NOTIFICATIONS CONTENT */}
-      <div className="px-4 pb-32 pt-4">
+      <div className="px-4 pb-32 pt-4 max-w-4xl mx-auto">
         {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
           <TodayStatusPanel notifications={notificationsList} />
         )}
@@ -512,16 +551,23 @@ export default function ParentNotifications() {
                     const cfg = getTypeConfig(notification.type)
                     const { title, message } = localizeNotification(notification)
                     return (
-                      <NotificationCard
+                      <div
                         key={notification.id}
-                        notification={notification}
-                        cfg={cfg}
-                        title={title}
-                        message={message}
-                        time={formatNotificationTime(notification.createdAt)}
-                        onRead={() => handleMarkAsRead(notification.id)}
-                        onDelete={(e) => handleDelete(e, notification.id)}
-                      />
+                        onClick={() => {
+                          if (!notification.isRead) handleMarkAsRead(notification.id)
+                          setSelectedNotif(notification)
+                        }}
+                      >
+                        <NotificationCard
+                          notification={notification}
+                          cfg={cfg}
+                          title={title}
+                          message={message}
+                          time={formatNotificationTime(notification.createdAt)}
+                          onRead={() => handleMarkAsRead(notification.id)}
+                          onDelete={(e) => handleDelete(e, notification.id)}
+                        />
+                      </div>
                     )
                   })}
                 </div>
@@ -530,6 +576,57 @@ export default function ParentNotifications() {
           </div>
         )}
       </div>
+
+      {/* Detailed View Modal */}
+      {selectedNotif && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200 relative">
+            <button
+              onClick={() => setSelectedNotif(null)}
+              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest px-2 py-0.5 rounded-md bg-indigo-500/10">
+                  {selectedNotif.type}
+                </span>
+                <h3 className="text-lg font-bold text-white mt-1">{localizeNotification(selectedNotif).title}</h3>
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-white/3 border border-white/5 text-sm text-slate-300 leading-relaxed">
+              {localizeNotification(selectedNotif).message}
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
+              <span>{formatNotificationTime(selectedNotif.createdAt)}</span>
+              {selectedNotif.student?.fullName && (
+                <span className="flex items-center gap-1 font-medium text-indigo-300">
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  {selectedNotif.student.fullName}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={(e) => handleDelete(e, selectedNotif.id)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+              <button
+                onClick={() => setSelectedNotif(null)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

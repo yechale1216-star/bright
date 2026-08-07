@@ -253,6 +253,12 @@ export function NotificationPopover() {
             open ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
           )}
         />
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+          </span>
+        )}
       </Button>
 
       {/* Dropdown */}
@@ -326,7 +332,7 @@ export function NotificationPopover() {
                       "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
                       !notif.isRead ? "bg-primary/10" : "bg-muted"
                     )}>
-                      {getNotifIcon(notif.type)}
+                      {getNotifIcon(notif.type, notif.category)}
                     </div>
 
                     {/* Content */}
