@@ -214,6 +214,8 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const isActive = (path: string) => pathname === path
   const isCommunicationPage = pathname?.includes('/communication')
+  const isNotificationsPage = pathname?.includes('/parent/notifications')
+  const isFullBleedPage = isCommunicationPage || isNotificationsPage
 
   if (!selectedStudent) return null
 
@@ -411,9 +413,9 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
-        {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
+        {!isFullBleedPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
 
-        {!isCommunicationPage && (
+        {!isFullBleedPage && (
           <div className="md:hidden flex items-center justify-between p-2 px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
             <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-white/50 dark:bg-slate-800/50 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm">
               <Avatar className="h-5 w-5 border border-white/20">
@@ -459,15 +461,15 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         )}
 
         <main
-          className={cn("flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative min-h-0", !isCommunicationPage && "pb-20 md:pb-0")}
+          className={cn("flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative min-h-0", !isFullBleedPage && "pb-20 md:pb-0")}
           onScroll={handleMainScroll}
         >
-          <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10", !isCommunicationPage ? "max-w-6xl p-4 md:p-6 space-y-6" : "p-0")}>
+          <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10", !isFullBleedPage ? "max-w-6xl p-4 md:p-6 space-y-6" : "p-0")}>
             {children}
           </div>
         </main>
 
-        {!isCommunicationPage && (
+        {!isFullBleedPage && (
           <nav className={cn(
             "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/80 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe",
             !showBottomNav ? "translate-y-full" : "translate-y-0"
