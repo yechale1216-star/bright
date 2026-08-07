@@ -33,12 +33,13 @@ export default function AnnouncementsPage() {
     const fetchAll = async () => {
       setIsLoading(true)
       try {
-        const userStr = localStorage.getItem("attendance_current_user")
+        const userStr = localStorage.getItem("attendance_current_user") || localStorage.getItem("auth_user") || sessionStorage.getItem("auth_user")
         if (userStr) {
           const user = JSON.parse(userStr)
-          const list = await parentDatabase.getNotifications(user.phone)
-          // Filter to only show announcements and emergencies
-          const filtered = list.filter(n => n.type === "announcement" || n.type === "emergency")
+          const phone = user.phone || user.phoneNumber || ""
+          const list = await parentDatabase.getNotifications(phone)
+          // Filter to only show announcements and emergencies (or ANNOUNCEMENT category)
+          const filtered = list.filter(n => n.type === "announcement" || n.type === "emergency" || n.category === "ANNOUNCEMENT")
           setAnnouncements(filtered)
         }
       } catch (error) {

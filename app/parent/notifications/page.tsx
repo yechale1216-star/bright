@@ -2,18 +2,16 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { parentDb, type ParentNotification, type ParentPreferences } from "@/lib/db/parent-db"
+import { parentDb, type ParentNotification } from "@/lib/db/parent-db"
 import { useLanguage } from "@/lib/context/language-context"
 import { formatLocalizedDate, formatEthiopianDateDMY, formatEthiopianDateTimeDMY } from "@/lib/utils/date-utils"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
-import { Switch } from "@/components/ui/switch"
 import {
-  Bell, Settings, Settings2, CheckCheck, Trash2, BellOff,
-  Smartphone, Mail, Radio, Clock, XCircle, Megaphone,
+  Bell, CheckCheck, Trash2, BellOff,
+  Clock, XCircle, Megaphone,
   AlertTriangle, Info, UserX, X, ChevronRight,
   Filter, RefreshCw, GraduationCap, ShieldAlert,
-  LogOut, Loader2, Sparkles,
-  CheckCircle2, Zap,
+  LogOut, Loader2, Sparkles, CheckCircle2,
 } from "lucide-react"
 
 function isLoggedIn(): boolean {
@@ -287,12 +285,6 @@ export default function ParentNotifications() {
   const [authChecked, setAuthChecked] = useState(false)
   const [signedOut, setSignedOut] = useState(false)
   const [notificationsList, setNotificationsList] = useState<ParentNotification[]>([])
-  const [preferences, setPreferences] = useState<ParentPreferences>({
-    smsAlerts: false,
-    emailAlerts: false,
-    pushAlerts: true
-  })
-  const [activeTab, setActiveTab] = useState<"inbox" | "preferences">("inbox")
   const [filterType, setFilterType] = useState<"all" | "absent" | "late" | "announcement" | "emergency" | "warning">("all")
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -310,14 +302,15 @@ export default function ParentNotifications() {
   }, [])
 
   const loadData = async () => {
-    const userStr = localStorage.getItem("attendance_current_user")
+    const userStr = localStorage.getItem("attendance_current_user") || localStorage.getItem("auth_user") || sessionStorage.getItem("auth_user")
     if (userStr) {
       try {
         const user = JSON.parse(userStr)
         setCurrentUser(user)
-        await fetchNotificationsList(user.phone)
-        const prefs = await parentDb.getPreferences(user.phone)
-        if (prefs) setPreferences(prefs)
+        const phone = user.phone || user.phoneNumber
+        if (phone) {
+          await fetchNotificationsList(phone)
+        }
       } catch (e) { console.error("[Notifications] Load error:", e) }
     }
     setIsLoading(false)
@@ -367,13 +360,6 @@ export default function ParentNotifications() {
     setIsRefreshing(false)
   }
 
-  const handlePreferenceToggle = async (key: keyof ParentPreferences, value: boolean) => {
-    if (!currentUser?.phone) return
-    const updated = { ...preferences, [key]: value }
-    setPreferences(updated)
-    await parentDb.updatePreferences(currentUser.phone, updated)
-  }
-
   const formatNotificationTime = (dateStr: string) =>
     formatEthiopianDateTimeDMY(dateStr)
 
@@ -409,12 +395,12 @@ export default function ParentNotifications() {
   const grouped = groupNotificationsByDay(filtered)
 
   const filterOptions: { key: typeof filterType; label: string; emoji: string; activeColor: string }[] = [
-    { key: "all", label: "All", emoji: "??", activeColor: "bg-white/10 text-white border-white/20" },
-    { key: "absent", label: "Absent", emoji: "??", activeColor: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
-    { key: "late", label: "Late", emoji: "?", activeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
-    { key: "announcement", label: "School", emoji: "??", activeColor: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
-    { key: "emergency", label: "Urgent", emoji: "??", activeColor: "bg-red-500/15 text-red-300 border-red-500/30" },
-    { key: "warning", label: "Warning", emoji: "??", activeColor: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
+    { key: "all", label: "All", emoji: "🔔", activeColor: "bg-white/10 text-white border-white/20" },
+    { key: "absent", label: "Absent", emoji: "❌", activeColor: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
+    { key: "late", label: "Late", emoji: "⏰", activeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+    { key: "announcement", label: "School", emoji: "📢", activeColor: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
+    { key: "emergency", label: "Urgent", emoji: "🚨", activeColor: "bg-red-500/15 text-red-300 border-red-500/30" },
+    { key: "warning", label: "Warning", emoji: "⚠️", activeColor: "bg-orange-500/15 text-orange-300 border-orange-500/30" },
   ]
 
   return (
@@ -424,19 +410,19 @@ export default function ParentNotifications() {
 
       {/* Sticky Header */}
       <div className="sticky top-0 z-30 bg-[#070d1a]/90 backdrop-blur-2xl border-b border-white/5">
-        <div className="px-4 pt-5 pb-0">
-          <div className="flex items-start justify-between mb-4">
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center">
                   <Bell className="w-4 h-4 text-indigo-400" />
                 </div>
                 <h1 className="text-xl font-black text-white tracking-tight">Notifications</h1>
               </div>
-              <p className="text-xs pl-10">
+              <p className="text-xs pl-10 mt-0.5">
                 {unreadCount > 0
-                  ? <span className="text-indigo-400 font-bold">{unreadCount} unread � {totalCount} total</span>
-                  : <span className="text-slate-600">All caught up ?</span>
+                  ? <span className="text-indigo-400 font-bold">{unreadCount} unread • {totalCount} total</span>
+                  : <span className="text-slate-500">All caught up!</span>
                 }
               </p>
             </div>
@@ -459,220 +445,91 @@ export default function ParentNotifications() {
               </button>
             </div>
           </div>
-
-          {/* Tab Bar */}
-          <div className="flex gap-0">
-            {[
-              { key: "inbox", icon: <Bell className="w-3.5 h-3.5" />, label: "Inbox" },
-              { key: "preferences", icon: <Settings2 className="w-3.5 h-3.5" />, label: "Preferences" },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
-                className={`relative flex items-center gap-2 px-4 py-3 text-xs font-bold transition-all ${
-                  activeTab === tab.key ? "text-white" : "text-slate-600 hover:text-slate-400"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-                {tab.key === "inbox" && unreadCount > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[9px] font-black flex items-center justify-center">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-                {activeTab === tab.key && (
-                  <span className="absolute bottom-0 left-3 right-3 h-[2px] bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" />
-                )}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
-      {/* INBOX TAB */}
-      {activeTab === "inbox" && (
-        <div className="px-4 pb-32 pt-4">
-          {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
-            <TodayStatusPanel notifications={notificationsList} />
-          )}
+      {/* NOTIFICATIONS CONTENT */}
+      <div className="px-4 pb-32 pt-4">
+        {notificationsList.some(n => getDayLabel(n.createdAt) === "Today") && (
+          <TodayStatusPanel notifications={notificationsList} />
+        )}
 
-          {/* Filter chips */}
-          {notificationsList.length > 0 && (
-            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 no-scrollbar">
-              {filterOptions.map(opt => {
-                const count = opt.key === "all"
-                  ? notificationsList.length
-                  : notificationsList.filter(n => n.type === opt.key).length
-                if (opt.key !== "all" && count === 0) return null
-                return (
-                  <button
-                    key={opt.key}
-                    onClick={() => setFilterType(opt.key)}
-                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
-                      filterType === opt.key
-                        ? opt.activeColor
-                        : "text-slate-500 border-white/6 bg-white/3 hover:text-slate-300 hover:bg-white/6"
-                    }`}
-                  >
-                    <span>{opt.emoji}</span>
-                    {opt.label}
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${filterType === opt.key ? "bg-white/20" : "bg-white/8"}`}>
-                      {count}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center gap-5">
-              <div className="relative">
-                <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/5 flex items-center justify-center shadow-2xl">
-                  <BellOff className="h-10 w-10 text-slate-600" />
-                </div>
-                <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-2xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-indigo-400" />
-                </div>
-              </div>
-              <div>
-                <p className="text-base font-bold text-slate-400">
-                  {filterType === "all" ? "No notifications yet" : `No ${filterType} alerts`}
-                </p>
-                <p className="text-xs text-slate-600 mt-1 max-w-[200px] mx-auto">
-                  {filterType === "all"
-                    ? "Attendance alerts and announcements will appear here."
-                    : "Try switching to 'All' to see everything."
-                  }
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {grouped.map(({ label, items }) => (
-                <div key={label}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/5" />
-                    <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/3 border border-white/5">
-                      {label === "Today" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />}
-                      {label}
-                      <span className="text-slate-700">� {items.length}</span>
-                    </span>
-                    <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/5" />
-                  </div>
-                  <div className="space-y-2.5">
-                    {items.map(notification => {
-                      const cfg = getTypeConfig(notification.type)
-                      const { title, message } = localizeNotification(notification)
-                      return (
-                        <NotificationCard
-                          key={notification.id}
-                          notification={notification}
-                          cfg={cfg}
-                          title={title}
-                          message={message}
-                          time={formatNotificationTime(notification.createdAt)}
-                          onRead={() => handleMarkAsRead(notification.id)}
-                          onDelete={(e) => handleDelete(e, notification.id)}
-                        />
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* PREFERENCES TAB */}
-      {activeTab === "preferences" && (
-        <div className="px-4 pb-32 pt-5">
-          <div className="mb-5">
-            <h2 className="text-base font-black text-white flex items-center gap-2">
-              <Zap className="w-4 h-4 text-indigo-400" />
-              Alert Channels
-            </h2>
-            <p className="text-xs text-slate-500 mt-1 ml-6">All school alerts are delivered directly via In-App Portal Notifications</p>
+        {/* Filter chips */}
+        {notificationsList.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 no-scrollbar">
+            {filterOptions.map(opt => {
+              const count = opt.key === "all"
+                ? notificationsList.length
+                : notificationsList.filter(n => n.type === opt.key).length
+              if (opt.key !== "all" && count === 0) return null
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setFilterType(opt.key)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
+                    filterType === opt.key
+                      ? opt.activeColor
+                      : "text-slate-500 border-white/6 bg-white/3 hover:text-slate-300 hover:bg-white/6"
+                  }`}
+                >
+                  <span>{opt.emoji}</span>
+                  {opt.label}
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${filterType === opt.key ? "bg-white/20" : "bg-white/8"}`}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
           </div>
+        )}
 
-          <div className="space-y-3">
-            {[
-              {
-                key: "pushAlerts" as keyof ParentPreferences,
-                icon: <Radio className="w-5 h-5 text-violet-400" />,
-                iconBg: "from-violet-500/20 to-purple-500/10 border-violet-500/20",
-                title: t("push_alerts"),
-                desc: "Receive real-time push and in-app portal notifications for attendance alerts and announcements",
-                value: preferences.pushAlerts,
-                tag: "Active",
-                tagColor: "bg-emerald-500/15 text-emerald-400",
-                disabled: false,
-              },
-              {
-                key: "smsAlerts" as keyof ParentPreferences,
-                icon: <Smartphone className="w-5 h-5 text-slate-500" />,
-                iconBg: "from-slate-800 to-slate-900 border-slate-700/30",
-                title: t("sms_alerts"),
-                desc: "SMS alerts disabled (all notices are delivered via in-app portal)",
-                value: false,
-                tag: "Disabled",
-                tagColor: "bg-slate-700/30 text-slate-400",
-                disabled: true,
-              },
-              {
-                key: "emailAlerts" as keyof ParentPreferences,
-                icon: <Mail className="w-5 h-5 text-slate-500" />,
-                iconBg: "from-slate-800 to-slate-900 border-slate-700/30",
-                title: t("email_alerts"),
-                desc: "Email alerts disabled (all notices are delivered via in-app portal)",
-                value: false,
-                tag: "Disabled",
-                tagColor: "bg-slate-700/30 text-slate-400",
-                disabled: true,
-              },
-            ].map(pref => (
-              <div
-                key={pref.key}
-                className={`flex items-center justify-between p-4 bg-white/3 border border-white/6 rounded-2xl transition-all ${pref.disabled ? "opacity-60" : "hover:bg-white/5"}`}
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className={`h-11 w-11 rounded-2xl bg-gradient-to-br border flex items-center justify-center shrink-0 ${pref.iconBg}`}>
-                    {pref.icon}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-slate-100">{pref.title}</p>
-                      {pref.tag && (
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${pref.tagColor}`}>
-                          {pref.tag}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{pref.desc}</p>
-                  </div>
+        {/* Empty State */}
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center gap-3 bg-white/3 border border-white/6 rounded-2xl p-8 max-w-sm mx-auto my-8">
+            <div className="rounded-full bg-slate-800/60 p-4 border border-white/10">
+              <BellOff className="h-7 w-7 text-slate-400" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-slate-200">All caught up!</p>
+              <p className="text-xs text-slate-400 mt-1">No notifications yet.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {grouped.map(({ label, items }) => (
+              <div key={label}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/5" />
+                  <span className="flex items-center gap-1.5 text-[10px] font-black text-slate-600 uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/3 border border-white/5">
+                    {label === "Today" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />}
+                    {label}
+                    <span className="text-slate-700">• {items.length}</span>
+                  </span>
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/5" />
                 </div>
-                <Switch
-                  checked={Boolean(pref.value)}
-                  disabled={pref.disabled}
-                  onCheckedChange={(checked) => !pref.disabled && handlePreferenceToggle(pref.key, checked)}
-                  className="data-[state=checked]:bg-indigo-600 shrink-0"
-                />
+                <div className="space-y-2.5">
+                  {items.map(notification => {
+                    const cfg = getTypeConfig(notification.type)
+                    const { title, message } = localizeNotification(notification)
+                    return (
+                      <NotificationCard
+                        key={notification.id}
+                        notification={notification}
+                        cfg={cfg}
+                        title={title}
+                        message={message}
+                        time={formatNotificationTime(notification.createdAt)}
+                        onRead={() => handleMarkAsRead(notification.id)}
+                        onDelete={(e) => handleDelete(e, notification.id)}
+                      />
+                    )
+                  })}
+                </div>
               </div>
             ))}
           </div>
-
-          <div className="mt-6 p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/15">
-            <div className="flex gap-3">
-              <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-slate-500 leading-relaxed">
-                In-app portal notifications are active for your account. You can view all alerts anytime in the Notification Inbox.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

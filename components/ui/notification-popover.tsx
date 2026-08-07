@@ -15,19 +15,26 @@ import { apiUrl } from "@/lib/api-config";
 export interface UserNotification {
   id: string;
   type: string;
+  category?: string;
+  priority?: string;
   title: string;
   message: string;
   isRead: boolean;
   createdAt: string;
+  metadata?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getNotifIcon(type: string) {
-  switch ((type || "").toUpperCase()) {
+function getNotifIcon(type: string, category?: string) {
+  const key = (category || type || "").toUpperCase();
+  switch (key) {
     case "MESSAGE":    return <MessageSquare className="h-4 w-4 text-blue-500" />;
     case "ATTENDANCE": return <GraduationCap  className="h-4 w-4 text-amber-500" />;
-    case "ALERT":      return <AlertTriangle   className="h-4 w-4 text-red-500" />;
+    case "DISCIPLINE": return <AlertTriangle   className="h-4 w-4 text-rose-500" />;
+    case "ANNOUNCEMENT": return <Info className="h-4 w-4 text-emerald-500" />;
+    case "ALERT":
+    case "URGENT":     return <AlertTriangle   className="h-4 w-4 text-red-500" />;
     case "STUDENT":    return <Users           className="h-4 w-4 text-emerald-500" />;
     default:           return <Info            className="h-4 w-4 text-muted-foreground" />;
   }

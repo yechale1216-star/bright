@@ -35,7 +35,6 @@ export const getAllStudents = async (schoolId: string, search?: string) => {
       section: true,
       stream: true
     },
-    take: 20,
     orderBy: { fullName: 'asc' }
   });
   return students.map(mapStudentToFlat);

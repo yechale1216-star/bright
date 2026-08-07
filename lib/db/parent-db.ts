@@ -8,7 +8,11 @@ export interface ParentNotification {
   id: string;
   schoolId: string;
   studentId: string | null;
-  type: "absent" | "late" | "excused" | "announcement" | "emergency" | "warning" | "info";
+  type: "absent" | "late" | "excused" | "announcement" | "emergency" | "warning" | "info" | string;
+  category?: string;
+  priority?: string;
+  targetRole?: string;
+  metadata?: string;
   title: string;
   message: string;
   isRead: boolean;

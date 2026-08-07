@@ -132,18 +132,28 @@ export function Reports() {
         const classes = assignmentsData || []
 
         const filtered = studentsData.filter((student: Student) =>
-          classes.some((cls) => {
-            const studentGrade = (student.grade || "").replace("Grade ", "").trim()
-            const classGrade = String(cls.grade || "").trim()
-            const gradeMatch = studentGrade === classGrade
-            const sectionMatch = cls.section === student.section
-            const streamMatch = !cls.stream || cls.stream === student.stream
+          classes.some((cls: any) => {
+            const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
+            const clsGradeName = String(cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
+            
+            const gradeMatch = studentGrade !== "" && clsGradeName !== "" && studentGrade === clsGradeName
+            
+            const studentSection = (student.section || "").toLowerCase().trim()
+            const clsSectionName = String(cls.section || cls.sectionObj?.name || "").toLowerCase().trim()
+            
+            const sectionMatch = studentSection !== "" && clsSectionName !== "" && studentSection === clsSectionName
 
+            const studentStream = (student.stream || "").toLowerCase().trim()
+            const clsStreamName = String(cls.stream || cls.streamObj?.name || "").toLowerCase().trim()
+            
+            const streamMatch = !cls.streamId || (studentStream !== "" && clsStreamName !== "" && studentStream === clsStreamName)
+            
             return gradeMatch && sectionMatch && streamMatch
           }),
         )
 
         setStudents(filtered)
+        console.log(`[Reports] Loaded ${filtered.length} students for teacher from ${classes.length} assigned classes`)
       } else {
         setStudents(studentsData)
       }
@@ -171,36 +181,18 @@ export function Reports() {
     try {
       const allAttendance = await db.getAttendanceByDateRange(startDate, endDate)
       
-      // ── Strict mode isolation ──────────────────────────────────────────────
-      // daily mode    → only records with null/undefined/empty session
-      // session mode  → only records that have a real session value
-      //   + optionally narrowed by sessionFilter (morning / afternoon / total)
-      let processedAttendance: typeof allAttendance
-      let sessionRecords: typeof allAttendance = []
+      // Process records according to mode and sessionFilter
+      let processedAttendance = allAttendance
 
-      if (!isSessionBased) {
-        // Daily mode: reject every record that carries a session tag
+      if (isSessionBased && sessionFilter !== "total") {
         processedAttendance = allAttendance.filter(
-          record => !record.session
+          record => record.session?.trim().toLowerCase() === sessionFilter.toLowerCase()
         )
-      } else {
-        // Session-based mode: reject records with no session
-        sessionRecords = allAttendance.filter(
-          record => !!record.session
-        )
-        // Narrow processedAttendance by selected session filter if not "total" (used for charts & raw data)
-        processedAttendance = sessionFilter !== "total"
-          ? sessionRecords.filter(
-              record => record.session?.trim().toLowerCase() === sessionFilter.toLowerCase()
-            )
-          : sessionRecords
       }
 
       // Pre-group attendance by student ID for O(N) lookup
-      // In session-based mode, use ALL session records so we can access both Morning & Afternoon for each date
-      const targetRecords = isSessionBased ? sessionRecords : processedAttendance
       const attendanceByStudent: Record<string, any[]> = {}
-      targetRecords.forEach(record => {
+      allAttendance.forEach(record => {
         if (!attendanceByStudent[record.student_id]) {
           attendanceByStudent[record.student_id] = []
         }
@@ -233,16 +225,11 @@ export function Reports() {
           const isA = (s: string | undefined) => s?.trim().toLowerCase() === "absent"
           const isAtt = (s: string | undefined) => isP(s) || isL(s)
 
-          const resolveFullDay = (ms?: string, as?: string): 'present' | 'late' | 'excused' | 'absent' | null => {
-            if (!ms || !as) return null
-            const mn = ms.trim().toLowerCase()
-            const an = as.trim().toLowerCase()
-            if (mn !== an) return null
-            if (mn === 'present') return 'present'
-            if (mn === 'late')    return 'late'
-            if (mn === 'excused') return 'excused'
-            if (mn === 'absent')  return 'absent'
-            return null
+          const addStatusCount = (status?: string, weight = 0.5) => {
+            if (isP(status)) presentDays += weight
+            else if (isL(status)) lateDays += weight
+            else if (isE(status)) excusedDays += weight
+            else if (isA(status)) absentDays += weight
           }
 
           Object.values(dateGroups).forEach(records => {
@@ -259,34 +246,39 @@ export function Reports() {
             }
 
             if (sessionFilter === "morning") {
-              if (m) {
-                if (isP(m.status)) presentDays++
-                else if (isL(m.status)) lateDays++
-                else if (isE(m.status)) excusedDays++
-                else if (isA(m.status)) absentDays++
-              }
+              const rec = m || (records.length > 0 ? records[0] : null)
+              if (rec) addStatusCount(rec.status, 1)
             } else if (sessionFilter === "afternoon") {
-              if (a) {
-                if (isP(a.status)) presentDays++
-                else if (isL(a.status)) lateDays++
-                else if (isE(a.status)) excusedDays++
-                else if (isA(a.status)) absentDays++
-              }
+              const rec = a || (records.length > 0 ? records[0] : null)
+              if (rec) addStatusCount(rec.status, 1)
             } else {
-              // sessionFilter === "total"
-              const fullDayStatus = resolveFullDay(m?.status, a?.status)
-              if (fullDayStatus === 'present')      presentDays++
-              else if (fullDayStatus === 'late')    lateDays++
-              else if (fullDayStatus === 'excused') excusedDays++
-              else if (fullDayStatus === 'absent')  absentDays++
+              // sessionFilter === "total": Each session (Morning & Afternoon) counts as 0.5 days
+              if (m || a) {
+                if (m) addStatusCount(m.status, 0.5)
+                if (a) addStatusCount(a.status, 0.5)
+              } else {
+                // Fallback for records marked without explicit "morning"/"afternoon" tags
+                records.forEach(rec => {
+                  morningTotal += 0.5
+                  afternoonTotal += 0.5
+                  if (isAtt(rec.status)) {
+                    morningPresentCount += 0.5
+                    afternoonPresentCount += 0.5
+                  }
+                  addStatusCount(rec.status, 1 / Math.max(records.length, 1))
+                })
+              }
             }
           })
 
-          let totalDays = Object.keys(dateGroups).length
+          let totalDays = 0
           if (sessionFilter === "morning") {
             totalDays = morningTotal
           } else if (sessionFilter === "afternoon") {
             totalDays = afternoonTotal
+          } else {
+            // Combined total days: 0.5 per morning session + 0.5 per afternoon session
+            totalDays = (morningTotal * 0.5) + (afternoonTotal * 0.5)
           }
 
           const morningRate = morningTotal > 0 ? (morningPresentCount / morningTotal) * 100 : 0

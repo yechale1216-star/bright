@@ -1,6 +1,7 @@
 import { Router, Response, NextFunction } from 'express';
 import prisma from '../config/db';
 import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { UnifiedNotificationService } from '../services/unified-notification.service';
 
 const router = Router();
 
@@ -11,15 +12,94 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     const schoolId = req.user?.schoolId;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
+    const { category, priority, search, isRead } = req.query;
+
+    const whereClause: any = {
+      userId,
+      ...(schoolId ? { schoolId } : {}),
+    };
+
+    if (category && category !== 'ALL') {
+      whereClause.category = String(category);
+    }
+    if (priority && priority !== 'ALL') {
+      whereClause.priority = String(priority);
+    }
+    if (isRead !== undefined && isRead !== '') {
+      whereClause.isRead = isRead === 'true';
+    }
+    if (search && typeof search === 'string') {
+      whereClause.OR = [
+        { title: { contains: search } },
+        { message: { contains: search } },
+      ];
+    }
+
     const notifications = await (prisma as any).userNotification.findMany({
-      where: { userId, ...(schoolId ? { schoolId } : {}) },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 100,
     });
 
-    const unreadCount = notifications.filter((n: any) => !n.isRead).length;
+    const unreadCount = await (prisma as any).userNotification.count({
+      where: { userId, ...(schoolId ? { schoolId } : {}), isRead: false },
+    });
 
     res.status(200).json({ success: true, data: notifications, unreadCount });
+  } catch (error) { next(error); }
+});
+
+// POST /api/notifications — dispatch a new notification (Admins / Staff only)
+router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const role = req.user?.role;
+    if (!['school_admin', 'super_admin', 'discipline_officer', 'teacher'].includes(role || '')) {
+      return res.status(403).json({ success: false, message: 'Permission denied' });
+    }
+
+    const { targetUserId, targetRole, studentId, title, message, category, priority, metadata } = req.body;
+    const schoolId = req.user?.schoolId;
+
+    if (targetRole) {
+      const result = await UnifiedNotificationService.broadcastRole({
+        schoolId,
+        targetRole,
+        title,
+        message,
+        category,
+        priority,
+        metadata,
+      });
+      return res.status(201).json({ success: true, data: result });
+    }
+
+    if (studentId) {
+      const result = await UnifiedNotificationService.sendToParent({
+        schoolId,
+        studentId,
+        title,
+        message,
+        category,
+        priority,
+        metadata,
+      });
+      return res.status(201).json({ success: true, data: result });
+    }
+
+    if (targetUserId) {
+      const result = await UnifiedNotificationService.sendToUser({
+        userId: targetUserId,
+        schoolId,
+        title,
+        message,
+        category,
+        priority,
+        metadata,
+      });
+      return res.status(201).json({ success: true, data: result });
+    }
+
+    return res.status(400).json({ success: false, message: 'Target specification required (targetUserId, targetRole, or studentId)' });
   } catch (error) { next(error); }
 });
 

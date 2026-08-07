@@ -6,7 +6,7 @@ import { ForgotPasswordForm } from "./forgot-password-form"
 import { ResetPasswordForm } from "./reset-password-form"
 
 
-import { ArrowLeft, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 
 import { useLanguage } from "@/lib/context/language-context"
 
@@ -109,19 +109,8 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
 
   return (
     <div className="auth-page min-h-screen relative overflow-y-auto overflow-x-hidden flex flex-col items-center justify-center p-4 sm:p-8">
-      {/* Back to Landing Page */}
-      <header className="absolute top-0 left-0 right-0 z-50 w-full px-8 py-8 flex items-center justify-end animate-in fade-in slide-in-from-top duration-700">
-        <a
-          href="/"
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white font-black transition-all hover:scale-105 text-xs uppercase tracking-[0.2em]"
-        >
-          <ArrowLeft className="w-5 h-5 pointer-events-none" />
-          BACK
-        </a>
-      </header>
-
       {/* Auth Form */}
-      <div className="max-w-md w-full animate-in fade-in zoom-in-95 duration-1000 z-10 relative flex flex-col justify-start pt-0 -mt-10 md:-mt-24 min-h-screen">
+      <div className="max-w-md w-full animate-in fade-in zoom-in-95 duration-1000 z-10 relative flex flex-col justify-center py-6 sm:py-10">
 
         {/* Mobile Install Button */}
         {isInstallable && isMobile && (
@@ -141,9 +130,6 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
         </div>
 
         <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
-           <div className="typography-label flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[10px] text-slate-500 dark:text-slate-500 uppercase font-black mb-6">
-              <a href="/pricing" className="hover:text-blue-700 dark:hover:text-blue-400 transition-colors tracking-widest">{t("pricing")}</a>
-           </div>
            <div className="text-[10px] text-slate-500/40 dark:text-slate-400/40 font-medium uppercase tracking-[0.3em]">
             &copy; {new Date().getFullYear()} Zetime &bull; Management Suite
           </div>

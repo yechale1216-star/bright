@@ -139,22 +139,20 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         students = allStudents.filter((student: Student) => {
           return classes.some((cls: any) => {
             const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
-            const clsGradeId = String(cls.gradeId || "").toLowerCase().trim()
-            const clsGradeName = String(cls.grade?.name || cls.class?.grade || "").toLowerCase().replace("grade ", "").trim()
+            // cls.grade is a formatted string name from formatField() — match by name only
+            const clsGradeName = String(cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
             
-            const gradeMatch = studentGrade === clsGradeId || studentGrade === clsGradeName
+            const gradeMatch = studentGrade !== "" && clsGradeName !== "" && studentGrade === clsGradeName
             
             const studentSection = (student.section || "").toLowerCase().trim()
-            const clsSectionId = String(cls.sectionId || "").toLowerCase().trim()
-            const clsSectionName = String(cls.section?.name || cls.class?.section || "").toLowerCase().trim()
+            const clsSectionName = String(cls.section || cls.sectionObj?.name || "").toLowerCase().trim()
             
-            const sectionMatch = studentSection === clsSectionId || studentSection === clsSectionName
+            const sectionMatch = studentSection !== "" && clsSectionName !== "" && studentSection === clsSectionName
 
             const studentStream = (student.stream || "").toLowerCase().trim()
-            const clsStreamId = String(cls.streamId || "").toLowerCase().trim()
-            const clsStreamName = String(cls.stream?.name || cls.class?.stream || "").toLowerCase().trim()
-            
-            const streamMatch = !cls.streamId || studentStream === clsStreamId || studentStream === clsStreamName
+            const clsStreamName = String(cls.stream || cls.streamObj?.name || "").toLowerCase().trim()
+            // If the assignment has no stream, all students in the grade/section match
+            const streamMatch = !cls.streamId || (studentStream !== "" && clsStreamName !== "" && studentStream === clsStreamName)
             
             return gradeMatch && sectionMatch && streamMatch
           })

@@ -4,10 +4,17 @@ import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { useToast } from "@/hooks/use-toast"
-import { BookOpen, Users, ChevronRight, Hash, Phone, Mail, User as UserIcon } from "lucide-react"
-import { db, type Student } from "@/lib/db/database"
+import { 
+  BookOpen, Users, ChevronRight, Hash, Phone, Mail, User as UserIcon,
+  Calendar, MapPin, Contact, AlertTriangle, Activity
+} from "lucide-react"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { db, type Student, type AttendanceRecord } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { cn } from "@/lib/utils/utils"
+import { DisciplineApi, type StudentDiscipline } from "@/lib/discipline-service"
 
 interface TeacherAssignment {
   id: string
@@ -25,11 +32,47 @@ export function TeacherView() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedStudentProfile, setSelectedStudentProfile] = useState<Student | null>(null)
+  const [studentAttendanceHistory, setStudentAttendanceHistory] = useState<AttendanceRecord[]>([])
+  const [studentIncidents, setStudentIncidents] = useState<StudentDiscipline[]>([])
+  const [isLoadingProfileDetails, setIsLoadingProfileDetails] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
     loadAssignmentsAndStudents()
   }, [])
+
+  useEffect(() => {
+    if (selectedStudentProfile?.id) {
+      setIsLoadingProfileDetails(true)
+      Promise.all([
+        db.getAttendanceByStudent(selectedStudentProfile.id),
+        DisciplineApi.getIncidents({ studentId: selectedStudentProfile.id, limit: 10 }).catch(() => ({ items: [] }))
+      ]).then(([records, incidentRes]) => {
+        setStudentAttendanceHistory(records || [])
+        setStudentIncidents(incidentRes?.items || [])
+      }).catch((err) => {
+        console.error("Error loading student profile details:", err)
+      }).finally(() => {
+        setIsLoadingProfileDetails(false)
+      })
+    } else {
+      setStudentAttendanceHistory([])
+      setStudentIncidents([])
+    }
+  }, [selectedStudentProfile?.id])
+
+  const profileAttendanceStats = useMemo(() => {
+    if (!studentAttendanceHistory.length) {
+      return { total: 0, present: 0, absent: 0, late: 0, rate: 0 }
+    }
+    const total = studentAttendanceHistory.length
+    const present = studentAttendanceHistory.filter(r => r.status?.toLowerCase() === 'present').length
+    const late = studentAttendanceHistory.filter(r => r.status?.toLowerCase() === 'late').length
+    const absent = studentAttendanceHistory.filter(r => r.status?.toLowerCase() === 'absent').length
+    const rate = Math.round(((present + late) / total) * 100)
+    return { total, present, absent, late, rate }
+  }, [studentAttendanceHistory])
 
   const loadAssignmentsAndStudents = async () => {
     setIsLoading(true)
@@ -59,27 +102,27 @@ export function TeacherView() {
       const filteredStudents = allStudents.filter((student: Student) =>
         assignmentsData.some((cls: any) => {
           const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
-          const clsGradeId = String(cls.gradeId || "").toLowerCase().trim()
-          const clsGradeName = String(cls.grade?.name || cls.class?.grade || "").toLowerCase().replace("grade ", "").trim()
+          const clsGradeName = String(cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
           
-          const gradeMatch = studentGrade === clsGradeId || studentGrade === clsGradeName
+          const gradeMatch = studentGrade !== "" && clsGradeName !== "" && studentGrade === clsGradeName
           
           const studentSection = (student.section || "").toLowerCase().trim()
-          const clsSectionId = String(cls.sectionId || "").toLowerCase().trim()
-          const clsSectionName = String(cls.section?.name || cls.class?.section || "").toLowerCase().trim()
+          const clsSectionName = String(cls.section || cls.sectionObj?.name || "").toLowerCase().trim()
           
-          const sectionMatch = studentSection === clsSectionId || studentSection === clsSectionName
+          const sectionMatch = studentSection !== "" && clsSectionName !== "" && studentSection === clsSectionName
 
           const studentStream = (student.stream || "").toLowerCase().trim()
-          const clsStreamId = String(cls.streamId || "").toLowerCase().trim()
-          const clsStreamName = String(cls.stream?.name || cls.stream || cls.class?.stream || "").toLowerCase().trim()
+          const clsStreamName = String(cls.stream || cls.streamObj?.name || "").toLowerCase().trim()
           
-          const streamMatch = !cls.streamId || studentStream === clsStreamId || studentStream === clsStreamName
+          const streamMatch = !cls.streamId || (studentStream !== "" && clsStreamName !== "" && studentStream === clsStreamName)
           
           return gradeMatch && sectionMatch && streamMatch
         }),
       )
       setStudents(filteredStudents as any)
+      if (assignmentsData.length > 0) {
+        setSelectedAssignment(assignmentsData[0] as any)
+      }
 
       console.log("[v0] Loaded assignments:", assignmentsData.length)
       console.log("[v0] Loaded students for assigned classes:", filteredStudents.length)
@@ -105,10 +148,25 @@ export function TeacherView() {
   const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem("attendance_current_user") || "{}") : {}
   const firstName = currentUser?.name?.split(' ')[0] || currentUser?.full_name?.split(' ')[0] || "Teacher"
 
-  const getStudentsForClass = (classId: string | undefined) => {
-    if (!classId) return []
-    return students.filter((s) => s.grade === assignments.find((a) => a.class_id === classId)?.grade)
-  }
+  const displayedStudents = useMemo(() => {
+    if (!selectedAssignment) return []
+    const cls = selectedAssignment as any
+    const clsGradeName = String(cls.grade?.name || cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
+    const clsSectionName = String(cls.section?.name || cls.section || cls.sectionObj?.name || "").toLowerCase().trim()
+    const clsStreamName = String(cls.stream?.name || cls.stream || cls.streamObj?.name || "").toLowerCase().trim()
+
+    return students.filter((student: Student) => {
+      const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
+      const studentSection = (student.section || "").toLowerCase().trim()
+      const studentStream = (student.stream || "").toLowerCase().trim()
+
+      const gradeMatch = studentGrade !== "" && clsGradeName !== "" && studentGrade === clsGradeName
+      const sectionMatch = studentSection !== "" && clsSectionName !== "" && studentSection === clsSectionName
+      const streamMatch = !cls.streamId || (studentStream !== "" && clsStreamName !== "" && studentStream === clsStreamName)
+
+      return gradeMatch && sectionMatch && streamMatch
+    })
+  }, [selectedAssignment, students])
 
   if (isLoading) {
     return <PageSkeleton variant="cards" />
@@ -212,34 +270,38 @@ export function TeacherView() {
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Student Roster</p>
                   <h3 className="text-2xl font-black text-foreground uppercase tracking-tight">
-                    {selectedAssignment.grade?.name || ""} {selectedAssignment.section?.name || ""}
+                    Grade {String(typeof selectedAssignment.grade === 'object' ? (selectedAssignment.grade as any)?.name : (selectedAssignment.grade || '')).replace(/^Grade\s+/i, '').trim()} Sec {typeof selectedAssignment.section === 'object' ? (selectedAssignment.section as any)?.name : (selectedAssignment.section || '')} {selectedAssignment.stream ? `• ${typeof selectedAssignment.stream === 'object' ? (selectedAssignment.stream as any)?.name : selectedAssignment.stream}` : ''}
                   </h3>
                 </div>
                 <div className="bg-slate-100 dark:bg-slate-800/50 px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 active:scale-95 transition-transform">
-                  <span className="text-xs font-black text-foreground uppercase tracking-widest">{students.length} Total</span>
+                  <span className="text-xs font-black text-foreground uppercase tracking-widest">{displayedStudents.length} Total</span>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 gap-3 md:gap-4">
-                {students.length === 0 ? (
+                {displayedStudents.length === 0 ? (
                   <div className="py-24 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-800">
                     <div className="w-20 h-20 bg-background rounded-[28px] shadow-sm flex items-center justify-center mx-auto mb-6">
                       <Users className="w-8 h-8 text-slate-200" />
                     </div>
-                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No students recorded</p>
+                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No students recorded in this class</p>
                   </div>
                 ) : (
                   <>
                     {/* Mobile Student List */}
                     <div className="md:hidden space-y-3">
-                      {students.map((student) => (
-                        <div key={student.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[28px] shadow-sm active:scale-[0.97] transition-all hover:shadow-md">
+                      {displayedStudents.map((student) => (
+                        <div 
+                          key={student.id} 
+                          className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[28px] shadow-sm active:scale-[0.97] transition-all hover:shadow-md cursor-pointer group"
+                          onClick={() => setSelectedStudentProfile(student)}
+                        >
                           <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center text-primary font-black border border-slate-100 dark:border-slate-700/50 shadow-inner">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center text-primary font-black border border-slate-100 dark:border-slate-700/50 shadow-inner group-hover:scale-105 transition-transform">
                               {student.name?.charAt(0) || <UserIcon className="w-5 h-5 text-slate-300" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-black text-foreground uppercase tracking-tight line-clamp-1">{student.name}</h4>
+                              <h4 className="font-black text-foreground uppercase tracking-tight line-clamp-1 group-hover:text-primary transition-colors">{student.name}</h4>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tight flex items-center gap-1">
                                   <Hash className="w-3 h-3" /> {student.student_id || "NO-ID"}
@@ -253,7 +315,7 @@ export function TeacherView() {
                                 </span>
                               </div>
                             </div>
-                            <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-400">
+                            <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
                                <ChevronRight className="w-5 h-5" />
                             </div>
                           </div>
@@ -288,8 +350,12 @@ export function TeacherView() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100/50 dark:divide-slate-800/50">
-                          {students.map((student) => (
-                            <tr key={student.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all duration-300">
+                          {displayedStudents.map((student) => (
+                            <tr 
+                              key={student.id} 
+                              className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all duration-300 cursor-pointer"
+                              onClick={() => setSelectedStudentProfile(student)}
+                            >
                               <td className="px-8 py-5">
                                 <div className="flex items-center gap-4">
                                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center text-primary font-black border border-slate-100 dark:border-slate-700/50">
@@ -309,15 +375,15 @@ export function TeacherView() {
                               <td className="px-8 py-5">
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                                    <Phone className="w-3 h-3 text-emerald-500" /> {student.parent_phone}
+                                    <Phone className="w-3 h-3 text-emerald-500" /> {student.parent_phone || "—"}
                                   </div>
                                   <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground/60">
-                                    <Mail className="w-3 h-3 text-blue-500" /> {student.parent_email}
+                                    <Mail className="w-3 h-3 text-blue-500" /> {student.parent_email || "—"}
                                   </div>
                                 </div>
                               </td>
                               <td className="px-8 py-5 text-right">
-                                <div className="inline-flex items-center h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white transition-all duration-300 items-center justify-center">
+                                <div className="inline-flex items-center h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white transition-all duration-300 justify-center">
                                   <ChevronRight className="w-5 h-5" />
                                 </div>
                               </td>
@@ -333,6 +399,210 @@ export function TeacherView() {
           )}
         </div>
       )}
+
+      {/* Full Student Profile Dialog */}
+      <Dialog open={!!selectedStudentProfile} onOpenChange={(open) => !open && setSelectedStudentProfile(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-[32px] border-none shadow-2xl bg-white dark:bg-slate-900">
+          {selectedStudentProfile && (
+            <div className="space-y-6 pb-6">
+              {/* Header Banner */}
+              <div className="relative bg-gradient-to-br from-primary via-primary/95 to-indigo-700 p-6 md:p-8 text-white rounded-t-[32px] overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                  <Users className="w-48 h-48 -mr-10 -mt-10" />
+                </div>
+
+                <div className="flex flex-col md:flex-row items-center md:items-start gap-5 relative z-10 text-center md:text-left">
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl bg-white/20 backdrop-blur-md border-2 border-white/30 flex items-center justify-center text-3xl font-black text-white shadow-xl shrink-0">
+                    {selectedStudentProfile.name?.charAt(0) || <UserIcon className="w-10 h-10" />}
+                  </div>
+
+                  <div className="space-y-2 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                      <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/30 font-mono text-xs">
+                        #{selectedStudentProfile.student_id || "NO-ID"}
+                      </Badge>
+                      <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/30 text-xs">
+                        Grade {String(selectedStudentProfile.grade || "").replace(/^Grade\s+/i, "")} - {selectedStudentProfile.section}
+                      </Badge>
+                      {selectedStudentProfile.stream && (
+                        <Badge className="bg-white/20 hover:bg-white/30 text-white border-white/30 text-xs">
+                          {selectedStudentProfile.stream}
+                        </Badge>
+                      )}
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white leading-tight">
+                      {selectedStudentProfile.name}
+                    </h2>
+                    <p className="text-xs font-bold text-white/80 uppercase tracking-widest">
+                      {selectedStudentProfile.gender || "Gender not specified"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body Content */}
+              <div className="px-6 md:px-8 space-y-6">
+
+                {/* Quick Action Buttons */}
+                {(selectedStudentProfile.parent_phone || selectedStudentProfile.parent_email) && (
+                  <div className="flex flex-wrap gap-3">
+                    {selectedStudentProfile.parent_phone && (
+                      <Button
+                        asChild
+                        variant="default"
+                        className="rounded-2xl gap-2 font-bold shadow-md hover:shadow-lg transition-all"
+                      >
+                        <a href={`tel:${selectedStudentProfile.parent_phone}`}>
+                          <Phone className="w-4 h-4" /> Call Parent ({selectedStudentProfile.parent_phone})
+                        </a>
+                      </Button>
+                    )}
+                    {selectedStudentProfile.parent_email && (
+                      <Button
+                        asChild
+                        variant="outline"
+                        className="rounded-2xl gap-2 font-bold border-slate-200 dark:border-slate-700"
+                      >
+                        <a href={`mailto:${selectedStudentProfile.parent_email}`}>
+                          <Mail className="w-4 h-4" /> Email Guardian
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Attendance Performance */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-primary" /> Attendance Summary
+                    </h4>
+                    <span className="text-xs font-black text-primary">{profileAttendanceStats.rate}% Present Rate</span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Days</p>
+                      <p className="text-lg font-black text-foreground">{profileAttendanceStats.total}</p>
+                    </div>
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl text-center border border-emerald-100 dark:border-emerald-900/30">
+                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Present</p>
+                      <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{profileAttendanceStats.present}</p>
+                    </div>
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-2xl text-center border border-amber-100 dark:border-amber-900/30">
+                      <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Late</p>
+                      <p className="text-lg font-black text-amber-600 dark:text-amber-400">{profileAttendanceStats.late}</p>
+                    </div>
+                    <div className="p-3 bg-rose-50 dark:bg-rose-950/20 rounded-2xl text-center border border-rose-100 dark:border-rose-900/30">
+                      <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase">Absent</p>
+                      <p className="text-lg font-black text-rose-600 dark:text-rose-400">{profileAttendanceStats.absent}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Personal Info */}
+                  <div className="p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+                    <h4 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <UserIcon className="w-4 h-4 text-primary" /> Personal Information
+                    </h4>
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Student ID</span>
+                        <span className="font-bold text-foreground font-mono">{selectedStudentProfile.student_id || "N/A"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Grade & Section</span>
+                        <span className="font-bold text-foreground">Grade {selectedStudentProfile.grade} ({selectedStudentProfile.section})</span>
+                      </div>
+                      {selectedStudentProfile.stream && (
+                        <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                          <span className="text-muted-foreground font-medium">Academic Stream</span>
+                          <span className="font-bold text-foreground">{selectedStudentProfile.stream}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Gender</span>
+                        <span className="font-bold text-foreground capitalize">{selectedStudentProfile.gender || "—"}</span>
+                      </div>
+                      {selectedStudentProfile.date_of_birth && (
+                        <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                          <span className="text-muted-foreground font-medium">Date of Birth</span>
+                          <span className="font-bold text-foreground">{selectedStudentProfile.date_of_birth}</span>
+                        </div>
+                      )}
+                      {selectedStudentProfile.address && (
+                        <div className="flex justify-between py-1">
+                          <span className="text-muted-foreground font-medium">Home Address</span>
+                          <span className="font-bold text-foreground text-right truncate max-w-[160px]">{selectedStudentProfile.address}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Guardian Info */}
+                  <div className="p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+                    <h4 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <Contact className="w-4 h-4 text-emerald-500" /> Guardian / Parent
+                    </h4>
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Guardian Name</span>
+                        <span className="font-bold text-foreground">{selectedStudentProfile.parent_name || "—"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Relationship</span>
+                        <span className="font-bold text-foreground">{selectedStudentProfile.relationshipType || "Guardian"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Phone Number</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{selectedStudentProfile.parent_phone || "—"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <span className="text-muted-foreground font-medium">Email Address</span>
+                        <span className="font-bold text-foreground truncate max-w-[160px]">{selectedStudentProfile.parent_email || "—"}</span>
+                      </div>
+                      {selectedStudentProfile.parent_address && (
+                        <div className="flex justify-between py-1">
+                          <span className="text-muted-foreground font-medium">Guardian Address</span>
+                          <span className="font-bold text-foreground text-right truncate max-w-[160px]">{selectedStudentProfile.parent_address}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Conduct & Incidents */}
+                {studentIncidents.length > 0 && (
+                  <div className="p-5 bg-amber-50/60 dark:bg-amber-950/20 rounded-3xl border border-amber-200/60 dark:border-amber-900/40 space-y-3">
+                    <h4 className="text-xs font-black text-amber-800 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" /> Discipline Records ({studentIncidents.length})
+                    </h4>
+                    <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                      {studentIncidents.map((incident) => (
+                        <div key={incident.id} className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-amber-100 dark:border-slate-800 text-xs flex justify-between items-start gap-2">
+                          <div>
+                            <p className="font-bold text-foreground">{incident.title}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{incident.categoryName} • {new Date(incident.date).toLocaleDateString()}</p>
+                          </div>
+                          <Badge variant="outline" className={cn(
+                            "text-[10px] uppercase font-bold shrink-0",
+                            incident.severity === 'CRITICAL' || incident.severity === 'HIGH' ? "border-rose-300 text-rose-600 bg-rose-50" : "border-amber-300 text-amber-600 bg-amber-50"
+                          )}>
+                            {incident.severity}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

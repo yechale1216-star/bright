@@ -198,11 +198,6 @@ export function PublicFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                  Subscription Plans
-                </Link>
-              </li>
-              <li>
                 <Link href="/proposal" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                   Institutional Proposal
                 </Link>
@@ -261,9 +256,6 @@ export function PublicFooter() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link href="/pricing" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              Pricing
-            </Link>
           </div>
         </div>
       </div>
