@@ -220,10 +220,12 @@ function NotificationCard({
   const isUnread = !notification.isRead
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985] ${
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      className={`group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985] cursor-pointer ${
         isUnread
           ? "bg-white/[0.04] border-white/10 shadow-lg"
           : "bg-white/[0.02] border-white/[0.05]"
@@ -260,6 +262,7 @@ function NotificationCard({
               )}
             </div>
             <button
+              type="button"
               onClick={onDelete}
               className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-slate-700 hover:text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-all opacity-0 group-hover:opacity-100"
             >
@@ -293,7 +296,8 @@ function NotificationCard({
           </div>
         </div>
       </div>
-    </button>
+    </div>
+  )
   )
 }
 

@@ -595,15 +595,23 @@ export function NotificationPopover() {
                         const isUnread = !notification.isRead;
 
                         return (
-                          <button
+                          <div
                             key={notification.id}
-                            type="button"
+                            role="button"
+                            tabIndex={0}
                             onClick={() => {
                               if (!notification.isRead) handleMarkRead(notification.id);
                               setSelectedNotif(notification);
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                if (!notification.isRead) handleMarkRead(notification.id);
+                                setSelectedNotif(notification);
+                              }
+                            }}
                             className={cn(
-                              "group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985]",
+                              "group w-full text-left relative overflow-hidden rounded-2xl border transition-all duration-200 active:scale-[0.985] cursor-pointer",
                               isUnread
                                 ? "bg-white/[0.05] border-white/10 shadow-md hover:bg-white/[0.08]"
                                 : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
@@ -635,6 +643,7 @@ export function NotificationPopover() {
                                     )}
                                   </div>
                                   <button
+                                    type="button"
                                     onClick={(e) => handleDelete(e, notification.id)}
                                     className="shrink-0 h-6 w-6 rounded-md flex items-center justify-center text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
                                     title="Delete notification"
@@ -665,7 +674,7 @@ export function NotificationPopover() {
                                 </div>
                               </div>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
