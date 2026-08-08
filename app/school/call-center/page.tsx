@@ -9,8 +9,10 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils/utils'
+import { useCalendar } from '@/lib/context/calendar-context'
 
 export default function CallCenterDashboard() {
+  const { formatDate, formatDateTime } = useCalendar()
   const { user } = useAuth()
   const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,7 +27,7 @@ export default function CallCenterDashboard() {
   const totalCalls = history.length
   const completedCalls = history.filter(c => c.status === 'COMPLETED' || c.status === 'ENDED').length
   const missedCalls = history.filter(c => c.status === 'MISSED' || c.status === 'DECLINED').length
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const today = formatDate(new Date(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   const recentCalls = history.slice(0, 5)
 
@@ -122,7 +124,7 @@ export default function CallCenterDashboard() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-foreground">{c.recipientName || c.recipientId || 'Parent Contact'}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(c.createdAt || Date.now()).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(c.createdAt || Date.now())}</p>
                     </div>
                   </div>
                   <span className={cn(

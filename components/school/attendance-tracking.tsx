@@ -44,6 +44,7 @@ import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { NativeBridge } from "@/lib/utils/native-bridge"
 import { ImpactStyle } from "@capacitor/haptics"
 import { cn } from "@/lib/utils/utils"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 
 interface AttendanceState {
@@ -69,6 +70,7 @@ function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
 }
 
 export function AttendanceTracking() {
+  const { formatDate } = useCalendar()
   const [students, setStudents] = useState<Student[]>([])
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
   const [attendanceState, setAttendanceState] = useState<AttendanceState>({})
@@ -1171,6 +1173,12 @@ export function AttendanceTracking() {
               max={new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })}
               className="h-10 bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary/20"
             />
+            <div className="mt-2 text-xs font-semibold text-primary flex items-center gap-1.5">
+              <span>Selected:</span>
+              <Badge variant="outline" className="font-bold text-xs bg-primary/5 text-primary border-primary/20">
+                {formatDate(selectedDate, { month: 'long', day: 'numeric', year: 'numeric' })}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 

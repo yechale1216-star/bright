@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Mail, Save } from "lucide-react"
+import { User, Mail, Save, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { authService } from "@/lib/auth/auth"
@@ -9,8 +9,10 @@ import { notifications } from "@/lib/utils/notifications"
 import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { db } from "@/lib/db/database"
 import { supabase } from "@/lib/utils/supabase"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 export function UserProfile() {
+  const { calendarPreference, setCalendarPreference } = useCalendar()
   const [user, setUser] = useState<any>(null)
   const [school, setSchool] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -285,6 +287,43 @@ export function UserProfile() {
                 className="w-full px-4 py-2.5 border border-input bg-muted/30 rounded-lg text-muted-foreground capitalize cursor-not-allowed"
               />
             </div>
+          </div>
+        </div>
+
+        {/* System Preferences */}
+        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <h2 className="typography-card-title mb-4 text-foreground flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary" />
+            Calendar System Preference
+          </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Choose your preferred date and calendar format across all portal views.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setCalendarPreference("ethiopian")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                calendarPreference === "ethiopian"
+                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
+                  : "border-border hover:border-muted-foreground/30 text-muted-foreground"
+              }`}
+            >
+              <div className="text-sm font-semibold">Ethiopian Calendar (EC)</div>
+              <div className="text-xs text-muted-foreground mt-1">የኢትዮጵያ ዘመን አቆጣጠር (Default)</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarPreference("gregorian")}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                calendarPreference === "gregorian"
+                  ? "border-primary bg-primary/5 text-primary font-bold shadow-sm"
+                  : "border-border hover:border-muted-foreground/30 text-muted-foreground"
+              }`}
+            >
+              <div className="text-sm font-semibold">Gregorian Calendar (GC)</div>
+              <div className="text-xs text-muted-foreground mt-1">የፈረንጆች ዘመን አቆጣጠር</div>
+            </button>
           </div>
         </div>
 

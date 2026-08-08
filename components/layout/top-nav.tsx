@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User, Menu, GraduationCap, Sun, Moon, Search } from "lucide-react"
+import { LogOut, User, Menu, GraduationCap, Sun, Moon, Search, CalendarDays } from "lucide-react"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils/utils"
@@ -21,6 +21,7 @@ import { useSchool } from "@/lib/context/school-context"
 import { NotificationPopover } from "@/components/ui/notification-popover"
 import { useTheme } from "@/components/theme-provider"
 import { CommandPalette } from "@/components/ui/command-palette"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 interface TopNavProps {
   onMenuClick?: () => void
@@ -37,6 +38,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false)
   const [cachedLogo, setCachedLogo] = React.useState<string | null>(null)
   const { theme, setTheme } = useTheme()
+  const { calendarPreference, setCalendarPreference } = useCalendar()
 
   React.useEffect(() => {
     setMounted(true)
@@ -120,6 +122,16 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
           </div>
 
           <div className="flex items-center gap-1 md:gap-3">
+            {/* Calendar Mode Toggle */}
+            <button
+              onClick={() => setCalendarPreference(calendarPreference === 'ethiopian' ? 'gregorian' : 'ethiopian')}
+              title={`Switch to ${calendarPreference === 'ethiopian' ? 'Gregorian' : 'Ethiopian'} Calendar`}
+              className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-border/60 bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all shadow-2xs"
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">{calendarPreference === 'ethiopian' ? 'EC' : 'GC'}</span>
+            </button>
+
             <div className="hidden sm:block">
               <ModeToggle />
             </div>

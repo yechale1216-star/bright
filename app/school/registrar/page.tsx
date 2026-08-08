@@ -13,8 +13,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils/utils'
 import Link from 'next/link'
+import { useCalendar } from '@/lib/context/calendar-context'
 
 export default function RegistrarDashboardPage() {
+  const { formatDate } = useCalendar()
   const { user } = useAuth()
   const [students, setStudents] = useState<any[]>([])
   const [grades, setGrades] = useState<any[]>([])
@@ -38,9 +40,7 @@ export default function RegistrarDashboardPage() {
   const maleCount = students.filter(s => s.gender?.toLowerCase() === 'male').length
   const femaleCount = students.filter(s => s.gender?.toLowerCase() === 'female').length
 
-  const todayStr = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  })
+  const todayStr = formatDate(new Date(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   // Group students by grade
   const gradeBreakdown = grades.map(g => {

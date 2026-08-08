@@ -54,6 +54,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { getApiUrl } from '@/lib/api-config';
 import { db } from '@/lib/db/database';
+import { useCalendar } from '@/lib/context/calendar-context';
 
 import {
   DisciplineApi,
@@ -85,6 +86,7 @@ interface DisciplineManagementProps {
 }
 
 export function DisciplineManagement({ userRole = 'school_admin', initialTab = 'incidents' }: DisciplineManagementProps) {
+  const { formatDate } = useCalendar();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'incidents' | 'analytics' | 'categories'>(initialTab);
 
@@ -846,7 +848,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         <td className="px-6 py-4">{getSeverityBadge(inc.severity)}</td>
                         <td className="px-6 py-4">{getStatusBadge(inc.status)}</td>
                         <td className="px-6 py-4 text-xs font-medium text-slate-500 whitespace-nowrap">
-                          {new Date(inc.date).toLocaleDateString()}
+                          {formatDate(inc.date)}
                           <span className="block text-[10px] text-slate-400">{inc.time}</span>
                         </td>
                         <td className="px-6 py-4">
@@ -1702,7 +1704,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                   {selectedIncident.title}
                 </DialogTitle>
                 <DialogDescription className="text-xs font-medium text-slate-500">
-                  Reported by <span className="font-bold text-slate-900 dark:text-slate-100">{selectedIncident.reportedByName || 'Staff'}</span> on {new Date(selectedIncident.date).toLocaleDateString()} at {selectedIncident.time}
+                  Reported by <span className="font-bold text-slate-900 dark:text-slate-100">{selectedIncident.reportedByName || 'Staff'}</span> on {formatDate(selectedIncident.date)} at {selectedIncident.time}
                 </DialogDescription>
               </DialogHeader>
 

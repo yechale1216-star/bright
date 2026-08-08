@@ -15,6 +15,7 @@ import { db, type Student, type AttendanceRecord } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { cn } from "@/lib/utils/utils"
 import { DisciplineApi, type StudentDiscipline } from "@/lib/discipline-service"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 interface TeacherAssignment {
   id: string
@@ -28,6 +29,7 @@ interface TeacherAssignment {
 
 
 export function TeacherView() {
+  const { formatDate } = useCalendar()
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null)
@@ -584,7 +586,7 @@ export function TeacherView() {
                         <div key={incident.id} className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-amber-100 dark:border-slate-800 text-xs flex justify-between items-start gap-2">
                           <div>
                             <p className="font-bold text-foreground">{incident.title}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{incident.categoryName} • {new Date(incident.date).toLocaleDateString()}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{incident.categoryName} • {formatDate(incident.date)}</p>
                           </div>
                           <Badge variant="outline" className={cn(
                             "text-[10px] uppercase font-bold shrink-0",

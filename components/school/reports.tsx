@@ -19,6 +19,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area
 } from "recharts"
 import { cn } from "@/lib/utils/utils"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 interface StudentReport {
   student: Student
@@ -35,6 +36,7 @@ interface StudentReport {
 }
 
 export function Reports() {
+  const { formatDate } = useCalendar()
   const [students, setStudents] = useState<Student[]>([])
   const [studentsLoaded, setStudentsLoaded] = useState(false)
   const [reportData, setReportData] = useState<StudentReport[]>([])
@@ -537,7 +539,7 @@ export function Reports() {
   
   const trendData = Object.values(trendDataMap).sort((a: any, b: any) => a.date.localeCompare(b.date)).map((d: any) => ({
     ...d,
-    date: new Date(d.date + "T00:00:00").toLocaleDateString("en-ET", { timeZone: 'Africa/Addis_Ababa', weekday: "short", day: "numeric" }),
+    date: formatDate(d.date + "T00:00:00", { weekday: "short", day: "numeric" }),
     rate: d.total > 0 ? Math.round(((d.present + d.late) / d.total) * 100) : 0
   }))
 

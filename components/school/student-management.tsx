@@ -26,12 +26,12 @@ import { NativeBridge } from "@/lib/utils/native-bridge"
 import { Camera, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils/utils"
 import { DisciplineApi, StudentDiscipline } from "@/lib/discipline-service"
-
-
+import { useCalendar } from "@/lib/context/calendar-context"
 
 import { PhoneInput } from "@/components/ui/phone-input"
 
 export function StudentManagement() {
+  const { formatDate } = useCalendar()
   const [students, setStudents] = useState<Student[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [gradeFilter, setGradeFilter] = useState("All Grades")
@@ -755,7 +755,7 @@ export function StudentManagement() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = `students_list_${new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })}.csv`
+      link.download = `students_list_${new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })}.csv` // ISO filename kept for file system compatibility
       link.style.display = "none"
 
       document.body.appendChild(link)
@@ -1730,7 +1730,7 @@ export function StudentManagement() {
                           </div>
                           <p className="text-[11px] text-muted-foreground line-clamp-1">{inc.description}</p>
                           <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-                            <span>{new Date(inc.date).toLocaleDateString()}</span>
+                            <span>{formatDate(inc.date)}</span>
                             <span className="font-semibold text-indigo-600 dark:text-indigo-400">{inc.status}</span>
                           </div>
                         </div>

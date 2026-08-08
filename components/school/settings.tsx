@@ -22,8 +22,10 @@ import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { supabase } from "@/lib/utils/supabase"
 import { Lock, Edit2, Check, Calendar, MapPin, ShieldCheck, Navigation } from "lucide-react"
 import { PhoneInput } from "@/components/ui/phone-input"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 export function Settings() {
+  const { calendarPreference, setCalendarPreference } = useCalendar()
   const [settings, setSettings] = useState<any>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -411,6 +413,30 @@ export function Settings() {
                   />
                 </div>
               </div>
+
+              <div>
+                <Label htmlFor="calendarPreference">System Calendar Preference</Label>
+                <Select
+                  value={calendarPreference}
+                  onValueChange={(val: 'ethiopian' | 'gregorian') => setCalendarPreference(val)}
+                >
+                  <SelectTrigger className="w-full mt-1.5">
+                    <SelectValue placeholder="Select Calendar System" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ethiopian">
+                      Ethiopian Calendar (የኢትዮጵያ ዘመን አቆጣጠር / EC) - Default
+                    </SelectItem>
+                    <SelectItem value="gregorian">
+                      Gregorian Calendar (የፈረንጆች ዘመን አቆጣጠር / GC)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Applies your preferred calendar display (EC / GC) across all school portals while preserving standard database integrity.
+                </p>
+              </div>
+
               <div>
                 <Label htmlFor="schoolAddress">School Address</Label>
                 <Textarea

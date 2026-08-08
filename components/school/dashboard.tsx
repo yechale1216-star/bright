@@ -20,6 +20,7 @@ import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { ErrorBanner } from "@/components/ui/data-state-view"
 import { getErrorMessage } from "@/lib/utils/fetch-with-timeout"
 import { cn } from "../../lib/utils/utils"
+import { useCalendar } from "@/lib/context/calendar-context"
 
 interface DashboardStats {
   totalStudents: number
@@ -49,6 +50,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
+  const { formatDate } = useCalendar()
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     presentToday: 0,
@@ -550,18 +552,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             {getGreeting()}, <span className="text-primary">{firstName}</span>
           </h2>
           <p className="typography-helper text-xs md:text-sm font-medium">
-            School Health Overview • {new Date().toLocaleDateString("en-ET", { timeZone: "Africa/Addis_Ababa", month: 'short', day: 'numeric', year: 'numeric' })}
+            School Health Overview • {formatDate(new Date(), { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
         <div className="flex flex-col items-start md:items-end gap-2.5 w-full md:w-auto">
           <div className="text-xs font-medium bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20 shadow-2xs flex items-center gap-2.5">
-            {new Date().toLocaleDateString("en-ET", {
-              timeZone: "Africa/Addis_Ababa",
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+            {formatDate(new Date(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             <button 
               onClick={() => loadDashboardData()}
               className="hover:text-primary-focus transition-colors"

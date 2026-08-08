@@ -5,6 +5,7 @@ import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/lib/context/language-context"
+import { CalendarProvider } from "@/lib/context/calendar-context"
 import { SchoolProvider } from "@/lib/context/school-context"
 import { AuthProvider } from "@/lib/context/auth-context"
 import { Toaster as SonnerToaster } from "sonner"
@@ -113,22 +114,24 @@ export default function RootLayout({
           <GlobalOfflineOverlay />
           <FetchInterceptor>
             <LanguageProvider>
-              <AuthProvider>
-                <CapacitorInitializer />
-                <StartupLoadingScreen />
-                <SchoolProvider>
-                  <SocketProvider>
-                    <CallProvider>
-                      <InAppNotificationProvider>
-                        {children}
-                      </InAppNotificationProvider>
-                    </CallProvider>
-                  </SocketProvider>
-                  <Toaster />
-                  <SonnerToaster position="top-right" richColors />
-                  <PWAClientWrapper />
-                </SchoolProvider>
-              </AuthProvider>
+              <CalendarProvider>
+                <AuthProvider>
+                  <CapacitorInitializer />
+                  <StartupLoadingScreen />
+                  <SchoolProvider>
+                    <SocketProvider>
+                      <CallProvider>
+                        <InAppNotificationProvider>
+                          {children}
+                        </InAppNotificationProvider>
+                      </CallProvider>
+                    </SocketProvider>
+                    <Toaster />
+                    <SonnerToaster position="top-right" richColors />
+                    <PWAClientWrapper />
+                  </SchoolProvider>
+                </AuthProvider>
+              </CalendarProvider>
             </LanguageProvider>
           </FetchInterceptor>
         </ThemeProvider>
