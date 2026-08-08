@@ -102,8 +102,8 @@ export default function AttendanceHistory() {
     setFetchError(null)
     try {
       const token = localStorage.getItem("attendance_token") || "";
-      const schoolId = localStorage.getItem("x-school-id") || "";
-      const headers = {
+      const schoolId = localStorage.getItem("x-school-id") || selectedStudent?.schoolId || selectedStudent?.school_id || "";
+      const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         ...(schoolId ? { "x-school-id": schoolId } : {})

@@ -84,6 +84,11 @@ export default function ParentDashboard() {
       if (student) {
         setSelectedStudent(student)
         if (!studentId) localStorage.setItem("parent_selected_student_id", student.id)
+        if (student.schoolId || student.school_id) {
+          if (!localStorage.getItem("x-school-id")) {
+            localStorage.setItem("x-school-id", student.schoolId || student.school_id)
+          }
+        }
 
         // Fetch settings, attendance, and notifications all in parallel
         const [settingsData] = await Promise.all([
@@ -115,32 +120,30 @@ export default function ParentDashboard() {
   const fetchStudentAttendance = async (studentId: string, mode?: string) => {
     try {
       const token = localStorage.getItem("attendance_token") || "";
-      const schoolId = localStorage.getItem("x-school-id") || "";
-      const headers = {
+      const schoolId = localStorage.getItem("x-school-id") || selectedStudent?.schoolId || selectedStudent?.school_id || "";
+      const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         ...(schoolId ? { "x-school-id": schoolId } : {})
       };
 
-      let url = `${API_URL}/api/attendance?studentId=${studentId}`
+      let url = `${API_URL}/api/attendance/student/${studentId}`
       if (mode === 'daily') {
-        url += "&session=none"
+        url += "?session=none"
+      } else if (mode === 'session' || mode === 'session_based') {
+        url += "?session=session_based"
       }
       
       const res = await fetch(url, { headers })
       const data = await res.json()
-      if (data.success && data.data) {
+      if (data.success && Array.isArray(data.data)) {
         setAttendance(data.data)
       } else {
-        // Fallback to student relation directly if query fails
-        const studentRes = await fetch(`${API_URL}/api/students/${studentId}`, { headers })
-        const studentData = await studentRes.json()
-        if (studentData.success && studentData.data?.attendance) {
-          setAttendance(studentData.data.attendance)
-        }
+        setAttendance([])
       }
     } catch (err) {
       console.error("[Dashboard] fetch attendance error:", err)
+      setAttendance([])
     }
   }
 
@@ -210,7 +213,9 @@ export default function ParentDashboard() {
     // 1. Group by date
     const byDate: Record<string, { morning?: any; afternoon?: any; daily?: any }> = {}
     attendance.forEach(a => {
-      const dateStr = (a.date || "").slice(0, 10)
+      const rawDate = a.date || a.attendance_date || a.createdAt || a.created_at
+      if (!rawDate) return
+      const dateStr = typeof rawDate === 'string' ? rawDate.slice(0, 10) : new Date(rawDate).toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
       if (!byDate[dateStr]) byDate[dateStr] = {}
       const sess = a.session?.toLowerCase()
       if (sess === "morning") byDate[dateStr].morning = a
@@ -257,7 +262,9 @@ export default function ParentDashboard() {
 
     // Filter records matching today's date in local timezone
     const todayRecords = attendance.filter(a => {
-      const recDate = new Date(a.date).toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
+      const rawDate = a.date || a.attendance_date || a.createdAt || a.created_at
+      if (!rawDate) return false
+      const recDate = new Date(rawDate).toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
       return recDate === todayStr
     })
 

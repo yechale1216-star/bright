@@ -427,8 +427,8 @@ export default function AdminAnnouncementsPage() {
 
         {/* ── Create / Edit Dialog ── */}
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogContent className="sm:max-w-[560px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="bg-primary p-7 text-white relative overflow-hidden">
+          <DialogContent className="sm:max-w-[560px] max-h-[90vh] rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
+            <DialogHeader className="bg-primary p-6 md:p-7 text-white relative overflow-hidden shrink-0">
               <div className="absolute -top-4 -right-4 opacity-10">
                 <Megaphone className="w-32 h-32 rotate-12" />
               </div>
@@ -443,8 +443,8 @@ export default function AdminAnnouncementsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleCreateAnnouncement} className="p-7 space-y-5 bg-card dark:bg-slate-900">
-              <div className="space-y-4">
+            <form onSubmit={handleCreateAnnouncement} className="p-6 md:p-7 bg-card dark:bg-slate-900 flex flex-col flex-1 overflow-hidden min-h-0">
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0 pb-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="title" className="typography-label text-slate-700 dark:text-slate-300">
                     Announcement Title
@@ -501,12 +501,12 @@ export default function AdminAnnouncementsPage() {
                     placeholder="Write your announcement here…"
                     value={newAnnouncement.message}
                     onChange={(e) => setNewAnnouncement(prev => ({ ...prev, message: e.target.value }))}
-                    className="rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 min-h-[140px] focus:ring-2 focus:ring-primary/20 resize-none"
+                    className="rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 min-h-[120px] max-h-[220px] focus:ring-2 focus:ring-primary/20 resize-y overflow-y-auto"
                   />
                 </div>
               </div>
 
-              <DialogFooter className="flex items-center gap-3 pt-4 border-t border-border">
+              <DialogFooter className="flex items-center gap-3 pt-4 border-t border-border shrink-0 mt-3">
                 <Button
                   type="button"
                   variant="outline"
