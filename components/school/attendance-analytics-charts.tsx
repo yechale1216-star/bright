@@ -7,6 +7,8 @@ import {
   BarChart, Bar, Cell, Legend, PieChart, Pie
 } from "recharts"
 
+import { useCalendar } from "@/lib/context/calendar-context"
+
 interface ChartsProps {
   trendData: any[]
   distributionData: any[]
@@ -15,6 +17,7 @@ interface ChartsProps {
 }
 
 export function AttendanceAnalyticsCharts({ trendData, distributionData, gradeRateData, isLoading }: ChartsProps) {
+  const { formatDate } = useCalendar()
   const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6']
 
   return (
@@ -46,7 +49,7 @@ export function AttendanceAnalyticsCharts({ trendData, distributionData, gradeRa
                     fontSize={11} 
                     tickLine={false} 
                     axisLine={false}
-                    tickFormatter={(val) => new Date(val).toLocaleDateString("en-ET", { weekday: 'short' })}
+                    tickFormatter={(val) => formatDate(val, { weekday: 'short' })}
                   />
                   <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
                   <Tooltip 

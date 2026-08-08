@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
+import { DualDatePicker } from "@/components/ui/dual-date-picker"
 
 interface FiltersProps {
   onFilterChange: (filters: any) => void
@@ -165,19 +166,17 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
           </Select>
         )}
 
-        <div className="flex items-center gap-2 bg-white/95 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-          <Input
-            type="date"
+        <div className="flex flex-wrap items-center gap-2 bg-white/95 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+          <DualDatePicker
             value={filters.startDate}
-            onChange={(e) => handleFilterChange("startDate", e.target.value)}
-            className="typography-helper h-8 w-32 border-none bg-transparent focus-visible:ring-0"
+            onChange={(val) => handleFilterChange("startDate", val)}
+            className="typography-helper h-9 w-36 border-none bg-transparent"
           />
-          <span className="typography-helper text-muted-foreground">to</span>
-          <Input
-            type="date"
+          <span className="typography-helper text-muted-foreground font-semibold px-1">to</span>
+          <DualDatePicker
             value={filters.endDate}
-            onChange={(e) => handleFilterChange("endDate", e.target.value)}
-            className="typography-helper h-8 w-32 border-none bg-transparent focus-visible:ring-0"
+            onChange={(val) => handleFilterChange("endDate", val)}
+            className="typography-helper h-9 w-36 border-none bg-transparent"
           />
         </div>
 
