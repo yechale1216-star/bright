@@ -514,7 +514,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
   }
 
-  const formatDate = (dateString: string) => {
+  const formatActivityDate = (dateString: string) => {
     const date = new Date(dateString)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -526,8 +526,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     checkDate.setHours(0, 0, 0, 0)
 
     if (checkDate.getTime() === today.getTime()) return "Today"
-    return date.toLocaleDateString("en-ET", {
-      timeZone: "Africa/Addis_Ababa",
+    return formatDate(date, {
       weekday: "short",
       month: "short",
       day: "numeric",
