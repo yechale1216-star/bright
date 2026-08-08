@@ -49,10 +49,12 @@ export async function markAttendance(
   
   const formattedRecords = records.map(record => {
     const recDate = record.attendance_date || record.date
+    const rawSess = record.session ? record.session.toString().toLowerCase() : null
+    const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
     return {
       studentId: record.student_id,
       status: record.status,
-      session: record.session || null,
+      session: normSess,
       remarks: record.remarks || record.note || "",
       date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
       latitude: record.latitude ?? locationData?.latitude ?? null,

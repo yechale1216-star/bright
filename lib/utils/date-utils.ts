@@ -68,9 +68,8 @@ export function formatLocalizedDate(
   try {
     if (!dateInput) return "";
 
-    // Amharic language always uses Ethiopian Calendar (backward-compatible)
-    // English language respects the calendarPreference setting
-    const effectivePreference: CalendarPreference = language === "am" ? "ethiopian" : calendarPreference;
+    // Respect calendarPreference setting (ethiopian or gregorian)
+    const effectivePreference: CalendarPreference = calendarPreference;
 
     // Ethiopian Calendar formatting
     if (effectivePreference === "ethiopian") {
@@ -154,7 +153,9 @@ export function formatLocalizedDate(
 
     if (isNaN(dateObj.getTime())) return String(dateInput);
 
-    const locale = language === "am" ? "am-ET" : "en-US";
+    // When in Gregorian mode, always use en-US so months/days render in Latin script.
+    // When in Ethiopian mode AND language is Amharic, use am-ET for Ethiopic script.
+    const locale = (calendarPreference === "ethiopian" && language === "am") ? "am-ET" : "en-US";
     return new Intl.DateTimeFormat(locale, {
       ...options as any,
       timeZone: "Africa/Addis_Ababa",

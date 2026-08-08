@@ -114,9 +114,7 @@ export default function AttendanceHistory() {
       if (mode === 'daily') {
         url += "?session=none"
       } else if (mode === 'session_based' || mode === 'session') {
-        // If searching specifically for sessions, we could filter here, 
-        // but often we want all records for session aggregation logic.
-        // For now, let's keep session mode fetching everything to allow aggregation.
+        url += "?session=session_based"
       }
 
       const res = await fetch(url, { headers })

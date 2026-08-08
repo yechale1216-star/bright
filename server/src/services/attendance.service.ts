@@ -69,9 +69,18 @@ export const resolveTeacherId = async (schoolId: string, rawTeacherId?: string |
   return null;
 };
 
+export const normalizeSession = (sess?: any): string | null => {
+  if (sess === null || sess === undefined) return null;
+  const s = String(sess).trim().toLowerCase();
+  if (s === '' || s === 'none' || s === 'daily' || s === 'null' || s === 'undefined') {
+    return null;
+  }
+  return s;
+};
+
 export const markAttendance = async (data: any, schoolId: string) => {
   const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
-  const session = data.session ? data.session.toLowerCase() : null;
+  const session = normalizeSession(data.session);
 
   if (!studentId || !date) {
     throw new Error("Student ID and Date are required");
@@ -194,7 +203,7 @@ export const markAttendance = async (data: any, schoolId: string) => {
           status,
           remarks,
           teacherId: resolvedTeacherId,
-          session: session || null,
+          session: session,
           latitude: data.latitude != null ? Number(data.latitude) : existing.latitude,
           longitude: data.longitude != null ? Number(data.longitude) : existing.longitude,
           locationVerified: locVerified,
@@ -208,7 +217,7 @@ export const markAttendance = async (data: any, schoolId: string) => {
           teacherId: resolvedTeacherId,
           date: startDate,
           status,
-          session: session || null,
+          session: session,
           remarks,
           latitude: data.latitude != null ? Number(data.latitude) : null,
           longitude: data.longitude != null ? Number(data.longitude) : null,
@@ -271,10 +280,13 @@ export const getAttendance = async (filters: any, schoolId: string) => {
   }
 
   if (session !== undefined && session !== null) {
-    if (session === 'none') {
+    const cleanSess = String(session).trim().toLowerCase();
+    if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
       where.session = null;
+    } else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
+      where.session = { not: null };
     } else {
-      where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+      where.session = { equals: cleanSess, mode: 'insensitive' };
     }
   }
 
@@ -303,10 +315,13 @@ export const getAttendanceByStudent = async (studentId: string, schoolId: string
   const where: any = { studentId, schoolId };
 
   if (session !== undefined && session !== null) {
-    if (session === 'none') {
+    const cleanSess = String(session).trim().toLowerCase();
+    if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
       where.session = null;
+    } else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
+      where.session = { not: null };
     } else {
-      where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+      where.session = { equals: cleanSess, mode: 'insensitive' };
     }
   }
 
@@ -643,23 +658,27 @@ export const bulkMarkAttendance = async (
   });
   const studentMap = new Map(validStudents.map(s => [s.id, s]));
 
-  // Standardize date and session
+  // Standardize date and session range
   const dateSample = records[0]?.date || new Date();
   const dateStr = typeof dateSample === 'string' ? dateSample.split("T")[0] : new Date(dateSample).toISOString().split("T")[0];
   const startDate = new Date(`${dateStr}T00:00:00.000Z`);
   const endDate = new Date(`${dateStr}T23:59:59.999Z`);
-  const session = records[0]?.session ? records[0].session.toLowerCase() : null;
+  const sampleSession = normalizeSession(records[0]?.session);
 
-  // Batch query existing attendance records
+  // Batch query existing attendance records for the target students on this date.
+  // Build a composite lookup map keyed by `${studentId}:${normalizeSession(session) || 'daily'}`
   const existingRecords = await prisma.attendance.findMany({
     where: {
       schoolId,
       studentId: { in: Array.from(studentMap.keys()) },
       date: { gte: startDate, lte: endDate },
-      ...(session ? { session: { equals: session, mode: 'insensitive' } } : { session: null })
     }
   });
-  const existingMap = new Map(existingRecords.map(e => [e.studentId, e]));
+  const existingMap = new Map<string, any>();
+  existingRecords.forEach(e => {
+    const sKey = normalizeSession(e.session) || 'daily';
+    existingMap.set(`${e.studentId}:${sKey}`, e);
+  });
 
   // Build atomic transaction queries
   const txOps: any[] = [];
@@ -668,7 +687,9 @@ export const bulkMarkAttendance = async (
     const student = studentMap.get(record.studentId);
     if (!student) continue;
 
-    const existing = existingMap.get(record.studentId);
+    const recSession = normalizeSession(record.session);
+    const mapKey = `${record.studentId}:${recSession || 'daily'}`;
+    const existing = existingMap.get(mapKey);
     const status = record.status;
     const remarks = record.remarks;
 
@@ -680,7 +701,7 @@ export const bulkMarkAttendance = async (
             status,
             remarks,
             teacherId: resolvedTeacherId,
-            session: session || null,
+            session: recSession,
             locationVerified: locVerified,
             locationDistance: locDistance,
           }
@@ -695,7 +716,7 @@ export const bulkMarkAttendance = async (
             teacherId: resolvedTeacherId,
             date: startDate,
             status,
-            session: session || null,
+            session: recSession,
             remarks,
             locationVerified: locVerified,
             locationDistance: locDistance,
@@ -723,7 +744,7 @@ export const bulkMarkAttendance = async (
     schoolId,
     teacherId: resolvedTeacherId,
     dateStr,
-    session: session || null,
+    session: sampleSession,
     totalCount: results.length,
     presentCount,
     lateCount,
@@ -750,7 +771,7 @@ export const bulkMarkAttendance = async (
       user_id: userId || teacherId || null,
       action: 'BULK_ATTENDANCE_MARKED',
       entity_type: 'ATTENDANCE',
-      new_values: { count: results.length, dateStr, session }
+      new_values: { count: results.length, dateStr, session: sampleSession }
     }
   }).catch(() => {});
 

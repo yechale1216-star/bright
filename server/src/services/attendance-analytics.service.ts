@@ -21,6 +21,10 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
 
   if (!isFullDay) {
     where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+  } else if (mode === 'session_based') {
+    where.session = { not: null };
+  } else if (mode === 'daily') {
+    where.session = null;
   }
 
   // Filter attendance by student attributes if provided
@@ -142,6 +146,10 @@ export const getGradeStats = async (schoolId: string, filters: any) => {
   }
   if (!isFullDay) {
     where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+  } else if (mode === 'session_based') {
+    where.session = { not: null };
+  } else if (mode === 'daily') {
+    where.session = null;
   }
 
   // Filter by student attributes if provided
@@ -272,8 +280,16 @@ export const getAttendanceTrends = async (schoolId: string, filters: any) => {
     where.student = studentWhere;
   }
 
+  if (!isFullDay) {
+    where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+  } else if (mode === 'session_based') {
+    where.session = { not: null };
+  } else if (mode === 'daily') {
+    where.session = null;
+  }
+
   const allRecords = await prisma.attendance.findMany({
-    where: { ...where, ...(isFullDay ? {} : { session }) },
+    where,
     select: { studentId: true, date: true, session: true, status: true },
     orderBy: { date: 'asc' }
   });

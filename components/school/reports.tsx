@@ -182,20 +182,30 @@ export function Reports() {
 
     setIsLoading(true)
     try {
-      const allAttendance = await db.getAttendanceByDateRange(startDate, endDate)
-      
-      // Process records according to mode and sessionFilter
-      let processedAttendance = allAttendance
+      const reqSession = isSessionBased
+        ? (sessionFilter === "total" ? "session_based" : sessionFilter)
+        : "none"
+
+      const rawAttendance = await db.getAttendanceByDateRange(startDate, endDate, reqSession)
+
+      // Strict mode isolation filter:
+      // - Daily mode (!isSessionBased): strictly use records where session is null / empty / undefined / "none"
+      // - Session mode (isSessionBased): strictly use records where session is present ("morning", "afternoon", etc.)
+      const modeFilteredAttendance = isSessionBased
+        ? rawAttendance.filter(r => r.session && r.session.trim() !== "" && r.session.trim().toLowerCase() !== "none")
+        : rawAttendance.filter(r => !r.session || r.session.trim() === "" || r.session.trim().toLowerCase() === "none")
+
+      let processedAttendance = modeFilteredAttendance
 
       if (isSessionBased && sessionFilter !== "total") {
-        processedAttendance = allAttendance.filter(
+        processedAttendance = modeFilteredAttendance.filter(
           record => record.session?.trim().toLowerCase() === sessionFilter.toLowerCase()
         )
       }
 
-      // Pre-group attendance by student ID for O(N) lookup
+      // Pre-group mode-filtered attendance by student ID for O(N) lookup
       const attendanceByStudent: Record<string, any[]> = {}
-      allAttendance.forEach(record => {
+      modeFilteredAttendance.forEach(record => {
         if (!attendanceByStudent[record.student_id]) {
           attendanceByStudent[record.student_id] = []
         }

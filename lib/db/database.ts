@@ -106,14 +106,16 @@ class Database extends BaseDatabase {
     )
   }
 
-  async getAttendanceByDateRange(startDate: string, endDate: string): Promise<AttendanceRecord[]> {
+  async getAttendanceByDateRange(startDate: string, endDate: string, session?: string | null): Promise<AttendanceRecord[]> {
     const schoolId = this.getSchoolId()
     if (!schoolId) return []
+    const sessionStr = session || "all"
     return queryCache.fetch(
-      `attendance_range_${schoolId}_${startDate}_${endDate}`,
+      `attendance_range_${schoolId}_${startDate}_${endDate}_${sessionStr}`,
       async () => {
+        const sessionParam = session ? `&session=${session}` : ''
         const result = await apiFetch<{ success: boolean; data: any[] }>(
-          `${API_URL}/api/attendance?startDate=${startDate}&endDate=${endDate}`,
+          `${API_URL}/api/attendance?startDate=${startDate}&endDate=${endDate}${sessionParam}`,
           { headers: this.getApiHeaders() }
         )
         return result.data.map((r: any) => attendance.mapAttendance(r, schoolId))

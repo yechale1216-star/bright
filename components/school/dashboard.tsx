@@ -50,7 +50,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
-  const { formatDate } = useCalendar()
+  const { formatDate, calendarPreference } = useCalendar()
   const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     presentToday: 0,
@@ -428,7 +428,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           rate = d.total > 0 ? Math.round(((d.present + d.late) / d.total) * 100) : 0
         }
         return {
-          date: new Date(d.date + "T00:00:00").toLocaleDateString("en-ET", { timeZone: TARGET_TZ, weekday: "short" }),
+          date: formatDate(d.date + "T00:00:00", { weekday: "short", day: "numeric" }),
           rate
         }
       })
@@ -497,7 +497,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       }))
 
     setRecentActivity(activity as RecentActivity[])
-  }, [rawData, sessionFilter])
+  }, [rawData, sessionFilter, calendarPreference, formatDate])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -551,7 +551,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             {getGreeting()}, <span className="text-primary">{firstName}</span>
           </h2>
           <p className="typography-helper text-xs md:text-sm font-medium">
-            School Health Overview • {formatDate(new Date(), { month: 'short', day: 'numeric', year: 'numeric' })}
+            Here is what happened with your school today
           </p>
         </div>
         <div className="flex flex-col items-start md:items-end gap-2.5 w-full md:w-auto">
