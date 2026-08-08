@@ -20,6 +20,7 @@ import {
 } from "recharts"
 import { cn } from "@/lib/utils/utils"
 import { useCalendar } from "@/lib/context/calendar-context"
+import { DualDatePicker } from "@/components/ui/dual-date-picker"
 
 interface StudentReport {
   student: Student
@@ -594,12 +595,12 @@ export function Reports() {
 
             <div className="space-y-2">
               <label className="typography-label text-[10px] uppercase text-muted-foreground ml-1">Start Date</label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11 focus:ring-primary/20" />
+              <DualDatePicker value={startDate} onChange={(val) => setStartDate(val)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11" />
             </div>
 
             <div className="space-y-2">
               <label className="typography-label text-[10px] uppercase text-muted-foreground ml-1">End Date</label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11 focus:ring-primary/20" />
+              <DualDatePicker value={endDate} onChange={(val) => setEndDate(val)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11" />
             </div>
 
             {isSessionBased && (

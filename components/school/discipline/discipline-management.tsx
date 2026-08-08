@@ -55,6 +55,7 @@ import { toast } from 'sonner';
 import { getApiUrl } from '@/lib/api-config';
 import { db } from '@/lib/db/database';
 import { useCalendar } from '@/lib/context/calendar-context';
+import { DualDatePicker } from '@/components/ui/dual-date-picker';
 
 import {
   DisciplineApi,
@@ -1378,10 +1379,9 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-wider text-slate-500">Date</Label>
-                  <Input
-                    type="date"
+                  <DualDatePicker
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    onChange={(val) => setFormData({ ...formData, date: val })}
                     className="h-11 rounded-2xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-sm"
                   />
                 </div>

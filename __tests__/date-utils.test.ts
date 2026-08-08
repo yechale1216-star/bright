@@ -151,4 +151,24 @@ describe("Ethiopian Calendar & Date Localization Utilities", () => {
       expect(ec.day).toBe(1);
     });
   });
+
+  describe("6. Ethiopian Date Picker Math & ISO Emission", () => {
+    test("Converts Ethiopian Nehase 1, 2018 EC to Gregorian ISO 2026-08-07", () => {
+      const { ethiopicToGregorianISO } = require("../components/ui/ethiopian-date-picker");
+      const iso = ethiopicToGregorianISO(2018, 11, 1);
+      expect(iso).toBe("2026-08-07");
+    });
+
+    test("Converts Ethiopian Meskerem 1, 2017 EC to Gregorian ISO 2024-09-11", () => {
+      const { ethiopicToGregorianISO } = require("../components/ui/ethiopian-date-picker");
+      const iso = ethiopicToGregorianISO(2017, 0, 1);
+      expect(iso).toBe("2024-09-11");
+    });
+
+    test("Converts Ethiopian Pagume 6, 2015 EC (leap year) to Gregorian ISO 2023-09-11", () => {
+      const { ethiopicToGregorianISO } = require("../components/ui/ethiopian-date-picker");
+      const iso = ethiopicToGregorianISO(2015, 12, 6);
+      expect(iso).toBe("2023-09-11");
+    });
+  });
 });

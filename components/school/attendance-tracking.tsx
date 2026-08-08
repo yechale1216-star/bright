@@ -45,6 +45,7 @@ import { NativeBridge } from "@/lib/utils/native-bridge"
 import { ImpactStyle } from "@capacitor/haptics"
 import { cn } from "@/lib/utils/utils"
 import { useCalendar } from "@/lib/context/calendar-context"
+import { DualDatePicker } from "@/components/ui/dual-date-picker"
 
 
 interface AttendanceState {
@@ -1165,13 +1166,11 @@ export function AttendanceTracking() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
-            <Input
+            <DualDatePicker
               id="attendance-date"
-              type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              max={new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })}
-              className="h-10 bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl focus:ring-primary/20"
+              onChange={(val) => setSelectedDate(val)}
+              className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl"
             />
             <div className="mt-2 text-xs font-semibold text-primary flex items-center gap-1.5">
               <span>Selected:</span>
