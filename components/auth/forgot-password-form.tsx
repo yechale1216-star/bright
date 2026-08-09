@@ -98,7 +98,7 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps) {
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <Logo size="md" withText={true} href="/" className="mb-1" />
+        <Logo size="xl" withText={true} href="/" className="mb-2" />
         <CardTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Reset Password</CardTitle>
         <CardDescription className="typography-label text-slate-600 dark:text-slate-400">
           Enter your email and we&apos;ll send recovery instructions

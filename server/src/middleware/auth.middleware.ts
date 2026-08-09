@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { resolveRoleInSchool } from '../services/auth_resolution.service';
 import { cacheGet, cacheSetEx, cacheDel } from '../redis';
 import { getJwtSecret } from '../utils/jwt';
+import { getSingleSchool } from '../services/school.service';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -16,12 +17,11 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Middleware to verify JWT and extract tenant information.
+ * Middleware to verify JWT and extract user context in Single-School mode.
  * Every request must pass through this or a public route.
  */
-export const tenantMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
-  const schoolIdHeader = req.headers['x-school-id'];
 
   // Public routes exclusion
   const publicPaths = [
@@ -51,11 +51,18 @@ export const tenantMiddleware = async (req: AuthenticatedRequest, res: Response,
   try {
     const decoded = jwt.verify(token, getJwtSecret()) as any;
     
+    // In Single-School architecture, fallback to the authoritative single school if missing
     let schoolId = decoded.schoolId;
+    let customSchoolId = decoded.customSchoolId;
+
+    if (!schoolId) {
+      const singleSchool = await getSingleSchool();
+      schoolId = singleSchool.id;
+      customSchoolId = singleSchool.schoolId;
+    }
+
     let role = decoded.role;
 
-    // Resolve context-specific role
-    const activeSchoolId = (schoolIdHeader as string) || schoolId;
     let requestedRole = req.headers['x-requested-role'] as string | undefined;
 
     if (!requestedRole) {
@@ -68,19 +75,18 @@ export const tenantMiddleware = async (req: AuthenticatedRequest, res: Response,
       }
     }
 
-    if (activeSchoolId) {
-      const cacheKey = `role:${decoded.id}:${activeSchoolId}:${requestedRole || ''}`;
+    if (schoolId) {
+      const cacheKey = `role:${decoded.id}:${schoolId}:${requestedRole || ''}`;
       let contextRole = await cacheGet(cacheKey);
 
       if (!contextRole) {
-        contextRole = await resolveRoleInSchool(decoded.id, activeSchoolId, requestedRole);
+        contextRole = await resolveRoleInSchool(decoded.id, schoolId, requestedRole);
         if (contextRole) {
           await cacheSetEx(cacheKey, 300, contextRole); // 5 min TTL
         }
       }
 
       if (contextRole) {
-        schoolId = activeSchoolId;
         role = contextRole;
       }
     }
@@ -88,9 +94,9 @@ export const tenantMiddleware = async (req: AuthenticatedRequest, res: Response,
     req.user = {
       id: decoded.id,
       email: decoded.email,
-      role: role,
+      role: role || decoded.role,
       schoolId: schoolId,
-      customSchoolId: decoded.customSchoolId,
+      customSchoolId: customSchoolId,
     };
     
     next();
@@ -98,6 +104,9 @@ export const tenantMiddleware = async (req: AuthenticatedRequest, res: Response,
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 };
+
+/** @deprecated Alias for authMiddleware in Single-School Edition */
+export const tenantMiddleware = authMiddleware;
 
 /**
  * Role-based Access Control Middleware
@@ -127,5 +136,3 @@ export const featureGuard = (_featureKey: string) => {
     next();
   };
 };
-
-

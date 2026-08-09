@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import * as userService from '../services/user.service';
-import { AuthenticatedRequest, authorize } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest, authorize } from '../middleware/auth.middleware';
 
 const loginLimiter = rateLimit({
   windowMs: 60 * 1000,

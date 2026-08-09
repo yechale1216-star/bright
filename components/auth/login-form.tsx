@@ -33,7 +33,6 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t, language, setLanguage } = useLanguage()
-  const { setSchoolsFromLogin } = useSchool()
   const { validateSession } = useAuth()
   const [activeTab, setActiveTab] = useState<"staff" | "parent">("staff")
   const [parentPhone, setParentPhone] = useState("+251")
@@ -104,35 +103,10 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
         localStorage.setItem("_zt_fresh_login", "1")
         localStorage.setItem("_zt_login_role", "parent")
 
-        if (result.availableSchools && result.availableSchools.length > 0) {
-          // Populate school context and localStorage FIRST — before any navigation
-          setSchoolsFromLogin(result.availableSchools, result.user?.schoolId)
-          
-          const schoolCount = result.availableSchools.length
-          
-          notifications.success(t("welcome_back_parent"), schoolCount > 1
-            ? `Found ${schoolCount} schools. Select one to continue.`
-            : t("login_success_parent")
-          )
-
-          if (schoolCount > 1) {
-            // DO NOT call validateSession here — it calls clearSchoolContext internally
-            // which wipes the available_schools we just stored. The school-select page
-            // has its own auth guard and will validate after school selection.
-            console.log(`[Login][PARENT] Multiple schools (${schoolCount}) — redirecting to /auth/school-select`)
-            router.push("/auth/school-select")
-            return
-          }
-
-          // Single school — validate then go to dashboard
-          await validateSession()
-          console.log(`[Login][PARENT] Single school — redirecting to /parent/dashboard`)
-          router.push("/parent/dashboard")
-        } else {
-          notifications.success(t("welcome_back_parent"), t("login_success_parent"))
-          await validateSession()
-          router.push("/parent/dashboard")
-        }
+        notifications.success(t("welcome_back_parent"), t("login_success_parent"))
+        await validateSession()
+        console.log(`[Login][PARENT] Single-school architecture — redirecting to /parent/dashboard`)
+        router.push("/parent/dashboard")
       } else {
         const errorMessage = result.message || t("invalid_credentials")
         setLoginError(errorMessage)
@@ -199,11 +173,6 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
         localStorage.setItem("_zt_fresh_login", "1")
         localStorage.setItem("_zt_login_role", confirmedRole)
         
-        // Populate school context
-        if (result.availableSchools && result.availableSchools.length > 0) {
-          setSchoolsFromLogin(result.availableSchools, result.user?.schoolId)
-        }
-
         // Run validateSession AFTER marking fresh login so the role is preserved
         await validateSession()
 
@@ -211,56 +180,21 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
         // only consider staff-type memberships (admin, teacher, etc.) — NOT parent roles.
         // This prevents showing the role selection screen when a user is both admin and parent
         // at the same school, since they explicitly chose the school staff portal.
-        const staffRoles = ['admin', 'school_admin', 'teacher', 'staff', 'super_admin']
-        const staffMemberships = (result.availableSchools || []).filter(
-          (s: any) => staffRoles.includes(s.role)
-        )
-
-        // Only show school-select if there are multiple STAFF memberships
-        // (e.g., admin at School A + teacher at School B)
-        if (staffMemberships.length > 1) {
-          // Filter the stored schools to only show staff roles in the selection screen
-          setSchoolsFromLogin(staffMemberships, result.user?.schoolId)
-          localStorage.setItem("available_schools", JSON.stringify(staffMemberships))
-          console.log(`[Login][STAFF] Multiple staff memberships (${staffMemberships.length}) — redirecting to /auth/school-select`)
-          router.push("/auth/school-select")
-          return
-        }
-
-        // Single staff membership (or none) — use the confirmed role to auto-redirect
-        // If there's exactly one staff membership, ensure localStorage reflects it
-        if (staffMemberships.length === 1) {
-          const membership = staffMemberships[0]
-          // Update user to reflect this specific staff membership
-          const updatedUser = {
-            ...result.user,
-            role: membership.role,
-            schoolId: membership.id,
-            schoolName: membership.name,
-          }
-          localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
-          localStorage.setItem("x-school-id", membership.id)
-          localStorage.setItem("_zt_login_role", membership.role)
-          console.log(`[Login][STAFF] Single staff membership — auto-selecting role: ${membership.role} at school: ${membership.name}`)
-        }
-
-        // Single school or global role — redirect based on the confirmed role from login API
-        if (confirmedRole === "super_admin") {
-          console.log(`[Login][STAFF] Redirecting super_admin —> /super-admin`)
-          router.push("/super-admin")
+        // Single-School Architecture: Direct navigation based on confirmedRole
+        if (confirmedRole === "super_admin" || confirmedRole === "admin" || confirmedRole === "school_admin") {
+          console.log(`[Login][STAFF] Redirecting admin —> /school/admin`)
+          router.push("/school/admin")
         } else if (confirmedRole === "teacher") {
           console.log(`[Login][STAFF] Redirecting teacher —> /school/teacher`)
           router.push("/school/teacher")
-        } else if (confirmedRole === "admin" || confirmedRole === "school_admin") {
-          if (result.user?.onboardingCompleted === false) {
-            console.log(`[Login][STAFF] Admin onboarding incomplete —> /onboarding`)
-            router.push("/onboarding")
-          } else {
-            console.log(`[Login][STAFF] Redirecting school_admin —> /school/admin`)
-            router.push("/school/admin")
-          }
+        } else if (confirmedRole === "registrar") {
+          router.push("/school/registrar")
+        } else if (confirmedRole === "discipline_officer") {
+          router.push("/school/discipline-officer")
+        } else if (confirmedRole === "call_center") {
+          router.push("/school/call-center")
         } else {
-          console.warn(`[Login][STAFF] Unknown role '${confirmedRole}' — calling onLoginSuccess fallback`)
+          console.warn(`[Login][STAFF] Navigating with role '${confirmedRole}'`)
           onLoginSuccess(result.user)
         }
       } else {
@@ -280,7 +214,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
   return (
     <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in fade-in duration-500 relative z-10">
       <CardHeader className="space-y-3 pb-6 pt-8 px-8 text-center flex flex-col items-center">
-        <Logo size="md" withText={true} href="/" className="mb-1" />
+        <Logo size="xl" withText={true} href="/" className="mb-2" />
         <CardTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">{t("welcome_back")}</CardTitle>
         <CardDescription className="typography-label text-slate-600 dark:text-slate-400 max-w-[280px] mx-auto">
           {activeTab === "parent" 

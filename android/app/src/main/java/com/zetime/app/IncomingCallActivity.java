@@ -107,7 +107,7 @@ public class IncomingCallActivity extends Activity {
         TextView tvCallType   = findViewById(R.id.tv_call_type);
         if (tvCallType != null) {
             boolean isVideo = "VIDEO".equalsIgnoreCase(callType);
-            tvCallType.setText(isVideo ? "INCOMING VIDEO CALL" : "INCOMING VOICE CALL");
+            tvCallType.setText(isVideo ? "Addis Hiwot incoming video call" : "Addis Hiwot incoming voice call");
         }
         loadCallerAvatar();
     }
@@ -154,7 +154,7 @@ public class IncomingCallActivity extends Activity {
         tvInitials.setText(buildInitials(callerName));
 
         boolean isVideo = "VIDEO".equalsIgnoreCase(callType);
-        tvCallType.setText(isVideo ? "INCOMING VIDEO CALL" : "INCOMING VOICE CALL");
+        tvCallType.setText(isVideo ? "Addis Hiwot incoming video call" : "Addis Hiwot incoming voice call");
 
         // ── Accept ──────────────────────────────────────────────────────────
         btnAccept.setOnClickListener(v -> {

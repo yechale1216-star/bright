@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const getConversations = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
@@ -273,6 +273,124 @@ export const createConversation = async (req: AuthenticatedRequest, res: Respons
   } catch (error) {
     console.error('Error creating conversation:', error);
     res.status(500).json({ error: 'Failed to create conversation' });
+  }
+};
+
+export const getConversationShared = async (req: AuthenticatedRequest, res: Response) => {
+  const { conversationId } = req.params;
+  const schoolId = req.user?.schoolId;
+  const userId   = req.user?.id;
+
+  if (!schoolId || !userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    let targetConvId = conversationId;
+
+    // Verify membership
+    const isMember = await prisma.conversationMember.findFirst({
+      where: { conversationId: targetConvId, userId },
+      select: { id: true },
+    });
+
+    if (!isMember) {
+      // Check if conversationId was passed as a contact's userId
+      const directConv = await prisma.conversation.findFirst({
+        where: {
+          schoolId,
+          isGroup: false,
+          AND: [
+            { members: { some: { userId } } },
+            { members: { some: { userId: conversationId } } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!directConv) {
+        return res.status(200).json({ media: [], files: [], links: [] });
+      }
+      targetConvId = directConv.id;
+    }
+
+    // Fetch media + file messages
+    const mediaAndFiles = await prisma.message.findMany({
+      where: {
+        conversationId: targetConvId,
+        schoolId,
+        isDeleted: false,
+        OR: [
+          { type: { in: ['IMAGE', 'VIDEO', 'FILE', 'VOICE', 'AUDIO', 'DOCUMENT'] } },
+          { type: { not: 'TEXT' } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        type: true,
+        content: true,
+        attachments: true,
+        createdAt: true,
+        sender: { select: { id: true, full_name: true, profile_photo: true } },
+      },
+    });
+
+    // Fetch text messages to extract links
+    const textMessages = await prisma.message.findMany({
+      where: {
+        conversationId: targetConvId,
+        schoolId,
+        isDeleted: false,
+        content: { contains: 'http' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        sender: { select: { id: true, full_name: true } },
+      },
+    });
+
+    // Extract URLs from text messages
+    const URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
+    const links: any[] = [];
+    for (const msg of textMessages) {
+      const matches = msg.content?.match(URL_REGEX) || [];
+      for (const url of matches) {
+        links.push({
+          id: `${msg.id}-${url}`,
+          url,
+          messageId: msg.id,
+          createdAt: msg.createdAt,
+          sender: msg.sender,
+        });
+      }
+    }
+
+    const media: any[] = [];
+    const files: any[] = [];
+
+    for (const m of mediaAndFiles) {
+      const att: any = Array.isArray(m.attachments) ? m.attachments[0] : null;
+      const mime = att?.type || att?.mimeType || '';
+      const url = att?.url || m.content || '';
+      const isMediaMime = typeof mime === 'string' && (mime.startsWith('image/') || mime.startsWith('video/'));
+      const isMediaExt = typeof url === 'string' && /\.(jpg|jpeg|png|webp|gif|svg|mp4|mov|webm|mkv)$/i.test(url);
+      const isMediaType = m.type === 'IMAGE' || m.type === 'VIDEO';
+
+      if (isMediaType || isMediaMime || isMediaExt) {
+        media.push(m);
+      } else {
+        files.push(m);
+      }
+    }
+
+    res.status(200).json({ media, files, links });
+  } catch (error) {
+    console.error('[SharedContent] error:', error);
+    res.status(500).json({ error: 'Failed to fetch shared content' });
   }
 };
 

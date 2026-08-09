@@ -71,6 +71,19 @@ export const getAllSchools = async () => {
   });
 };
 
+export const getSingleSchool = async () => {
+  let school = await prisma.school.findFirst({
+    include: { settings: true },
+    orderBy: { createdAt: 'asc' }
+  });
+
+  if (!school) {
+    school = await createSchool({ name: 'Zetime School' });
+  }
+
+  return school;
+};
+
 export const getGrades = async (schoolId: string) => {
   return await prisma.grade.findMany({
     where: { schoolId },

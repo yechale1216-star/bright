@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const userService = __importStar(require("../services/user.service"));
-const tenant_middleware_1 = require("../middleware/tenant.middleware");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const loginLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 1000,
     max: 10,
@@ -132,7 +132,7 @@ router.get('/contacts', async (req, res, next) => {
     }
 });
 // Create user (Admin only)
-router.post('/', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.post('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
         const data = { ...req.body };
@@ -176,7 +176,7 @@ router.put('/:id', async (req, res, next) => {
     }
 });
 // Delete user (Admin only)
-router.delete('/:id', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.delete('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
         if (!schoolId)

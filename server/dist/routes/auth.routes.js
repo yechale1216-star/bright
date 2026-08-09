@@ -41,7 +41,6 @@ const crypto_1 = __importDefault(require("crypto"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const userService = __importStar(require("../services/user.service"));
 const schoolService = __importStar(require("../services/school.service"));
-const auth_resolution_service_1 = require("../services/auth_resolution.service");
 const jwt_1 = require("../utils/jwt");
 const email_1 = require("../utils/email");
 const db_1 = __importDefault(require("../config/db"));
@@ -134,39 +133,26 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         if (!email || !password) {
             return res.status(400).json({ success: false, message: 'Email and password are required' });
         }
-        console.log(`[LOGIN] Attempt for email: ${email}`);
         const user = await userService.getUserByEmail(email);
         if (!user) {
-            console.log(`[LOGIN] User not found: ${email}`);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
         const valid = userService.verifyPassword(password, user.password_hash);
         if (!valid) {
-            console.log(`[LOGIN] Invalid password for: ${email}`);
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
-        // Resolve all memberships for this user
-        const memberships = await (0, auth_resolution_service_1.getMemberships)(user.id);
-        if (memberships.length === 0) {
-            return res.status(403).json({ success: false, message: 'Account exists but no school associations found.' });
-        }
-        // Determine default/active school for initial token
-        let activeMembership = memberships.find(m => m.id === user.schoolId && m.role === user.role) || memberships[0];
-        let schoolName = activeMembership?.name || 'My School';
-        let schoolLogo = activeMembership?.logo || '';
-        let onboardingCompleted = true;
-        if (activeMembership && activeMembership.id !== 'global') {
-            const school = await schoolService.getSchoolById(activeMembership.id);
-            if (school && school.settings) {
-                schoolLogo = school.settings.school_logo || schoolLogo;
-            }
-        }
+        // Resolve single school context
+        const singleSchool = await schoolService.getSingleSchool();
+        let schoolId = user.schoolId || singleSchool.id;
+        let customSchoolId = singleSchool.schoolId || 'SCH-0001';
+        let schoolName = singleSchool.name || 'Zetime School';
+        let schoolLogo = singleSchool.settings?.school_logo || '';
         const token = (0, jwt_1.generateToken)({
             id: user.id,
             email: user.email,
-            role: activeMembership?.role || user.role,
-            schoolId: activeMembership?.id || '',
-            customSchoolId: activeMembership?.customSchoolId || '',
+            role: user.role,
+            schoolId: schoolId,
+            customSchoolId: customSchoolId,
         });
         res.cookie('attendance_token', token, {
             httpOnly: true,
@@ -174,6 +160,13 @@ router.post('/login', loginLimiter, async (req, res, next) => {
             sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
+        const singleSchoolObj = {
+            id: schoolId,
+            name: schoolName,
+            logo: schoolLogo,
+            customSchoolId: customSchoolId,
+            role: user.role
+        };
         res.status(200).json({
             success: true,
             data: {
@@ -182,14 +175,14 @@ router.post('/login', loginLimiter, async (req, res, next) => {
                     id: user.id,
                     email: user.email,
                     name: user.full_name,
-                    role: activeMembership?.role || user.role,
-                    schoolId: activeMembership?.id || '',
-                    customSchoolId: activeMembership?.customSchoolId || '',
+                    role: user.role,
+                    schoolId: schoolId,
+                    customSchoolId: customSchoolId,
                 },
                 schoolName,
                 schoolLogo,
-                onboardingCompleted,
-                availableSchools: memberships, // Return all schools for selection
+                onboardingCompleted: true,
+                availableSchools: [singleSchoolObj],
             }
         });
     }

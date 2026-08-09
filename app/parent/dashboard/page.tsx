@@ -127,14 +127,17 @@ export default function ParentDashboard() {
         ...(schoolId ? { "x-school-id": schoolId } : {})
       };
 
-      let url = `${API_URL}/api/attendance/student/${studentId}`
+      const params = new URLSearchParams()
       if (mode === 'daily') {
-        url += "?session=none"
+        params.set("session", "none")
       } else if (mode === 'session' || mode === 'session_based') {
-        url += "?session=session_based"
+        params.set("session", "session_based")
       }
-      
-      const res = await fetch(url, { headers })
+      params.set("_t", Date.now().toString())
+
+      const url = `${API_URL}/api/attendance/student/${studentId}?${params.toString()}`
+
+      const res = await fetch(url, { headers, cache: "no-store" })
       const data = await res.json()
       if (data.success && Array.isArray(data.data)) {
         setAttendance(data.data)

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as analyticsController from '../controllers/attendance-analytics.controller';
-import { featureGuard } from '../middleware/tenant.middleware';
+import { featureGuard } from '../middleware/auth.middleware';
 
 const router = Router();
 

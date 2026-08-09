@@ -283,7 +283,7 @@ public class CallManager {
         }
 
         boolean isVideo = "VIDEO".equalsIgnoreCase(currentCallType);
-        tvSubtitle.setText(isVideo ? "Incoming video call" : "Incoming voice call");
+        tvSubtitle.setText(isVideo ? "Addis Hiwot incoming video call" : "Addis Hiwot incoming voice call");
 
         // Button listeners
         btnDecline.setOnClickListener(v -> {

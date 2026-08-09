@@ -5,7 +5,7 @@ import {
   saveSavedMessage,
   deleteSavedMessage,
 } from '../controllers/saved-messages.controller';
-import { featureGuard } from '../middleware/tenant.middleware';
+import { featureGuard } from '../middleware/auth.middleware';
 
 const router = Router();
 

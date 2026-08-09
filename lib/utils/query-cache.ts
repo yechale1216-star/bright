@@ -157,10 +157,15 @@ class QueryCache {
 
     if (typeof window !== "undefined") {
       try {
-        const toRemove: string[] = []
+        const allKeys: string[] = []
         for (let i = 0; i < localStorage.length; i++) {
-          const lKey = localStorage.key(i)
-          if (lKey && lKey.startsWith("_swr_cache_")) {
+          const k = localStorage.key(i)
+          if (k) allKeys.push(k)
+        }
+
+        const toRemove: string[] = []
+        allKeys.forEach((lKey) => {
+          if (lKey.startsWith("_swr_cache_")) {
             const rawKey = lKey.replace("_swr_cache_", "")
             if (typeof keyOrPattern === "string") {
               if (rawKey === keyOrPattern || rawKey.startsWith(keyOrPattern)) {
@@ -170,7 +175,7 @@ class QueryCache {
               toRemove.push(lKey)
             }
           }
-        }
+        })
         toRemove.forEach((k) => localStorage.removeItem(k))
       } catch (e) {
         console.warn("[QueryCache] Invalidation of localStorage failed:", e)

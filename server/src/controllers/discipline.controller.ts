@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { DisciplineService } from '../services/discipline.service';
 
 export class DisciplineController {

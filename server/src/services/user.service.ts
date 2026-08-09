@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../config/db';
-import { getSchoolLimits } from './subscription.service';
 
 export const getUserByEmail = async (email: string) => {
   return await prisma.user.findUnique({ 
@@ -133,19 +132,6 @@ export const createUser = async (data: any) => {
   let teacherId = data.teacher_id || null;
   const schoolId = data.schoolId || null;
 
-  // Enforce SaaS user limits
-  if (schoolId) {
-    const limits = await getSchoolLimits(schoolId);
-    
-    // Only count active users in this school
-    const currentCount = await prisma.user.count({ 
-      where: { schoolId, is_active: true } 
-    });
-
-    if (limits.maxUsers !== -1 && currentCount >= limits.maxUsers) {
-      throw new Error(`User limit reached (${limits.maxUsers}). Please upgrade your Zetime plan to add more users.`);
-    }
-  }
 
   // Prevent duplicate phone for teachers within the same school (or globally if required)
   if (data.role === 'teacher' && data.phone) {
@@ -177,9 +163,10 @@ export const createUser = async (data: any) => {
     teacherId = teacher.id;
   }
 
-  const hashedPassword = data.password_hash && !data.password_hash.startsWith('$2')
-    ? bcrypt.hashSync(data.password_hash, 10)
-    : data.password_hash;
+  const rawPassword = data.password_hash || data.password || "12345678";
+  const hashedPassword = rawPassword.startsWith('$2')
+    ? rawPassword
+    : bcrypt.hashSync(rawPassword, 10);
 
   const user = await prisma.user.create({
     data: {
@@ -233,10 +220,11 @@ export const updateUser = async (id: string, data: any, schoolId?: string) => {
   }
   
   // (Adding necessary fields for update)
-  if (data.password_hash !== undefined) {
-    updateData.password_hash = data.password_hash && !data.password_hash.startsWith('$2')
-      ? bcrypt.hashSync(data.password_hash, 10)
-      : data.password_hash;
+  const passToUpdate = data.password_hash !== undefined ? data.password_hash : data.password;
+  if (passToUpdate !== undefined && passToUpdate !== null && passToUpdate !== "") {
+    updateData.password_hash = passToUpdate.startsWith('$2')
+      ? passToUpdate
+      : bcrypt.hashSync(passToUpdate, 10);
   }
   if (data.is_active !== undefined) updateData.is_active = data.is_active;
   if (data.subject !== undefined) updateData.subject = data.subject;

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import prisma from '../config/db';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const SAVED_CONV_NAME = 'Saved Messages';
 

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getStreams = exports.getSections = exports.getGrades = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.updateSchool = exports.createSchool = void 0;
+exports.getStreams = exports.getSections = exports.getGrades = exports.getSingleSchool = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.updateSchool = exports.createSchool = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const school_id_1 = require("../utils/school-id");
 const createSchool = async (data) => {
@@ -72,6 +72,17 @@ const getAllSchools = async () => {
     });
 };
 exports.getAllSchools = getAllSchools;
+const getSingleSchool = async () => {
+    let school = await db_1.default.school.findFirst({
+        include: { settings: true },
+        orderBy: { createdAt: 'asc' }
+    });
+    if (!school) {
+        school = await (0, exports.createSchool)({ name: 'Zetime School' });
+    }
+    return school;
+};
+exports.getSingleSchool = getSingleSchool;
 const getGrades = async (schoolId) => {
     return await db_1.default.grade.findMany({
         where: { schoolId },

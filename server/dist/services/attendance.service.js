@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.resolveTeacherId = void 0;
+exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.resolveTeacherId = void 0;
 exports.calculateDistanceMeters = calculateDistanceMeters;
 const db_1 = __importDefault(require("../config/db"));
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -69,9 +69,19 @@ const resolveTeacherId = async (schoolId, rawTeacherId) => {
     return null;
 };
 exports.resolveTeacherId = resolveTeacherId;
+const normalizeSession = (sess) => {
+    if (sess === null || sess === undefined)
+        return null;
+    const s = String(sess).trim().toLowerCase();
+    if (s === '' || s === 'none' || s === 'daily' || s === 'null' || s === 'undefined') {
+        return null;
+    }
+    return s;
+};
+exports.normalizeSession = normalizeSession;
 const markAttendance = async (data, schoolId) => {
     const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
-    const session = data.session ? data.session.toLowerCase() : null;
+    const session = (0, exports.normalizeSession)(data.session);
     if (!studentId || !date) {
         throw new Error("Student ID and Date are required");
     }
@@ -171,7 +181,7 @@ const markAttendance = async (data, schoolId) => {
                 status,
                 remarks,
                 teacherId: resolvedTeacherId,
-                session: session || null,
+                session: session,
                 latitude: data.latitude != null ? Number(data.latitude) : existing.latitude,
                 longitude: data.longitude != null ? Number(data.longitude) : existing.longitude,
                 locationVerified: locVerified,
@@ -185,7 +195,7 @@ const markAttendance = async (data, schoolId) => {
                 teacherId: resolvedTeacherId,
                 date: startDate,
                 status,
-                session: session || null,
+                session: session,
                 remarks,
                 latitude: data.latitude != null ? Number(data.latitude) : null,
                 longitude: data.longitude != null ? Number(data.longitude) : null,
@@ -244,11 +254,15 @@ const getAttendance = async (filters, schoolId) => {
         }
     }
     if (session !== undefined && session !== null) {
-        if (session === 'none') {
+        const cleanSess = String(session).trim().toLowerCase();
+        if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
             where.session = null;
         }
+        else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
+            where.session = { not: null };
+        }
         else {
-            where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+            where.session = { equals: cleanSess, mode: 'insensitive' };
         }
     }
     if (grade || section) {
@@ -276,11 +290,15 @@ const getAttendanceByStudent = async (studentId, schoolId, filters = {}) => {
     const { session } = filters;
     const where = { studentId, schoolId };
     if (session !== undefined && session !== null) {
-        if (session === 'none') {
+        const cleanSess = String(session).trim().toLowerCase();
+        if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
             where.session = null;
         }
+        else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
+            where.session = { not: null };
+        }
         else {
-            where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+            where.session = { equals: cleanSess, mode: 'insensitive' };
         }
     }
     return await db_1.default.attendance.findMany({
@@ -560,29 +578,35 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
         select: { id: true, fullName: true, gender: true }
     });
     const studentMap = new Map(validStudents.map(s => [s.id, s]));
-    // Standardize date and session
+    // Standardize date and session range
     const dateSample = records[0]?.date || new Date();
     const dateStr = typeof dateSample === 'string' ? dateSample.split("T")[0] : new Date(dateSample).toISOString().split("T")[0];
     const startDate = new Date(`${dateStr}T00:00:00.000Z`);
     const endDate = new Date(`${dateStr}T23:59:59.999Z`);
-    const session = records[0]?.session ? records[0].session.toLowerCase() : null;
-    // Batch query existing attendance records
+    const sampleSession = (0, exports.normalizeSession)(records[0]?.session);
+    // Batch query existing attendance records for the target students on this date.
+    // Build a composite lookup map keyed by `${studentId}:${normalizeSession(session) || 'daily'}`
     const existingRecords = await db_1.default.attendance.findMany({
         where: {
             schoolId,
             studentId: { in: Array.from(studentMap.keys()) },
             date: { gte: startDate, lte: endDate },
-            ...(session ? { session: { equals: session, mode: 'insensitive' } } : { session: null })
         }
     });
-    const existingMap = new Map(existingRecords.map(e => [e.studentId, e]));
+    const existingMap = new Map();
+    existingRecords.forEach(e => {
+        const sKey = (0, exports.normalizeSession)(e.session) || 'daily';
+        existingMap.set(`${e.studentId}:${sKey}`, e);
+    });
     // Build atomic transaction queries
     const txOps = [];
     for (const record of records) {
         const student = studentMap.get(record.studentId);
         if (!student)
             continue;
-        const existing = existingMap.get(record.studentId);
+        const recSession = (0, exports.normalizeSession)(record.session);
+        const mapKey = `${record.studentId}:${recSession || 'daily'}`;
+        const existing = existingMap.get(mapKey);
         const status = record.status;
         const remarks = record.remarks;
         if (existing) {
@@ -592,7 +616,7 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
                     status,
                     remarks,
                     teacherId: resolvedTeacherId,
-                    session: session || null,
+                    session: recSession,
                     locationVerified: locVerified,
                     locationDistance: locDistance,
                 }
@@ -606,7 +630,7 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
                     teacherId: resolvedTeacherId,
                     date: startDate,
                     status,
-                    session: session || null,
+                    session: recSession,
                     remarks,
                     locationVerified: locVerified,
                     locationDistance: locDistance,
@@ -629,7 +653,7 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
         schoolId,
         teacherId: resolvedTeacherId,
         dateStr,
-        session: session || null,
+        session: sampleSession,
         totalCount: results.length,
         presentCount,
         lateCount,
@@ -654,7 +678,7 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             user_id: userId || teacherId || null,
             action: 'BULK_ATTENDANCE_MARKED',
             entity_type: 'ATTENDANCE',
-            new_values: { count: results.length, dateStr, session }
+            new_values: { count: results.length, dateStr, session: sampleSession }
         }
     }).catch(() => { });
     return results;

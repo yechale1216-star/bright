@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as parentService from '../services/parent.service';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import prisma from '../config/db';
 
 /**

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import * as callService from '../services/call.service';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const logCall = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

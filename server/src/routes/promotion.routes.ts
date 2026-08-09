@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as promotionController from '../controllers/promotion.controller';
-import { authorize } from '../middleware/tenant.middleware';
+import { authorize } from '../middleware/auth.middleware';
 
 const router = Router();
 

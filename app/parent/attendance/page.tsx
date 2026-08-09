@@ -110,14 +110,17 @@ export default function AttendanceHistory() {
       };
 
       // Narrow fetch based on attendance mode if requested
-      let url = `${API_URL}/api/attendance/student/${studentId}`
+      const params = new URLSearchParams()
       if (mode === 'daily') {
-        url += "?session=none"
+        params.set("session", "none")
       } else if (mode === 'session_based' || mode === 'session') {
-        url += "?session=session_based"
+        params.set("session", "session_based")
       }
+      params.set("_t", Date.now().toString())
 
-      const res = await fetch(url, { headers })
+      const url = `${API_URL}/api/attendance/student/${studentId}?${params.toString()}`
+
+      const res = await fetch(url, { headers, cache: "no-store" })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
         throw new Error(errBody.message || `HTTP ${res.status}`)

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as groupController from '../controllers/group.controller';
-import { featureGuard } from '../middleware/tenant.middleware';
+import { featureGuard } from '../middleware/auth.middleware';
 
 const router = Router();
 

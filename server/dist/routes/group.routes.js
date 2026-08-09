@@ -35,19 +35,19 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const groupController = __importStar(require("../controllers/group.controller"));
-const tenant_middleware_1 = require("../middleware/tenant.middleware");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 // Group CRUD
-router.post('/', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.createGroup);
-router.get('/:id', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.getGroup);
-router.put('/:id', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.updateGroup);
-router.delete('/:id', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.deleteGroup);
+router.post('/', (0, auth_middleware_1.featureGuard)('messaging'), groupController.createGroup);
+router.get('/:id', (0, auth_middleware_1.featureGuard)('messaging'), groupController.getGroup);
+router.put('/:id', (0, auth_middleware_1.featureGuard)('messaging'), groupController.updateGroup);
+router.delete('/:id', (0, auth_middleware_1.featureGuard)('messaging'), groupController.deleteGroup);
 // Member Management
-router.post('/:id/members', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.addMembers);
-router.delete('/:id/members/:userId', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.removeMember);
-router.put('/:id/members/:userId/role', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.updateMemberRole);
+router.post('/:id/members', (0, auth_middleware_1.featureGuard)('messaging'), groupController.addMembers);
+router.delete('/:id/members/:userId', (0, auth_middleware_1.featureGuard)('messaging'), groupController.removeMember);
+router.put('/:id/members/:userId/role', (0, auth_middleware_1.featureGuard)('messaging'), groupController.updateMemberRole);
 // Mute Settings
-router.post('/:id/mute', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.toggleMute);
+router.post('/:id/mute', (0, auth_middleware_1.featureGuard)('messaging'), groupController.toggleMute);
 // Group Media
-router.get('/:id/media', (0, tenant_middleware_1.featureGuard)('messaging'), groupController.getGroupMedia);
+router.get('/:id/media', (0, auth_middleware_1.featureGuard)('messaging'), groupController.getGroupMedia);
 exports.default = router;

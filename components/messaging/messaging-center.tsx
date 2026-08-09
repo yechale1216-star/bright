@@ -1574,6 +1574,7 @@ export function MessagingCenter() {
                   <UserInfoPanel 
                     user={activeConversationData}
                     currentUser={user}
+                    conversationId={activeConversationId}
                     onClose={() => setIsInfoPanelOpen(false)}
                     onAction={handleAction}
                   />

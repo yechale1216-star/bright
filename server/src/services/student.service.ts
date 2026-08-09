@@ -1,7 +1,6 @@
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import * as parentService from './parent.service';
-import { getSchoolLimits } from './subscription.service';
 
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student: any) => {
@@ -73,13 +72,6 @@ export const createStudent = async (data: any, schoolId: string) => {
     throw new Error('School context invalid - Please logout and login again (database was likely reset)');
   }
 
-  // Enforce SaaS student limits
-  const limits = await getSchoolLimits(schoolId);
-  const currentCount = await prisma.student.count({ where: { schoolId } });
-
-  if (limits.maxStudents !== -1 && currentCount >= limits.maxStudents) {
-    throw new Error(`Student limit reached (${limits.maxStudents}). Please upgrade your Zetime plan to add more students.`);
-  }
 
   let studentId = data.student_id;
   if (!studentId) {
@@ -224,10 +216,6 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
     }
   }
 
-  // Enforce SaaS student limits for bulk upload
-  const { getSchoolLimits } = require('./subscription.service');
-  const limits = await getSchoolLimits(schoolId);
-  const initialCount = await prisma.student.count({ where: { schoolId } });
   let createdCountInThisBatch = 0;
 
   // Process in sequence to ensure stability and proper parent linking across siblings
@@ -282,12 +270,6 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
         where: { student_id_schoolId: { student_id: studentId, schoolId } }
       });
 
-      // Limit check before creation
-      if (!existingStudent && limits.maxStudents !== -1) {
-        if ((initialCount + createdCountInThisBatch) >= limits.maxStudents) {
-          throw new Error(`Student limit reached (${limits.maxStudents}). Batch stopped at this row.`);
-        }
-      }
 
       // 2. Upsert Student
       const student = await prisma.student.upsert({

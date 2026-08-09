@@ -39,7 +39,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.getNextStudentId = exports.getAllStudents = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const parentService = __importStar(require("./parent.service"));
-const subscription_service_1 = require("./subscription.service");
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student) => {
     if (!student)
@@ -70,7 +69,6 @@ const getAllStudents = async (schoolId, search) => {
             section: true,
             stream: true
         },
-        take: 20,
         orderBy: { fullName: 'asc' }
     });
     return students.map(mapStudentToFlat);
@@ -103,12 +101,6 @@ const createStudent = async (data, schoolId) => {
     if (!school) {
         console.error(`[StudentService] School not found for ID: "${schoolId}"`);
         throw new Error('School context invalid - Please logout and login again (database was likely reset)');
-    }
-    // Enforce SaaS student limits
-    const limits = await (0, subscription_service_1.getSchoolLimits)(schoolId);
-    const currentCount = await db_1.default.student.count({ where: { schoolId } });
-    if (limits.maxStudents !== -1 && currentCount >= limits.maxStudents) {
-        throw new Error(`Student limit reached (${limits.maxStudents}). Please upgrade your Zetime plan to add more students.`);
     }
     let studentId = data.student_id;
     if (!studentId) {
@@ -244,10 +236,6 @@ const bulkUpsertStudents = async (students, schoolId) => {
             nextBaseSequence = currentSequence + 1;
         }
     }
-    // Enforce SaaS student limits for bulk upload
-    const { getSchoolLimits } = require('./subscription.service');
-    const limits = await getSchoolLimits(schoolId);
-    const initialCount = await db_1.default.student.count({ where: { schoolId } });
     let createdCountInThisBatch = 0;
     // Process in sequence to ensure stability and proper parent linking across siblings
     for (let i = 0; i < students.length; i++) {
@@ -293,12 +281,6 @@ const bulkUpsertStudents = async (students, schoolId) => {
             const existingStudent = await db_1.default.student.findUnique({
                 where: { student_id_schoolId: { student_id: studentId, schoolId } }
             });
-            // Limit check before creation
-            if (!existingStudent && limits.maxStudents !== -1) {
-                if ((initialCount + createdCountInThisBatch) >= limits.maxStudents) {
-                    throw new Error(`Student limit reached (${limits.maxStudents}). Batch stopped at this row.`);
-                }
-            }
             // 2. Upsert Student
             const student = await db_1.default.student.upsert({
                 where: { student_id_schoolId: { student_id: studentId, schoolId } },

@@ -63,7 +63,6 @@ exports.listParentSchools = listParentSchools;
  * Used by /me/schools — server-side validated only.
  */
 const getParentSchools = async (userId) => {
-    console.log(`[getParentSchools] Fetching schools for userId: ${userId}`);
     const links = await db_1.default.parentStudentLink.findMany({
         where: { parentId: userId },
         include: {
@@ -73,13 +72,11 @@ const getParentSchools = async (userId) => {
             student: true
         }
     });
-    console.log(`[getParentSchools] Found ${links.length} links in ParentStudentLink`);
     const schoolMap = new Map();
     for (const l of links) {
         const schoolId = l.schoolId || l.student?.schoolId;
         if (schoolId && !schoolMap.has(schoolId)) {
             let schoolInfo = l.school;
-            // Fallback: If school object missing from link, fetch it via schoolId
             if (!schoolInfo && schoolId) {
                 schoolInfo = await db_1.default.school.findUnique({
                     where: { id: schoolId },
@@ -87,7 +84,6 @@ const getParentSchools = async (userId) => {
                 });
             }
             if (schoolInfo) {
-                console.log(`[getParentSchools] Mapping school: ${schoolInfo.name} (${schoolId})`);
                 schoolMap.set(schoolId, {
                     id: schoolId,
                     name: schoolInfo.name || 'My School',
@@ -96,14 +92,9 @@ const getParentSchools = async (userId) => {
                     role: 'parent'
                 });
             }
-            else {
-                console.warn(`[getParentSchools] Could not find school metadata for schoolId: ${schoolId}`);
-            }
         }
     }
-    const schools = Array.from(schoolMap.values());
-    console.log(`[getParentSchools] Final school count: ${schools.length}`);
-    return schools;
+    return Array.from(schoolMap.values());
 };
 exports.getParentSchools = getParentSchools;
 /**
@@ -183,26 +174,18 @@ const loginParent = async (phone, password, schoolId) => {
         section: s.section?.name || '',
         stream: s.stream?.name || null,
     }));
-    // Get all associated schools for context switching
-    const availableSchools = await (0, exports.getParentSchools)(user.id);
-    console.log(`[loginParent] Total available schools: ${availableSchools.length}`);
-    // Generate a token for the parent
-    let customSchoolId = '';
-    let schoolName = 'My School';
-    let schoolLogo = '';
-    const firstStudent = students[0];
-    // For parents, prioritize a school they actually have a child in
-    const availableSchoolIds = availableSchools.map(s => s.id);
-    let resolvedSchoolId = user.schoolId || '';
-    if (!resolvedSchoolId || !availableSchoolIds.includes(resolvedSchoolId)) {
-        resolvedSchoolId = firstStudent?.schoolId || '';
-    }
-    if (resolvedSchoolId) {
+    // Single school resolution
+    const singleSchool = await schoolService.getSingleSchool();
+    let resolvedSchoolId = user.schoolId || students[0]?.schoolId || singleSchool.id;
+    let customSchoolId = singleSchool.schoolId || 'SCH-0001';
+    let schoolName = singleSchool.name || 'Zetime School';
+    let schoolLogo = singleSchool.settings?.school_logo || '';
+    if (resolvedSchoolId && resolvedSchoolId !== singleSchool.id) {
         const school = await schoolService.getSchoolById(resolvedSchoolId);
         if (school) {
-            customSchoolId = school.schoolId || '';
+            customSchoolId = school.schoolId || customSchoolId;
             schoolName = school.name || schoolName;
-            schoolLogo = school.settings?.school_logo || '';
+            schoolLogo = school.settings?.school_logo || schoolLogo;
         }
     }
     const token = (0, jwt_1.generateToken)({
@@ -212,6 +195,13 @@ const loginParent = async (phone, password, schoolId) => {
         schoolId: resolvedSchoolId,
         customSchoolId,
     });
+    const singleSchoolObj = {
+        id: resolvedSchoolId,
+        name: schoolName,
+        logo: schoolLogo,
+        customSchoolId,
+        role: 'parent'
+    };
     return {
         success: true,
         id: user.id,
@@ -222,7 +212,7 @@ const loginParent = async (phone, password, schoolId) => {
         schoolName,
         schoolLogo,
         students: mappedStudents,
-        availableSchools,
+        availableSchools: [singleSchoolObj],
     };
 };
 exports.loginParent = loginParent;

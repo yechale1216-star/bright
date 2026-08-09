@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authorize, AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { authorize, AuthenticatedRequest } from '../middleware/auth.middleware';
 import prisma from '../config/db';
 import * as schoolService from '../services/school.service';
 

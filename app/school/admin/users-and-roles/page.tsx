@@ -117,7 +117,10 @@ export default function UsersAndRolesPage() {
       await apiFetch(`${API_URL}/api/users`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({
+          ...createForm,
+          password_hash: createForm.password,
+        }),
       })
 
       notifications.success('User Created', `Added ${createForm.full_name} as ${ROLE_BADGES[createForm.role]?.label || createForm.role}`)

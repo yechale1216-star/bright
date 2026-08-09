@@ -41,7 +41,7 @@ export interface AuthResponse {
   message: string
   user?: User
   error?: string
-  availableSchools?: any[] // Added to support multi-school staff
+  availableSchools?: any[]
 }
 
 export interface SignupCredentials {
@@ -66,7 +66,6 @@ class AuthService {
   // ─── LOGIN ────────────────────────────────────────────────────────────────
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      console.log("[pg] Login attempt for:", credentials.email)
 
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
@@ -143,16 +142,6 @@ class AuthService {
   }
 
   // ─── PARENT LOGIN & SECURITY ───────────────────────────────────────────────
-  async listParentSchools(phone: string): Promise<{ success: boolean; data?: any[]; message?: string }> {
-    try {
-      const res = await fetch(`${API_URL}/api/parent/schools?phone=${encodeURIComponent(phone)}`);
-      return await res.json();
-    } catch (error) {
-      console.error("[pg] listParentSchools error:", error);
-      return { success: false, message: "Network error during school search" };
-    }
-  }
-
   async searchParentByPhone(phone: string, signal?: AbortSignal): Promise<any> {
     try {
       console.log(`[ParentLookup] Initiating API request for phone: "${phone}"`);
@@ -191,7 +180,6 @@ class AuthService {
 
   async loginParent(phone: string, password: string, schoolId?: string): Promise<AuthResponse & { availableSchools?: any[] }> {
     try {
-      console.log("[pg] Parent login attempt for phone:", phone, "at school:", schoolId);
       
       const res = await fetch(`${API_URL}/api/parent/login`, {
         method: "POST",
@@ -234,18 +222,10 @@ class AuthService {
         // NOTE: JWT token is now managed by HTTP-Only cookies
         localStorage.setItem("parent_students", JSON.stringify(students));
         localStorage.setItem("available_schools", JSON.stringify(availableSchools));
-        // Protected backup — never wiped by clearSchoolContext; survives context resets
-        localStorage.setItem("zt_parent_login_schools", JSON.stringify(availableSchools));
         localStorage.setItem("zt_parent_login_ts", Date.now().toString());
         
         if (resolvedSchoolId) {
           localStorage.setItem("x-school-id", resolvedSchoolId);
-        }
-        
-        if (availableSchools.length > 1) {
-          localStorage.setItem("has_multiple_schools", "true");
-        } else {
-          localStorage.removeItem("has_multiple_schools");
         }
       }
 
@@ -311,8 +291,7 @@ class AuthService {
     try {
       console.log("[pg] Signup attempt for:", credentials.email)
 
-      // SECURITY: Clear any existing session data before starting a new signup
-      // This ensures a "Clean Slate" for the new school and prevents ID leakage.
+      // Clear any existing session before starting a new signup
       if (this.isClient()) {
         this.logout();
       }
@@ -422,8 +401,6 @@ class AuthService {
         headers["x-requested-role"] = 'teacher';
       } else if (pathname.startsWith('/school/admin')) {
         headers["x-requested-role"] = 'school_admin';
-      } else if (pathname.startsWith('/super-admin')) {
-        headers["x-requested-role"] = 'super_admin';
       }
     }
     
@@ -639,7 +616,6 @@ class AuthService {
         "parent_students",               // parent's student list (school-scoped)
         "parent_selected_student_id",    // last-selected student for parent portal
         "available_schools",             // parent's available schools list
-        "has_multiple_schools",          // parent multi-school flag
         "active_school",                 // active school context (SchoolContext)
         "_zt_fresh_login",               // fresh-login guard flag
         "_zt_login_role",                // fresh-login confirmed role
@@ -681,7 +657,6 @@ class AuthService {
 
       await Promise.allSettled([apiCall, nativeCall]);
     }
-    console.log("[pg] User logged out — all school-scoped localStorage keys and native credentials cleared")
   }
 
   handleUnauthorized(): void {

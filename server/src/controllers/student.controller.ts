@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import * as studentService from '../services/student.service';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const getStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

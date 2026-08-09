@@ -28,11 +28,10 @@
             android:id="@+id/tv_call_type"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="INCOMING VOICE CALL"
+            android:text="Addis Hiwot incoming voice call"
             android:textColor="#FF25D366"
             android:textSize="12sp"
             android:letterSpacing="0.15"
-            android:textAllCaps="true"
             android:fontFamily="sans-serif-medium" />
 
         <!-- Spacer -->

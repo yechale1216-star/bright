@@ -40,7 +40,7 @@ import savedMessagesRoutes from './routes/saved-messages.routes';
 import disciplineRoutes from './routes/discipline.routes';
 import rolesRoutes from './routes/roles.routes';
 
-import { tenantMiddleware } from './middleware/tenant.middleware';
+import { authMiddleware } from './middleware/auth.middleware';
 import { maintenanceMiddleware } from './middleware/maintenance.middleware';
 import * as parentController from './controllers/parent.controller';
 import { getActiveCall, deleteActiveCall, getUserSocketIds, getIO } from './socket';
@@ -221,7 +221,7 @@ app.post('/api/calls/public-reject', async (req, res) => {
 });
 
 // Apply Auth Middleware to all API routes
-app.use('/api', tenantMiddleware);
+app.use('/api', authMiddleware);
 
 // Other API routes are already covered by the /api middleware
 

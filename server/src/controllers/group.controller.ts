@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 // ── Create Group ─────────────────────────────────────────────────────────────
 export const createGroup = async (req: AuthenticatedRequest, res: Response) => {

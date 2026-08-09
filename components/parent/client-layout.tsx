@@ -325,11 +325,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="shrink-0 p-3 border-t border-border space-y-1.5">
-          {availableSchools.length > 1 && (
-            <button onClick={() => router.push("/auth/school-select")} className="w-full flex items-center justify-center gap-2 py-2 px-3 text-primary border border-primary/20 rounded-xl hover:bg-primary/5 transition-all font-semibold text-sm">
-              <GraduationCap className="w-4 h-4" /><span>{t("switch_school")}</span>
-            </button>
-          )}
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 px-3 text-rose-500 border border-rose-500/20 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all font-semibold text-sm">
             <LogOut className="w-4 h-4" /><span>{t("logout")}</span>
           </button>
@@ -398,11 +393,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         </nav>
         <div className="shrink-0 p-3 border-t border-border space-y-1.5 pb-safe">
-          {availableSchools.length > 1 && (
-            <button onClick={() => { router.push("/auth/school-select"); setSidebarOpen(false) }} className="w-full flex items-center justify-center gap-2 py-2 border border-primary/20 text-primary rounded-xl font-semibold text-sm">
-              <GraduationCap className="w-4 h-4" /><span>{t("switch_school")}</span>
-            </button>
-          )}
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 border border-rose-500/20 text-rose-500 rounded-xl font-semibold text-sm hover:bg-rose-50 dark:hover:bg-rose-900/20">
             <LogOut className="w-4 h-4" /><span>{t("logout")}</span>
           </button>
@@ -449,11 +439,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
                   </button>
                 ))}
               </div>
-              {availableSchools.length > 1 && (
-                <div className="p-4 bg-muted/10 border-t border-border">
-                  <Button variant="outline" className="w-full text-[11px] font-bold uppercase rounded-xl" onClick={() => router.push("/auth/school-select")}>{t("switch_school")}</Button>
-                </div>
-              )}
             </div>
           </div>
         )}

@@ -58,16 +58,9 @@ export const Logo: React.FC<LogoProps> = ({
 
   const dimensions = {
     sm: { px: 28, cls: 'h-7 w-7' },
-    md: { px: 36, cls: 'h-9 w-9' },
-    lg: { px: 48, cls: 'h-12 w-12' },
-    xl: { px: 64, cls: 'h-16 w-16' }
-  };
-
-  const textSizes = {
-    sm: 'text-base',
-    md: 'text-xl',
-    lg: 'text-3xl',
-    xl: 'text-4xl'
+    md: { px: 40, cls: 'h-10 w-10' },
+    lg: { px: 56, cls: 'h-14 w-14' },
+    xl: { px: 80, cls: 'h-20 w-20' }
   };
 
   const content = (
@@ -91,16 +84,16 @@ export const Logo: React.FC<LogoProps> = ({
         )}
       </div>
       {showText && (
-        <div className="flex flex-col items-center text-center space-y-0.5 min-w-0">
+        <div className="flex flex-col items-center text-center space-y-1 min-w-0">
           <span className={cn(
             "font-black tracking-tight text-slate-900 dark:text-white leading-snug",
-            size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm md:text-base' : size === 'lg' ? 'text-base md:text-lg' : 'text-xl md:text-2xl'
+            size === 'sm' ? 'text-xs' : size === 'md' ? 'text-base font-extrabold' : size === 'lg' ? 'text-xl font-black' : 'text-2xl md:text-3xl font-black'
           )}>
-            አዲስ ህይወት ትምህርት ቤት
+            አዲስ ህይወት ት/ቤት
           </span>
           <span className={cn(
             "font-black tracking-tight text-slate-900 dark:text-white leading-snug",
-            size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm md:text-base' : size === 'lg' ? 'text-base md:text-lg' : 'text-xl md:text-2xl'
+            size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm md:text-base font-bold' : size === 'lg' ? 'text-lg font-bold' : 'text-xl md:text-2xl font-black'
           )}>
             Addis Hiwot School
           </span>

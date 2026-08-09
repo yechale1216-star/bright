@@ -26,6 +26,12 @@ const getAttendanceSummary = async (schoolId, filters) => {
     if (!isFullDay) {
         where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
     }
+    else if (mode === 'session_based') {
+        where.session = { not: null };
+    }
+    else if (mode === 'daily') {
+        where.session = null;
+    }
     // Filter attendance by student attributes if provided
     const studentWhere = { schoolId };
     if (grade && grade !== 'all')
@@ -154,6 +160,12 @@ const getGradeStats = async (schoolId, filters) => {
     }
     if (!isFullDay) {
         where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+    }
+    else if (mode === 'session_based') {
+        where.session = { not: null };
+    }
+    else if (mode === 'daily') {
+        where.session = null;
     }
     // Filter by student attributes if provided
     const studentWhere = { schoolId };
@@ -297,8 +309,17 @@ const getAttendanceTrends = async (schoolId, filters) => {
     if (grade || section || stream) {
         where.student = studentWhere;
     }
+    if (!isFullDay) {
+        where.session = { equals: session.trim().toLowerCase(), mode: 'insensitive' };
+    }
+    else if (mode === 'session_based') {
+        where.session = { not: null };
+    }
+    else if (mode === 'daily') {
+        where.session = null;
+    }
     const allRecords = await db_1.default.attendance.findMany({
-        where: { ...where, ...(isFullDay ? {} : { session }) },
+        where,
         select: { studentId: true, date: true, session: true, status: true },
         orderBy: { date: 'asc' }
     });

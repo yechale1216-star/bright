@@ -149,6 +149,40 @@ export function Settings() {
           setIsSaving(false)
           return
         }
+
+        // Update localStorage with new school info so AuthContext and SchoolContext
+        // pick up the change without a full page reload.
+        // A page reload causes the native WebView to drop the HTTP-only auth cookie,
+        // making validateSession() receive a 401 and log the user out.
+        if (typeof window !== "undefined") {
+          const storedUserStr = localStorage.getItem("attendance_current_user")
+          if (storedUserStr) {
+            try {
+              const storedUser = JSON.parse(storedUserStr)
+              const updatedUser = {
+                ...storedUser,
+                schoolName: schoolInfo.schoolName,
+                schoolLogo: schoolInfo.schoolLogo || storedUser.schoolLogo,
+              }
+              localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
+
+              // Also sync active_school so SchoolContext (TopNav) reflects the update
+              const activeSchoolStr = localStorage.getItem("active_school")
+              if (activeSchoolStr) {
+                try {
+                  const activeSchool = JSON.parse(activeSchoolStr)
+                  localStorage.setItem("active_school", JSON.stringify({
+                    ...activeSchool,
+                    name: schoolInfo.schoolName,
+                    logo: schoolInfo.schoolLogo || activeSchool.logo,
+                  }))
+                } catch { /* ignore parse errors */ }
+              }
+            } catch { /* ignore parse errors */ }
+          }
+          // Signal AuthContext to sync from localStorage without a full re-validate
+          window.dispatchEvent(new Event("userSessionChanged"))
+        }
       }
 
       // Update settings with school info
@@ -159,21 +193,18 @@ export function Settings() {
       }
 
       console.log("[v0] Calling db.updateSettings with:", updatedSettings)
-      await db.updateSettings(updatedSettings)
+      // updateSettings() now returns the server-confirmed mapped settings object directly.
+      // We use it to update React state without an extra getSettings() round-trip,
+      // which eliminates the cache-race that caused settings to revert to defaults in the APK.
+      const savedSettings = await db.updateSettings(updatedSettings)
       console.log("[v0] Settings saved successfully to database")
 
-      setSettings(updatedSettings)
+      setSettings(savedSettings || updatedSettings)
       setIsEditingSchoolInfo(false)
 
       notifications.success("Settings Saved", "All settings have been updated successfully.")
 
       console.log("[v0] Save settings completed successfully")
-
-
-      // Reload if school info was changed
-      if (user?.role === "admin" && isEditingSchoolInfo) {
-        window.location.reload()
-      }
     } catch (error) {
       console.error("[v0] Error saving settings:", error)
       notifications.error("Error", "Failed to save settings")

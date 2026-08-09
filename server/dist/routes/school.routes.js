@@ -37,7 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const tenant_middleware_1 = require("../middleware/tenant.middleware");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const db_1 = __importDefault(require("../config/db"));
 const schoolService = __importStar(require("../services/school.service"));
 const router = (0, express_1.Router)();
@@ -81,7 +81,7 @@ router.get('/me/streams', async (req, res, next) => {
     }
 });
 // ─── Help Desk (Support Tickets & Feedback) ──────────────────────────────────────────────
-router.get('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
+router.get('/support', (0, auth_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
         if (!schoolId)
@@ -96,7 +96,7 @@ router.get('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', '
         next(error);
     }
 });
-router.post('/support', (0, tenant_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
+router.post('/support', (0, auth_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
     try {
         const schoolId = req.user?.schoolId;
         const authorId = req.user?.id;

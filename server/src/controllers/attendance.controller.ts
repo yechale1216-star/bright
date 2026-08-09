@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import * as attendanceService from '../services/attendance.service';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const markAttendance = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
@@ -27,6 +27,9 @@ export const getAttendance = async (req: AuthenticatedRequest, res: Response, ne
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'School ID context missing' });
     }
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     const filters = {
       ...req.query,
       schoolId
@@ -44,6 +47,9 @@ export const getAttendanceByStudent = async (req: AuthenticatedRequest, res: Res
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'School ID context missing' });
     }
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     const result = await attendanceService.getAttendanceByStudent(req.params.studentId, schoolId, req.query);
     res.status(200).json({ success: true, data: result });
   } catch (error) {

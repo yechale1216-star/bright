@@ -84,8 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async (redirectPath?: string) => {
     if (isClient) {
-      const prevUser = authService.getCurrentUser()
-      console.log(`[AuthContext][LOGOUT] User: ${prevUser?.id} | Role: ${prevUser?.role} | Email: ${prevUser?.email}`)
       // Clear the fresh-login marker so the next validateSession runs fully
       localStorage.removeItem(FRESH_LOGIN_KEY)
       localStorage.removeItem("_zt_login_role")
@@ -110,7 +108,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthLoading(false)
     setPermissionsLoading(false)
     setError(null)
-    console.log("[AuthContext][LOGOUT] Complete — all React state cleared")
 
     // Redirect to the specified path, or to /login if we are currently on a protected page.
     // Never redirect if we are already on a public/auth page to avoid redirect loops.

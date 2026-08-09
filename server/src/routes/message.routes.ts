@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import * as messageController from '../controllers/message.controller';
 import * as groupController from '../controllers/group.controller'; // Use group controller for shared message actions
-import { featureGuard } from '../middleware/tenant.middleware';
+import { featureGuard } from '../middleware/auth.middleware';
 
 const router = Router();
 
 router.get('/conversations/:userId', featureGuard('messaging'), messageController.getConversations);
+router.get('/:conversationId/shared', featureGuard('messaging'), messageController.getConversationShared);
 router.get('/:conversationId', featureGuard('messaging'), messageController.getMessages);
 router.post('/conversations', featureGuard('messaging'), messageController.createConversation);
 

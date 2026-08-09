@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import * as settingsService from '../services/settings.service';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const router = Router();
 

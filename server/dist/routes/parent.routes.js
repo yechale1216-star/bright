@@ -52,8 +52,7 @@ router.get('/preferences/:phone', parentController.getPreferences);
 router.put('/preferences/:phone', parentController.updatePreferences);
 // Profile
 router.put('/profile/:phone', parentController.updateProfile);
-// Multi-school context — authenticated, server-validated
+// School context — authenticated, server-validated
 router.get('/me/schools', parentController.getMySchools);
-router.post('/me/active-school', parentController.setActiveSchool);
 router.get('/me/students', parentController.getMyStudents);
 exports.default = router;

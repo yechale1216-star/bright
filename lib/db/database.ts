@@ -185,7 +185,7 @@ class Database extends BaseDatabase {
         )
         return result.data.map((r: any) => attendance.mapAttendance(r, activeSchoolId))
       },
-      { staleTime: 30_000, persist: false }
+      { staleTime: 0, persist: false }
     )
   }
 
@@ -194,18 +194,44 @@ class Database extends BaseDatabase {
     const schoolId = this.getSchoolId()
     // Security: Never cache settings under a missing/default schoolId.
     // This prevents stale settings from a previous school leaking to a new context.
-    if (!schoolId) return settings.getSettings(this.getApiHeaders(), "")
+    if (!schoolId) {
+      // APK cold-start fallback: auth may not have hydrated yet.
+      // Try the direct localStorage backup written by updateSettings() before
+      // falling back to network (which requires schoolId in the request).
+      if (typeof window !== "undefined") {
+        try {
+          // Scan for any _settings_backup_ key (we don't know schoolId yet)
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i)
+            if (k && k.startsWith("_settings_backup_")) {
+              const raw = localStorage.getItem(k)
+              if (raw) return JSON.parse(raw)
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      return settings.getSettings(this.getApiHeaders(), "")
+    }
     return queryCache.fetch(
       `settings_${schoolId}`,
-      async () => settings.getSettings(this.getApiHeaders(), schoolId),
+      async () => {
+        const data = await settings.getSettings(this.getApiHeaders(), schoolId)
+        // Persist to direct backup whenever a fresh network fetch succeeds
+        if (typeof window !== "undefined" && data) {
+          try { localStorage.setItem(`_settings_backup_${schoolId}`, JSON.stringify(data)) } catch { /* quota */ }
+        }
+        return data
+      },
       { staleTime: 120_000 }
     )
   }
 
-  async updateSettings(settingsData: any): Promise<void> {
+  async updateSettings(settingsData: any): Promise<any> {
     const schoolId = this.getSchoolId()
-    if (!schoolId) return
-    await apiFetch(
+    if (!schoolId) {
+      throw new Error("School context missing. Please log in again.")
+    }
+    const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/settings`,
       {
         method: "PUT",
@@ -232,13 +258,52 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    queryCache.invalidate(/^settings_/)
+
+    // Build the canonical mapped settings object (camelCase) from either the
+    // server-confirmed response body OR the caller-supplied data (optimistic).
+    const s = (result && result.data) ? result.data : null
+    const updatedMapped = {
+      schoolName: (s?.school_name) || settingsData.schoolName,
+      schoolPhone: (s?.school_phone) || settingsData.schoolPhone,
+      schoolAddress: (s?.school_address) || settingsData.schoolAddress,
+      academicYear: (s?.academic_year) || settingsData.academicYear,
+      attendanceMode: (s?.attendance_mode) || settingsData.attendanceMode,
+      attendanceUiType: (s?.attendance_ui_type) || settingsData.attendanceUiType,
+      attendanceThreshold: s ? (s.attendance_threshold ?? settingsData.attendanceThreshold) : settingsData.attendanceThreshold,
+      allowLateMark: s ? (s.allow_late_mark ?? settingsData.allowLateMark) : settingsData.allowLateMark,
+      emailNotifications: s ? (s.email_notifications ?? settingsData.emailNotifications) : settingsData.emailNotifications,
+      smsNotifications: s ? (s.sms_notifications ?? settingsData.smsNotifications) : settingsData.smsNotifications,
+      notificationTime: (s?.notification_time) || settingsData.notificationTime,
+      schoolLogo: (s?.school_logo) || settingsData.schoolLogo,
+      allowAttendanceEditing: s ? (s.allow_attendance_editing ?? settingsData.allowAttendanceEditing) : settingsData.allowAttendanceEditing,
+      restrictLocation: s ? (s.restrict_location ?? settingsData.restrictLocation) : settingsData.restrictLocation,
+      schoolLatitude: s ? (s.school_latitude ?? settingsData.schoolLatitude) : settingsData.schoolLatitude,
+      schoolLongitude: s ? (s.school_longitude ?? settingsData.school_longitude) : settingsData.schoolLongitude,
+      allowedRadiusMeters: s ? (s.allowed_radius_meters ?? settingsData.allowedRadiusMeters) : settingsData.allowedRadiusMeters,
+      allowOutsideAttendance: s ? (s.allow_outside_attendance ?? settingsData.allowOutsideAttendance) : settingsData.allowOutsideAttendance,
+    }
+
+    // 1. Update SWR memory+localStorage cache (serves subsequent getSettings() calls)
+    queryCache.set(`settings_${schoolId}`, updatedMapped, true)
+
+    // 2. Write a DIRECT localStorage backup that is independent of the SWR cache.
+    //    This is the APK safety net: even if the SWR cache is cleared on logout or
+    //    the WebView is recreated before auth has hydrated, this key survives and
+    //    allows getSettings() to return real saved data instead of hardcoded defaults.
+    if (typeof window !== "undefined") {
+      try { localStorage.setItem(`_settings_backup_${schoolId}`, JSON.stringify(updatedMapped)) } catch { /* quota */ }
+    }
+
     queryCache.invalidate(/^grades_/)
     queryCache.invalidate(/^sections_/)
     queryCache.invalidate(/^streams_/)
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("settingsDataChanged"))
     }
+
+    // Return the canonical mapped object so callers can use it directly
+    // without an additional getSettings() round-trip.
+    return updatedMapped
   }
 
   async resetSettings(): Promise<void> {

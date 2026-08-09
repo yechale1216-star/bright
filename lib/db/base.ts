@@ -20,11 +20,23 @@ export class BaseDatabase {
     if (typeof window === "undefined") return ""
 
     const user = this.getCurrentUser()
-    if (user?.schoolId) {
-      return String(user.schoolId)
+    const fromUser = user?.schoolId || user?.school_id || user?.school?.id
+    if (fromUser) {
+      return String(fromUser)
     }
 
-    return localStorage.getItem("x-school-id") || ""
+    const xSchoolId = localStorage.getItem("x-school-id")
+    if (xSchoolId) return xSchoolId
+
+    try {
+      const activeSchool = localStorage.getItem("active_school")
+      if (activeSchool) {
+        const parsed = JSON.parse(activeSchool)
+        if (parsed?.id) return String(parsed.id)
+      }
+    } catch {}
+
+    return ""
   }
 
   public getCurrentUser(): any {

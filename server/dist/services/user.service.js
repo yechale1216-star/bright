@@ -7,7 +7,6 @@ exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPassw
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_1 = __importDefault(require("../config/db"));
-const subscription_service_1 = require("./subscription.service");
 const getUserByEmail = async (email) => {
     return await db_1.default.user.findUnique({
         where: { email },
@@ -131,17 +130,6 @@ exports.getContacts = getContacts;
 const createUser = async (data) => {
     let teacherId = data.teacher_id || null;
     const schoolId = data.schoolId || null;
-    // Enforce SaaS user limits
-    if (schoolId) {
-        const limits = await (0, subscription_service_1.getSchoolLimits)(schoolId);
-        // Only count active users in this school
-        const currentCount = await db_1.default.user.count({
-            where: { schoolId, is_active: true }
-        });
-        if (limits.maxUsers !== -1 && currentCount >= limits.maxUsers) {
-            throw new Error(`User limit reached (${limits.maxUsers}). Please upgrade your Zetime plan to add more users.`);
-        }
-    }
     // Prevent duplicate phone for teachers within the same school (or globally if required)
     if (data.role === 'teacher' && data.phone) {
         const cleanPhone = data.phone.trim();
@@ -170,9 +158,10 @@ const createUser = async (data) => {
         });
         teacherId = teacher.id;
     }
-    const hashedPassword = data.password_hash && !data.password_hash.startsWith('$2')
-        ? bcryptjs_1.default.hashSync(data.password_hash, 10)
-        : data.password_hash;
+    const rawPassword = data.password_hash || data.password || "12345678";
+    const hashedPassword = rawPassword.startsWith('$2')
+        ? rawPassword
+        : bcryptjs_1.default.hashSync(rawPassword, 10);
     const user = await db_1.default.user.create({
         data: {
             email: data.email,
@@ -224,10 +213,11 @@ const updateUser = async (id, data, schoolId) => {
         updateData.phone = cleanPhone;
     }
     // (Adding necessary fields for update)
-    if (data.password_hash !== undefined) {
-        updateData.password_hash = data.password_hash && !data.password_hash.startsWith('$2')
-            ? bcryptjs_1.default.hashSync(data.password_hash, 10)
-            : data.password_hash;
+    const passToUpdate = data.password_hash !== undefined ? data.password_hash : data.password;
+    if (passToUpdate !== undefined && passToUpdate !== null && passToUpdate !== "") {
+        updateData.password_hash = passToUpdate.startsWith('$2')
+            ? passToUpdate
+            : bcryptjs_1.default.hashSync(passToUpdate, 10);
     }
     if (data.is_active !== undefined)
         updateData.is_active = data.is_active;

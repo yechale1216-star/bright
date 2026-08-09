@@ -35,12 +35,12 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const promotionController = __importStar(require("../controllers/promotion.controller"));
-const tenant_middleware_1 = require("../middleware/tenant.middleware");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 // Only school admins/admins can perform promotions
-router.get('/preview', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getPromotionPreview);
-router.get('/preview/:gradeId/students', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getStudentsByGrade);
-router.post('/promote', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), promotionController.promoteStudents);
-router.get('/history', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getPromotionHistory);
-router.post('/rollback/:id', (0, tenant_middleware_1.authorize)(['admin', 'school_admin']), promotionController.rollbackPromotion);
+router.get('/preview', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getPromotionPreview);
+router.get('/preview/:gradeId/students', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getStudentsByGrade);
+router.post('/promote', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.promoteStudents);
+router.get('/history', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getPromotionHistory);
+router.post('/rollback/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.rollbackPromotion);
 exports.default = router;

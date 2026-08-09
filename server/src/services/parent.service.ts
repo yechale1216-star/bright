@@ -29,7 +29,6 @@ export const listParentSchools = async (phone: string) => {
  * Used by /me/schools — server-side validated only.
  */
 export const getParentSchools = async (userId: string) => {
-  console.log(`[getParentSchools] Fetching schools for userId: ${userId}`);
   const links = await prisma.parentStudentLink.findMany({
     where: { parentId: userId },
     include: {
@@ -40,15 +39,12 @@ export const getParentSchools = async (userId: string) => {
     }
   });
 
-  console.log(`[getParentSchools] Found ${links.length} links in ParentStudentLink`);
-
   const schoolMap = new Map<string, any>();
   for (const l of links) {
     const schoolId = l.schoolId || l.student?.schoolId;
     if (schoolId && !schoolMap.has(schoolId)) {
       let schoolInfo = l.school;
       
-      // Fallback: If school object missing from link, fetch it via schoolId
       if (!schoolInfo && schoolId) {
         schoolInfo = await prisma.school.findUnique({
           where: { id: schoolId },
@@ -57,7 +53,6 @@ export const getParentSchools = async (userId: string) => {
       }
 
       if (schoolInfo) {
-        console.log(`[getParentSchools] Mapping school: ${schoolInfo.name} (${schoolId})`);
         schoolMap.set(schoolId, {
           id: schoolId,
           name: schoolInfo.name || 'My School',
@@ -65,15 +60,11 @@ export const getParentSchools = async (userId: string) => {
           customSchoolId: schoolInfo.schoolId || '',
           role: 'parent'
         });
-      } else {
-        console.warn(`[getParentSchools] Could not find school metadata for schoolId: ${schoolId}`);
       }
     }
   }
 
-  const schools = Array.from(schoolMap.values());
-  console.log(`[getParentSchools] Final school count: ${schools.length}`);
-  return schools;
+  return Array.from(schoolMap.values());
 };
 
 /**
@@ -163,30 +154,20 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
     stream: s.stream?.name || null,
   }));
 
-  // Get all associated schools for context switching
-  const availableSchools = await getParentSchools(user.id);
-  console.log(`[loginParent] Total available schools: ${availableSchools.length}`);
+  // Single school resolution
+  const singleSchool = await schoolService.getSingleSchool();
 
-  // Generate a token for the parent
-  let customSchoolId = '';
-  let schoolName = 'My School';
-  let schoolLogo = '';
-  const firstStudent = students[0];
-  
-  // For parents, prioritize a school they actually have a child in
-  const availableSchoolIds = availableSchools.map(s => s.id);
-  let resolvedSchoolId: string = user.schoolId || '';
-  
-  if (!resolvedSchoolId || !availableSchoolIds.includes(resolvedSchoolId)) {
-    resolvedSchoolId = firstStudent?.schoolId || '';
-  }
+  let resolvedSchoolId = user.schoolId || students[0]?.schoolId || singleSchool.id;
+  let customSchoolId = singleSchool.schoolId || 'SCH-0001';
+  let schoolName = singleSchool.name || 'Zetime School';
+  let schoolLogo = (singleSchool as any).settings?.school_logo || '';
 
-  if (resolvedSchoolId) {
+  if (resolvedSchoolId && resolvedSchoolId !== singleSchool.id) {
     const school = await schoolService.getSchoolById(resolvedSchoolId);
     if (school) {
-      customSchoolId = school.schoolId || '';
+      customSchoolId = school.schoolId || customSchoolId;
       schoolName = school.name || schoolName;
-      schoolLogo = (school as any).settings?.school_logo || '';
+      schoolLogo = (school as any).settings?.school_logo || schoolLogo;
     }
   }
 
@@ -198,6 +179,14 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
     customSchoolId,
   });
 
+  const singleSchoolObj = {
+    id: resolvedSchoolId,
+    name: schoolName,
+    logo: schoolLogo,
+    customSchoolId,
+    role: 'parent'
+  };
+
   return {
     success: true,
     id: user.id,
@@ -208,7 +197,7 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
     schoolName,
     schoolLogo,
     students: mappedStudents,
-    availableSchools,
+    availableSchools: [singleSchoolObj],
   };
 }
 

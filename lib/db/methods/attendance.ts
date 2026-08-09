@@ -35,7 +35,7 @@ export async function getAttendance(headers: any, schoolId: string): Promise<Att
       return result.data.map((r: any) => mapAttendance(r, schoolId))
     },
     // Do NOT persist attendance data to localStorage (too large & sensitive)
-    { staleTime: 20_000, persist: false }
+    { staleTime: 0, persist: false }
   )
 }
 

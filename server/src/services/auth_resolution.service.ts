@@ -77,68 +77,64 @@ export const getMemberships = async (userId: string): Promise<Membership[]> => {
  * If not provided, it falls back to the highest available role in priority order (Staff > Teacher > Parent).
  */
 export const resolveRoleInSchool = async (userId: string, schoolId: string, requestedRole?: string): Promise<string | null> => {
-  if (!userId || !schoolId) return null;
+  if (!userId) return null;
 
   // 1. If a specific role is requested, validate it specifically
   if (requestedRole) {
     if (requestedRole === 'parent') {
       const parent = await prisma.parentStudentLink.findFirst({
-        where: { parentId: userId, schoolId }
+        where: { parentId: userId }
       });
       if (parent) return 'parent';
     }
 
     if (requestedRole === 'teacher') {
       const teacher = await prisma.teacher.findFirst({
-        where: { user_id: userId, schoolId }
+        where: { user_id: userId }
       });
       if (teacher) return 'teacher';
       
       // Also check if they are in the User table with teacher role
       const user = await prisma.user.findFirst({
-        where: { id: userId, schoolId, role: 'teacher' }
+        where: { id: userId, role: 'teacher' }
       });
       if (user) return 'teacher';
     }
 
     if (requestedRole === 'admin' || requestedRole === 'school_admin' || requestedRole === 'school-admin') {
       const user = await prisma.user.findFirst({
-        where: { id: userId, schoolId, role: { in: ['admin', 'school_admin'] } }
+        where: { id: userId, role: { in: ['admin', 'school_admin', 'super_admin'] } }
       });
       if (user) return user.role;
     }
 
-    // Staff / generic non-teacher school roles (includes 3 new system roles)
+    // Staff / generic non-teacher school roles
     const staffRoles = ['staff', 'registrar', 'discipline_officer', 'call_center'];
     if (staffRoles.includes(requestedRole)) {
       const user = await prisma.user.findFirst({
-        where: { id: userId, schoolId, role: requestedRole }
+        where: { id: userId, role: requestedRole }
       });
       if (user) return requestedRole;
     }
   }
 
   // 2. Fallback: Determine highest available role in priority order
-  // Priority: Admin/Staff > Teacher > Parent
-  
-  // A. Check User table (Staff/Admin roles) — covers all non-parent/non-student roles
-  //    including: admin, school_admin, teacher, staff, registrar, discipline_officer, call_center
-  const user = await prisma.user.findFirst({
-    where: { id: userId, schoolId }
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
   });
   if (user && user.role && !['parent', 'student'].includes(user.role)) return user.role;
 
-  // B. Check Teacher table
+  // Check Teacher table
   const teacher = await prisma.teacher.findFirst({
-    where: { user_id: userId, schoolId }
+    where: { user_id: userId }
   });
   if (teacher) return 'teacher';
 
-  // C. Check ParentStudentLink
+  // Check ParentStudentLink
   const parent = await prisma.parentStudentLink.findFirst({
-    where: { parentId: userId, schoolId }
+    where: { parentId: userId }
   });
   if (parent) return 'parent';
 
-  return null;
+  return user?.role || null;
 };

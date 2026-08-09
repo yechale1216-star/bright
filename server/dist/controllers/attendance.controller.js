@@ -61,6 +61,9 @@ const getAttendance = async (req, res, next) => {
         if (!schoolId) {
             return res.status(401).json({ success: false, message: 'School ID context missing' });
         }
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
         const filters = {
             ...req.query,
             schoolId
@@ -79,6 +82,9 @@ const getAttendanceByStudent = async (req, res, next) => {
         if (!schoolId) {
             return res.status(401).json({ success: false, message: 'School ID context missing' });
         }
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
         const result = await attendanceService.getAttendanceByStudent(req.params.studentId, schoolId, req.query);
         res.status(200).json({ success: true, data: result });
     }

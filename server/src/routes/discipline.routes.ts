@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { tenantMiddleware, authorize } from '../middleware/tenant.middleware';
+import { authMiddleware, authorize } from '../middleware/auth.middleware';
 import { DisciplineController } from '../controllers/discipline.controller';
 
 const router = Router();
 
 // Apply tenant authentication to all discipline routes
-router.use(tenantMiddleware);
+router.use(authMiddleware);
 
 // Categories
 router.get('/categories', DisciplineController.getCategories);

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/tenant.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { promotionService } from '../services/promotion.service';
 
 export const getPromotionPreview = async (req: AuthenticatedRequest, res: Response) => {
