@@ -150,9 +150,9 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
                 {caller.name}
               </h1>
 
-              {/* Subheading Label matching native "Zetime" */}
+              {/* Subheading Label matching native "Addis Hiwot" */}
               <span className="text-white/50 text-[13px] tracking-widest font-normal uppercase">
-                Zetime
+                Addis Hiwot
               </span>
             </motion.div>
           </div>

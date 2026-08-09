@@ -1,15 +1,16 @@
 import type { Metadata } from "next"
 
 // ── Site-wide constants ─────────────────────────────────────────────────────────
-export const SITE_NAME = "Addis Hiwot School"
+export const SITE_NAME = "Addis Hiwot"
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://zetime.pro.et"
-export const DEFAULT_OG_IMAGE = "/zetime_branding_professional.png"
-export const TWITTER_HANDLE = "@zetime_app"
+export const DEFAULT_OG_IMAGE = "/Addis Hiwot-logo.png"
+export const TWITTER_HANDLE = "@AddisHiwot"
 
 export const DEFAULT_DESCRIPTION =
-  "Zetime automates attendance tracking, discipline management, and real-time parent notifications for schools across Ethiopia."
+  "Addis Hiwot School Attendance Management & Communication System — smart attendance tracking, discipline management, and real-time parent notifications."
 
 export const DEFAULT_KEYWORDS = [
+  "Addis Hiwot",
   "school attendance",
   "attendance tracking",
   "student attendance management",
@@ -18,9 +19,8 @@ export const DEFAULT_KEYWORDS = [
   "discipline management",
   "Ethiopia schools",
   "education technology",
-  "SaaS school platform",
+  "communication system",
   "teacher tools",
-  "Zetime",
 ]
 
 // ── Helper: build a fully-formed Metadata object ────────────────────────────────

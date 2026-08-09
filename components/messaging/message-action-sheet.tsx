@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Copy, Reply, Edit, Pin, Forward, Trash2, X,
+  Copy, Reply, Edit, Pin, Forward, Trash2, X, Bookmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/utils';
 
@@ -31,6 +31,7 @@ export interface MessageActionSheetProps {
   onForward: () => void;
   /** Called with deleteForEveryone flag */
   onDelete: (deleteForEveryone: boolean) => void;
+  onBookmark?: () => void;
   /** Whether the current user can delete for everyone (own message or admin) */
   canDeleteForEveryone?: boolean;
   /** Name of the other person in the chat (DM) or undefined for groups */
@@ -59,6 +60,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
   onPin,
   onForward,
   onDelete,
+  onBookmark,
   canDeleteForEveryone = false,
   otherPersonName,
   isGroup = false,
@@ -123,6 +125,14 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
       hidden: !!message.isDeleted,
       onClick: () => { onForward(); onClose(); },
     },
+    {
+      id: 'bookmark',
+      label: 'Save Message',
+      icon: <Bookmark className="h-5 w-5 text-emerald-500" />,
+      hidden: !!message.isDeleted,
+      onClick: () => { if (onBookmark) onBookmark(); onClose(); },
+    },
+
     {
       id: 'delete',
       label: message.isMe

@@ -326,6 +326,7 @@ public class CallService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         String callerLabel   = pendingCallerName != null ? pendingCallerName : "Unknown";
+        String callTypeLabel = "VIDEO".equalsIgnoreCase(pendingCallType) ? "Video" : "Voice";
         String subtitleText  = "VIDEO".equalsIgnoreCase(pendingCallType)
                 ? "Addis Hiwot incoming video call" : "Addis Hiwot incoming voice call";
 

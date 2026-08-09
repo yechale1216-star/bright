@@ -120,7 +120,7 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
               className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-lg text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400"
             >
               <Download className="w-4 h-4" />
-              Install Zetime App
+              Install Addis Hiwot App
             </button>
           </div>
         )}
@@ -131,7 +131,7 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
 
         <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
            <div className="text-[10px] text-slate-500/40 dark:text-slate-400/40 font-medium uppercase tracking-[0.3em]">
-            &copy; {new Date().getFullYear()} Zetime &bull; Management Suite
+            &copy; {new Date().getFullYear()} Addis Hiwot &bull; Management Suite
           </div>
         </div>
       </div>

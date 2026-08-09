@@ -36,10 +36,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const messageController = __importStar(require("../controllers/message.controller"));
 const groupController = __importStar(require("../controllers/group.controller")); // Use group controller for shared message actions
+const bookmarkController = __importStar(require("../controllers/bookmark.controller"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 router.get('/conversations/:userId', (0, auth_middleware_1.featureGuard)('messaging'), messageController.getConversations);
 router.get('/:conversationId/shared', (0, auth_middleware_1.featureGuard)('messaging'), messageController.getConversationShared);
+router.get('/:conversationId/bookmarks', (0, auth_middleware_1.featureGuard)('messaging'), bookmarkController.getConversationBookmarks);
 router.get('/:conversationId', (0, auth_middleware_1.featureGuard)('messaging'), messageController.getMessages);
 router.post('/conversations', (0, auth_middleware_1.featureGuard)('messaging'), messageController.createConversation);
 // Message Actions (Shared between 1:1 and Groups)
@@ -48,4 +50,5 @@ router.delete('/:messageId', (0, auth_middleware_1.featureGuard)('messaging'), g
 router.post('/:messageId/pin', (0, auth_middleware_1.featureGuard)('messaging'), groupController.pinMessage);
 router.delete('/:messageId/pin', (0, auth_middleware_1.featureGuard)('messaging'), groupController.unpinMessage);
 router.post('/:messageId/react', (0, auth_middleware_1.featureGuard)('messaging'), groupController.toggleReaction);
+router.post('/:messageId/bookmark', (0, auth_middleware_1.featureGuard)('messaging'), bookmarkController.toggleBookmark);
 exports.default = router;

@@ -71,7 +71,6 @@ export default function TeacherClientLayout({
     { href: "/school/teacher/attendance", icon: <CheckSquare className="w-5 h-5" />, label: "Attendance" },
     { href: "/school/teacher/classes", icon: <BookOpen className="w-5 h-5" />, label: "Classes" },
     { href: "/school/teacher/reports", icon: <BarChart2 className="w-5 h-5" />, label: "Reports" },
-    { href: "/school/teacher/discipline", icon: <ShieldAlert className="w-5 h-5" />, label: "Discipline" },
     { href: "/school/teacher/profile", icon: <User className="w-5 h-5" />, label: "Profile" },
   ]
 

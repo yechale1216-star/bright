@@ -269,36 +269,10 @@ export const updateMemberRole = async (req: AuthenticatedRequest, res: Response)
 
 // ── Get Group Media ───────────────────────────────────────────────────────────
 export const getGroupMedia = async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
-  const schoolId = req.user?.schoolId;
-  const userId = req.user?.id;
-
-  try {
-    const isMember = await prisma.conversationMember.findFirst({
-      where: { conversationId: id, userId },
-    });
-    if (!isMember) return res.status(403).json({ error: 'Not a member of this group' });
-
-    const messages = await prisma.message.findMany({
-      where: {
-        conversationId: id,
-        schoolId,
-        isDeleted: false,
-        type: { in: ['IMAGE', 'FILE', 'VOICE'] },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        sender: { select: { id: true, full_name: true } },
-      },
-    });
-
-    res.json(messages);
-  } catch (error) {
-    console.error('Error fetching media:', error);
-    res.status(500).json({ error: 'Failed to fetch media' });
-  }
+  const { getConversationShared } = await import('./message.controller');
+  return getConversationShared(req, res);
 };
+
 
 // ── Pin/Unpin Message ─────────────────────────────────────────────────────────
 export const pinMessage = async (req: AuthenticatedRequest, res: Response) => {
@@ -506,3 +480,5 @@ export const toggleMute = async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to update mute settings' });
   }
 };
+
+

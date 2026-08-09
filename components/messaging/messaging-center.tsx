@@ -1568,6 +1568,19 @@ export function MessagingCenter() {
                     onSendMessage={() => {
                       setIsInfoPanelOpen(false);
                     }}
+                    onNavigateToMessage={(mid) => {
+                      setIsInfoPanelOpen(false);
+                      setTimeout(() => {
+                        const el = document.getElementById(`msg-${mid}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          el.classList.add('ring-2', 'ring-emerald-500', 'ring-offset-2', 'transition-all');
+                          setTimeout(() => {
+                            el.classList.remove('ring-2', 'ring-emerald-500', 'ring-offset-2');
+                          }, 2500);
+                        }
+                      }, 150);
+                    }}
                   />
                 )}
                 {isInfoPanelOpen && !activeConversationData?.isGroup && (
@@ -1577,8 +1590,22 @@ export function MessagingCenter() {
                     conversationId={activeConversationId}
                     onClose={() => setIsInfoPanelOpen(false)}
                     onAction={handleAction}
+                    onNavigateToMessage={(mid) => {
+                      setIsInfoPanelOpen(false);
+                      setTimeout(() => {
+                        const el = document.getElementById(`msg-${mid}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          el.classList.add('ring-2', 'ring-emerald-500', 'ring-offset-2', 'transition-all');
+                          setTimeout(() => {
+                            el.classList.remove('ring-2', 'ring-emerald-500', 'ring-offset-2');
+                          }, 2500);
+                        }
+                      }, 150);
+                    }}
                   />
                 )}
+
               </>
             )}
           </div>

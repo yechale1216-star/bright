@@ -32,6 +32,7 @@ import {
 import { Logo } from '@/components/logo';
 import { useCall } from '@/components/providers/call-provider';
 import { authService } from '@/lib/auth/auth';
+import { API_URL } from '@/lib/api-config';
 import { supabase } from '@/lib/utils/supabase';
 import { fileTransferManager } from '@/lib/utils/file-transfer-manager';
 import { toast } from 'sonner';
@@ -1443,6 +1444,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
         onForward={() => {
           if (actionSheetMessage) onAction?.('forward', { message: actionSheetMessage });
         }}
+        onBookmark={async () => {
+          if (!actionSheetMessage) return;
+          try {
+            const token = typeof window !== 'undefined' ? localStorage.getItem('attendance_token') : null;
+            const schoolId = typeof window !== 'undefined' ? localStorage.getItem('x-school-id') : null;
+            const res = await fetch(`${API_URL}/api/messages/${actionSheetMessage.id}/bookmark`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                ...(schoolId ? { 'x-school-id': schoolId } : {}),
+              },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              toast.success(data.isBookmarked ? 'Saved to bookmarks' : 'Removed from bookmarks');
+            } else {
+              toast.error('Failed to bookmark message');
+            }
+          } catch (err) {
+            toast.error('Failed to bookmark message');
+          }
+        }}
         onDelete={(deleteForEveryone) => {
           if (actionSheetMessage) {
             if (deleteForEveryone) {
@@ -1453,6 +1477,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
           }
         }}
       />
+
 
       {/* Desktop Delete Confirmation Dialog (from ContextMenu) */}
       <AnimatePresence>

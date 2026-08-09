@@ -10,10 +10,10 @@ interface OrganizationJsonLdProps {
 }
 
 export function OrganizationJsonLd({
-  name = "Zetime",
+  name = "Addis Hiwot",
   url = SITE_URL,
-  logo = `${SITE_URL}/zetime-logo.png`,
-  description = "Smart school attendance tracking and management system for educational institutions across Ethiopia.",
+  logo = `${SITE_URL}/Addis Hiwot-logo.png`,
+  description = "School Attendance Management & Communication System for educational institutions.",
 }: OrganizationJsonLdProps) {
   const schema = {
     "@context": "https://schema.org",
@@ -52,9 +52,9 @@ interface WebApplicationJsonLdProps {
 }
 
 export function WebApplicationJsonLd({
-  name = "Zetime",
+  name = "Addis Hiwot",
   url = SITE_URL,
-  description = "Zetime automates attendance tracking, discipline management, and real-time parent notifications for schools across Ethiopia.",
+  description = "Addis Hiwot School Attendance Management & Communication System — smart attendance tracking, discipline management, and real-time parent notifications.",
   applicationCategory = "EducationApplication",
   operatingSystem = "Web, Android",
   offers = { price: "0", priceCurrency: "ETB" },

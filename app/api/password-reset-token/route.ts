@@ -36,4 +36,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "An error occurred" }, { status: 500 })
   }
 }
-

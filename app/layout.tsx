@@ -42,7 +42,7 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — Smart School Attendance Management`,
+    default: `${SITE_NAME} — School Attendance Management & Communication System`,
     template: `%s | ${SITE_NAME}`,
   },
   description: DEFAULT_DESCRIPTION,
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — Smart School Attendance Management`,
+    title: `${SITE_NAME} — School Attendance Management & Communication System`,
     description: DEFAULT_DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
@@ -71,14 +71,14 @@ export const metadata: Metadata = {
         url: DEFAULT_OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: `${SITE_NAME} — Smart School Attendance Management`,
+        alt: `${SITE_NAME} — School Attendance Management & Communication System`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     site: TWITTER_HANDLE,
-    title: `${SITE_NAME} — Smart School Attendance Management`,
+    title: `${SITE_NAME} — School Attendance Management & Communication System`,
     description: DEFAULT_DESCRIPTION,
     images: [DEFAULT_OG_IMAGE],
   },
@@ -91,7 +91,7 @@ export const viewport: Viewport = {
   maximumScale: 5,
   userScalable: true,
   viewportFit: "cover",
-  themeColor: "#2563eb",
+  themeColor: "#1a3a6b",
 }
 
 export default function RootLayout({

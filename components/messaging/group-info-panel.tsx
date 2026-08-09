@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils/utils';
 import { notifications } from '@/lib/utils/notifications';
+import { ConversationDetailsTabs } from '@/components/messaging/conversation-details-tabs';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend.onrender.com';
 
@@ -44,6 +45,7 @@ interface GroupInfoPanelProps {
   onLeaveGroup?: () => void;
   onGroupUpdated?: (updatedGroup: any) => void;
   onSendMessage?: () => void;
+  onNavigateToMessage?: (messageId: string) => void;
 }
 
 export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
@@ -56,7 +58,8 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
   onToggleMute,
   onLeaveGroup,
   onGroupUpdated,
-  onSendMessage
+  onSendMessage,
+  onNavigateToMessage
 }) => {
   const [activeTab, setActiveTab] = useState('members');
   const [memberFilter, setMemberFilter] = useState<'all' | 'admins' | 'online' | 'members'>('all');
@@ -601,94 +604,21 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
               )}
             </TabsContent>
 
-            {/* ── Media Tab Content ──────────────────────────────────────── */}
-            <TabsContent value="media" className="mt-3">
-              {isLoadingMedia ? (
-                <div className="py-12 flex items-center justify-center text-slate-500 gap-2 text-xs">
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-                  Loading media...
-                </div>
-              ) : mediaFiles.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500 space-y-2">
-                  <ImageIcon className="h-8 w-8 mx-auto text-slate-600 opacity-40" />
-                  <p>No photos or videos shared yet.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-1.5">
-                  {mediaFiles.map((item: any) => (
-                    <div 
-                      key={item.id} 
-                      onClick={() => setPreviewMedia(item.mediaUrl || item.content)}
-                      className="aspect-square rounded-xl overflow-hidden bg-slate-800 relative cursor-pointer group border border-slate-800"
-                    >
-                      <img src={item.mediaUrl || item.content} alt="Media" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  ))}
-                </div>
+            {/* ── Media, Saved, Files, Links Tabs ──────────────────────── */}
+            <div className="mt-3">
+              {['media', 'saved', 'files', 'links'].includes(activeTab) && (
+                <ConversationDetailsTabs
+                  conversationId={group.id}
+                  activeTab={activeTab as any}
+                  onTabChange={(tab) => setActiveTab(tab)}
+                  onNavigateToMessage={(mid) => {
+                    if (onNavigateToMessage) onNavigateToMessage(mid);
+                    onClose();
+                  }}
+                />
               )}
-            </TabsContent>
+            </div>
 
-            {/* ── Saved Tab Content ──────────────────────────────────────── */}
-            <TabsContent value="saved" className="mt-3">
-              <div className="py-12 text-center text-xs text-slate-500 space-y-2">
-                <Bookmark className="h-8 w-8 mx-auto text-slate-600 opacity-40" />
-                <p>No saved messages in this group.</p>
-              </div>
-            </TabsContent>
-
-            {/* ── Files Tab Content ──────────────────────────────────────── */}
-            <TabsContent value="files" className="mt-3 space-y-2">
-              {isLoadingMedia ? (
-                <div className="py-12 flex items-center justify-center text-slate-500 gap-2 text-xs">
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-                  Loading files...
-                </div>
-              ) : docFiles.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500 space-y-2">
-                  <FileText className="h-8 w-8 mx-auto text-slate-600 opacity-40" />
-                  <p>No documents shared in this group.</p>
-                </div>
-              ) : (
-                docFiles.map((file: any) => (
-                  <a
-                    key={file.id}
-                    href={file.mediaUrl || file.content}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 p-2.5 rounded-xl bg-[#141f2d] hover:bg-[#1a293b] border border-slate-800/60 transition-colors"
-                  >
-                    <FileText className="h-6 w-6 text-emerald-400 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-200 truncate">{file.fileName || 'Attachment'}</p>
-                      <p className="text-[10px] text-slate-400">{file.sender?.full_name || 'Sender'}</p>
-                    </div>
-                  </a>
-                ))
-              )}
-            </TabsContent>
-
-            {/* ── Links Tab Content ──────────────────────────────────────── */}
-            <TabsContent value="links" className="mt-3 space-y-2">
-              {linkFiles.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500 space-y-2">
-                  <LinkIcon className="h-8 w-8 mx-auto text-slate-600 opacity-40" />
-                  <p>No shared web links found.</p>
-                </div>
-              ) : (
-                linkFiles.map((linkMsg: any) => (
-                  <div key={linkMsg.id} className="p-3 rounded-xl bg-[#141f2d] border border-slate-800/60 space-y-1">
-                    <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
-                      <LinkIcon className="h-3.5 w-3.5 shrink-0" />
-                      <a href={linkMsg.content} target="_blank" rel="noreferrer" className="truncate hover:underline">
-                        {linkMsg.content}
-                      </a>
-                    </div>
-                    <span className="text-[10px] text-slate-500">{linkMsg.sender?.full_name}</span>
-                  </div>
-                ))
-              )}
-            </TabsContent>
 
           </Tabs>
         </div>

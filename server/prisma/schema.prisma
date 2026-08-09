@@ -41,6 +41,7 @@ model School {
   userNotifications    UserNotification[]
   disciplines          StudentDiscipline[]
   disciplineCategories DisciplineCategory[]
+  disciplineActions    DisciplineActionConfig[]
   systemRoles          SystemRole[]
   academicYears        AcademicYear[]
   academicTerms        AcademicTerm[]
@@ -85,9 +86,11 @@ model User {
   parentStudents             ParentStudentLink[]
   school                     School?              @relation(fields: [schoolId], references: [id])
   notifications              UserNotification[]
-  reportedDisciplines        StudentDiscipline[]
+  reportedDisciplines        StudentDiscipline[]  @relation("ReportedBy")
+  assignedDisciplines        StudentDiscipline[]  @relation("AssignedOfficer")
   disciplineFollowUps        DisciplineFollowUp[]
   createdTimetables          Timetable[]
+  savedBookmarks             SavedBookmark[]
 
   @@index([email])
   @@index([schoolId])
@@ -442,6 +445,7 @@ model Conversation {
   members           ConversationMember[]
   messages          Message[]
   pinnedMessages    PinnedMessage[]
+  savedBookmarks    SavedBookmark[]
 
   @@unique([savedMessagesFor, schoolId])
   @@index([schoolId])
@@ -489,6 +493,7 @@ model Message {
   reactions        MessageReaction[]
   readBy           MessageRead[]
   pinnedIn         PinnedMessage[]
+  savedBookmarks   SavedBookmark[]
 
   @@index([conversationId])
   @@index([conversationId, createdAt])   // message pagination — avoids full-table sort
@@ -510,6 +515,22 @@ model PinnedMessage {
 
   @@unique([conversationId, messageId])
   @@index([conversationId])
+}
+
+model SavedBookmark {
+  id             String       @id @default(uuid())
+  userId         String
+  messageId      String
+  conversationId String
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message        Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId, conversationId])
+  @@index([userId])
+  @@map("saved_bookmarks")
 }
 
 model MessageRead {
@@ -736,6 +757,7 @@ model DisciplineCategory {
 
 model StudentDiscipline {
   id                        String               @id @default(uuid())
+  caseNumber                String?
   schoolId                  String
   studentId                 String
   gradeId                   String
@@ -751,9 +773,20 @@ model StudentDiscipline {
   location                  String?
   reportedById              String?
   reportedByName            String?
+  assignedToId              String?
+  assignedToName            String?
   witnesses                 Json?
   evidence                  Json?                // Array of { url, name, type, size }
   immediateAction           String?
+  investigationNotes        String?
+  findings                  String?
+  meetingNotes              String?
+  recommendedAction         String?
+  approvedAction            String?
+  actionDate                DateTime?
+  responsibleStaffName      String?
+  actionStatus              String?              @default("PENDING") // PENDING, APPROVED, IN_PROGRESS, COMPLETED
+  confidentialNotes         String?
   parentNotified            Boolean              @default(false)
   parentNotifiedAt          DateTime?
   parentAcknowledged        Boolean              @default(false)
@@ -761,7 +794,7 @@ model StudentDiscipline {
   parentAcknowledgementNotes String?
   followUpDate              DateTime?
   resolutionNotes           String?
-  status                    String               @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  status                    String               @default("OPEN") // OPEN, UNDER_REVIEW, INVESTIGATION, ACTION_REQUIRED, RESOLVED, CLOSED
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
 
@@ -770,7 +803,8 @@ model StudentDiscipline {
   grade                     Grade                @relation(fields: [gradeId], references: [id])
   section                   Section              @relation(fields: [sectionId], references: [id])
   stream                    Stream?              @relation(fields: [streamId], references: [id])
-  reportedBy                User?                @relation(fields: [reportedById], references: [id])
+  reportedBy                User?                @relation("ReportedBy", fields: [reportedById], references: [id])
+  assignedTo                User?                @relation("AssignedOfficer", fields: [assignedToId], references: [id])
   category                  DisciplineCategory?  @relation(fields: [categoryId], references: [id])
   followUps                 DisciplineFollowUp[]
 
@@ -781,7 +815,24 @@ model StudentDiscipline {
   @@index([status])
   @@index([severity])
   @@index([date])
+  @@index([caseNumber])
+  @@index([assignedToId])
   @@map("student_disciplines")
+}
+
+model DisciplineActionConfig {
+  id          String   @id @default(uuid())
+  schoolId    String?
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  school      School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("discipline_action_configs")
 }
 
 model DisciplineFollowUp {

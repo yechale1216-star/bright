@@ -124,5 +124,3 @@ Smart Attendance System
     })
   }
 }
-
-

@@ -52,4 +52,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ valid: false, error: "An error occurred verifying the token" }, { status: 500 })
   }
 }
-

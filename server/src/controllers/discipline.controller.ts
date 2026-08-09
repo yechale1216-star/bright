@@ -41,6 +41,44 @@ export class DisciplineController {
     }
   }
 
+  static async getActionsConfig(req: AuthenticatedRequest, res: Response) {
+    try {
+      const schoolId = req.user!.schoolId;
+      const actions = await DisciplineService.getActionsConfig(schoolId);
+      return res.json({ success: true, data: actions });
+    } catch (error: any) {
+      console.error('[DisciplineController] getActionsConfig error:', error);
+      return res.status(500).json({ success: false, message: error.message || 'Failed to fetch actions' });
+    }
+  }
+
+  static async createActionConfig(req: AuthenticatedRequest, res: Response) {
+    try {
+      const schoolId = req.user!.schoolId;
+      const { name, description } = req.body;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ success: false, message: 'Action name is required' });
+      }
+      const action = await DisciplineService.createActionConfig(schoolId, name, description);
+      return res.status(201).json({ success: true, data: action });
+    } catch (error: any) {
+      console.error('[DisciplineController] createActionConfig error:', error);
+      return res.status(400).json({ success: false, message: error.message || 'Failed to create action' });
+    }
+  }
+
+  static async deleteActionConfig(req: AuthenticatedRequest, res: Response) {
+    try {
+      const schoolId = req.user!.schoolId;
+      const { id } = req.params;
+      await DisciplineService.deleteActionConfig(schoolId, id);
+      return res.json({ success: true, message: 'Action configuration deleted' });
+    } catch (error: any) {
+      console.error('[DisciplineController] deleteActionConfig error:', error);
+      return res.status(500).json({ success: false, message: error.message || 'Failed to delete action' });
+    }
+  }
+
   static async getIncidents(req: AuthenticatedRequest, res: Response) {
     try {
       const user = req.user!;
@@ -62,6 +100,19 @@ export class DisciplineController {
       console.error('[DisciplineController] getIncidentById error:', error);
       const status = error.message?.includes('Forbidden') ? 403 : error.message?.includes('not found') ? 404 : 500;
       return res.status(status).json({ success: false, message: error.message || 'Failed to fetch incident' });
+    }
+  }
+
+  static async getStudentProfile(req: AuthenticatedRequest, res: Response) {
+    try {
+      const user = req.user!;
+      const { studentId } = req.params;
+      const profile = await DisciplineService.getStudentDisciplineProfile(user, studentId, req.query as any);
+      return res.json({ success: true, data: profile });
+    } catch (error: any) {
+      console.error('[DisciplineController] getStudentProfile error:', error);
+      const status = error.message?.includes('Forbidden') ? 403 : error.message?.includes('not found') ? 404 : 500;
+      return res.status(status).json({ success: false, message: error.message || 'Failed to fetch student discipline profile' });
     }
   }
 
@@ -87,6 +138,49 @@ export class DisciplineController {
       console.error('[DisciplineController] updateIncident error:', error);
       const status = error.message?.includes('Forbidden') ? 403 : 400;
       return res.status(status).json({ success: false, message: error.message || 'Failed to update incident' });
+    }
+  }
+
+  static async assignOfficer(req: AuthenticatedRequest, res: Response) {
+    try {
+      const user = req.user!;
+      const { id } = req.params;
+      const { officerId, notes } = req.body;
+      if (!officerId) {
+        return res.status(400).json({ success: false, message: 'Officer ID is required for assignment' });
+      }
+      const updated = await DisciplineService.assignOfficer(user as any, id, officerId, notes);
+      return res.json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[DisciplineController] assignOfficer error:', error);
+      const status = error.message?.includes('Forbidden') ? 403 : 400;
+      return res.status(status).json({ success: false, message: error.message || 'Failed to assign officer' });
+    }
+  }
+
+  static async updateInvestigation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const user = req.user!;
+      const { id } = req.params;
+      const updated = await DisciplineService.updateInvestigation(user as any, id, req.body);
+      return res.json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[DisciplineController] updateInvestigation error:', error);
+      const status = error.message?.includes('Forbidden') ? 403 : 400;
+      return res.status(status).json({ success: false, message: error.message || 'Failed to update investigation' });
+    }
+  }
+
+  static async updateAction(req: AuthenticatedRequest, res: Response) {
+    try {
+      const user = req.user!;
+      const { id } = req.params;
+      const updated = await DisciplineService.updateAction(user as any, id, req.body);
+      return res.json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error('[DisciplineController] updateAction error:', error);
+      const status = error.message?.includes('Forbidden') ? 403 : 400;
+      return res.status(status).json({ success: false, message: error.message || 'Failed to update action plan' });
     }
   }
 

@@ -266,20 +266,18 @@ const getConversationShared = async (req, res) => {
     const { conversationId } = req.params;
     const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
-    if (!schoolId || !userId)
+    if (!userId)
         return res.status(401).json({ error: 'Unauthorized' });
     try {
         let targetConvId = conversationId;
-        // Verify membership
+        // Verify membership or direct contact conversation
         const isMember = await db_1.default.conversationMember.findFirst({
             where: { conversationId: targetConvId, userId },
             select: { id: true },
         });
         if (!isMember) {
-            // Check if conversationId was passed as a contact's userId
             const directConv = await db_1.default.conversation.findFirst({
                 where: {
-                    schoolId,
                     isGroup: false,
                     AND: [
                         { members: { some: { userId } } },
@@ -289,15 +287,14 @@ const getConversationShared = async (req, res) => {
                 select: { id: true },
             });
             if (!directConv) {
-                return res.status(200).json({ media: [], files: [], links: [] });
+                return res.status(200).json({ media: [], files: [], links: [], saved: [] });
             }
             targetConvId = directConv.id;
         }
-        // Fetch media + file messages
+        // 1. Fetch Media & File messages
         const mediaAndFiles = await db_1.default.message.findMany({
             where: {
                 conversationId: targetConvId,
-                schoolId,
                 isDeleted: false,
                 OR: [
                     { type: { in: ['IMAGE', 'VIDEO', 'FILE', 'VOICE', 'AUDIO', 'DOCUMENT'] } },
@@ -305,69 +302,171 @@ const getConversationShared = async (req, res) => {
                 ],
             },
             orderBy: { createdAt: 'desc' },
-            take: 200,
-            select: {
-                id: true,
-                type: true,
-                content: true,
-                attachments: true,
-                createdAt: true,
+            take: 300,
+            include: {
                 sender: { select: { id: true, full_name: true, profile_photo: true } },
             },
         });
-        // Fetch text messages to extract links
+        // 2. Fetch Text messages containing links
         const textMessages = await db_1.default.message.findMany({
             where: {
                 conversationId: targetConvId,
-                schoolId,
                 isDeleted: false,
-                content: { contains: 'http' },
+                OR: [
+                    { content: { contains: 'http://', mode: 'insensitive' } },
+                    { content: { contains: 'https://', mode: 'insensitive' } },
+                    { content: { contains: 'www.', mode: 'insensitive' } },
+                ],
             },
             orderBy: { createdAt: 'desc' },
-            take: 200,
+            take: 300,
             select: {
                 id: true,
                 content: true,
                 createdAt: true,
-                sender: { select: { id: true, full_name: true } },
+                metadata: true,
+                sender: { select: { id: true, full_name: true, profile_photo: true } },
             },
         });
-        // Extract URLs from text messages
-        const URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
+        // 3. Fetch Saved Bookmarks for this conversation
+        const savedBookmarks = await db_1.default.savedBookmark.findMany({
+            where: { userId, conversationId: targetConvId },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+            include: {
+                message: {
+                    select: {
+                        id: true,
+                        conversationId: true,
+                        senderId: true,
+                        content: true,
+                        type: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        editedAt: true,
+                        isDeleted: true,
+                        attachments: true,
+                        sender: { select: { id: true, full_name: true, profile_photo: true } },
+                    },
+                },
+            },
+        });
+        // Categorize Media vs Files
+        const media = [];
+        const files = [];
+        const MEDIA_EXTS = /\.(jpg|jpeg|png|webp|gif|svg|mp4|mov|webm|mkv|avi)$/i;
+        for (const m of mediaAndFiles) {
+            const rawAtts = Array.isArray(m.attachments) ? m.attachments : (m.attachments ? [m.attachments] : []);
+            if (rawAtts.length === 0 && !m.content)
+                continue;
+            const att = rawAtts[0] || {};
+            const mime = (att.type || att.mimeType || '').toLowerCase();
+            const url = att.url || m.content || '';
+            const cleanUrl = url.split('?')[0].split('#')[0];
+            const isMediaMime = mime.startsWith('image/') || mime.startsWith('video/');
+            const isMediaExt = MEDIA_EXTS.test(cleanUrl);
+            const isMediaType = m.type === 'IMAGE' || m.type === 'VIDEO';
+            const isVideo = mime.startsWith('video/') || /\.(mp4|mov|webm|mkv|avi)$/i.test(cleanUrl) || m.type === 'VIDEO';
+            if (isMediaType || isMediaMime || isMediaExt) {
+                media.push({
+                    id: m.id,
+                    messageId: m.id,
+                    type: isVideo ? 'VIDEO' : 'IMAGE',
+                    mediaUrl: url,
+                    fileName: att.name || att.fileName || (isVideo ? 'Video' : 'Photo'),
+                    fileSize: att.size || null,
+                    mimeType: mime || (isVideo ? 'video/mp4' : 'image/jpeg'),
+                    createdAt: m.createdAt,
+                    sender: m.sender,
+                    attachments: rawAtts,
+                });
+            }
+            else {
+                // File categorization
+                const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
+                let fileCategory = 'other';
+                if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext) || mime.includes('pdf') || mime.includes('word') || mime.includes('text')) {
+                    fileCategory = 'document';
+                }
+                else if (['xls', 'xlsx', 'csv', 'ods'].includes(ext) || mime.includes('spreadsheet') || mime.includes('excel') || mime.includes('csv')) {
+                    fileCategory = 'spreadsheet';
+                }
+                else if (['ppt', 'pptx', 'key'].includes(ext) || mime.includes('presentation') || mime.includes('powerpoint')) {
+                    fileCategory = 'presentation';
+                }
+                else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext) || mime.includes('zip') || mime.includes('compressed') || mime.includes('archive')) {
+                    fileCategory = 'archive';
+                }
+                else if (['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext) || mime.startsWith('audio/') || m.type === 'VOICE' || m.type === 'AUDIO') {
+                    fileCategory = 'audio';
+                }
+                files.push({
+                    id: m.id,
+                    messageId: m.id,
+                    fileName: att.name || att.fileName || (m.content?.split('/').pop()) || 'Attachment',
+                    fileSize: att.size || null,
+                    fileUrl: url,
+                    extension: ext,
+                    category: fileCategory,
+                    mimeType: mime,
+                    createdAt: m.createdAt,
+                    sender: m.sender,
+                    attachments: rawAtts,
+                });
+            }
+        }
+        // Extract Links from text messages
+        const URL_REGEX = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
         const links = [];
+        const seenUrls = new Set();
         for (const msg of textMessages) {
             const matches = msg.content?.match(URL_REGEX) || [];
-            for (const url of matches) {
+            for (let rawUrl of matches) {
+                let fullUrl = rawUrl;
+                if (fullUrl.startsWith('www.'))
+                    fullUrl = `https://${fullUrl}`;
+                if (seenUrls.has(fullUrl))
+                    continue;
+                seenUrls.add(fullUrl);
+                let domain = '';
+                try {
+                    domain = new URL(fullUrl).hostname.replace('www.', '');
+                }
+                catch {
+                    domain = fullUrl;
+                }
+                const meta = msg.metadata?.linkPreview || {};
                 links.push({
-                    id: `${msg.id}-${url}`,
-                    url,
+                    id: `${msg.id}-${fullUrl}`,
                     messageId: msg.id,
+                    url: fullUrl,
+                    domain,
+                    title: meta.title || domain,
+                    description: meta.description || null,
+                    previewImage: meta.image || meta.previewImage || null,
                     createdAt: msg.createdAt,
                     sender: msg.sender,
                 });
             }
         }
-        const media = [];
-        const files = [];
-        for (const m of mediaAndFiles) {
-            const att = Array.isArray(m.attachments) ? m.attachments[0] : null;
-            const mime = att?.type || att?.mimeType || '';
-            const url = att?.url || m.content || '';
-            const isMediaMime = typeof mime === 'string' && (mime.startsWith('image/') || mime.startsWith('video/'));
-            const isMediaExt = typeof url === 'string' && /\.(jpg|jpeg|png|webp|gif|svg|mp4|mov|webm|mkv)$/i.test(url);
-            const isMediaType = m.type === 'IMAGE' || m.type === 'VIDEO';
-            if (isMediaType || isMediaMime || isMediaExt) {
-                media.push(m);
-            }
-            else {
-                files.push(m);
-            }
-        }
-        res.status(200).json({ media, files, links });
+        // Process Saved Bookmarks
+        const saved = savedBookmarks
+            .filter((b) => b.message && !b.message.isDeleted)
+            .map((b) => ({
+            bookmarkId: b.id,
+            savedAt: b.createdAt,
+            messageId: b.message.id,
+            content: b.message.content,
+            type: b.message.type,
+            createdAt: b.message.createdAt,
+            sender: b.message.sender,
+            attachments: b.message.attachments,
+        }));
+        return res.status(200).json({ media, files, links, saved });
     }
     catch (error) {
         console.error('[SharedContent] error:', error);
-        res.status(500).json({ error: 'Failed to fetch shared content' });
+        return res.status(500).json({ error: 'Failed to fetch shared content' });
     }
 };
 exports.getConversationShared = getConversationShared;

@@ -32,6 +32,25 @@ import { useCall } from '@/components/providers/call-provider';
 import { cn } from '@/lib/utils/utils';
 import { useLanguage } from '@/lib/context/language-context';
 import { apiUrl } from '@/lib/api-config';
+import { ConversationDetailsTabs, type TabKey } from '@/components/messaging/conversation-details-tabs';
+
+interface SavedItem {
+  id: string;
+  bookmarkId: string;
+  savedAt: string;
+  messageId: string;
+  content?: string;
+  type: string;
+  createdAt: string;
+  sender?: { id: string; full_name: string; profile_photo?: string };
+  attachments?: any[];
+}
+
+interface SharedContent {
+  media: any[];
+  files: any[];
+  links: any[];
+}
 
 const API_URL = apiUrl;
 
@@ -83,15 +102,11 @@ interface UserInfoPanelProps {
   conversationId?: string | null;
   onClose: () => void;
   onAction?: (action: string, data: any) => void;
+  onNavigateToMessage?: (messageId: string) => void;
 }
 
-type TabKey = 'media' | 'saved' | 'files' | 'links';
-
-interface SharedContent { media: any[]; files: any[]; links: any[] }
-interface SavedItem { id: string; type: string; content: string; attachments: any; createdAt: string; sender?: { full_name: string } }
-
 export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
-  user, currentUser, conversationId, onClose, onAction,
+  user, currentUser, conversationId, onClose, onAction, onNavigateToMessage,
 }) => {
   const { t } = useLanguage();
   const { initiateCall } = useCall();
@@ -429,36 +444,15 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
 
           {/* Tabs section */}
           <div className="border-t border-border/70 mt-2 bg-secondary/5 min-h-[350px]">
-            {/* Sticky Tab Bar */}
-            <div className="flex border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur-md z-20 shadow-sm">
-              {(['media', 'saved', 'files', 'links'] as TabKey[]).map((tab) => {
-                const count = tabCounts[tab];
-                const isLoading = tab === 'saved' ? savedLoading : sharedLoading;
-                return (
-                  <button key={tab} onClick={() => setActiveTab(tab)}
-                    className={cn(
-                      'flex-1 py-3 text-xs font-bold text-center border-b-2 transition-all uppercase tracking-wider relative flex items-center justify-center gap-1 cursor-pointer select-none',
-                      activeTab === tab ? 'border-emerald-600 text-emerald-600 font-extrabold' : 'border-transparent text-muted-foreground hover:text-foreground',
-                    )}>
-                    {TAB_LABELS[tab]}
-                    {count !== null && count > 0 && (
-                      <span className={cn('text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none',
-                        activeTab === tab ? 'bg-emerald-600 text-white' : 'bg-secondary/80 text-muted-foreground')}>
-                        {count > 99 ? '99+' : count}
-                      </span>
-                    )}
-                    {isLoading && <Loader2 className="h-2.5 w-2.5 animate-spin opacity-60 ml-0.5" />}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Tab Content */}
-            <div className="p-3 min-h-[250px] pb-10">
-              {activeTab === 'media' && <MediaTab />}
-              {activeTab === 'saved' && <SavedTab />}
-              {activeTab === 'files' && <FilesTab />}
-              {activeTab === 'links' && <LinksTab />}
-            </div>
+            {Boolean(conversationId || user?.conversationId || user?.id) && (
+              <ConversationDetailsTabs
+                conversationId={(conversationId || user?.conversationId || user?.id)!}
+                onNavigateToMessage={(mid) => {
+                  if (onNavigateToMessage) onNavigateToMessage(mid);
+                  onClose();
+                }}
+              />
+            )}
           </div>
 
         </div>

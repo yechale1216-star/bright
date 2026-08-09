@@ -413,7 +413,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
 
         {onShowAdminSignup && (
           <div className="mt-8 pt-6 border-t border-slate-300 dark:border-white/5 text-center">
-            <p className="typography-body text-slate-600 dark:text-slate-400 mb-4 font-medium">New to Zetime? Create a school account</p>
+            <p className="typography-body text-slate-600 dark:text-slate-400 mb-4 font-medium">New to Addis Hiwot? Create a school account</p>
             <Button
               variant="outline"
               onClick={onShowAdminSignup}

@@ -35,7 +35,7 @@ export function StartupLoadingScreen() {
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="w-9 h-9 text-blue-600 dark:text-blue-400 animate-spin" />
         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 tracking-wide animate-pulse">
-          Loading Zetime...
+          Loading Addis Hiwot...
         </p>
       </div>
     </div>

@@ -64,7 +64,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { title: "Attendance", href: role === "teacher" ? "/school/teacher/attendance" : role === "parent" ? "/parent/attendance" : "/school/admin/attendance", icon: CheckSquare },
     { title: "Analytics & Grades", href: "/school/admin/attendance-by-grade", icon: BarChart2, roles: ["admin", "school_admin"] },
     { title: "Reports", href: role === "teacher" ? "/school/teacher/reports" : "/school/admin/reports", icon: BookOpen },
-    { title: "Discipline", href: role === "parent" ? "/parent/discipline" : role === "teacher" ? "/school/teacher/discipline" : "/school/admin/discipline", icon: ShieldAlert },
+    { title: "Discipline", href: role === "parent" ? "/parent/discipline" : role === "discipline_officer" ? "/school/discipline-officer" : "/school/admin/discipline", icon: ShieldAlert, roles: ["admin", "school_admin", "super_admin", "discipline_officer", "parent"] },
     { title: "Settings", href: "/school/admin/settings", icon: Settings, roles: ["admin", "school_admin"] },
     { title: "Subscription", href: "/school/admin/subscription", icon: CreditCard, roles: ["admin", "school_admin"] },
     { title: "Help Desk", href: "/school/admin/support", icon: HeadphonesIcon, roles: ["admin", "school_admin"] },

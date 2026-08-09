@@ -4,7 +4,7 @@ import { createPageMetadata } from "@/lib/seo/metadata-constants"
 
 export const metadata = createPageMetadata({
   title: "Reset Password",
-  description: "Reset your Zetime account password securely.",
+  description: "Reset your Addis Hiwot account password securely.",
   path: "/reset-password",
   noIndex: true,
 })

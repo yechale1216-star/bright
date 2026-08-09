@@ -4,7 +4,7 @@ import { createPageMetadata } from "@/lib/seo/metadata-constants"
 export const metadata = createPageMetadata({
   title: "Sign In — Account Access",
   description:
-    "Sign in to your Zetime account to access school attendance management, parent communication portals, and administrative tools.",
+    "Sign in to your Addis Hiwot account to access school attendance management, parent communication portals, and administrative tools.",
   path: "/login",
 })
 

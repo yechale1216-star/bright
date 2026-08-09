@@ -107,7 +107,7 @@ export function PWAInstall() {
     if (!isInstalled && !window.location.hostname.includes("localhost")) {
       const hasReminded = localStorage.getItem("pwa_reminded")
       if (!hasReminded) {
-        notifications.info("Tip", "You can install Zetime as an app for a better experience!")
+        notifications.info("Tip", "You can install Addis Hiwot as an app for a better experience!")
         localStorage.setItem("pwa_reminded", "true")
       }
     }

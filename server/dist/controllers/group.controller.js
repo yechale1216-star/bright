@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -263,34 +296,8 @@ const updateMemberRole = async (req, res) => {
 exports.updateMemberRole = updateMemberRole;
 // ── Get Group Media ───────────────────────────────────────────────────────────
 const getGroupMedia = async (req, res) => {
-    const { id } = req.params;
-    const schoolId = req.user?.schoolId;
-    const userId = req.user?.id;
-    try {
-        const isMember = await db_1.default.conversationMember.findFirst({
-            where: { conversationId: id, userId },
-        });
-        if (!isMember)
-            return res.status(403).json({ error: 'Not a member of this group' });
-        const messages = await db_1.default.message.findMany({
-            where: {
-                conversationId: id,
-                schoolId,
-                isDeleted: false,
-                type: { in: ['IMAGE', 'FILE', 'VOICE'] },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 100,
-            include: {
-                sender: { select: { id: true, full_name: true } },
-            },
-        });
-        res.json(messages);
-    }
-    catch (error) {
-        console.error('Error fetching media:', error);
-        res.status(500).json({ error: 'Failed to fetch media' });
-    }
+    const { getConversationShared } = await Promise.resolve().then(() => __importStar(require('./message.controller')));
+    return getConversationShared(req, res);
 };
 exports.getGroupMedia = getGroupMedia;
 // ── Pin/Unpin Message ─────────────────────────────────────────────────────────

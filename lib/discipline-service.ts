@@ -1,9 +1,11 @@
 import { getApiUrl } from './api-config';
+import { queryCache } from './utils/query-cache';
 
 const API_URL = getApiUrl();
 
 export interface StudentDiscipline {
   id: string;
+  caseNumber?: string | null;
   schoolId: string;
   studentId: string;
   gradeId: string;
@@ -19,9 +21,20 @@ export interface StudentDiscipline {
   location?: string | null;
   reportedById?: string | null;
   reportedByName?: string | null;
+  assignedToId?: string | null;
+  assignedToName?: string | null;
   witnesses?: string[] | null;
   evidence?: { url: string; name: string; type: string; size?: number }[] | null;
   immediateAction?: string | null;
+  investigationNotes?: string | null;
+  findings?: string | null;
+  meetingNotes?: string | null;
+  confidentialNotes?: string | null;
+  recommendedAction?: string | null;
+  approvedAction?: string | null;
+  actionDate?: string | null;
+  responsibleStaffName?: string | null;
+  actionStatus?: string | null;
   parentNotified: boolean;
   parentNotifiedAt?: string | null;
   parentAcknowledged: boolean;
@@ -29,7 +42,7 @@ export interface StudentDiscipline {
   parentAcknowledgementNotes?: string | null;
   followUpDate?: string | null;
   resolutionNotes?: string | null;
-  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'CLOSED';
+  status: 'OPEN' | 'UNDER_REVIEW' | 'INVESTIGATION' | 'ACTION_REQUIRED' | 'RESOLVED' | 'CLOSED';
   createdAt: string;
   updatedAt: string;
 
@@ -48,6 +61,7 @@ export interface StudentDiscipline {
   section?: { id: string; name: string };
   stream?: { id: string; name: string } | null;
   reportedBy?: { id: string; full_name: string; email: string; role: string } | null;
+  assignedTo?: { id: string; full_name: string; email: string; role?: string } | null;
   followUps?: DisciplineFollowUp[];
   auditLogs?: { id: string; action: string; user_id?: string; old_values?: any; new_values?: any; created_at: string }[];
 }
@@ -72,10 +86,56 @@ export interface DisciplineCategory {
   isDefault: boolean;
 }
 
+export interface DisciplineActionConfig {
+  id: string;
+  schoolId?: string | null;
+  name: string;
+  description?: string | null;
+  isDefault: boolean;
+}
+
+export interface StudentDisciplineProfile {
+  student: {
+    id: string;
+    student_id: string;
+    fullName: string;
+    gender?: string | null;
+    grade: string;
+    section: string;
+    stream?: string | null;
+    parentName?: string | null;
+    parentPhone?: string | null;
+    parentEmail?: string | null;
+  };
+  summaryStats: {
+    title: string;
+    totalCases: number;
+    openCases: number;
+    underReviewCases: number;
+    resolvedCases: number;
+    followUpsDue: number;
+    severityBreakdown: {
+      LOW: number;
+      MEDIUM: number;
+      HIGH: number;
+      CRITICAL: number;
+    };
+  };
+  history: StudentDiscipline[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export interface DisciplineAnalytics {
   total: number;
   open: number;
   openCases: number;
+  underReviewCases?: number;
+  actionRequiredCases?: number;
   resolvedCases: number;
   criticalCases: number;
   thisMonth: number;
@@ -118,8 +178,6 @@ async function handleResponse(res: Response, defaultErrorMsg: string) {
   return await res.json();
 }
 
-import { queryCache } from './utils/query-cache';
-
 function notifyDisciplineDataChanged() {
   queryCache.invalidate(/^discipline_/);
   queryCache.invalidate('discipline_');
@@ -155,6 +213,32 @@ export const DisciplineApi = {
     notifyDisciplineDataChanged();
   },
 
+  async getActionsConfig(): Promise<DisciplineActionConfig[]> {
+    const res = await fetch(`${API_URL}/api/discipline/actions-config`, { headers: getAuthHeaders() });
+    const data = await handleResponse(res, 'Failed to fetch action configurations');
+    return data.data || [];
+  },
+
+  async createActionConfig(name: string, description?: string): Promise<DisciplineActionConfig> {
+    const res = await fetch(`${API_URL}/api/discipline/actions-config`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name, description })
+    });
+    const data = await handleResponse(res, 'Failed to create action configuration');
+    notifyDisciplineDataChanged();
+    return data.data;
+  },
+
+  async deleteActionConfig(id: string): Promise<void> {
+    const res = await fetch(`${API_URL}/api/discipline/actions-config/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    await handleResponse(res, 'Failed to delete action configuration');
+    notifyDisciplineDataChanged();
+  },
+
   async getIncidents(params: Record<string, any> = {}): Promise<{
     items: StudentDiscipline[];
     total: number;
@@ -179,6 +263,18 @@ export const DisciplineApi = {
     return data.data;
   },
 
+  async getStudentProfile(studentId: string, params: Record<string, any> = {}): Promise<StudentDisciplineProfile> {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        query.append(k, String(v));
+      }
+    });
+    const res = await fetch(`${API_URL}/api/discipline/student/${studentId}?${query.toString()}`, { headers: getAuthHeaders() });
+    const data = await handleResponse(res, 'Failed to fetch student discipline profile');
+    return data.data;
+  },
+
   async createIncident(payload: any): Promise<StudentDiscipline> {
     const res = await fetch(`${API_URL}/api/discipline`, {
       method: 'POST',
@@ -197,6 +293,53 @@ export const DisciplineApi = {
       body: JSON.stringify(payload)
     });
     const data = await handleResponse(res, 'Failed to update incident');
+    notifyDisciplineDataChanged();
+    return data.data;
+  },
+
+  async assignOfficer(id: string, officerId: string, notes?: string): Promise<StudentDiscipline> {
+    const res = await fetch(`${API_URL}/api/discipline/${id}/assign`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ officerId, notes })
+    });
+    const data = await handleResponse(res, 'Failed to assign officer');
+    notifyDisciplineDataChanged();
+    return data.data;
+  },
+
+  async updateInvestigation(id: string, payload: {
+    investigationNotes?: string;
+    findings?: string;
+    meetingNotes?: string;
+    confidentialNotes?: string;
+    status?: string;
+  }): Promise<StudentDiscipline> {
+    const res = await fetch(`${API_URL}/api/discipline/${id}/investigation`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await handleResponse(res, 'Failed to update investigation');
+    notifyDisciplineDataChanged();
+    return data.data;
+  },
+
+  async updateAction(id: string, payload: {
+    recommendedAction?: string;
+    approvedAction?: string;
+    actionDate?: string;
+    responsibleStaffName?: string;
+    actionStatus?: string;
+    status?: string;
+    notes?: string;
+  }): Promise<StudentDiscipline> {
+    const res = await fetch(`${API_URL}/api/discipline/${id}/action`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+    const data = await handleResponse(res, 'Failed to update action plan');
     notifyDisciplineDataChanged();
     return data.data;
   },
