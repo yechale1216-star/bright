@@ -102,21 +102,23 @@ class PromotionService {
         // 2. Stream Validation for Ethiopian Secondary Schools (Grade 10 -> 11)
         if (toGradeId && toGradeId !== 'GRADUATE') {
             const toGrade = await db_1.default.grade.findUnique({ where: { id: toGradeId } });
-            // If promoting to Grade 11 or 12, stream is REQUIRED
             const toGradeNum = parseInt((toGrade?.name || '').replace(/[^\d]/g, '')) || 0;
-            if (toGradeNum >= 11 && !toStreamId) {
-                throw new Error('Stream assignment (Natural or Social Science) is required when promoting to Grade 11 or 12');
-            }
             // If toStreamId is a name rather than a UUID, resolve/create it
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (toStreamId && !uuidRegex.test(toStreamId)) {
-                // It's a stream name - upsert it for this school
                 const streamRecord = await db_1.default.stream.upsert({
                     where: { schoolId_name: { schoolId, name: toStreamId } },
                     create: { name: toStreamId, schoolId },
                     update: {},
                 });
                 toStreamId = streamRecord.id;
+            }
+            // If promoting to Grade 11 or 12, stream is REQUIRED unless student already has one (e.g. Gr 11 -> 12)
+            if (toGradeNum >= 11 && !toStreamId) {
+                const sampleStudent = studentIds.length > 0 ? await db_1.default.student.findUnique({ where: { id: studentIds[0] }, select: { streamId: true } }) : null;
+                if (!sampleStudent?.streamId) {
+                    throw new Error('Stream assignment (Natural Science or Social Science) is required when promoting to Grade 11 or 12');
+                }
             }
             // If promoting to Grade <= 10, ensure stream is null
             if (toGradeNum > 0 && toGradeNum <= 10) {
@@ -132,82 +134,118 @@ class PromotionService {
             },
         });
         if (existingPromotions.length > 0) {
-            const duplicateIds = existingPromotions.map(p => p.studentId);
-            throw new Error(`Duplicate promotion detected for ${duplicateIds.length} students in academic year ${academicYear}`);
+            const duplicateSet = new Set(existingPromotions.map(p => p.studentId));
+            studentIds = studentIds.filter(id => !duplicateSet.has(id));
+            if (studentIds.length === 0) {
+                return [];
+            }
         }
-        // 4. Atomic transaction
+        // 4. Atomic transaction with extended timeout for batch operations
         return await db_1.default.$transaction(async (tx) => {
-            const results = [];
-            for (const studentId of studentIds) {
-                const student = await tx.student.findUnique({
-                    where: { id: studentId, schoolId },
-                    select: { gradeId: true, sectionId: true, streamId: true, fullName: true },
+            // Pre-fetch/resolve grade, section, stream objects ONCE outside per-student processing
+            let toGrade = null;
+            if (toGradeId && toGradeId !== 'GRADUATE') {
+                toGrade = await tx.grade.findUnique({ where: { id: toGradeId }, select: { id: true, name: true } });
+            }
+            const toGradeNum = toGrade ? parseInt((toGrade.name || '').replace(/[^\d]/g, '')) || 0 : 0;
+            const isSecondary = toGradeNum >= 11;
+            // Resolve section once if toSectionName is provided
+            let globalTargetSectionId = toSectionId || null;
+            if (!globalTargetSectionId && toSectionName && toGradeId && toGradeId !== 'GRADUATE') {
+                const section = await tx.section.upsert({
+                    where: { schoolId_name: { name: toSectionName, schoolId } },
+                    update: {},
+                    create: { name: toSectionName, schoolId },
                 });
-                if (!student)
-                    continue;
-                // Handle dynamic section resolution
-                let targetSectionId = toSectionId;
-                // If neither ID nor Name provided, default to the student's current section NAME in the target grade
-                const sectionNameResolver = toSectionName || (student.sectionId ? (await tx.section.findUnique({ where: { id: student.sectionId } }))?.name : null);
-                if (!targetSectionId && sectionNameResolver && toGradeId && toGradeId !== 'GRADUATE') {
-                    // Find or create the section by name in the school
+                globalTargetSectionId = section.id;
+            }
+            const targetStreamObj = toStreamId ? await tx.stream.findUnique({ where: { id: toStreamId }, select: { name: true } }) : null;
+            // Bulk fetch all targeted student records
+            const students = await tx.student.findMany({
+                where: { id: { in: studentIds }, schoolId },
+                select: { id: true, gradeId: true, sectionId: true, streamId: true, fullName: true, section: { select: { name: true } } },
+            });
+            const results = [];
+            for (const student of students) {
+                // Handle dynamic section resolution per student if globalTargetSectionId wasn't set
+                let targetSectionId = globalTargetSectionId;
+                if (!targetSectionId && student.section?.name && toGradeId && toGradeId !== 'GRADUATE') {
                     const section = await tx.section.upsert({
-                        where: {
-                            schoolId_name: {
-                                name: sectionNameResolver,
-                                schoolId,
-                            },
-                        },
+                        where: { schoolId_name: { name: student.section.name, schoolId } },
                         update: {},
-                        create: {
-                            name: sectionNameResolver,
-                            schoolId,
-                        },
+                        create: { name: student.section.name, schoolId },
                     });
                     targetSectionId = section.id;
                 }
+                const effectiveTargetSectionId = targetSectionId || student.sectionId;
+                const effectiveTargetStreamId = toStreamId || (isSecondary ? student.streamId : null);
                 // Log the promotion
                 const promotion = await tx.studentPromotion.create({
                     data: {
                         schoolId,
-                        studentId,
+                        studentId: student.id,
                         academicYear,
                         fromGradeId: student.gradeId,
                         fromSectionId: student.sectionId,
                         fromStreamId: student.streamId,
                         toGradeId: toGradeId === 'GRADUATE' ? null : toGradeId,
-                        toSectionId: toGradeId === 'GRADUATE' ? null : targetSectionId,
-                        toStreamId: toGradeId === 'GRADUATE' ? null : toStreamId,
+                        toSectionId: toGradeId === 'GRADUATE' ? null : effectiveTargetSectionId,
+                        toStreamId: toGradeId === 'GRADUATE' ? null : effectiveTargetStreamId,
                         promotedByUserId,
                         notes,
                     },
                 });
-                // Update Student Record
                 if (toGradeId && toGradeId !== 'GRADUATE') {
-                    const toGrade = await tx.grade.findUnique({ where: { id: toGradeId } });
-                    const toGradeNum = toGrade ? parseInt((toGrade.name || '').replace(/[^\d]/g, '')) || 0 : 0;
-                    const isSecondary = toGradeNum >= 11;
                     await tx.student.update({
-                        where: { id: studentId },
+                        where: { id: student.id },
                         data: {
                             gradeId: toGradeId,
-                            sectionId: targetSectionId || student.sectionId,
-                            streamId: toStreamId || (isSecondary ? student.streamId : null),
+                            sectionId: effectiveTargetSectionId,
+                            streamId: effectiveTargetStreamId,
                             status: 'ACTIVE',
                         },
                     });
+                    // Create parent notification
+                    const streamInfo = targetStreamObj ? ` (${targetStreamObj.name})` : '';
+                    const sectionName = toSectionName || student.section?.name || '';
+                    const sectionInfo = sectionName ? ` Sec ${sectionName}` : '';
+                    await tx.parentNotification.create({
+                        data: {
+                            schoolId,
+                            studentId: student.id,
+                            type: 'PROMOTION',
+                            category: 'ACADEMIC',
+                            priority: 'NORMAL',
+                            title: '🎓 Student Promoted',
+                            message: `${student.fullName} has been promoted to ${toGrade?.name || 'the next grade'}${streamInfo}${sectionInfo} for academic year ${academicYear}.`,
+                        }
+                    }).catch(() => { });
                 }
                 else {
                     await tx.student.update({
-                        where: { id: studentId },
+                        where: { id: student.id },
                         data: {
                             status: 'GRADUATED',
                         },
                     });
+                    await tx.parentNotification.create({
+                        data: {
+                            schoolId,
+                            studentId: student.id,
+                            type: 'GRADUATION',
+                            category: 'ACADEMIC',
+                            priority: 'HIGH',
+                            title: '🎓 Student Graduated',
+                            message: `${student.fullName} has successfully graduated for academic year ${academicYear}!`,
+                        }
+                    }).catch(() => { });
                 }
                 results.push(promotion);
             }
             return results;
+        }, {
+            maxWait: 10000,
+            timeout: 60000,
         });
     }
     /**

@@ -59,7 +59,7 @@ export function AttendanceByGrade() {
       // Fetch both attendance and students for the selected date range
       const [attendanceRecords, studentsData] = await Promise.all([
         db.getAttendanceByDateRange(filters.startDate, filters.endDate),
-        db.getStudents()
+        db.getStudents(false, "ACTIVE")
       ])
 
       setRawData({ attendance: attendanceRecords, students: studentsData })

@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.getNextStudentId = exports.getAllStudents = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const parentService = __importStar(require("./parent.service"));
+const academic_year_service_1 = require("./academic-year.service");
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student) => {
     if (!student)
@@ -51,23 +52,106 @@ const mapStudentToFlat = (student) => {
         stream: student.stream?.name || null,
     };
 };
-const getAllStudents = async (schoolId, search) => {
+const getAllStudents = async (schoolId, search, status, gradeId, sectionId, streamId, academicYear) => {
     if (!schoolId)
         throw new Error('School ID is required');
+    // 1. Resolve active/target academic year
+    let targetAcademicYearName = academicYear?.trim();
+    const currentAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAYName = currentAY?.name || (await db_1.default.schoolSettings.findUnique({ where: { schoolId }, select: { academic_year: true } }))?.academic_year || '';
+    if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
+        targetAcademicYearName = activeAYName;
+    }
+    // 2. Identify future academic year names (academic years with startDate > active academic year's startDate)
+    const allAYs = await db_1.default.academicYear.findMany({
+        where: { schoolId },
+        orderBy: { startDate: 'asc' }
+    });
+    const activeAYRecord = allAYs.find(ay => ay.name === targetAcademicYearName || ay.isCurrent);
+    const futureAYNames = activeAYRecord
+        ? allAYs.filter(ay => ay.startDate > activeAYRecord.startDate).map(ay => ay.name)
+        : [];
     const where = { schoolId };
+    // 3. Status Filter: Must be strictly 'ACTIVE' unless 'ALL' is explicitly requested
+    if (status && status.trim()) {
+        const s = status.trim().toUpperCase();
+        if (s !== 'ALL') {
+            where.status = { equals: s, mode: 'insensitive' };
+        }
+    }
+    else {
+        where.status = 'ACTIVE';
+    }
+    // 4. Future Academic Year Guard: Exclude any student promoted into a future academic year
+    if (futureAYNames.length > 0 && where.status !== 'ALL') {
+        where.AND = where.AND || [];
+        where.AND.push({
+            promotions: {
+                none: {
+                    academicYear: { in: futureAYNames }
+                }
+            }
+        });
+    }
+    // 5. Search Filter (name or student_id)
     if (search && search.trim()) {
         const term = search.trim();
-        where.OR = [
-            { fullName: { contains: term, mode: 'insensitive' } },
-            { student_id: { contains: term, mode: 'insensitive' } },
-        ];
+        where.AND = where.AND || [];
+        where.AND.push({
+            OR: [
+                { fullName: { contains: term, mode: 'insensitive' } },
+                { student_id: { contains: term, mode: 'insensitive' } },
+            ]
+        });
+    }
+    // 6. Grade Filter
+    if (gradeId && gradeId.trim() && gradeId.trim() !== 'all' && gradeId.trim() !== 'All Grades') {
+        const gTerm = gradeId.trim();
+        const gNum = gTerm.replace(/[^\d]/g, '');
+        where.AND = where.AND || [];
+        where.AND.push({
+            OR: [
+                { gradeId: gTerm },
+                { grade: { id: gTerm } },
+                { grade: { name: { equals: gTerm, mode: 'insensitive' } } },
+                ...(gNum ? [{ grade: { name: { contains: gNum, mode: 'insensitive' } } }] : [])
+            ]
+        });
+    }
+    // 7. Section Filter
+    if (sectionId && sectionId.trim() && sectionId.trim() !== 'all' && sectionId.trim() !== 'All Sections') {
+        const secTerm = sectionId.trim();
+        where.AND = where.AND || [];
+        where.AND.push({
+            OR: [
+                { sectionId: secTerm },
+                { section: { id: secTerm } },
+                { section: { name: { equals: secTerm, mode: 'insensitive' } } }
+            ]
+        });
+    }
+    // 8. Stream Filter
+    if (streamId && streamId.trim() && streamId.trim() !== 'all' && streamId.trim() !== 'All Streams' && streamId.trim() !== 'none') {
+        const strTerm = streamId.trim();
+        where.AND = where.AND || [];
+        where.AND.push({
+            OR: [
+                { streamId: strTerm },
+                { stream: { id: strTerm } },
+                { stream: { name: { equals: strTerm, mode: 'insensitive' } } }
+            ]
+        });
     }
     const students = await db_1.default.student.findMany({
         where,
         include: {
             grade: true,
             section: true,
-            stream: true
+            stream: true,
+            promotions: {
+                orderBy: { promotedAt: 'desc' },
+                take: 1
+            }
         },
         orderBy: { fullName: 'asc' }
     });

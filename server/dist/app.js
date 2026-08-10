@@ -72,6 +72,7 @@ const notification_routes_1 = __importDefault(require("./routes/notification.rou
 const saved_messages_routes_1 = __importDefault(require("./routes/saved-messages.routes"));
 const discipline_routes_1 = __importDefault(require("./routes/discipline.routes"));
 const roles_routes_1 = __importDefault(require("./routes/roles.routes"));
+const academic_year_routes_1 = __importDefault(require("./routes/academic-year.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const maintenance_middleware_1 = require("./middleware/maintenance.middleware");
 const parentController = __importStar(require("./controllers/parent.controller"));
@@ -247,6 +248,7 @@ app.use('/api/attendance-analytics', attendance_analytics_routes_1.default);
 app.use('/api/messages', message_routes_1.default);
 app.use('/api/groups', group_routes_1.default);
 app.use('/api/promotions', promotion_routes_1.default);
+app.use('/api/academic-years', academic_year_routes_1.default);
 app.use('/api/announcements', announcement_routes_1.default);
 app.use('/api/calls', call_routes_1.default);
 app.use('/api/notifications', notification_routes_1.default);

@@ -9,7 +9,13 @@ export const getStudents = async (req: AuthenticatedRequest, res: Response, next
       return res.status(401).json({ success: false, message: 'School ID context missing' });
     }
     const search = req.query.search as string | undefined;
-    const students = await studentService.getAllStudents(schoolId, search);
+    const status = req.query.status as string | undefined;
+    const gradeId = req.query.gradeId as string | undefined;
+    const sectionId = req.query.sectionId as string | undefined;
+    const streamId = req.query.streamId as string | undefined;
+    const academicYear = req.query.academicYear as string | undefined;
+
+    const students = await studentService.getAllStudents(schoolId, search, status, gradeId, sectionId, streamId, academicYear);
     res.status(200).json({ success: true, data: students });
   } catch (error) {
     next(error);

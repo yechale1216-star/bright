@@ -190,7 +190,7 @@ export function StudentManagement() {
     if (!isBackground && students.length === 0) setIsLoading(true)
     try {
       const user = authService.getCurrentUser()
-      const studentsData = await db.getStudents(forceRefetch)
+      const studentsData = await db.getStudents(forceRefetch, "ALL")
       
       if (user?.role === "teacher") {
         // Fetch teacher's assigned classes

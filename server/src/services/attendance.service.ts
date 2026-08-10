@@ -89,12 +89,15 @@ export const markAttendance = async (data: any, schoolId: string) => {
   // Resolve valid teacherId foreign key (or null if marked by admin/non-teacher)
   const resolvedTeacherId = await resolveTeacherId(schoolId, teacherId || userId);
 
-  // Ensure student belongs to this school
+  // Ensure student belongs to this school and is actively enrolled
   const student = await prisma.student.findFirst({
     where: { id: studentId, schoolId }
   });
   if (!student) {
     throw new Error("Student not found in this school");
+  }
+  if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
+    throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
   }
 
   // Fetch school settings for location restriction & edit permission checks
@@ -650,10 +653,10 @@ export const bulkMarkAttendance = async (
     }
   }
 
-  // Batch query students
+  // Batch query active enrolled students only
   const studentIds = records.map(r => r.studentId).filter(Boolean);
   const validStudents = await prisma.student.findMany({
-    where: { id: { in: studentIds }, schoolId },
+    where: { id: { in: studentIds }, schoolId, status: 'ACTIVE' },
     select: { id: true, fullName: true, gender: true }
   });
   const studentMap = new Map(validStudents.map(s => [s.id, s]));

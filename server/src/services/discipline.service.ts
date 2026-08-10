@@ -346,6 +346,10 @@ export class DisciplineService {
       throw new Error('Student not found in this school');
     }
 
+    if (student.status === 'GRADUATED') {
+      throw new Error('Cannot report discipline incident for a graduated student');
+    }
+
     if (user.role === 'teacher') {
       const assignments = await getTeacherAssignments(user.id, schoolId);
       const isAssigned = assignments.some(

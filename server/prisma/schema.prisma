@@ -162,6 +162,7 @@ model SchoolSettings {
   school_longitude          Float?
   allowed_radius_meters     Int      @default(200)
   allow_outside_attendance  Boolean  @default(true)
+  calendar_type        String   @default("ETHIOPIAN")
   createdAt                DateTime @default(now())
   updatedAt            DateTime @updatedAt
   school_logo          String?

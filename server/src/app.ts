@@ -39,6 +39,7 @@ import notificationRoutes from './routes/notification.routes';
 import savedMessagesRoutes from './routes/saved-messages.routes';
 import disciplineRoutes from './routes/discipline.routes';
 import rolesRoutes from './routes/roles.routes';
+import academicYearRoutes from './routes/academic-year.routes';
 
 import { authMiddleware } from './middleware/auth.middleware';
 import { maintenanceMiddleware } from './middleware/maintenance.middleware';
@@ -237,6 +238,7 @@ app.use('/api/attendance-analytics', attendanceAnalyticsRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/notifications', notificationRoutes);

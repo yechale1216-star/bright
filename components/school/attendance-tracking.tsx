@@ -48,11 +48,14 @@ import { useCalendar } from "@/lib/context/calendar-context"
 import { DualDatePicker } from "@/components/ui/dual-date-picker"
 
 
+interface AttendanceRecordState {
+  status: "present" | "late" | "absent" | "excused" | null
+  note: string
+  isDirty?: boolean
+}
+
 interface AttendanceState {
-  [studentId: string]: {
-    status: "present" | "late" | "absent" | "excused" | null
-    note: string
-  }
+  [studentId: string]: AttendanceRecordState
 }
 
 function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -75,6 +78,7 @@ export function AttendanceTracking() {
   const [students, setStudents] = useState<Student[]>([])
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
   const [attendanceState, setAttendanceState] = useState<AttendanceState>({})
+  const [baseAttendanceState, setBaseAttendanceState] = useState<AttendanceState>({})
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' }))
   const [selectedSession, setSelectedSession] = useState<"morning" | "afternoon">(
     parseInt(new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: 'numeric' }), 10) < 12 ? "morning" : "afternoon"
@@ -103,6 +107,8 @@ export function AttendanceTracking() {
   const selectedDateRef = useRef(selectedDate)
   const selectedSessionRef = useRef(selectedSession)
   const studentsRef = useRef<Student[]>([])
+  const prevDateRef = useRef(selectedDate)
+  const prevSessionRef = useRef(selectedSession)
 
   // Attendance Edit Permission & Audit Log state
   const [editRequests, setEditRequests] = useState<any[]>([])
@@ -235,7 +241,13 @@ export function AttendanceTracking() {
   useEffect(() => { studentsRef.current = students; }, [students])
 
   useEffect(() => {
-    loadAttendanceForDate()
+    const dateChanged = prevDateRef.current !== selectedDate
+    const sessionChanged = prevSessionRef.current !== selectedSession
+    prevDateRef.current = selectedDate
+    prevSessionRef.current = selectedSession
+
+    const forceReset = dateChanged || sessionChanged
+    loadAttendanceForDate(false, forceReset)
   }, [selectedDate, students, selectedSession, settings?.attendanceMode])
 
   useEffect(() => {
@@ -248,14 +260,18 @@ export function AttendanceTracking() {
       const user = authService.getCurrentUser()
 
       if (user?.role === "teacher") {
-        // Parallel fetch: students + teacher assignments fire simultaneously
+        // Parallel fetch: active students + teacher assignments fire simultaneously
         const [studentsData, assignmentsData] = await Promise.all([
-          db.getStudents(),
+          db.getStudents(false, "ACTIVE"),
           db.getTeacherAssignments(user.schoolId, user.teacherId || user.id),
         ])
         const classes = assignmentsData || []
 
         const allFilteredStudents = studentsData.filter((student: Student) => {
+          // Strictly exclude transferred, withdrawn, graduated, expelled, or inactive students
+          const isStudentActive = !student.status || student.status.toUpperCase() === "ACTIVE"
+          if (!isStudentActive) return false
+
           return classes.some((cls: any) => {
             const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
             // cls.grade is a formatted string name (e.g. "9", "Grade 9") from formatField()
@@ -286,9 +302,10 @@ export function AttendanceTracking() {
           classes.map((c: any) => `Grade "${c.grade}" Section "${c.section}" Stream "${c.stream || 'none'}"`)
         )
       } else {
-        // Admin / school_admin path: simpler single fetch
-        const studentsData = await db.getStudents()
-        setStudents(studentsData)
+        // Admin / school_admin path: fetch ONLY active enrolled students
+        const studentsData = await db.getStudents(false, "ACTIVE")
+        const activeOnly = studentsData.filter((s: Student) => !s.status || s.status.toUpperCase() === "ACTIVE")
+        setStudents(activeOnly)
       }
     } catch (error: any) {
       console.error("[v0] Error loading students for teacher:", error)
@@ -300,7 +317,7 @@ export function AttendanceTracking() {
 
   // Stable version of loadAttendanceForDate — reads from refs so it's safe
   // to call from event listeners and polling intervals
-  const loadAttendanceForDateStable = useCallback(async (isBackground = false) => {
+  const loadAttendanceForDateStable = useCallback(async (isBackground = false, forceReset = false) => {
     const currentStudents = studentsRef.current
     const currentDate = selectedDateRef.current
     const currentSession = selectedSessionRef.current
@@ -322,75 +339,68 @@ export function AttendanceTracking() {
             (r: any) => r.session === null || r.session === undefined || r.session === ""
           )
 
-      const newAttendanceState: AttendanceState = {}
+      const serverState: AttendanceState = {}
 
       currentStudents.forEach((student) => {
-        newAttendanceState[student.id] = {
+        serverState[student.id] = {
           status: null,
           note: "",
+          isDirty: false,
         }
       })
 
       filteredRecords.forEach((record) => {
-        if (newAttendanceState[record.student_id]) {
-          newAttendanceState[record.student_id] = {
+        if (serverState[record.student_id]) {
+          serverState[record.student_id] = {
             status: record.status?.toLowerCase() as any,
             note: record.note || "",
+            isDirty: false,
           }
         }
       })
 
-      setAttendanceState(newAttendanceState)
+      setBaseAttendanceState(serverState)
+
+      setAttendanceState((prevEditable) => {
+        if (forceReset) {
+          return { ...serverState }
+        }
+
+        const newEditable: AttendanceState = {}
+
+        currentStudents.forEach((student) => {
+          const existing = prevEditable[student.id]
+          const serverVal = serverState[student.id] || { status: null, note: "", isDirty: false }
+
+          if (existing?.isDirty) {
+            // Teacher has an unsaved local edit — preserve it!
+            newEditable[student.id] = existing
+          } else {
+            // Use authoritative server value
+            newEditable[student.id] = {
+              status: serverVal.status,
+              note: serverVal.note,
+              isDirty: false,
+            }
+          }
+        })
+
+        // Preserve dirty records for any students not currently in filtered/loaded list
+        Object.keys(prevEditable).forEach((studentId) => {
+          if (!newEditable[studentId] && prevEditable[studentId]?.isDirty) {
+            newEditable[studentId] = prevEditable[studentId]
+          }
+        })
+
+        return newEditable
+      })
     } catch (error: any) {
       notifications.error("Error", error.message || "Failed to load attendance records")
     }
   }, [settings?.attendanceMode])
 
-  const loadAttendanceForDate = async (isBackground = false) => {
-    if (students.length === 0) return
-
-    try {
-      const isSessionBased = settings?.attendanceMode === "session_based"
-
-      // Fetch records with mode context so the API can filter server-side
-      const attendanceRecords = await db.getAttendanceByDateAndMode(
-        selectedDate,
-        isSessionBased ? selectedSession : null
-      )
-
-      // Client-side guard: strictly isolate records by mode
-      // - session_based mode: only records whose session matches selectedSession
-      // - daily mode: only records whose session is null / undefined
-      const filteredRecords = isSessionBased
-        ? attendanceRecords.filter(
-            (r: any) => r.session?.toLowerCase() === selectedSession.toLowerCase()
-          )
-        : attendanceRecords.filter(
-            (r: any) => r.session === null || r.session === undefined || r.session === ""
-          )
-
-      const newAttendanceState: AttendanceState = {}
-
-      students.forEach((student) => {
-        newAttendanceState[student.id] = {
-          status: null,
-          note: "",
-        }
-      })
-
-      filteredRecords.forEach((record) => {
-        if (newAttendanceState[record.student_id]) {
-          newAttendanceState[record.student_id] = {
-            status: record.status?.toLowerCase() as any,
-            note: record.note || "",
-          }
-        }
-      })
-
-      setAttendanceState(newAttendanceState)
-    } catch (error: any) {
-      notifications.error("Error", error.message || "Failed to load attendance records")
-    }
+  const loadAttendanceForDate = async (isBackground = false, forceReset = false) => {
+    return loadAttendanceForDateStable(isBackground, forceReset)
   }
 
   const filterStudents = () => {
@@ -426,15 +436,21 @@ export function AttendanceTracking() {
     setFilteredStudents(filtered)
   }
 
-  const updateAttendance = (studentId: string, status: "present" | "late" | "absent" | "excused", note = "") => {
+  const updateAttendance = (studentId: string, status: "present" | "late" | "absent" | "excused", note?: string) => {
     NativeBridge.vibrate(ImpactStyle.Light)
-    setAttendanceState((prev) => ({
-      ...prev,
-      [studentId]: {
-        status,
-        note,
-      },
-    }))
+    setAttendanceState((prev) => {
+      const currentNote = note !== undefined ? note : (prev[studentId]?.note || "")
+      const baseRecord = baseAttendanceState[studentId]
+      const isDirty = status !== baseRecord?.status || currentNote !== (baseRecord?.note || "")
+      return {
+        ...prev,
+        [studentId]: {
+          status,
+          note: currentNote,
+          isDirty,
+        },
+      }
+    })
   }
 
   const handleSessionChange = (session: "morning" | "afternoon") => {
@@ -465,29 +481,56 @@ export function AttendanceTracking() {
   }
 
   const updateNote = (studentId: string, note: string) => {
-    setAttendanceState((prev) => ({
-      ...prev,
-      [studentId]: {
-        ...prev[studentId],
-        note,
-      },
-    }))
+    setAttendanceState((prev) => {
+      const currentStatus = prev[studentId]?.status || null
+      const baseRecord = baseAttendanceState[studentId]
+      const isDirty = currentStatus !== baseRecord?.status || note !== (baseRecord?.note || "")
+      return {
+        ...prev,
+        [studentId]: {
+          ...prev[studentId],
+          status: currentStatus,
+          note,
+          isDirty,
+        },
+      }
+    })
   }
 
   const markAllAsPresent = () => {
-    const newAttendanceState: AttendanceState = {}
-    filteredStudents.forEach((student) => {
-      newAttendanceState[student.id] = {
-        status: "present",
-        note: "",
-      }
+    setAttendanceState((prev) => {
+      const next = { ...prev }
+      filteredStudents.forEach((student) => {
+        const baseRecord = baseAttendanceState[student.id]
+        const isDirty = "present" !== baseRecord?.status || (prev[student.id]?.note || "") !== (baseRecord?.note || "")
+        next[student.id] = {
+          status: "present",
+          note: prev[student.id]?.note || "",
+          isDirty,
+        }
+      })
+      return next
     })
-    setAttendanceState((prev) => ({
-      ...prev,
-      ...newAttendanceState,
-    }))
     notifications.success("Success", `Marked ${filteredStudents.length} students as present`)
+  }
 
+  const markSelectedPresent = () => {
+    if (selectedStudents.size === 0) return
+    setAttendanceState((prev) => {
+      const next = { ...prev }
+      selectedStudents.forEach((id) => {
+        const baseRecord = baseAttendanceState[id]
+        const isDirty = "present" !== baseRecord?.status || (prev[id]?.note || "") !== (baseRecord?.note || "")
+        next[id] = {
+          status: "present",
+          note: prev[id]?.note || "",
+          isDirty,
+        }
+      })
+      return next
+    })
+    setSelectedStudents(new Set())
+    notifications.success("Success", `Marked ${selectedStudents.size} students as present`)
   }
 
   const markSelectedAbsent = () => {
@@ -495,22 +538,37 @@ export function AttendanceTracking() {
       notifications.warning("No Selection", "Please select students first")
       return
     }
-    const newAttendanceState: AttendanceState = { ...attendanceState }
-    selectedStudents.forEach((id) => {
-      newAttendanceState[id] = { status: "absent", note: "" }
+    setAttendanceState((prev) => {
+      const next = { ...prev }
+      selectedStudents.forEach((id) => {
+        const baseRecord = baseAttendanceState[id]
+        const isDirty = "absent" !== baseRecord?.status || (prev[id]?.note || "") !== (baseRecord?.note || "")
+        next[id] = {
+          status: "absent",
+          note: prev[id]?.note || "",
+          isDirty,
+        }
+      })
+      return next
     })
-    setAttendanceState(newAttendanceState)
     setSelectedStudents(new Set())
     notifications.success("Success", `Marked ${selectedStudents.size} students as absent`)
   }
 
   const resetAttendance = () => {
-    const newAttendanceState: AttendanceState = { ...attendanceState }
-    filteredStudents.forEach((student) => {
-      newAttendanceState[student.id] = { status: null, note: "" }
+    setAttendanceState((prev) => {
+      const next = { ...prev }
+      filteredStudents.forEach((student) => {
+        const baseRecord = baseAttendanceState[student.id] || { status: null, note: "", isDirty: false }
+        next[student.id] = {
+          status: baseRecord.status,
+          note: baseRecord.note,
+          isDirty: false,
+        }
+      })
+      return next
     })
-    setAttendanceState(newAttendanceState)
-    notifications.info("Attendance Reset", "Cleared attendance for filtered students")
+    notifications.info("Attendance Reset", "Cleared unsaved changes for filtered students")
   }
 
   const toggleStudentSelection = (studentId: string) => {
@@ -679,9 +737,33 @@ export function AttendanceTracking() {
 
       await db.markAttendance(attendanceRecords, locationData)
 
+      // Update baseAttendanceState with newly saved records and clear isDirty on editable state
+      setBaseAttendanceState((prevBase) => {
+        const newBase = { ...prevBase }
+        attendanceRecords.forEach((r) => {
+          newBase[r.student_id] = {
+            status: r.status as any,
+            note: r.note || "",
+            isDirty: false,
+          }
+        })
+        return newBase
+      })
+
+      setAttendanceState((prevEditable) => {
+        const newEditable = { ...prevEditable }
+        attendanceRecords.forEach((r) => {
+          newEditable[r.student_id] = {
+            status: r.status as any,
+            note: r.note || "",
+            isDirty: false,
+          }
+        })
+        return newEditable
+      })
+
       notifications.success("Attendance Saved Successfully", "The student attendance records have been updated.")
 
-      await loadAttendanceForDate()
       await fetchEditRequests()
     } catch (error: any) {
       console.error("[v0] Error saving attendance:", error)
@@ -890,22 +972,27 @@ export function AttendanceTracking() {
   }
 
   const clearAbsentStudents = () => {
-    const newAttendanceState: AttendanceState = { ...attendanceState }
-    let clearedCount = 0
+    setAttendanceState((prev) => {
+      const next = { ...prev }
+      let clearedCount = 0
 
-    Object.keys(newAttendanceState).forEach((studentId) => {
-      if (newAttendanceState[studentId]?.status === "absent") {
-        newAttendanceState[studentId] = {
-          status: null,
-          note: "",
+      Object.keys(next).forEach((studentId) => {
+        if (next[studentId]?.status === "absent") {
+          const baseRecord = baseAttendanceState[studentId] || { status: null, note: "", isDirty: false }
+          next[studentId] = {
+            status: baseRecord.status,
+            note: baseRecord.note,
+            isDirty: false,
+          }
+          clearedCount++
         }
-        clearedCount++
+      })
+
+      if (clearedCount > 0) {
+        notifications.success("Cleared", `Cleared ${clearedCount} absent student${clearedCount !== 1 ? "s" : ""}`)
       }
+      return next
     })
-
-    setAttendanceState(newAttendanceState)
-    notifications.success("Cleared", `Cleared ${clearedCount} absent student${clearedCount !== 1 ? "s" : ""}`)
-
   }
 
 
@@ -1272,15 +1359,7 @@ export function AttendanceTracking() {
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              onClick={selectedStudents.size > 0 ? () => {
-                const newAttendanceState: AttendanceState = { ...attendanceState }
-                selectedStudents.forEach((id) => {
-                  newAttendanceState[id] = { status: "present", note: "" }
-                })
-                setAttendanceState(newAttendanceState)
-                setSelectedStudents(new Set())
-                notifications.success("Success", `Marked ${selectedStudents.size} students as present`)
-              } : markAllAsPresent}
+              onClick={selectedStudents.size > 0 ? markSelectedPresent : markAllAsPresent}
               disabled={isSaving}
               variant="outline"
               className="typography-label bg-white/95 dark:bg-slate-800/90 border-green-200 dark:border-green-900 hover:bg-green-50 dark:hover:bg-green-900/30 text-green-700 dark:text-green-400 h-9 rounded-xl uppercase"

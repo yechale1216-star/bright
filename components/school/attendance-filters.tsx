@@ -39,7 +39,7 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
 
   const loadFilterOptions = async () => {
     try {
-      const students = await db.getStudents()
+      const students = await db.getStudents(false, "ACTIVE")
       const uniqueGrades = [...new Set(students.map(s => s.grade))].filter(Boolean).sort()
       const uniqueSections = [...new Set(students.map(s => s.section))].filter(Boolean).sort()
       const uniqueStreams = [...new Set(students.map(s => s.stream))]

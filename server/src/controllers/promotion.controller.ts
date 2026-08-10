@@ -31,11 +31,26 @@ export const getStudentsByGrade = async (req: AuthenticatedRequest, res: Respons
 
 const isValidAcademicYear = (year: string): boolean => {
   if (!year || typeof year !== 'string') return false;
-  const match = year.trim().match(/^(\d{4})[\/\-](\d{4})$/);
-  if (!match) return false;
-  const y1 = parseInt(match[1], 10);
-  const y2 = parseInt(match[2], 10);
-  return y2 === y1 + 1;
+  const cleaned = year.trim().replace(/\s*E\.?C\.?$/i, '').trim();
+  
+  const rangeMatch = cleaned.match(/^(\d{4})[\/\-](\d{2,4})$/);
+  if (rangeMatch) {
+    const y1 = parseInt(rangeMatch[1], 10);
+    let y2 = parseInt(rangeMatch[2], 10);
+    if (y2 < 100) {
+      const century = Math.floor(y1 / 100) * 100;
+      y2 = century + y2;
+    }
+    return y2 === y1 + 1;
+  }
+  
+  const singleMatch = cleaned.match(/^(\d{4})$/);
+  if (singleMatch) {
+    const y = parseInt(singleMatch[1], 10);
+    return y >= 1900 && y <= 2100;
+  }
+  
+  return false;
 };
 
 export const promoteStudents = async (req: AuthenticatedRequest, res: Response) => {
@@ -46,7 +61,7 @@ export const promoteStudents = async (req: AuthenticatedRequest, res: Response) 
   if (!req.body.academicYear || !isValidAcademicYear(req.body.academicYear)) {
     return res.status(400).json({
       success: false,
-      error: 'Invalid academic year format. Academic year must be consecutive years (e.g. 2026/2027).'
+      error: 'Invalid academic year format. Examples: 2026/2027, 2017 E.C., 2017.'
     });
   }
 

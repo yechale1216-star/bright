@@ -98,7 +98,7 @@ export function TeacherView() {
       const assignmentsData = await db.getTeacherAssignments(currentUser.schoolId, targetId)
       setAssignments(assignmentsData as any)
 
-      const allStudents = await db.getStudents()
+      const allStudents = await db.getStudents(false, "ACTIVE")
       
       // Filter students only for classes assigned to this teacher
       const filteredStudents = allStudents.filter((student: Student) =>

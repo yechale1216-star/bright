@@ -18,8 +18,8 @@ class Database extends BaseDatabase {
     return students.getNextStudentId(this.getApiHeaders())
   }
 
-  async getStudents(forceRefetch = false): Promise<Student[]> {
-    return students.getStudents(this.getApiHeaders(), this.getSchoolId(), forceRefetch)
+  async getStudents(forceRefetch = false, status = "ACTIVE"): Promise<Student[]> {
+    return students.getStudents(this.getApiHeaders(), this.getSchoolId(), forceRefetch, status)
   }
 
   async addStudent(student: Partial<Student>): Promise<Student> {

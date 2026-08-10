@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS = {
     school_name: '',
     school_phone: '',
     school_address: '',
-    academic_year: new Date().getFullYear().toString(),
+    academic_year: '2017/2018 E.C.',
+    calendar_type: 'ETHIOPIAN',
     attendance_mode: 'session_based',
     attendance_ui_type: 'card_based',
     attendance_threshold: 75,
@@ -33,6 +34,14 @@ const getSettings = async (schoolId) => {
             data: { ...DEFAULT_SETTINGS, schoolId: schoolId },
         });
     }
+    // Ensure settings.academic_year reflects the currently active AcademicYear record
+    const activeAY = await db_1.default.academicYear.findFirst({
+        where: { schoolId, isCurrent: true },
+        select: { name: true }
+    });
+    if (activeAY && activeAY.name) {
+        settings.academic_year = activeAY.name;
+    }
     return settings;
 };
 exports.getSettings = getSettings;
@@ -48,6 +57,29 @@ const updateSettings = async (schoolId, data) => {
             where: { id: schoolId },
             data: { name: data.school_name }
         });
+    }
+    // Keep AcademicYear table in sync if academic_year changed
+    if (data.academic_year) {
+        const ayName = String(data.academic_year).trim();
+        if (ayName) {
+            await db_1.default.$transaction(async (tx) => {
+                await tx.academicYear.updateMany({
+                    where: { schoolId },
+                    data: { isCurrent: false },
+                });
+                await tx.academicYear.upsert({
+                    where: { schoolId_name: { schoolId, name: ayName } },
+                    create: {
+                        schoolId,
+                        name: ayName,
+                        startDate: new Date(),
+                        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+                        isCurrent: true,
+                    },
+                    update: { isCurrent: true },
+                });
+            });
+        }
     }
     return settings;
 };

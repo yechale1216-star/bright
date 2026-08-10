@@ -13,14 +13,14 @@ export async function getNextStudentId(headers: any): Promise<string> {
   return result.data
 }
 
-export async function getStudents(headers: any, schoolId: string, forceRefetch = false): Promise<Student[]> {
+export async function getStudents(headers: any, schoolId: string, forceRefetch = false, status = "ACTIVE"): Promise<Student[]> {
   if (!schoolId) return []
+  const cacheKey = `students_${schoolId}_${status}`
   return queryCache.fetch(
-    `students_${schoolId}`,
+    cacheKey,
     async () => {
-      const url = forceRefetch
-        ? `${API_URL}/api/students?_t=${Date.now()}`
-        : `${API_URL}/api/students`
+      const statusParam = status ? `status=${encodeURIComponent(status)}` : ''
+      const url = `${API_URL}/api/students?${statusParam}${forceRefetch ? `&_t=${Date.now()}` : ''}`
       const result = await apiFetch<{ success: boolean; data: any[] }>(
         url,
         { headers, cache: "no-store" }

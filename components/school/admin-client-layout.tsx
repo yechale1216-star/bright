@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, User, CheckSquare, BarChart2, BookOpen,
-  Settings, LogOut, MessageSquare, Phone, TrendingUp,
+  Settings, LogOut, MessageSquare, Phone, TrendingUp, Calendar,
   X, ChevronRight, Megaphone, MessageCircle, ShieldAlert, ShieldCheck
 } from 'lucide-react'
 import { cn } from "@/lib/utils/utils"

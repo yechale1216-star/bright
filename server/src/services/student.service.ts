@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import * as parentService from './parent.service';
+import { academicYearService } from './academic-year.service';
 
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student: any) => {
@@ -14,17 +15,112 @@ const mapStudentToFlat = (student: any) => {
   };
 };
 
-export const getAllStudents = async (schoolId: string, search?: string) => {
+export const getAllStudents = async (
+  schoolId: string, 
+  search?: string, 
+  status?: string,
+  gradeId?: string,
+  sectionId?: string,
+  streamId?: string,
+  academicYear?: string
+) => {
   if (!schoolId) throw new Error('School ID is required');
+
+  // 1. Resolve active/target academic year
+  let targetAcademicYearName = academicYear?.trim();
+  const currentAY = await academicYearService.getCurrentAcademicYear(schoolId);
+  const activeAYName = currentAY?.name || (await prisma.schoolSettings.findUnique({ where: { schoolId }, select: { academic_year: true } }))?.academic_year || '';
+
+  if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
+    targetAcademicYearName = activeAYName;
+  }
+
+  // 2. Identify future academic year names (academic years with startDate > active academic year's startDate)
+  const allAYs = await prisma.academicYear.findMany({
+    where: { schoolId },
+    orderBy: { startDate: 'asc' }
+  });
+
+  const activeAYRecord = allAYs.find(ay => ay.name === targetAcademicYearName || ay.isCurrent);
+  const futureAYNames = activeAYRecord 
+    ? allAYs.filter(ay => ay.startDate > activeAYRecord.startDate).map(ay => ay.name)
+    : [];
 
   const where: any = { schoolId };
 
+  // 3. Status Filter: Must be strictly 'ACTIVE' unless 'ALL' is explicitly requested
+  if (status && status.trim()) {
+    const s = status.trim().toUpperCase();
+    if (s !== 'ALL') {
+      where.status = { equals: s, mode: 'insensitive' };
+    }
+  } else {
+    where.status = 'ACTIVE';
+  }
+
+  // 4. Future Academic Year Guard: Exclude any student promoted into a future academic year
+  if (futureAYNames.length > 0 && where.status !== 'ALL') {
+    where.AND = where.AND || [];
+    where.AND.push({
+      promotions: {
+        none: {
+          academicYear: { in: futureAYNames }
+        }
+      }
+    });
+  }
+
+  // 5. Search Filter (name or student_id)
   if (search && search.trim()) {
     const term = search.trim();
-    where.OR = [
-      { fullName: { contains: term, mode: 'insensitive' } },
-      { student_id: { contains: term, mode: 'insensitive' } },
-    ];
+    where.AND = where.AND || [];
+    where.AND.push({
+      OR: [
+        { fullName: { contains: term, mode: 'insensitive' } },
+        { student_id: { contains: term, mode: 'insensitive' } },
+      ]
+    });
+  }
+
+  // 6. Grade Filter
+  if (gradeId && gradeId.trim() && gradeId.trim() !== 'all' && gradeId.trim() !== 'All Grades') {
+    const gTerm = gradeId.trim();
+    const gNum = gTerm.replace(/[^\d]/g, '');
+    where.AND = where.AND || [];
+    where.AND.push({
+      OR: [
+        { gradeId: gTerm },
+        { grade: { id: gTerm } },
+        { grade: { name: { equals: gTerm, mode: 'insensitive' } } },
+        ...(gNum ? [{ grade: { name: { contains: gNum, mode: 'insensitive' } } }] : [])
+      ]
+    });
+  }
+
+  // 7. Section Filter
+  if (sectionId && sectionId.trim() && sectionId.trim() !== 'all' && sectionId.trim() !== 'All Sections') {
+    const secTerm = sectionId.trim();
+    where.AND = where.AND || [];
+    where.AND.push({
+      OR: [
+        { sectionId: secTerm },
+        { section: { id: secTerm } },
+        { section: { name: { equals: secTerm, mode: 'insensitive' } } }
+      ]
+    });
+  }
+
+  // 8. Stream Filter
+  if (streamId && streamId.trim() && streamId.trim() !== 'all' && streamId.trim() !== 'All Streams' && streamId.trim() !== 'none') {
+    const strTerm = streamId.trim();
+    where.AND = where.AND || [];
+    where.AND.push({
+      OR: [
+        { streamId: strTerm },
+        { stream: { id: strTerm } },
+        { stream: { name: { equals: strTerm, mode: 'insensitive' } } }
+      ]
+    });
   }
 
   const students = await prisma.student.findMany({
@@ -32,10 +128,15 @@ export const getAllStudents = async (schoolId: string, search?: string) => {
     include: {
       grade: true,
       section: true,
-      stream: true
+      stream: true,
+      promotions: {
+        orderBy: { promotedAt: 'desc' },
+        take: 1
+      }
     },
     orderBy: { fullName: 'asc' }
   });
+
   return students.map(mapStudentToFlat);
 };
 

@@ -55,10 +55,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { notifications } from '@/lib/utils/notifications'
 import { motion, AnimatePresence } from 'framer-motion'
-import { format } from 'date-fns'
 import { cn } from '@/lib/utils/utils'
+import { useCalendar } from '@/lib/context/calendar-context'
 
-import { apiUrl } from '@/lib/api-config'
+import { apiUrl, getApiUrl } from '@/lib/api-config'
 const API_URL = apiUrl;
 
 interface PromotionCohort {
@@ -108,6 +108,7 @@ interface PromotionHistory {
 }
 
 export default function StudentPromotionPage() {
+  const { formatDateTime } = useCalendar()
   const [activeTab, setActiveTab] = useState("promote")
   const [cohorts, setCohorts] = useState<PromotionCohort[]>([])
   const [streams, setStreams] = useState<Stream[]>([])
@@ -116,7 +117,10 @@ export default function StudentPromotionPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitLoading, setIsSubmitLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [academicYear, setAcademicYear] = useState("2024/2025")
+  const [configuredAcademicYears, setConfiguredAcademicYears] = useState<{ id: string; name: string; isCurrent: boolean }[]>([])
+  const [fromAcademicYear, setFromAcademicYear] = useState("")
+  const [toAcademicYear, setToAcademicYear] = useState("")
+  const [calendarType, setCalendarType] = useState<'ETHIOPIAN' | 'GREGORIAN'>('ETHIOPIAN')
   const [isFutureConfirmOpen, setIsFutureConfirmOpen] = useState(false)
   
   // Wizard Steps: 1 = Setup, 2 = Selection, 3 = Targets, 4 = Review
@@ -153,25 +157,40 @@ export default function StudentPromotionPage() {
   const loadData = async (isBackground = false) => {
     if (!isBackground) setIsLoading(true)
     try {
-      const [prevRes, histRes, streamRes, settingsRes, gradesRes] = await Promise.all([
-        fetch(`${API_URL}/api/promotions/preview`, { headers: headers as any }),
-        fetch(`${API_URL}/api/promotions/history`, { headers: headers as any }),
-        fetch(`${API_URL}/api/schools/me/streams`, { headers: headers as any }),
-        fetch(`${API_URL}/api/settings`, { headers: headers as any }),
-        fetch(`${API_URL}/api/schools/me/grades`, { headers: headers as any })
+      const baseUrl = getApiUrl()
+      const [prevRes, histRes, streamRes, settingsRes, gradesRes, ayRes] = await Promise.all([
+        fetch(`${baseUrl}/api/promotions/preview`, { headers: headers as any }),
+        fetch(`${baseUrl}/api/promotions/history`, { headers: headers as any }),
+        fetch(`${baseUrl}/api/schools/me/streams`, { headers: headers as any }),
+        fetch(`${baseUrl}/api/settings`, { headers: headers as any }),
+        fetch(`${baseUrl}/api/schools/me/grades`, { headers: headers as any }),
+        fetch(`${baseUrl}/api/academic-years`, { headers: headers as any })
       ])
       
       let cohortData: PromotionCohort[] = []
-      if (prevRes.ok) {
+      if (prevRes.ok && (prevRes.headers.get('content-type') || '').includes('application/json')) {
         const result = await prevRes.json()
         cohortData = result.data || []
         setCohorts(cohortData)
       }
 
-      if (settingsRes.ok) {
+      if (settingsRes.ok && (settingsRes.headers.get('content-type') || '').includes('application/json')) {
         const result = await settingsRes.json()
-        if (result.data?.academic_year) {
-          setAcademicYear(result.data.academic_year)
+        if (result.data?.calendar_type) {
+          setCalendarType(result.data.calendar_type)
+        }
+      }
+
+      if (ayRes.ok && (ayRes.headers.get('content-type') || '').includes('application/json')) {
+        const result = await ayRes.json()
+        const ayList: { id: string; name: string; isCurrent: boolean }[] = result.data || []
+        setConfiguredAcademicYears(ayList)
+        if (ayList.length > 0) {
+          const currentAY = ayList.find(y => y.isCurrent) || ayList[0]
+          setToAcademicYear(prev => prev || currentAY.name)
+
+          const otherAY = ayList.find(y => !y.isCurrent) || ayList[0]
+          setFromAcademicYear(prev => prev || otherAY.name)
         }
       }
 
@@ -190,27 +209,32 @@ export default function StudentPromotionPage() {
       }
       
       if (cohortData.length > 0) {
-        const rules: Record<string, { gradeId: string | 'GRADUATE', sectionName: string, streamId?: string }> = {}
-        
-        // Auto-configure rules based on grade progression
-        cohortData.forEach(cohort => {
-          const cohortGradeNum = parseInt(cohort.gradeName?.replace(/[^\d]/g, '') || '0') || 0
-          const targetGrade = latestGrades.find((g: any) => (parseInt(g.name?.replace(/[^\d]/g, '') || '0') || 0) === cohortGradeNum + 1)
-          const targetGradeNum = targetGrade ? parseInt(targetGrade.name?.replace(/[^\d]/g, '') || '0') || 0 : 0
+        setPromotionRules(prev => {
+          const updatedRules: Record<string, { gradeId: string | 'GRADUATE', sectionName: string, streamId?: string }> = { ...prev }
           
-          const rule: { gradeId: string | 'GRADUATE', sectionName: string, streamId?: string } = {
-            gradeId: targetGrade ? targetGrade.id : 'GRADUATE',
-            sectionName: cohort.sectionName || ''
-          }
+          // Auto-configure rules based on grade progression for new cohorts only
+          cohortData.forEach(cohort => {
+            if (!updatedRules[cohort.id]) {
+              const cohortGradeNum = parseInt(cohort.gradeName?.replace(/[^\d]/g, '') || '0') || 0
+              const targetGrade = latestGrades.find((g: any) => (parseInt(g.name?.replace(/[^\d]/g, '') || '0') || 0) === cohortGradeNum + 1)
+              const targetGradeNum = targetGrade ? parseInt(targetGrade.name?.replace(/[^\d]/g, '') || '0') || 0 : 0
+              
+              const rule: { gradeId: string | 'GRADUATE', sectionName: string, streamId?: string } = {
+                gradeId: targetGrade ? targetGrade.id : 'GRADUATE',
+                sectionName: cohort.sectionName || ''
+              }
 
-          // If target grade is 11+ and current cohort already has a stream, carry it forward
-          if (targetGradeNum >= 11 && cohort.streamId) {
-            rule.streamId = cohort.streamId
-          }
+              // If target grade is 11+ and current cohort already has a stream, carry it forward
+              if (targetGradeNum >= 11 && cohort.streamId) {
+                rule.streamId = cohort.streamId
+              }
+              
+              updatedRules[cohort.id] = rule
+            }
+          })
           
-          rules[cohort.id] = rule
+          return updatedRules
         })
-        setPromotionRules(rules)
 
         // If school has no dedicated stream records but cohorts DO have stream data, 
         // reconstruct the streams list from cohort data so the dropdown is populated
@@ -223,7 +247,15 @@ export default function StudentPromotionPage() {
               cohortStreams.push({ id: c.streamId, name: c.streamName })
             }
           })
-          if (cohortStreams.length > 0) setStreams(cohortStreams)
+          
+          // Pre-populate standard Ethiopian secondary school streams if empty
+          if (!seen.has('natural-science')) {
+            cohortStreams.push({ id: 'Natural Science', name: 'Natural Science' })
+          }
+          if (!seen.has('social-science')) {
+            cohortStreams.push({ id: 'Social Science', name: 'Social Science' })
+          }
+          setStreams(cohortStreams)
         }
       }
       
@@ -371,7 +403,16 @@ export default function StudentPromotionPage() {
     
     setIsSubmitLoading(true)
     try {
-      for (const cohortId of activeCohortIds) {
+      // Sort active cohort IDs by grade number DESCENDING so higher grades (e.g. Gr 12 -> Grad, Gr 11 -> 12) run before lower grades (Gr 10 -> 11)
+      const sortedCohortIds = [...activeCohortIds].sort((a, b) => {
+        const cohortA = cohorts.find(c => c.id === a)
+        const cohortB = cohorts.find(c => c.id === b)
+        const gradeA = parseInt(cohortA?.gradeName?.replace(/[^\d]/g, '') || '0') || 0
+        const gradeB = parseInt(cohortB?.gradeName?.replace(/[^\d]/g, '') || '0') || 0
+        return gradeB - gradeA
+      })
+
+      for (const cohortId of sortedCohortIds) {
         const rule = promotionRules[cohortId]
         if (!rule) continue
 
@@ -379,7 +420,8 @@ export default function StudentPromotionPage() {
         if (!cohort) continue
 
         const payload: any = {
-          academicYear,
+          academicYear: toAcademicYear,
+          fromAcademicYear: fromAcademicYear,
           toGradeId: rule.gradeId === 'GRADUATE' ? 'GRADUATE' : rule.gradeId,
           toSectionName: rule.sectionName || null,
           toStreamId: rule.streamId || null,
@@ -461,25 +503,25 @@ export default function StudentPromotionPage() {
   const selectedCountForExpanded = expandedCohortId ? (selectedStudentIds[expandedCohortId]?.size || 0) : 0
 
   const isValidAcademicYear = (year: string): boolean => {
-    if (!year) return false
-    const match = year.trim().match(/^(\d{4})[\/\-](\d{4})$/)
-    if (!match) return false
-    const y1 = parseInt(match[1], 10)
-    const y2 = parseInt(match[2], 10)
-    return y2 === y1 + 1
+    if (!year || typeof year !== 'string') return false
+    const cleaned = year.trim().replace(/\s*E\.?C\.?$/i, '').trim()
+    const rangeMatch = cleaned.match(/^(\d{4})[\/\-](\d{2,4})$/)
+    if (rangeMatch) {
+      const y1 = parseInt(rangeMatch[1], 10)
+      let y2 = parseInt(rangeMatch[2], 10)
+      if (y2 < 100) {
+        const century = Math.floor(y1 / 100) * 100
+        y2 = century + y2
+      }
+      return y2 === y1 + 1
+    }
+    const singleMatch = cleaned.match(/^(\d{4})$/)
+    if (singleMatch) {
+      const y = parseInt(singleMatch[1], 10)
+      return y >= 1900 && y <= 2100
+    }
+    return false
   }
-
-  const isAcademicYearValid = useMemo(() => {
-    return isValidAcademicYear(academicYear)
-  }, [academicYear])
-
-  const isFutureAcademicYear = useMemo(() => {
-    if (!isAcademicYearValid) return false
-    const match = academicYear.trim().match(/^(\d{4})/)
-    if (!match) return false
-    const startYear = parseInt(match[1], 10)
-    return startYear >= 2027
-  }, [academicYear, isAcademicYearValid])
 
   // Stepper steps configuration
   const steps = [
@@ -492,12 +534,12 @@ export default function StudentPromotionPage() {
   // Wizard Navigation Handlers
   const handleNext = () => {
     if (currentStep === 1) {
-      if (!isAcademicYearValid) {
-        notifications.warning("Invalid Academic Year", "Academic year must be consecutive years (e.g. 2026/2027).")
+      if (!fromAcademicYear || !toAcademicYear) {
+        notifications.warning("Selection Required", "Please select both From Academic Year and To Academic Year.")
         return
       }
-      if (isFutureAcademicYear) {
-        setIsFutureConfirmOpen(true)
+      if (fromAcademicYear === toAcademicYear) {
+        notifications.warning("Invalid Transition", "Target 'To Academic Year' must be different from 'From Academic Year'.")
         return
       }
       setCurrentStep(2)
@@ -528,7 +570,7 @@ export default function StudentPromotionPage() {
   // Calculate if the "Next" button should be disabled
   const isNextDisabled = useMemo(() => {
     if (currentStep === 1) {
-      return !isAcademicYearValid
+      return !fromAcademicYear || !toAcademicYear || fromAcademicYear === toAcademicYear
     }
     if (currentStep === 2) {
       return promotionMode === 'bulk' ? selectedCohortIds.size === 0 : totalSelectedInSelective === 0
@@ -537,16 +579,21 @@ export default function StudentPromotionPage() {
       return !isConfigurationComplete
     }
     return false
-  }, [currentStep, isAcademicYearValid, promotionMode, selectedCohortIds, totalSelectedInSelective, isConfigurationComplete])
+  }, [currentStep, fromAcademicYear, toAcademicYear, promotionMode, selectedCohortIds, totalSelectedInSelective, isConfigurationComplete])
 
   return (
     <div className="space-y-6 pt-4 md:pt-6 pb-24 md:pb-12 max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
         <div>
-          <h1 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
-            <TrendingUp className="w-6 h-6 text-primary" /> Student Promotion
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
+              <TrendingUp className="w-6 h-6 text-primary" /> Student Promotion
+            </h1>
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 font-bold text-[10px] uppercase tracking-wide px-2.5 py-0.5">
+              {calendarType === 'ETHIOPIAN' ? 'Ethiopian Calendar (E.C.)' : 'Gregorian Calendar (G.C.)'}
+            </Badge>
+          </div>
           <p className="text-xs md:text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
             Batch promote cohorts or selectively advance individual students for the new academic year
           </p>
@@ -654,35 +701,45 @@ export default function StudentPromotionPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-8">
-                        {/* Target Academic Year */}
-                        <div className={cn(
-                          "space-y-2 p-5 rounded-xl border transition-all",
-                          isAcademicYearValid 
-                            ? "bg-slate-50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800" 
-                            : "bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50"
-                        )}>
-                          <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
-                            <Calendar className="w-4 h-4 text-primary" /> Target Academic Year
-                          </Label>
-                          <Input 
-                            value={academicYear}
-                            onChange={(e) => setAcademicYear(e.target.value)}
-                            placeholder="e.g. 2026/2027"
-                            className={cn(
-                              "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-11 font-bold text-lg text-primary text-center tracking-wider max-w-xs transition-all",
-                              !isAcademicYearValid && academicYear && "border-rose-400 dark:border-rose-800 text-rose-600 dark:text-rose-400 focus-visible:ring-rose-500"
-                            )}
-                          />
-                          {!isAcademicYearValid && academicYear ? (
-                            <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5 mt-1">
-                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                              Invalid format! Must be consecutive years like 2026/2027 or 2025-2026.
-                            </p>
-                          ) : (
-                            <p className="text-xs text-slate-400 font-medium">
-                              The target academic year students will transition into upon promotion (e.g. 2026/2027).
-                            </p>
-                          )}
+                        {/* Target Academic Year Dropdowns */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                              <Calendar className="w-4 h-4 text-slate-500" /> From Academic Year
+                            </Label>
+                            <Select value={fromAcademicYear} onValueChange={setFromAcademicYear}>
+                              <SelectTrigger className="w-full bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-11 rounded-xl font-bold text-sm">
+                                <SelectValue placeholder="Select From Academic Year" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {configuredAcademicYears.map(ay => (
+                                  <SelectItem key={ay.id} value={ay.name}>
+                                    {ay.name} {ay.isCurrent ? '(Current Active)' : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-slate-400 font-medium">Source academic year for current student records.</p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                              <Calendar className="w-4 h-4 text-primary" /> To Academic Year (Target)
+                            </Label>
+                            <Select value={toAcademicYear} onValueChange={setToAcademicYear}>
+                              <SelectTrigger className="w-full bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-11 rounded-xl font-bold text-sm text-primary">
+                                <SelectValue placeholder="Select To Academic Year" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {configuredAcademicYears.map(ay => (
+                                  <SelectItem key={ay.id} value={ay.name}>
+                                    {ay.name} {ay.isCurrent ? '🎓 (Current Active)' : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-slate-400 font-medium">Configured target academic year for student promotion.</p>
+                          </div>
                         </div>
 
                         {/* Mode Select options */}
@@ -1184,7 +1241,7 @@ export default function StudentPromotionPage() {
                           Review Promotion Parameters
                         </h2>
                         <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-                          Academic Year: <span className="text-primary font-bold">{academicYear}</span> • Mode: <span className="text-primary font-bold uppercase">{promotionMode}</span>
+                          Transition: <span className="text-slate-700 dark:text-slate-300 font-bold">{fromAcademicYear || 'Current'}</span> → <span className="text-primary font-bold">{toAcademicYear}</span> • Mode: <span className="text-primary font-bold uppercase">{promotionMode}</span>
                         </p>
                       </div>
                     </div>
@@ -1364,7 +1421,7 @@ export default function StudentPromotionPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-xs font-medium text-slate-400 whitespace-nowrap">
-                            {format(new Date(h.promotedAt), 'MMM dd, yyyy HH:mm')}
+                            {formatDateTime(h.promotedAt)}
                           </TableCell>
                           <TableCell className="text-right px-6 whitespace-nowrap">
                              <Button 
@@ -1387,16 +1444,16 @@ export default function StudentPromotionPage() {
         )}
       </AnimatePresence>
 
-      {/* Confirmation Dialog for Future Academic Year */}
+      {/* Confirmation Dialog for Target Academic Year */}
       <Dialog open={isFutureConfirmOpen} onOpenChange={setIsFutureConfirmOpen}>
         <DialogContent className="max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base md:text-lg font-bold text-slate-900 dark:text-white">
               <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
-              Confirm Academic Year: {academicYear}
+              Confirm Academic Year: {toAcademicYear}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed font-medium">
-              You are setting <span className="font-bold text-primary">{academicYear}</span> as the target academic year. Please confirm to proceed with student promotion for this academic year.
+              You are setting <span className="font-bold text-primary">{toAcademicYear}</span> as the target academic year. Please confirm to proceed with student promotion for this academic year.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-row justify-end gap-2 mt-6">

@@ -370,7 +370,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       if (token) headers['Authorization'] = `Bearer ${token}`;
       if (schoolId) headers['x-school-id'] = schoolId;
 
-      const res = await fetch(`${apiUrl}/api/students?search=${encodeURIComponent(trimmed)}&limit=20`, { headers });
+      const res = await fetch(`${apiUrl}/api/students?status=ACTIVE&search=${encodeURIComponent(trimmed)}&limit=20`, { headers });
       if (!res.ok) return;
       const data = await res.json();
       const rawList: any[] = data.students || data.data || [];
