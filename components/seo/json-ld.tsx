@@ -12,7 +12,7 @@ interface OrganizationJsonLdProps {
 export function OrganizationJsonLd({
   name = "Addis Hiwot",
   url = SITE_URL,
-  logo = `${SITE_URL}/Addis Hiwot-logo.png`,
+  logo = `${SITE_URL}/addis-hiwot-logo.png`,
   description = "School Attendance Management & Communication System for educational institutions.",
 }: OrganizationJsonLdProps) {
   const schema = {

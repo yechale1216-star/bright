@@ -14,8 +14,6 @@ export default function robots(): MetadataRoute.Robots {
           "/parent/",
           "/super-admin/",
           "/auth/",
-          "/onboarding/",
-          "/dev-tools/",
           "/checkout-simulation/",
           "/api/",
         ],

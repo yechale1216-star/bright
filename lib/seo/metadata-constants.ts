@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 // ── Site-wide constants ─────────────────────────────────────────────────────────
 export const SITE_NAME = "Addis Hiwot"
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://zetime.pro.et"
-export const DEFAULT_OG_IMAGE = "/Addis Hiwot-logo.png"
+export const DEFAULT_OG_IMAGE = "/addis-hiwot-logo.png"
 export const TWITTER_HANDLE = "@AddisHiwot"
 
 export const DEFAULT_DESCRIPTION =
@@ -25,7 +25,7 @@ export const DEFAULT_KEYWORDS = [
 
 // ── Helper: build a fully-formed Metadata object ────────────────────────────────
 interface PageMetadataOptions {
-  /** Page-specific title (will be templated as "title | Zetime") */
+  /** Page-specific title (will be templated as "title | Addis Hiwot") */
   title: string
   /** Page-specific description (≤ 160 chars recommended) */
   description: string
