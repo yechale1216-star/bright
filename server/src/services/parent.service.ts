@@ -126,7 +126,6 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
   }
 
   // 1. Sync any legacy students (found via phone in Student table) into ParentStudentLink
-  console.log(`[loginParent] Syncing legacy students for phone: ${cleanPhone}`);
   await syncLegacyStudents(user.id, cleanPhone);
 
   // 2. Retrieve ALL students via ParentStudentLink (global lookup)
@@ -140,7 +139,6 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
   });
 
   const students: any[] = links.map(l => l.student).filter(Boolean);
-  console.log(`[loginParent] Discovered ${students.length} linked students`);
 
   if (students.length === 0) {
     throw new Error("No children profiles found associated with this account.");
@@ -494,9 +492,6 @@ export const syncLegacyStudents = async (userId: string, phone: string) => {
 
   // 2. Fetch students using these variations
   // We use multiple search strategies to find legacy records
-  console.log(`[syncLegacyStudents] Searching variations:`, Array.from(variations));
-  if (suffix) console.log(`[syncLegacyStudents] Suffix search: ${suffix}`);
-  
   const legacyStudents = await prisma.student.findMany({
     where: { 
       OR: [
@@ -507,18 +502,12 @@ export const syncLegacyStudents = async (userId: string, phone: string) => {
     }
   });
 
-  console.log(`[syncLegacyStudents] Found ${legacyStudents.length} potential students in DB`);
-
   // 3. Filter results in memory to ensure true phone match (cleaning DB phone numbers)
   const matchedStudents = legacyStudents.filter(s => {
     if (!s.parent_phone) return false;
     const dbPhoneCleaned = s.parent_phone.replace(/[^\d+]/g, '');
-    const isMatch = variations.has(dbPhoneCleaned) || (suffix && dbPhoneCleaned.endsWith(suffix));
-    if (isMatch) console.log(`[syncLegacyStudents] Matched student: ${s.id} (${s.fullName}) at school: ${s.schoolId}`);
-    return isMatch;
+    return variations.has(dbPhoneCleaned) || Boolean(suffix && dbPhoneCleaned.endsWith(suffix));
   });
-
-  console.log(`[syncLegacyStudents] Final matched count: ${matchedStudents.length}`);
 
   for (const student of matchedStudents) {
     await prisma.parentStudentLink.upsert({
@@ -535,9 +524,8 @@ export const syncLegacyStudents = async (userId: string, phone: string) => {
  * Finds an existing parent by phone or creates a new one.
  * Atomic operation using upsert to prevent duplicates.
  */
-export const findOrCreateParentByPhone = async (phone: string, data: any) => {
+export const findOrCreateParentByPhone = async (phone: string, data: { name?: string; email?: string; password?: string; address?: string; schoolId?: string }) => {
   const cleanPhone = normalizePhoneNumber(phone);
-  console.log(`[ParentService] Lookup started for phone: "${phone}" (normalized: "${cleanPhone}")`);
   
   // 1. Try finding by normalized phone first
   let existingUser = await prisma.user.findUnique({
@@ -586,7 +574,6 @@ export const findOrCreateParentByPhone = async (phone: string, data: any) => {
   }
 
   if (existingUser) {
-    console.log(`[ParentService] Duplicate creation prevented: Existing parent returned (ID: ${existingUser.id}, Phone: ${existingUser.phone})`);
     return existingUser;
   }
 
@@ -610,12 +597,10 @@ export const findOrCreateParentByPhone = async (phone: string, data: any) => {
         schoolId: data.schoolId || null
       }
     });
-    console.log(`[ParentService] New parent account created successfully (ID: ${newParent.id}, Phone: ${newParent.phone})`);
     return newParent;
   } catch (error: any) {
     // Catch Unique Constraint Violation (Prisma Code P2002)
     if (error.code === 'P2002' || error.message?.includes('Unique constraint')) {
-      console.warn(`[ParentService] UNIQUE constraint conflict detected during parent creation for phone "${cleanPhone}". Recovering existing record...`);
       const recoveredParent = await prisma.user.findFirst({
         where: {
           OR: [
@@ -625,11 +610,9 @@ export const findOrCreateParentByPhone = async (phone: string, data: any) => {
         }
       });
       if (recoveredParent) {
-        console.log(`[ParentService] Existing parent returned after UNIQUE constraint conflict (ID: ${recoveredParent.id})`);
         return recoveredParent;
       }
     }
-    console.error(`[ParentService] Failed to create parent for phone "${cleanPhone}":`, error);
     throw error;
   }
 };
@@ -650,7 +633,6 @@ export const checkParentsExist = async (phones: string[]) => {
 
 export const searchParentByPhone = async (phone: string, schoolId: string) => {
   const cleanPhone = phone.replace(/\s+/g, '');
-  console.log(`[ParentService] Search parent lookup started for phone: "${cleanPhone}" (schoolId: ${schoolId})`);
   
   // Create variations of the phone number to search for (Ethiopian context)
   const phoneVariations = [cleanPhone];
@@ -674,7 +656,6 @@ export const searchParentByPhone = async (phone: string, schoolId: string) => {
   });
 
   if (user) {
-    console.log(`[ParentService] Lookup completed: Parent account found in User directory (ID: ${user.id})`);
     return { success: true, data: user };
   }
 
@@ -688,7 +669,6 @@ export const searchParentByPhone = async (phone: string, schoolId: string) => {
   });
 
   if (legacyStudent) {
-    console.log(`[ParentService] Lookup completed: Legacy parent info found in Student table`);
     return {
       success: true,
       data: {
@@ -702,7 +682,6 @@ export const searchParentByPhone = async (phone: string, schoolId: string) => {
     };
   }
 
-  console.log(`[ParentService] Lookup completed: No parent record found for phone "${cleanPhone}"`);
   return { success: false, message: "No parent found with this phone number." };
 };
 

@@ -1,28 +1,33 @@
-# v0 sandbox internal files
-__zetime_runtime_loader.js
-__zetime_devtools.tsx
-__zetime_jsx-dev-runtime.ts
-.snowflake/
-.__zetime_devtools-trash/
-.vercel/
+# Dependencies
+node_modules/
 
-
-
-
-# Common ignores
-node_modules
+# Next.js
 .next/
 .next_dev/
 .next_dev_v2/
-.DS_Store
+out/
+
+# Build outputs
+dist/
+build/
+
+# Environment files (NEVER commit secrets)
 .env
 .env.*
 !.env.example
+server/.env
+server/.env.*
+!server/.env.example
 
-# Build outputs
-out/
-dist/
-build/
+# Debug logs
+server/server_debug.log
+*.log
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
+
+# Android APK binaries
+*.apk
 
 # IDE files
 .vscode/
@@ -32,6 +37,5 @@ build/
 .DS_Store
 Thumbs.db
 
-# Android APK files
-*.apk
-Zetime-test.apk
+# Vercel
+.vercel/

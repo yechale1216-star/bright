@@ -126,7 +126,7 @@ export function Reports() {
   const loadStudents = async () => {
     try {
       const user = authService.getCurrentUser()
-      console.log("[v0] Loading students for report - isAdmin:", user?.role === "admin")
+      console.log("Loading students for report - isAdmin:", user?.role === "admin")
 
       const studentsData = await db.getStudents()
       
@@ -161,7 +161,7 @@ export function Reports() {
         setStudents(studentsData)
       }
     } catch (error) {
-      console.error("[v0] Error loading students for report:", error)
+      console.error("Error loading students for report:", error)
       notifications.error("Error", "Failed to load students for report")
     } finally {
       // Always mark students as loaded so the report generation effect can proceed.
@@ -379,8 +379,8 @@ export function Reports() {
   }
 
   const exportToCSV = () => {
-    console.log("[v0] Starting CSV export...")
-    console.log("[v0] Filtered reports count:", filteredReports.length)
+    console.log("Starting CSV export...")
+    console.log("Filtered reports count:", filteredReports.length)
 
     if (filteredReports.length === 0) {
       notifications.warning("No Data", "No data available to export")
@@ -420,7 +420,7 @@ export function Reports() {
 
       const csvContent = [headers, ...csvData].map((row) => row.join(",")).join("\n")
 
-      console.log("[v0] CSV content generated, length:", csvContent.length)
+      console.log("CSV content generated, length:", csvContent.length)
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
       const url = window.URL.createObjectURL(blob)
@@ -441,10 +441,10 @@ export function Reports() {
         window.URL.revokeObjectURL(url)
       }, 100)
 
-      console.log("[v0] CSV download initiated successfully")
+      console.log("CSV download initiated successfully")
       notifications.success("Export Complete", `Report exported successfully with ${filteredReports.length} records`)
     } catch (error) {
-      console.error("[v0] CSV export error:", error)
+      console.error("CSV export error:", error)
       notifications.error("Export Failed", "Failed to export report. Please try again.")
     }
   }

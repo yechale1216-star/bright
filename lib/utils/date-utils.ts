@@ -63,13 +63,13 @@ export function formatLocalizedDate(
   dateInput: string | Date | number,
   language: Language = "en",
   options: DateOptions = { month: "short", day: "numeric" },
-  calendarPreference: CalendarPreference = "gregorian"
+  calendarPreference?: CalendarPreference
 ): string {
   try {
     if (!dateInput) return "";
 
-    // Respect calendarPreference setting (ethiopian or gregorian)
-    const effectivePreference: CalendarPreference = calendarPreference;
+    // Respect calendarPreference setting if provided, otherwise default based on language
+    const effectivePreference: CalendarPreference = calendarPreference ?? (language === "am" ? "ethiopian" : "gregorian");
 
     // Ethiopian Calendar formatting
     if (effectivePreference === "ethiopian") {

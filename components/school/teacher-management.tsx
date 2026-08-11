@@ -94,7 +94,7 @@ export function TeacherManagement() {
       const teachersData = await db.getTeachers(forceRefetch)
       setTeachers(teachersData)
     } catch (error) {
-      console.error("[v0] Error loading teachers:", error)
+      console.error("Error loading teachers:", error)
       notifications.error("Teachers", "Failed to load teachers")
     } finally {
       setIsLoading(false)
@@ -133,7 +133,7 @@ export function TeacherManagement() {
           const data = await db.getTeacherAssignments(undefined, teacherIdToQuery)
           setAssignments(data)
         } catch (error) {
-          console.error("[v0] Error loading assignments:", error)
+          console.error("Error loading assignments:", error)
           notifications.error("Error Loading Assignments", "Could not fetch teacher class assignments.")
         } finally {
           setIsLoadingAssignments(false)
@@ -275,7 +275,7 @@ export function TeacherManagement() {
         experience_years: "",
       })
     } catch (error: any) {
-      console.error("[v0] Error saving teacher:", error)
+      console.error("Error saving teacher:", error)
       notifications.error("Error", error.message || "Failed to save teacher")
     } finally {
       setIsSaving(false)
@@ -318,7 +318,7 @@ export function TeacherManagement() {
       }
       loadData(true, true)
     } catch (error: any) {
-      console.error(`[v0] Error toggling status for teacher:`, error)
+      console.error(`Error toggling status for teacher:`, error)
       notifications.error("Status Update Failed", error.message || "Failed to update teacher status")
       // Revert optimistic update on failure
       loadData(true, true)
@@ -341,7 +341,7 @@ export function TeacherManagement() {
       notifications.success("Teacher Deleted Successfully", "The teacher has been removed from the system.")
       loadData(true, true)
     } catch (error: any) {
-      console.error("[v0] Error deleting teacher:", error)
+      console.error("Error deleting teacher:", error)
       notifications.error("Error", error.message || "Failed to delete teacher")
       // Revert optimistic update on failure
       loadData(true, true)
@@ -381,7 +381,7 @@ export function TeacherManagement() {
 
       notifications.success("Export Complete", `Successfully exported ${filteredTeachers.length} teachers to CSV`)
     } catch (error) {
-      console.error("[v0] CSV export error:", error)
+      console.error("CSV export error:", error)
       notifications.error("Export Failed", "Failed to export teacher list. Please try again.")
     }
   }

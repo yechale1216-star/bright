@@ -125,7 +125,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
     return res.status(400).json({ error: 'Missing callId' });
   }
 
-  console.log(`[PublicReject] Received request to reject call: ${callId}`);
   const call = await getActiveCall(callId);
   if (call) {
     await deleteActiveCall(callId, call.from, call.to);
@@ -135,7 +134,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
     if (io) {
       const callerSocketIds = await getUserSocketIds(call.from);
       if (callerSocketIds.length > 0) {
-        console.log(`[PublicReject] Emitting call_rejected to caller ${call.from}`);
         io.to(callerSocketIds).emit('call_rejected', { from: call.to });
       }
     }

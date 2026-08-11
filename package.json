@@ -1,5 +1,5 @@
 {
-  "name": "zetime",
+  "name": "addis-hiwot",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -15,7 +15,9 @@
     "mobile": "powershell -ExecutionPolicy Bypass -File ./scripts/mobile-dev.ps1",
     "mobile:forward": "adb reverse tcp:3000 tcp:3000 && adb reverse tcp:5000 tcp:5000",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",

@@ -133,11 +133,11 @@ export function Settings() {
   }
 
   const saveSettings = async () => {
-    console.log("[v0] Starting to save settings:", settings)
+    console.log("Starting to save settings:", settings)
     setIsSaving(true)
     try {
       if ((user?.role === "admin" || user?.role === "super_admin") && isEditingSchoolInfo) {
-        console.log("[v0] Saving school info:", { ...schoolInfo })
+        console.log("Saving school info:", { ...schoolInfo })
         const result = await authService.updateSchoolInfo(
           schoolInfo.schoolName, 
           "", // legacy code param
@@ -194,21 +194,21 @@ export function Settings() {
         schoolLogo: schoolInfo.schoolLogo,
       }
 
-      console.log("[v0] Calling db.updateSettings with:", updatedSettings)
+      console.log("Calling db.updateSettings with:", updatedSettings)
       // updateSettings() now returns the server-confirmed mapped settings object directly.
       // We use it to update React state without an extra getSettings() round-trip,
       // which eliminates the cache-race that caused settings to revert to defaults in the APK.
       const savedSettings = await db.updateSettings(updatedSettings)
-      console.log("[v0] Settings saved successfully to database")
+      console.log("Settings saved successfully to database")
 
       setSettings(savedSettings || updatedSettings)
       setIsEditingSchoolInfo(false)
 
       notifications.success("Settings Saved", "All settings have been updated successfully.")
 
-      console.log("[v0] Save settings completed successfully")
+      console.log("Save settings completed successfully")
     } catch (error) {
-      console.error("[v0] Error saving settings:", error)
+      console.error("Error saving settings:", error)
       notifications.error("Error", "Failed to save settings")
 
     } finally {

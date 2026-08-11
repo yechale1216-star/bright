@@ -23,7 +23,7 @@ async function apiCall(endpoint: string, options: RequestOptions = {}) {
   }
 
   try {
-    console.log(`[v0] Making ${method} request to ${endpoint}`)
+    console.log(`Making ${method} request to ${endpoint}`)
     const response = await fetch(url, config)
 
     if (!response.ok) {
@@ -40,7 +40,7 @@ async function apiCall(endpoint: string, options: RequestOptions = {}) {
         errorData = { text: await response.text() }
       }
 
-      console.error(`[v0] API Error on ${method} ${endpoint}:`, {
+      console.error(`API Error on ${method} ${endpoint}:`, {
         status: response.status,
         statusText: response.statusText,
         error: errorData,
@@ -49,10 +49,10 @@ async function apiCall(endpoint: string, options: RequestOptions = {}) {
     }
 
     const responseData = await parseJsonResponse(response)
-    console.log(`[v0] ${method} ${endpoint} successful`)
+    console.log(`${method} ${endpoint} successful`)
     return responseData
   } catch (error: any) {
-    console.error(`[v0] Fetch failed for ${method} ${endpoint}:`, error.message)
+    console.error(`Fetch failed for ${method} ${endpoint}:`, error.message)
     throw error
   }
 }

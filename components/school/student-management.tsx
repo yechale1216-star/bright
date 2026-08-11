@@ -217,7 +217,7 @@ export function StudentManagement() {
       }
       setError(null)
     } catch (err: any) {
-      console.error("[v0] Error loading students:", err)
+      console.error("Error loading students:", err)
       setError(err.message || "Failed to load students")
       notifications.error("Error", "Failed to load students")
     } finally {
@@ -621,7 +621,7 @@ export function StudentManagement() {
   }
 
   const downloadCSVTemplate = () => {
-    console.log("[v0] Starting CSV template download...")
+    console.log("Starting CSV template download...")
 
     try {
       const headers = [
@@ -684,7 +684,7 @@ export function StudentManagement() {
       csvContent += example1.map(escapeCSV).join(",") + "\n"
       csvContent += example2.map(escapeCSV).join(",") + "\n"
 
-      console.log("[v0] CSV template content generated")
+      console.log("CSV template content generated")
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
       const url = window.URL.createObjectURL(blob)
@@ -705,16 +705,16 @@ export function StudentManagement() {
         window.URL.revokeObjectURL(url)
       }, 100)
 
-      console.log("[v0] CSV template download initiated successfully")
+      console.log("CSV template download initiated successfully")
       notifications.success("Template Downloaded", "CSV template downloaded successfully")
     } catch (error) {
-      console.error("[v0] CSV template download error:", error)
+      console.error("CSV template download error:", error)
       notifications.error("Download Failed", "Failed to download template. Please try again.")
     }
   }
 
   const exportStudentListToCSV = () => {
-    console.log("[v0] Starting student list CSV export...")
+    console.log("Starting student list CSV export...")
 
     try {
       const headers = [
@@ -771,7 +771,7 @@ export function StudentManagement() {
         `${filteredStudents.length} students have been exported to CSV successfully.`,
       )
     } catch (error) {
-      console.error("[v0] CSV export error:", error)
+      console.error("CSV export error:", error)
       notifications.error("Export Failed", "Failed to export student list. Please try again.")
     }
   }

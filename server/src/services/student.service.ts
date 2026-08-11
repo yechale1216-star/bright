@@ -164,15 +164,12 @@ export const getNextStudentId = async (schoolId: string) => {
 };
 
 export const createStudent = async (data: any, schoolId: string) => {
-  console.log(`[StudentService] createStudent called for schoolId: "${schoolId}"`);
-  
   // Verify school exists
   const school = await prisma.school.findUnique({ where: { id: schoolId } });
   if (!school) {
     console.error(`[StudentService] School not found for ID: "${schoolId}"`);
     throw new Error('School context invalid - Please logout and login again (database was likely reset)');
   }
-
 
   let studentId = data.student_id;
   if (!studentId) {
@@ -229,7 +226,6 @@ export const createStudent = async (data: any, schoolId: string) => {
   });
 
   // Handle Parent User Account creation or linking
-  console.log(`[StudentService] Resolving parent for student enrollment (phone: "${data.parent_phone}")`);
   const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
     name: data.parent_name,
     email: data.parent_email,
@@ -238,7 +234,6 @@ export const createStudent = async (data: any, schoolId: string) => {
     schoolId: schoolId
   });
 
-  console.log(`[StudentService] Linking student "${newStudent.fullName}" (${newStudent.id}) to parent "${parent.full_name}" (${parent.id}) with relationship: ${data.relationshipType || 'Guardian'}`);
   await prisma.parentStudentLink.upsert({
     where: {
       parentId_studentId: {
@@ -545,8 +540,6 @@ export const updateStudent = async (id: string, data: any, schoolId: string) => 
 };
 
 export const deleteStudent = async (id: string, schoolId: string) => {
-  console.log(`[StudentService] Attempting to delete student with identifier: ${id} for school: ${schoolId}`);
-  
   // Try deleting by the primary UUID first
   let result = await prisma.student.deleteMany({ 
     where: { id, schoolId } 
@@ -554,7 +547,6 @@ export const deleteStudent = async (id: string, schoolId: string) => {
   
   // If no record was deleted, try deleting by the custom 'student_id' field (like STU000001)
   if (result.count === 0) {
-    console.log(`[StudentService] UUID match failed, trying custom student_id field...`);
     result = await prisma.student.deleteMany({
       where: { 
         student_id: id,
@@ -562,8 +554,6 @@ export const deleteStudent = async (id: string, schoolId: string) => {
       }
     });
   }
-  
-  console.log(`[StudentService] Final delete result:`, result);
   
   if (result.count === 0) {
     throw new Error('Student not found. Ensure the ID is correct and you have permission to delete this record.');

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (userError) {
-      console.error("[v0] Error fetching user:", userError)
+      console.error("Error fetching user:", userError)
       // For security, don't reveal if email exists
       return NextResponse.json({
         success: true,
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (storeError) {
-      console.error("[v0] Error storing reset token:", storeError)
+      console.error("Error storing reset token:", storeError)
       // Still return success for security
       return NextResponse.json({
         success: true,
@@ -91,7 +91,7 @@ Smart Attendance System
     })
 
     if (!response.ok) {
-      console.error("[v0] Failed to send reset email - Status:", response.status)
+      console.error("Failed to send reset email - Status:", response.status)
       // Still return success for security
       return NextResponse.json({
         success: true,
@@ -103,7 +103,7 @@ Smart Attendance System
     try {
       emailData = await response.json()
     } catch (parseError) {
-      console.error("[v0] Error parsing email response:", parseError)
+      console.error("Error parsing email response:", parseError)
       // Email was sent but we couldn't parse response, still consider it success
       return NextResponse.json({
         success: true,
@@ -111,13 +111,13 @@ Smart Attendance System
       })
     }
 
-    console.log("[v0] Reset email sent successfully")
+    console.log("Reset email sent successfully")
     return NextResponse.json({
       success: true,
       message: "If an account with this email exists, you'll receive reset instructions shortly.",
     })
   } catch (error) {
-    console.error("[v0] Forgot password error:", error)
+    console.error("Forgot password error:", error)
     return NextResponse.json({
       success: true,
       message: "If an account with this email exists, you'll receive reset instructions shortly.",

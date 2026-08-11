@@ -308,7 +308,7 @@ export function AttendanceTracking() {
         setStudents(activeOnly)
       }
     } catch (error: any) {
-      console.error("[v0] Error loading students for teacher:", error)
+      console.error("Error loading students for teacher:", error)
       notifications.error("Error", error.message || "Failed to load students")
     } finally {
       setIsLoading(false)
@@ -766,7 +766,7 @@ export function AttendanceTracking() {
 
       await fetchEditRequests()
     } catch (error: any) {
-      console.error("[v0] Error saving attendance:", error)
+      console.error("Error saving attendance:", error)
       notifications.error("Error", error.message || "Failed to save attendance. Please try again.")
     } finally {
       setIsSaving(false)
@@ -997,7 +997,7 @@ export function AttendanceTracking() {
 
 
   const exportAttendanceToCSV = () => {
-    console.log("[v0] Starting attendance CSV export...")
+    console.log("Starting attendance CSV export...")
 
     try {
       const headers = ["Student Name", "Student ID", "Grade", "Stream", "Section", "Status", "Date", "Note"]
@@ -1036,7 +1036,7 @@ export function AttendanceTracking() {
       notifications.success("Export Complete", `Exported attendance for ${filteredStudents.length} students`)
 
     } catch (error) {
-      console.error("[v0] CSV export error:", error)
+      console.error("CSV export error:", error)
       notifications.error("Export Failed", "Failed to export attendance. Please try again.")
 
     }

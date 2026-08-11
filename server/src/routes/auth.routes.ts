@@ -192,7 +192,6 @@ router.post('/logout', async (req: Request, res: Response) => {
           where: { id: decoded.id },
           data: { pushToken: null }
         });
-        console.log(`[Logout] Cleared FCM pushToken for user ${decoded.id}`);
       }
     }
   } catch (err) {
@@ -299,7 +298,6 @@ router.post('/push-token', pushTokenLimiter, async (req: Request, res: Response,
       data: { pushToken: token },
     });
 
-    console.log(`[PushToken] Saved FCM token for user ${decoded.id} and cleared duplicates`);
     res.status(200).json({ success: true });
   } catch (error) {
     next(error);

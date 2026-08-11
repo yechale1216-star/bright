@@ -66,8 +66,6 @@ export const getUsers = async (schoolId: string) => {
 export const getContacts = async (schoolId: string, currentUser?: any) => {
   if (!schoolId) throw new Error('School ID is required');
 
-  console.log(`[UserService] getContacts called for schoolId: ${schoolId}, role: ${currentUser?.role}`);
-
   const allowedRoles = ['admin', 'school_admin', 'teacher', 'parent', 'staff'];
   const baseRoles = ['admin', 'school_admin', 'teacher', 'staff'];
   
@@ -124,7 +122,6 @@ export const getContacts = async (schoolId: string, currentUser?: any) => {
     return finalContacts.filter(u => ['admin', 'school_admin', 'teacher', 'staff'].includes(u.role));
   }
 
-  console.log(`[UserService] Found ${finalContacts.length} potential contacts`);
   return finalContacts.sort((a, b) => a.full_name.localeCompare(b.full_name));
 };
 

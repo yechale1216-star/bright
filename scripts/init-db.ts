@@ -214,7 +214,7 @@ CREATE POLICY "Only admins can update email settings"
 
 async function initDatabase() {
   try {
-    console.log("[v0] Starting database initialization...")
+    console.log("Starting database initialization...")
 
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/exec`, {
       method: "POST",
@@ -230,9 +230,9 @@ async function initDatabase() {
       throw new Error(`HTTP ${response.status}: ${await response.text()}`)
     }
 
-    console.log("[v0] Database initialized successfully!")
+    console.log("Database initialized successfully!")
   } catch (error) {
-    console.error("[v0] Error during initialization:", error)
+    console.error("Error during initialization:", error)
     process.exit(1)
   }
 }

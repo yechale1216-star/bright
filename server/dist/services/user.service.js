@@ -73,7 +73,6 @@ exports.getUsers = getUsers;
 const getContacts = async (schoolId, currentUser) => {
     if (!schoolId)
         throw new Error('School ID is required');
-    console.log(`[UserService] getContacts called for schoolId: ${schoolId}, role: ${currentUser?.role}`);
     const allowedRoles = ['admin', 'school_admin', 'teacher', 'parent', 'staff'];
     const baseRoles = ['admin', 'school_admin', 'teacher', 'staff'];
     // 1. Fetch Users directly belonging to this school (Admins/Teachers)
@@ -123,7 +122,6 @@ const getContacts = async (schoolId, currentUser) => {
     if (currentUser?.role === 'parent') {
         return finalContacts.filter(u => ['admin', 'school_admin', 'teacher', 'staff'].includes(u.role));
     }
-    console.log(`[UserService] Found ${finalContacts.length} potential contacts`);
     return finalContacts.sort((a, b) => a.full_name.localeCompare(b.full_name));
 };
 exports.getContacts = getContacts;

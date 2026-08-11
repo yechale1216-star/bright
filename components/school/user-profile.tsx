@@ -165,7 +165,7 @@ export function UserProfile() {
       notifications.success("Profile Update", "Profile updated successfully")
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      console.error("[v0] Profile update error:", errorMsg)
+      console.error("Profile update error:", errorMsg)
       notifications.error("Profile Update", `Failed to update profile: ${errorMsg}`)
     }
   }

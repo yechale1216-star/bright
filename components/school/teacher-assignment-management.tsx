@@ -96,7 +96,7 @@ export function TeacherAssignmentManagement() {
         setSchoolId(user.schoolId)
         await loadAllData(user.schoolId)
       } catch (error) {
-        console.error("[v0] Error initializing teacher assignment:", error)
+        console.error("Error initializing teacher assignment:", error)
         notifications.error("Error", "Failed to initialize. Please refresh the page.")
         setIsLoading(false)
       }
@@ -141,7 +141,7 @@ export function TeacherAssignmentManagement() {
       setAvailableSections(sectionsData)
       setAvailableStreams(streamsData)
     } catch (error) {
-      console.error("[v0] Error loading data:", error)
+      console.error("Error loading data:", error)
       notifications.error("Error", "Failed to load data")
     } finally {
       setIsLoading(false)
@@ -241,7 +241,7 @@ export function TeacherAssignmentManagement() {
       e.stopPropagation()
     }
     
-    console.log("[v0] Delete clicked for assignment:", assignmentId)
+    console.log("Delete clicked for assignment:", assignmentId)
     
     const isConfirmed = window.confirm("Are you sure you want to remove this teacher assignment?")
     if (!isConfirmed) {
@@ -257,7 +257,7 @@ export function TeacherAssignmentManagement() {
       // Background sync (no skeleton)
       loadAllData(schoolId, true, true)
     } catch (error: any) {
-      console.error("[v0] Deletion failed:", error)
+      console.error("Deletion failed:", error)
       notifications.error("Delete Failed", error.message || "Failed to remove assignment")
       // Revert optimistic update on failure
       loadAllData(schoolId, true, true)

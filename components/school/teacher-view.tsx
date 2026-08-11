@@ -82,7 +82,7 @@ export function TeacherView() {
       const currentUser = authService.getCurrentUser()
 
       if (!currentUser || !currentUser.id || !currentUser.schoolId) {
-        console.error("[v0] Missing essential user data in localStorage")
+        console.error("Missing essential user data in localStorage")
         toast({
           title: "Session Error",
           description: "Please log out and log back in to refresh your session.",
@@ -126,10 +126,10 @@ export function TeacherView() {
         setSelectedAssignment(assignmentsData[0] as any)
       }
 
-      console.log("[v0] Loaded assignments:", assignmentsData.length)
-      console.log("[v0] Loaded students for assigned classes:", filteredStudents.length)
+      console.log("Loaded assignments:", assignmentsData.length)
+      console.log("Loaded students for assigned classes:", filteredStudents.length)
     } catch (error) {
-      console.error("[v0] Error loading teacher data:", error)
+      console.error("Error loading teacher data:", error)
       toast({
         title: "Error",
         description: "Failed to load your assignments and students",

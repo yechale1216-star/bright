@@ -179,7 +179,6 @@ const getNextStudentId = async (schoolId) => {
 };
 exports.getNextStudentId = getNextStudentId;
 const createStudent = async (data, schoolId) => {
-    console.log(`[StudentService] createStudent called for schoolId: "${schoolId}"`);
     // Verify school exists
     const school = await db_1.default.school.findUnique({ where: { id: schoolId } });
     if (!school) {
@@ -238,7 +237,6 @@ const createStudent = async (data, schoolId) => {
         }
     });
     // Handle Parent User Account creation or linking
-    console.log(`[StudentService] Resolving parent for student enrollment (phone: "${data.parent_phone}")`);
     const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
         name: data.parent_name,
         email: data.parent_email,
@@ -246,7 +244,6 @@ const createStudent = async (data, schoolId) => {
         address: data.parent_address,
         schoolId: schoolId
     });
-    console.log(`[StudentService] Linking student "${newStudent.fullName}" (${newStudent.id}) to parent "${parent.full_name}" (${parent.id}) with relationship: ${data.relationshipType || 'Guardian'}`);
     await db_1.default.parentStudentLink.upsert({
         where: {
             parentId_studentId: {
@@ -540,14 +537,12 @@ const updateStudent = async (id, data, schoolId) => {
 };
 exports.updateStudent = updateStudent;
 const deleteStudent = async (id, schoolId) => {
-    console.log(`[StudentService] Attempting to delete student with identifier: ${id} for school: ${schoolId}`);
     // Try deleting by the primary UUID first
     let result = await db_1.default.student.deleteMany({
         where: { id, schoolId }
     });
     // If no record was deleted, try deleting by the custom 'student_id' field (like STU000001)
     if (result.count === 0) {
-        console.log(`[StudentService] UUID match failed, trying custom student_id field...`);
         result = await db_1.default.student.deleteMany({
             where: {
                 student_id: id,
@@ -555,7 +550,6 @@ const deleteStudent = async (id, schoolId) => {
             }
         });
     }
-    console.log(`[StudentService] Final delete result:`, result);
     if (result.count === 0) {
         throw new Error('Student not found. Ensure the ID is correct and you have permission to delete this record.');
     }

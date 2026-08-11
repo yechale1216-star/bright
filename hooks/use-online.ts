@@ -13,12 +13,12 @@ export function useOnline() {
     const handleOnline = () => {
       setIsOnline(true)
       setWasOffline(true)
-      console.log("[v0] Back online")
+      console.log("Back online")
     }
 
     const handleOffline = () => {
       setIsOnline(false)
-      console.log("[v0] User is offline")
+      console.log("User is offline")
     }
 
     window.addEventListener("online", handleOnline)

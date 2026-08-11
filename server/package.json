@@ -1,19 +1,16 @@
 {
-  "name": "zetime-server",
+  "name": "addis-hiwot-server",
   "version": "1.0.0",
-  "description": "Backend for Zetime School Attendance System",
+  "description": "Backend for Addis Hiwot School Attendance System",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "build": "tsc",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "seed": "ts-node prisma/seed.ts"
+    "prisma:migrate": "prisma migrate dev"
   },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  },
+
   "dependencies": {
     "@prisma/client": "^5.10.2",
     "@socket.io/redis-adapter": "^8.3.0",
