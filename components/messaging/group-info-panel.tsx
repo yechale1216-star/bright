@@ -21,8 +21,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils/utils';
 import { notifications } from '@/lib/utils/notifications';
 import { ConversationDetailsTabs } from '@/components/messaging/conversation-details-tabs';
+import { getApiUrl } from '@/lib/api-config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend.onrender.com';
+const API_URL = getApiUrl();
 
 const getAuthHeaders = () => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('attendance_token') : '';

@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Network } from '@capacitor/network';
 import { registerPlugin } from '@capacitor/core';
+import { getApiUrl } from '@/lib/api-config';
 
 interface CallPlugin {
   endCall: () => Promise<void>;
@@ -66,7 +67,7 @@ export const NativeBridge = {
   saveAuthToken: async (token: string, apiUrl?: string) => {
     if (Capacitor.isNativePlatform()) {
       try {
-        const urlToPersist = apiUrl || process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend.onrender.com';
+        const urlToPersist = apiUrl || getApiUrl();
         await CallPlugin.saveAuthToken({ token, apiUrl: urlToPersist });
       } catch (e) {
         console.warn('[NativeBridge] saveAuthToken failed', e);
@@ -160,7 +161,7 @@ export const NativeBridge = {
       PushNotifications.addListener('registration', async (token) => {
         console.log('[NativeBridge] FCM token received:', token.value);
         try {
-          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend.onrender.com';
+          const API_URL = getApiUrl();
           const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('attendance_token') : null;
           
           if (authToken) {

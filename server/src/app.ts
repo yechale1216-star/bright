@@ -50,6 +50,7 @@ const app = express();
 
 // Middleware
 const defaultAllowedOrigins = [
+  'http://localhost',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',

@@ -25,7 +25,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: APP_URL
-        value: https://zetime-backend.onrender.com
+        value: https://zetime-backend-dmlv.onrender.com
       - key: FRONTEND_URL
         sync: false
       - key: ALLOWED_ORIGINS

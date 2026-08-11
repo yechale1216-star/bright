@@ -3,6 +3,7 @@
     <domain-config cleartextTrafficAllowed="true">
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">zetime-backend.onrender.com</domain>
+        <domain includeSubdomains="true">zetime-backend-dmlv.onrender.com</domain>
     </domain-config>
     <base-config cleartextTrafficAllowed="true">
         <trust-anchors>
