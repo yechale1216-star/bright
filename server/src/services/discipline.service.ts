@@ -649,16 +649,32 @@ export class DisciplineService {
     }
 
     let auditLogs: any[] = [];
-    if (user.role === 'school_admin' || user.role === 'super_admin' || user.role === 'discipline_officer') {
-      auditLogs = await prisma.auditLog.findMany({
+    const isStaffOrAdmin = user.role === 'admin' || user.role === 'school_admin' || user.role === 'super_admin' || user.role === 'discipline_officer';
+    if (isStaffOrAdmin) {
+      const rawLogs = await prisma.auditLog.findMany({
         where: {
           schoolId: user.schoolId,
           entity_type: 'DISCIPLINE',
           entity_id: incidentId
         },
         orderBy: { created_at: 'desc' },
-        take: 20
+        take: 30
       });
+
+      const userIds = Array.from(new Set(rawLogs.map(l => l.user_id).filter(Boolean))) as string[];
+      let userMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const users = await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, full_name: true }
+        });
+        userMap = Object.fromEntries(users.map(u => [u.id, u.full_name]));
+      }
+
+      auditLogs = rawLogs.map(log => ({
+        ...log,
+        authorName: log.user_id ? (userMap[log.user_id] || 'Staff Member') : 'System'
+      }));
     }
 
     const sanitized = sanitizeIncidentForRole(ensureCaseNumber(incident), user.role);
@@ -678,7 +694,7 @@ export class DisciplineService {
     officerId: string,
     notes?: string
   ) {
-    if (user.role !== 'school_admin' && user.role !== 'super_admin' && user.role !== 'discipline_officer') {
+    if (user.role !== 'admin' && user.role !== 'school_admin' && user.role !== 'super_admin' && user.role !== 'discipline_officer') {
       throw new Error('Forbidden: Only authorized officers/admins can reassign cases');
     }
 
@@ -758,7 +774,7 @@ export class DisciplineService {
       status?: string;
     }
   ) {
-    if (user.role !== 'school_admin' && user.role !== 'super_admin' && user.role !== 'discipline_officer') {
+    if (user.role !== 'admin' && user.role !== 'school_admin' && user.role !== 'super_admin' && user.role !== 'discipline_officer') {
       throw new Error('Forbidden: Only authorized officers can record investigation notes');
     }
 
@@ -821,7 +837,7 @@ export class DisciplineService {
       notes?: string;
     }
   ) {
-    if (user.role !== 'school_admin' && user.role !== 'super_admin' && user.role !== 'discipline_officer') {
+    if (user.role !== 'admin' && user.role !== 'school_admin' && user.role !== 'super_admin' && user.role !== 'discipline_officer') {
       throw new Error('Forbidden: Only authorized staff can update disciplinary actions');
     }
 
@@ -1124,7 +1140,7 @@ export class DisciplineService {
   }
 
   static async deleteIncident(user: { id: string; role: string; schoolId: string }, incidentId: string) {
-    if (user.role !== 'school_admin' && user.role !== 'super_admin') {
+    if (user.role !== 'admin' && user.role !== 'school_admin' && user.role !== 'super_admin') {
       throw new Error('Forbidden: Only School Admin can delete discipline records');
     }
 
@@ -1238,7 +1254,7 @@ export class DisciplineService {
       if (assignments.length === 0) {
         return {
           total: 0, open: 0, openCases: 0, resolvedCases: 0, criticalCases: 0, thisMonth: 0,
-          byCategory: [], bySeverity: [], byGrade: [], repeatOffenders: [], topReporters: []
+          byCategory: [], bySeverity: [], byGrade: [], repeatOffenders: [], monthlyMap: {}
         };
       }
       where.OR = assignments.map(a => ({
@@ -1293,7 +1309,6 @@ export class DisciplineService {
     const severityCounts: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 };
     const gradeCounts: Record<string, number> = {};
     const studentCounts: Record<string, { student: any; count: number }> = {};
-    const reporterCounts: Record<string, number> = {};
     const monthlyMap: Record<string, number> = {};
 
     allIncidents.forEach(inc => {
@@ -1306,13 +1321,17 @@ export class DisciplineService {
       if (inc.student) {
         const sKey = inc.student.id;
         if (!studentCounts[sKey]) {
-          studentCounts[sKey] = { student: inc.student, count: 0 };
+          studentCounts[sKey] = {
+            student: {
+              ...inc.student,
+              grade: inc.grade?.name,
+              section: inc.section?.name
+            },
+            count: 0
+          };
         }
         studentCounts[sKey].count += 1;
       }
-
-      const rName = inc.reportedByName || 'Unknown';
-      reporterCounts[rName] = (reporterCounts[rName] || 0) + 1;
 
       const d = new Date(inc.date || inc.createdAt);
       const mKey = d.toLocaleString('default', { month: 'short' });
@@ -1330,12 +1349,7 @@ export class DisciplineService {
     const repeatOffenders = Object.values(studentCounts)
       .filter(s => s.count > 1)
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    const topReporters = Object.entries(reporterCounts)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+      .slice(0, 50);
 
     return {
       total,
@@ -1350,7 +1364,6 @@ export class DisciplineService {
       bySeverity,
       byGrade,
       repeatOffenders,
-      topReporters,
       monthlyMap
     };
   }

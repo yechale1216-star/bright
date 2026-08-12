@@ -32,7 +32,6 @@ const ROLE_BADGES: Record<string, { label: string; color: string }> = {
   teacher: { label: 'Teacher', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' },
   registrar: { label: 'Registrar', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400' },
   discipline_officer: { label: 'Discipline Officer', color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' },
-  call_center: { label: 'Call Center', color: 'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400' },
   staff: { label: 'Staff', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400' },
 }
 
@@ -237,9 +236,8 @@ export default function UsersAndRolesPage() {
     { key: 'teacher', label: 'Teacher' },
     { key: 'registrar', label: 'Student Registration Officer (Registrar)' },
     { key: 'discipline_officer', label: 'Discipline & Conduct Officer' },
-    { key: 'call_center', label: 'School Call Center Officer' },
     { key: 'staff', label: 'General Staff' },
-    ...roles.filter(r => !['school_admin', 'admin', 'teacher', 'registrar', 'discipline_officer', 'call_center', 'staff'].includes(r.key)).map(r => ({
+    ...roles.filter(r => !['school_admin', 'admin', 'teacher', 'registrar', 'discipline_officer', 'staff'].includes(r.key)).map(r => ({
       key: r.key,
       label: r.name
     }))
@@ -334,9 +332,6 @@ export default function UsersAndRolesPage() {
           </span>
           <span className="px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold">
             Discipline Officers: {users.filter(u => u.role === 'discipline_officer').length}
-          </span>
-          <span className="px-3 py-1.5 rounded-xl bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-bold">
-            Call Center: {users.filter(u => u.role === 'call_center').length}
           </span>
           <span className="px-3 py-1.5 rounded-xl bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold">
             Teachers: {users.filter(u => u.role === 'teacher').length}

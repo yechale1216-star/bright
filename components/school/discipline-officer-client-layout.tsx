@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation'
 import {
   BarChart3,
   ClipboardList,
-  Layers,
+  Tag,
+  Sliders,
   GraduationCap,
   User,
   LogOut,
@@ -14,7 +15,8 @@ import {
   ChevronRight,
   Scale,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  PieChart
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { useAuth } from '@/lib/context/auth-context'
@@ -36,17 +38,12 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    group: 'OVERVIEW',
+    group: 'DISCIPLINE MANAGEMENT',
     items: [
       { href: '/school/discipline-officer', icon: BarChart3, label: 'Dashboard & Analytics', exact: true },
-    ],
-  },
-  {
-    group: 'CONDUCT MANAGEMENT',
-    items: [
-      { href: '/school/discipline-officer/incidents', icon: ClipboardList, label: 'Incidents Directory' },
-      { href: '/school/discipline-officer/students', icon: GraduationCap, label: 'Student Records' },
-      { href: '/school/discipline-officer/categories', icon: Layers, label: 'Custom Categories' },
+      { href: '/school/discipline-officer/incidents', icon: ClipboardList, label: 'Discipline Cases Directory' },
+      { href: '/school/discipline-officer/categories', icon: Tag, label: 'Incident Categories' },
+      { href: '/school/discipline-officer/actions', icon: Sliders, label: 'Disciplinary Actions' },
     ],
   },
   {

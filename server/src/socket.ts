@@ -13,43 +13,43 @@ import prisma from './config/db';
 // Redis key helpers
 // ─────────────────────────────────────────────────────────────────────────────
 const KEY = {
-  userSockets:  (uid: string)    => `sockets:user:${uid}`,
-  socketData:   (sid: string)    => `sockets:data:${sid}`,
-  userSchool:   (uid: string)    => `sockets:school:${uid}`,
-  onlineUsers:  (schoolId: string) => `online:${schoolId}`,
-  activeCall:   (callId: string) => `calls:${callId}`,
-  userInCall:   (uid: string)    => `calls:user:${uid}`,
-  schoolStatus: (sid: string)    => `cache:school:${sid}`,
-  userInfo:     (uid: string)    => `cache:user:${uid}`,
-  convSchool:   (cid: string)    => `cache:conv:${cid}`,
-  convMembers:  (cid: string)    => `cache:members:${cid}`,
-  tempId:       (key: string)    => `dedup:${key}`,
+  userSockets: (uid: string) => `sockets:user:${uid}`,
+  socketData: (sid: string) => `sockets:data:${sid}`,
+  userSchool: (uid: string) => `sockets:school:${uid}`,
+  onlineUsers: (schoolId: string) => `online:${schoolId}`,
+  activeCall: (callId: string) => `calls:${callId}`,
+  userInCall: (uid: string) => `calls:user:${uid}`,
+  schoolStatus: (sid: string) => `cache:school:${sid}`,
+  userInfo: (uid: string) => `cache:user:${uid}`,
+  convSchool: (cid: string) => `cache:conv:${cid}`,
+  convMembers: (cid: string) => `cache:members:${cid}`,
+  tempId: (key: string) => `dedup:${key}`,
 };
 
 const TTL = {
   schoolStatus: 5 * 60,
-  userInfo:     5 * 60,
-  convSchool:   5 * 60,
-  convMembers:  60,
-  tempId:       60,
-  activeCall:   60,
-  socketData:   12 * 3600,
+  userInfo: 5 * 60,
+  convSchool: 5 * 60,
+  convMembers: 60,
+  tempId: 60,
+  activeCall: 60,
+  socketData: 12 * 3600,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory fallback state (used when Redis is unavailable)
 // ─────────────────────────────────────────────────────────────────────────────
-const memUserSockets  = new Map<string, Set<string>>();            // userId → Set<socketId>
-const memSocketData   = new Map<string, { userId: string; schoolId: string }>();
-const memUserSchool   = new Map<string, string>();
-const memOnlineUsers  = new Map<string, Set<string>>();            // schoolId → Set<userId>
-const memActiveCalls  = new Map<string, any>();                    // callId → call data
-const memUserInCall   = new Map<string, string>();                 // userId → callId
+const memUserSockets = new Map<string, Set<string>>();            // userId → Set<socketId>
+const memSocketData = new Map<string, { userId: string; schoolId: string }>();
+const memUserSchool = new Map<string, string>();
+const memOnlineUsers = new Map<string, Set<string>>();            // schoolId → Set<userId>
+const memActiveCalls = new Map<string, any>();                    // callId → call data
+const memUserInCall = new Map<string, string>();                 // userId → callId
 const memSchoolStatus = new Map<string, { status: string; expires: number }>();
-const memUserInfo     = new Map<string, { data: any; expires: number }>();
-const memConvSchool   = new Map<string, { schoolId: string; expires: number }>();
-const memConvMembers  = new Map<string, { memberIds: string[]; expires: number }>();
-const memTempIds      = new Map<string, { messageId: string; expires: number }>();
+const memUserInfo = new Map<string, { data: any; expires: number }>();
+const memConvSchool = new Map<string, { schoolId: string; expires: number }>();
+const memConvMembers = new Map<string, { memberIds: string[]; expires: number }>();
+const memTempIds = new Map<string, { messageId: string; expires: number }>();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Local store for NodeJS.Timeout handles (cannot be stored in Redis)
@@ -83,9 +83,9 @@ async function getUserCachedInfo(userId: string): Promise<{ schoolId: string; ro
     const cached = await safeRedis(() => pubClient.hgetall(KEY.userInfo(userId)), null);
     if (cached && cached.role) {
       return {
-        schoolId:     cached.schoolId || '',
-        role:         cached.role || '',
-        full_name:    cached.full_name || 'User',
+        schoolId: cached.schoolId || '',
+        role: cached.role || '',
+        full_name: cached.full_name || 'User',
         profile_photo: cached.profile_photo || undefined,
       };
     }
@@ -101,9 +101,9 @@ async function getUserCachedInfo(userId: string): Promise<{ schoolId: string; ro
     });
     if (info) {
       const result = {
-        schoolId:     info.schoolId || '',
-        role:         info.role || '',
-        full_name:    info.full_name || 'User',
+        schoolId: info.schoolId || '',
+        role: info.role || '',
+        full_name: info.full_name || 'User',
         profile_photo: info.profile_photo || undefined,
       };
       if (isRedisAvailable()) {
@@ -287,28 +287,28 @@ async function setActiveCall(call: CallData): Promise<void> {
   if (isRedisAvailable()) {
     await safeRedis(async () => {
       const data: Record<string, string> = {
-        callId:         call.callId,
-        from:           call.from,
-        to:             call.to,
-        offer:          JSON.stringify(call.offer),
-        type:           call.type,
-        profile:        JSON.stringify(call.profile),
+        callId: call.callId,
+        from: call.from,
+        to: call.to,
+        offer: JSON.stringify(call.offer),
+        type: call.type,
+        profile: JSON.stringify(call.profile),
         conversationId: call.conversationId || '',
-        schoolId:       call.schoolId || '',
-        startTime:      call.startTime,
-        timestamp:      call.timestamp,
+        schoolId: call.schoolId || '',
+        startTime: call.startTime,
+        timestamp: call.timestamp,
       };
       const p = pubClient.multi();
       p.hset(KEY.activeCall(call.callId), data);
       p.expire(KEY.activeCall(call.callId), TTL.activeCall);
       p.set(KEY.userInCall(call.from), call.callId, 'EX', TTL.activeCall);
-      p.set(KEY.userInCall(call.to),   call.callId, 'EX', TTL.activeCall);
+      p.set(KEY.userInCall(call.to), call.callId, 'EX', TTL.activeCall);
       await p.exec();
     }, null);
   } else {
     memActiveCalls.set(call.callId, call);
     memUserInCall.set(call.from, call.callId);
-    memUserInCall.set(call.to,   call.callId);
+    memUserInCall.set(call.to, call.callId);
   }
 }
 
@@ -318,7 +318,7 @@ async function getActiveCall(callId: string): Promise<CallData | null> {
     if (!raw || !raw.callId) return null;
     return {
       ...raw,
-      offer:   raw.offer   ? JSON.parse(raw.offer)   : null,
+      offer: raw.offer ? JSON.parse(raw.offer) : null,
       profile: raw.profile ? JSON.parse(raw.profile) : null,
     } as any;
   }
@@ -328,20 +328,20 @@ async function getActiveCall(callId: string): Promise<CallData | null> {
 async function deleteActiveCall(callId: string, fromId?: string, toId?: string): Promise<void> {
   const call = await getActiveCall(callId);
   const from = fromId || call?.from;
-  const to   = toId   || call?.to;
+  const to = toId || call?.to;
 
   if (isRedisAvailable()) {
     await safeRedis(async () => {
       const p = pubClient.multi();
       p.del(KEY.activeCall(callId));
       if (from) p.del(KEY.userInCall(from));
-      if (to)   p.del(KEY.userInCall(to));
+      if (to) p.del(KEY.userInCall(to));
       await p.exec();
     }, null);
   } else {
     memActiveCalls.delete(callId);
     if (from) memUserInCall.delete(from);
-    if (to)   memUserInCall.delete(to);
+    if (to) memUserInCall.delete(to);
   }
 
   const handle = localTimeoutHandles.get(callId);
@@ -453,10 +453,10 @@ setInterval(() => {
   if (isRedisAvailable()) return;
   const now = Date.now();
   for (const [k, v] of memSchoolStatus) if (v.expires < now) memSchoolStatus.delete(k);
-  for (const [k, v] of memUserInfo)     if (v.expires < now) memUserInfo.delete(k);
-  for (const [k, v] of memConvSchool)   if (v.expires < now) memConvSchool.delete(k);
-  for (const [k, v] of memConvMembers)  if (v.expires < now) memConvMembers.delete(k);
-  for (const [k, v] of memTempIds)      if (v.expires < now) memTempIds.delete(k);
+  for (const [k, v] of memUserInfo) if (v.expires < now) memUserInfo.delete(k);
+  for (const [k, v] of memConvSchool) if (v.expires < now) memConvSchool.delete(k);
+  for (const [k, v] of memConvMembers) if (v.expires < now) memConvMembers.delete(k);
+  for (const [k, v] of memTempIds) if (v.expires < now) memTempIds.delete(k);
 }, 30_000);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -570,12 +570,12 @@ export const initSocket = (server: HttpServer) => {
         const message = await prisma.message.create({
           data: {
             conversationId: data.conversationId,
-            senderId:       data.senderId,
-            schoolId:       targetSchoolId,
-            content:        data.content,
-            type:           data.type,
-            replyToId:      data.replyToId,
-            attachments:    attachmentsJson ?? undefined,
+            senderId: data.senderId,
+            schoolId: targetSchoolId,
+            content: data.content,
+            type: data.type,
+            replyToId: data.replyToId,
+            attachments: attachmentsJson ?? undefined,
           },
           include: { sender: { select: { id: true, full_name: true, profile_photo: true } } }
         });
@@ -610,7 +610,7 @@ export const initSocket = (server: HttpServer) => {
               if (!roomSockets.has(sid)) io.to(sid).emit('new_message', broadcastPayload);
             }
           }
-        }).catch(() => {});
+        }).catch(() => { });
 
         // Push notifications for offline members
         getConversationMemberIds(data.conversationId).then(async (memberIds) => {
@@ -634,7 +634,7 @@ export const initSocket = (server: HttpServer) => {
             });
             if (result === 'EXPIRED_TOKEN') expiredIds.push(u.id);
           }
-          if (expiredIds.length > 0) prisma.user.updateMany({ where: { id: { in: expiredIds } }, data: { pushToken: null } }).catch(() => {});
+          if (expiredIds.length > 0) prisma.user.updateMany({ where: { id: { in: expiredIds } }, data: { pushToken: null } }).catch(() => { });
         });
       } catch {
         socket.emit('message_error', { message: 'Failed to send', tempId: data.tempId });
@@ -713,7 +713,7 @@ export const initSocket = (server: HttpServer) => {
       try {
         await Promise.allSettled(data.messageIds.map((messageId: string) =>
           prisma.messageRead.upsert({
-            where:  { messageId_userId: { messageId, userId: data.userId } },
+            where: { messageId_userId: { messageId, userId: data.userId } },
             update: { readAt: new Date() },
             create: { messageId, userId: data.userId, schoolId: tenant.schoolId },
           })
@@ -747,7 +747,7 @@ export const initSocket = (server: HttpServer) => {
       if (await isUserBusy(data.to)) {
         socket.emit('call_busy', { callId, from: data.to, to: data.from });
         const busySchoolId = callerInfo?.schoolId || targetUser.schoolId || tenant.schoolId;
-        if (busySchoolId) logCall({ callId, schoolId: busySchoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: 'BUSY', endTime: new Date(), duration: 0, disconnectReason: 'BUSY' }).catch(() => {});
+        if (busySchoolId) logCall({ callId, schoolId: busySchoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: 'BUSY', endTime: new Date(), duration: 0, disconnectReason: 'BUSY' }).catch(() => { });
         return;
       }
 
@@ -758,9 +758,9 @@ export const initSocket = (server: HttpServer) => {
         const call = await getActiveCall(callId);
         if (call) {
           await deleteActiveCall(callId, call.from, call.to);
-          emitToUser(io, call.from, 'call_missed',  { callId, reason: 'NO_ANSWER' });
-          emitToUser(io, call.to,   'call_ended',   { from: call.from, callId, reason: 'MISSED' });
-          if (call.schoolId) logCall({ callId, schoolId: call.schoolId, userId: call.from, recipientId: call.to, conversationId: call.conversationId, type: call.type, status: 'MISSED', endTime: new Date(), duration: 0, disconnectReason: 'MISSED' }).catch(() => {});
+          emitToUser(io, call.from, 'call_missed', { callId, reason: 'NO_ANSWER' });
+          emitToUser(io, call.to, 'call_ended', { from: call.from, callId, reason: 'MISSED' });
+          if (call.schoolId) logCall({ callId, schoolId: call.schoolId, userId: call.from, recipientId: call.to, conversationId: call.conversationId, type: call.type, status: 'MISSED', endTime: new Date(), duration: 0, disconnectReason: 'MISSED' }).catch(() => { });
         }
       }, 45000);
       localTimeoutHandles.set(callId, timeoutHandle);
@@ -783,7 +783,7 @@ export const initSocket = (server: HttpServer) => {
 
       const [answererInfo, callerInfo] = await Promise.all([
         prisma.user.findUnique({ where: { id: data.from }, select: { schoolId: true, role: true } }),
-        prisma.user.findUnique({ where: { id: data.to },   select: { schoolId: true, role: true } }),
+        prisma.user.findUnique({ where: { id: data.to }, select: { schoolId: true, role: true } }),
       ]);
 
       let callSchoolId = tenant.schoolId;
@@ -802,10 +802,10 @@ export const initSocket = (server: HttpServer) => {
       else { const call = await getActiveCallForUsers(data.from, data.to); if (call) await deleteActiveCall(call.callId, call.from, call.to); }
     });
 
-    socket.on('ice_candidate',     async (data: any) => { await emitToUser(io, data.to, 'ice_candidate',     { from: data.from, candidate: data.candidate }); });
-    socket.on('ice_restart',       async (data: any) => { await emitToUser(io, data.to, 'ice_restart',       { from: data.from, offer:     data.offer }); });
-    socket.on('ice_restart_answer',async (data: any) => { await emitToUser(io, data.to, 'ice_restart_answer',{ from: data.from, answer:    data.answer }); });
-    socket.on('media_state_change',async (data: any) => { await emitToUser(io, data.to, 'media_state_changed',{ from: data.from, isCameraOff: data.isCameraOff, isMuted: data.isMuted }); });
+    socket.on('ice_candidate', async (data: any) => { await emitToUser(io, data.to, 'ice_candidate', { from: data.from, candidate: data.candidate }); });
+    socket.on('ice_restart', async (data: any) => { await emitToUser(io, data.to, 'ice_restart', { from: data.from, offer: data.offer }); });
+    socket.on('ice_restart_answer', async (data: any) => { await emitToUser(io, data.to, 'ice_restart_answer', { from: data.from, answer: data.answer }); });
+    socket.on('media_state_change', async (data: any) => { await emitToUser(io, data.to, 'media_state_changed', { from: data.from, isCameraOff: data.isCameraOff, isMuted: data.isMuted }); });
 
     // ── CALL: Reject ───────────────────────────────────────────────────────
     socket.on('reject_call', async (data: any) => {
@@ -848,8 +848,8 @@ export const initSocket = (server: HttpServer) => {
       if (targetUser?.pushToken) sendCallCancellation(targetUser.pushToken, data.callId || '');
 
       const durationSecs = typeof data.duration === 'number' ? Math.round(data.duration) : 0;
-      const answerTime   = data.answerTime ? new Date(data.answerTime) : undefined;
-      const callStatus   = data.reason === 'CANCELLED' ? 'CANCELLED' : data.reason === 'MISSED' ? 'MISSED' : durationSecs > 0 ? 'ANSWERED' : 'CANCELLED';
+      const answerTime = data.answerTime ? new Date(data.answerTime) : undefined;
+      const callStatus = data.reason === 'CANCELLED' ? 'CANCELLED' : data.reason === 'MISSED' ? 'MISSED' : durationSecs > 0 ? 'ANSWERED' : 'CANCELLED';
 
       if (tenant.schoolId) logCall({ callId: data.callId, schoolId: data.schoolId || tenant.schoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: callStatus, duration: durationSecs, answerTime, endTime: new Date(), disconnectReason: data.reason || 'ENDED', networkQuality: data.networkQuality }).catch(err => console.warn('[Socket] end_call logCall error:', err));
 

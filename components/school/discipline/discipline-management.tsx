@@ -106,9 +106,10 @@ const DEFAULT_FALLBACK_ACTIONS: DisciplineActionConfig[] = [
 interface DisciplineManagementProps {
   userRole?: 'school_admin' | 'teacher' | 'super_admin' | 'discipline_officer';
   initialTab?: 'incidents' | 'analytics' | 'categories' | 'actions';
+  hideTabsList?: boolean;
 }
 
-export function DisciplineManagement({ userRole = 'school_admin', initialTab = 'incidents' }: DisciplineManagementProps) {
+export function DisciplineManagement({ userRole = 'school_admin', initialTab = 'incidents', hideTabsList = false }: DisciplineManagementProps) {
   const { formatDate } = useCalendar();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'incidents' | 'analytics' | 'categories' | 'actions'>(initialTab);
@@ -141,9 +142,10 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const [severityFilter, setSeverityFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
-  const [assignedToMeFilter, setAssignedToMeFilter] = useState(false);
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
+  const [repeatSearch, setRepeatSearch] = useState('');
 
   // Refs for stable callbacks
   const pageRef = useRef(page);
@@ -151,7 +153,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const severityFilterRef = useRef(severityFilter);
   const statusFilterRef = useRef(statusFilter);
   const categoryFilterRef = useRef(categoryFilter);
-  const assignedToMeFilterRef = useRef(assignedToMeFilter);
   const startDateFilterRef = useRef(startDateFilter);
   const endDateFilterRef = useRef(endDateFilter);
 
@@ -168,15 +169,12 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const [previewStudent, setPreviewStudent] = useState<any | null>(null);
   const [showStudentResults, setShowStudentResults] = useState(false);
 
-  // Staff/Officers list for assignment
-  const [officers, setOfficers] = useState<any[]>([]);
-
   // Modal States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createStep, setCreateStep] = useState(1);
   const [selectedIncident, setSelectedIncident] = useState<StudentDiscipline | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<'incident' | 'investigation' | 'action' | 'communication' | 'followup' | 'audit'>('incident');
+  const [detailTab, setDetailTab] = useState<'incident' | 'action' | 'communication' | 'followup' | 'audit'>('incident');
 
   // Configuration Modals
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -191,16 +189,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const [isSubmittingIncident, setIsSubmittingIncident] = useState(false);
 
   // Detail Modal Editable States
-  const [assignedOfficerId, setAssignedOfficerId] = useState('');
-  const [assignmentNotes, setAssignmentNotes] = useState('');
-  const [isAssigningOfficer, setIsAssigningOfficer] = useState(false);
-
-  const [investigationNotes, setInvestigationNotes] = useState('');
-  const [findings, setFindings] = useState('');
-  const [meetingNotes, setMeetingNotes] = useState('');
-  const [confidentialNotes, setConfidentialNotes] = useState('');
-  const [isSavingInvestigation, setIsSavingInvestigation] = useState(false);
-
   const [recommendedAction, setRecommendedAction] = useState('');
   const [approvedAction, setApprovedAction] = useState('');
   const [actionDate, setActionDate] = useState('');
@@ -210,7 +198,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
   const [followUpNote, setFollowUpNote] = useState('');
   const [followUpActionTaken, setFollowUpActionTaken] = useState('');
-  const [followUpStatus, setFollowUpStatus] = useState<string>('');
+  const [followUpStatus, setFollowUpStatus] = useState<string>('NO_CHANGE');
   const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
 
   // Incident Wizard Form State
@@ -231,7 +219,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
     evidence: [] as { url: string; name: string; type: string; size?: number }[],
     parentNotified: true,
     followUpDate: '',
-    assignedToId: ''
+    assignedToId: '' /* kept for backend compatibility but not shown in UI */
   });
 
   const [isUploading, setIsUploading] = useState(false);
@@ -242,32 +230,13 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   useEffect(() => { severityFilterRef.current = severityFilter; }, [severityFilter]);
   useEffect(() => { statusFilterRef.current = statusFilter; }, [statusFilter]);
   useEffect(() => { categoryFilterRef.current = categoryFilter; }, [categoryFilter]);
-  useEffect(() => { assignedToMeFilterRef.current = assignedToMeFilter; }, [assignedToMeFilter]);
   useEffect(() => { startDateFilterRef.current = startDateFilter; }, [startDateFilter]);
   useEffect(() => { endDateFilterRef.current = endDateFilter; }, [endDateFilter]);
 
-  // Fetch Officers / Staff for case assignment
-  const fetchOfficers = async () => {
-    try {
-      const apiUrl = getApiUrl();
-      const token = localStorage.getItem('attendance_token');
-      const schoolId = localStorage.getItem('x-school-id');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      if (schoolId) headers['x-school-id'] = schoolId;
-
-      const res = await fetch(`${apiUrl}/api/users?role=discipline_officer`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setOfficers(data.users || data.data || []);
-      }
-    } catch {
-      // Ignore staff fetch error fallback
+  const fetchIncidentsStable = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      setIsLoading(true);
     }
-  };
-
-  const fetchIncidentsStable = useCallback(async () => {
-    setIsLoading(true);
     try {
       const res = await DisciplineApi.getIncidents({
         page: pageRef.current,
@@ -276,7 +245,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         severity: severityFilterRef.current === 'ALL' ? undefined : severityFilterRef.current,
         status: statusFilterRef.current === 'ALL' ? undefined : statusFilterRef.current,
         categoryName: categoryFilterRef.current === 'ALL' ? undefined : categoryFilterRef.current,
-        assignedToMe: assignedToMeFilterRef.current,
+        assignedToMe: false,
         startDate: startDateFilterRef.current || undefined,
         endDate: endDateFilterRef.current || undefined
       });
@@ -284,9 +253,13 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       setTotal(res.total);
       setTotalPages(res.totalPages);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to load discipline records');
+      if (!isSilent) {
+        toast.error(err.message || 'Failed to load discipline records');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -307,22 +280,26 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
     }
   };
 
+  // Debounced search & filter trigger (Silent if data already loaded)
   useEffect(() => {
-    fetchIncidentsStable();
-  }, [page, search, severityFilter, statusFilter, categoryFilter, assignedToMeFilter, startDateFilter, endDateFilter, fetchIncidentsStable]);
+    const timer = setTimeout(() => {
+      fetchIncidentsStable(incidents.length > 0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [page, search, severityFilter, statusFilter, categoryFilter, startDateFilter, endDateFilter, fetchIncidentsStable, incidents.length]);
 
+  // Silent Background Polling & Event Listener
   useEffect(() => {
     fetchAnalyticsAndConfigs();
-    fetchOfficers();
 
     const handleDisciplineChanged = () => {
-      fetchIncidentsStable();
+      fetchIncidentsStable(true);
       fetchAnalyticsAndConfigs();
     };
 
     window.addEventListener('disciplineDataChanged', handleDisciplineChanged);
     const pollInterval = setInterval(() => {
-      fetchIncidentsStable();
+      fetchIncidentsStable(true);
       fetchAnalyticsAndConfigs();
     }, 30_000);
 
@@ -331,6 +308,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       clearInterval(pollInterval);
     };
   }, [fetchIncidentsStable]);
+
 
   // Student Discipline Profile Fetcher
   const loadStudentProfile = async (studentId: string, pPage = 1) => {
@@ -491,66 +469,15 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const handleOpenDetailModal = (inc: StudentDiscipline) => {
     setSelectedIncident(inc);
     setDetailTab('incident');
-    setAssignedOfficerId(inc.assignedToId || '');
-    setAssignmentNotes('');
-
-    setInvestigationNotes(inc.investigationNotes || '');
-    setFindings(inc.findings || '');
-    setMeetingNotes(inc.meetingNotes || '');
-    setConfidentialNotes(inc.confidentialNotes || '');
-
     setRecommendedAction(inc.recommendedAction || '');
     setApprovedAction(inc.approvedAction || '');
     setActionDate(inc.actionDate ? inc.actionDate.split('T')[0] : '');
     setResponsibleStaffName(inc.responsibleStaffName || '');
     setActionStatus(inc.actionStatus || 'PENDING');
-
     setFollowUpNote('');
     setFollowUpActionTaken('');
     setFollowUpStatus(inc.status);
-
     setIsDetailOpen(true);
-  };
-
-  const handleAssignOfficerSubmit = async () => {
-    if (!selectedIncident || !assignedOfficerId) {
-      toast.error('Please select an officer to assign');
-      return;
-    }
-
-    setIsAssigningOfficer(true);
-    try {
-      const updated = await DisciplineApi.assignOfficer(selectedIncident.id, assignedOfficerId, assignmentNotes);
-      setSelectedIncident(updated);
-      toast.success('Discipline officer assigned to case');
-      fetchIncidents();
-      fetchAnalyticsAndConfigs();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to assign officer');
-    } finally {
-      setIsAssigningOfficer(false);
-    }
-  };
-
-  const handleSaveInvestigationSubmit = async () => {
-    if (!selectedIncident) return;
-    setIsSavingInvestigation(true);
-    try {
-      const updated = await DisciplineApi.updateInvestigation(selectedIncident.id, {
-        investigationNotes,
-        findings,
-        meetingNotes,
-        confidentialNotes
-      });
-      setSelectedIncident(updated);
-      toast.success('Investigation findings saved');
-      fetchIncidents();
-      fetchAnalyticsAndConfigs();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save investigation');
-    } finally {
-      setIsSavingInvestigation(false);
-    }
   };
 
   const handleSaveActionSubmit = async () => {
@@ -604,7 +531,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
     }
   };
 
-  const handleStatusChange = async (newStatus: 'OPEN' | 'UNDER_REVIEW' | 'INVESTIGATION' | 'ACTION_REQUIRED' | 'RESOLVED' | 'CLOSED') => {
+  const handleStatusChange = async (newStatus: 'OPEN' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'RESOLVED' | 'CLOSED') => {
     if (!selectedIncident) return;
     try {
       const updated = await DisciplineApi.updateIncident(selectedIncident.id, {
@@ -752,53 +679,55 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
   return (
     <div className="space-y-8 pb-20 max-w-7xl mx-auto">
-      {/* Top Header Card / Hero Banner */}
-      <div className="relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-slate-950 via-indigo-950/50 to-slate-900 p-6 md:p-8 rounded-3xl border border-indigo-500/20 shadow-2xl shadow-indigo-500/5 backdrop-blur-xl">
-        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -mb-12 -ml-12 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Top Header Card / Hero Banner - Displayed on Discipline Officer Portal Dashboard only */}
+      {userRole === 'discipline_officer' && activeTab === 'analytics' && (
+        <div className="relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-slate-950 via-indigo-950/50 to-slate-900 p-6 md:p-8 rounded-3xl border border-indigo-500/20 shadow-2xl shadow-indigo-500/5 backdrop-blur-xl">
+          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -mb-12 -ml-12 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative flex items-center gap-4">
-          <div className="p-4 bg-indigo-500/15 text-indigo-400 rounded-2xl border border-indigo-500/30 shadow-inner flex-shrink-0">
-            <Scale className="w-8 h-8" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-indigo-400" />
-                Student Discipline Case Management
-              </span>
+          <div className="relative flex items-center gap-4">
+            <div className="p-4 bg-indigo-500/15 text-indigo-400 rounded-2xl border border-indigo-500/30 shadow-inner flex-shrink-0">
+              <Scale className="w-8 h-8" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-              {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-300 to-indigo-100">{user?.name || 'Staff'}</span>
-            </h1>
-            <p className="text-xs md:text-sm font-medium text-slate-300 mt-1 max-w-2xl">
-              Track student cases, investigations, disciplinary actions, follow-ups, and official parent notices.
-            </p>
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                  Student Discipline Case Management
+                </span>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-300 to-indigo-100">{user?.name || 'Staff'}</span>
+              </h1>
+              <p className="text-xs md:text-sm font-medium text-slate-300 mt-1 max-w-2xl">
+                Track student discipline cases, official disciplinary actions, follow-up timelines, and parent communications.
+              </p>
+            </div>
+          </div>
+
+          <div className="relative flex flex-wrap items-center gap-3">
+            <Button
+              onClick={exportToCSV}
+              variant="outline"
+              className="rounded-2xl font-bold text-xs h-11 px-5 bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-md transition-all"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+
+            <Button
+              onClick={() => {
+                setCreateStep(1);
+                setIsCreateOpen(true);
+              }}
+              className="rounded-2xl font-bold text-xs h-11 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-500/25 border-none transition-all transform hover:scale-[1.02]"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Report Incident
+            </Button>
           </div>
         </div>
-
-        <div className="relative flex flex-wrap items-center gap-3">
-          <Button
-            onClick={exportToCSV}
-            variant="outline"
-            className="rounded-2xl font-bold text-xs h-11 px-5 bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-md transition-all"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
-
-          <Button
-            onClick={() => {
-              setCreateStep(1);
-              setIsCreateOpen(true);
-            }}
-            className="rounded-2xl font-bold text-xs h-11 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-500/25 border-none transition-all transform hover:scale-[1.02]"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Report Incident
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* STUDENT PROFILE OVERLAY VIEW */}
       {selectedStudentId && studentProfile && (
@@ -892,31 +821,75 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full space-y-6">
-        <TabsList className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800 inline-flex flex-wrap gap-1">
-          <TabsTrigger value="incidents" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
-            <ClipboardList className="w-4 h-4" />
-            Discipline Cases Directory
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
-            <BarChart3 className="w-4 h-4" />
-            Dashboard & Analytics
-          </TabsTrigger>
-          {(userRole === 'school_admin' || userRole === 'super_admin' || userRole === 'discipline_officer') && (
-            <>
-              <TabsTrigger value="categories" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
-                <Tag className="w-4 h-4" />
-                Incident Categories
-              </TabsTrigger>
-              <TabsTrigger value="actions" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
-                <Sliders className="w-4 h-4" />
-                Disciplinary Actions
-              </TabsTrigger>
-            </>
-          )}
-        </TabsList>
+        {!hideTabsList && userRole !== 'discipline_officer' && (
+          <TabsList className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800 inline-flex flex-wrap gap-1">
+            <TabsTrigger value="incidents" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
+              <ClipboardList className="w-4 h-4" />
+              Discipline Cases Directory
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
+            {(userRole === 'school_admin' || userRole === 'super_admin' || userRole === 'discipline_officer') && (
+              <>
+                <TabsTrigger value="categories" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
+                  <Tag className="w-4 h-4" />
+                  Incident Categories
+                </TabsTrigger>
+                <TabsTrigger value="actions" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
+                  <Sliders className="w-4 h-4" />
+                  Disciplinary Actions
+                </TabsTrigger>
+              </>
+            )}
+          </TabsList>
+        )}
 
         {/* TAB 1: INCIDENTS DIRECTORY */}
         <TabsContent value="incidents" className="space-y-6 mt-6 focus-visible:outline-none">
+          {/* Header Banner & Description Note */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/70 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="p-3.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-500/20 shrink-0">
+                <ClipboardList className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Discipline Cases Directory</h2>
+                  <Badge variant="outline" className="font-bold text-[10px] bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800">
+                    Active Records
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  View, filter, and manage all student discipline cases, official disciplinary actions, follow-up logs, and parent notices.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <Button
+                onClick={exportToCSV}
+                variant="outline"
+                className="rounded-2xl font-bold text-xs h-10 px-4 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setCreateStep(1);
+                  setIsCreateOpen(true);
+                }}
+                className="rounded-2xl font-bold text-xs h-10 px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-md shadow-indigo-500/20"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Report Incident
+              </Button>
+            </div>
+          </div>
+
           {/* Quick Metrics Header Cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/70 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-all">
@@ -948,13 +921,13 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
             <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-slate-200/70 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-all">
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Under Investigation</p>
-                  <p className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Under Review</p>
+                  <p className="text-2xl md:text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">
                     {analytics?.underReviewCases || 0}
                   </p>
                 </div>
-                <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-600">
-                  <UserCheck className="w-6 h-6" />
+                <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600">
+                  <ClipboardList className="w-6 h-6" />
                 </div>
               </CardContent>
             </Card>
@@ -1002,18 +975,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {userRole === 'discipline_officer' && (
-                  <Button
-                    type="button"
-                    variant={assignedToMeFilter ? 'default' : 'outline'}
-                    onClick={() => setAssignedToMeFilter(!assignedToMeFilter)}
-                    className="h-11 rounded-2xl font-bold text-xs px-4 gap-2"
-                  >
-                    <User className="w-4 h-4" />
-                    Assigned to Me
-                  </Button>
-                )}
-
                 <Select value={severityFilter} onValueChange={(val) => setSeverityFilter(val)}>
                   <SelectTrigger className="w-[130px] h-11 rounded-2xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs">
                     <SelectValue placeholder="Severity" />
@@ -1035,7 +996,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                     <SelectItem value="ALL">All Statuses</SelectItem>
                     <SelectItem value="OPEN">Open</SelectItem>
                     <SelectItem value="UNDER_REVIEW">Under Review</SelectItem>
-                    <SelectItem value="INVESTIGATION">Investigation</SelectItem>
                     <SelectItem value="ACTION_REQUIRED">Action Required</SelectItem>
                     <SelectItem value="RESOLVED">Resolved</SelectItem>
                     <SelectItem value="CLOSED">Closed</SelectItem>
@@ -1091,7 +1051,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                       <th className="px-6 py-4">Student</th>
                       <th className="px-6 py-4">Grade & Section</th>
                       <th className="px-6 py-4">Incident Title & Category</th>
-                      <th className="px-6 py-4">Assigned Officer</th>
                       <th className="px-6 py-4">Severity</th>
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4">Date</th>
@@ -1125,16 +1084,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                           <span className="inline-block mt-1 text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">
                             {inc.categoryName}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-medium">
-                          {inc.assignedToName ? (
-                            <span className="text-slate-800 dark:text-slate-200 font-bold flex items-center gap-1">
-                              <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
-                              {inc.assignedToName}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 italic">Unassigned</span>
-                          )}
                         </td>
                         <td className="px-6 py-4">{getSeverityBadge(inc.severity)}</td>
                         <td className="px-6 py-4">{getStatusBadge(inc.status)}</td>
@@ -1207,98 +1156,225 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
         {/* TAB 2: ANALYTICS DASHBOARD */}
         <TabsContent value="analytics" className="space-y-6 mt-6 focus-visible:outline-none">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-all">
-              <CardHeader className="p-6">
-                <CardTitle className="text-sm md:text-base font-bold tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
-                  <Sparkles className="w-4 h-4 text-indigo-500" />
-                  Incidents by Category
+          {/* Monthly Overview Bar Chart & Summary Card */}
+          <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <CardTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
+                  <Calendar className="w-5 h-5 text-indigo-500" />
+                  Monthly Incident Trends & Overview
                 </CardTitle>
-                <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">Breakdown of discipline types</CardDescription>
-              </CardHeader>
-              <CardContent className="px-6 pb-6 space-y-3 min-h-[160px] flex flex-col justify-center">
-                {!analytics?.byCategory || analytics.byCategory.length === 0 ? (
-                  <div className="py-8 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800/80 rounded-xl bg-slate-50/50 dark:bg-slate-950/50">
-                    <Sparkles className="w-6 h-6 text-slate-400 mx-auto opacity-40" />
-                    <p className="text-xs text-slate-400 font-medium">No category breakdown data yet</p>
-                  </div>
-                ) : (
-                  analytics.byCategory.map((item) => (
-                    <div key={item.name} className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-bold">
-                        <span className="text-slate-800 dark:text-slate-200">{item.name}</span>
-                        <span className="text-slate-400 font-mono">{item.value}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                        <div
-                          className="bg-indigo-600 h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${Math.min(100, (item.value / (analytics?.total || 1)) * 100)}%`
-                          }}
-                        />
-                      </div>
+                <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
+                  Distribution of logged discipline cases across months for the current academic year
+                </CardDescription>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="px-3.5 py-1.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5" />
+                  This Month: {analytics?.thisMonth || 0} Cases
+                </div>
+                <div className="px-3.5 py-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Total Recorded: {analytics?.total || 0}
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Bars Visualization */}
+            <div className="grid grid-cols-6 md:grid-cols-12 gap-2 pt-2">
+              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m) => {
+                const count = analytics?.monthlyMap?.[m] || 0;
+                const maxVal = Math.max(1, ...Object.values(analytics?.monthlyMap || { default: 1 }));
+                const heightPercent = count > 0 ? Math.min(100, Math.max(15, (count / maxVal) * 100)) : 0;
+                const isCurrentMonth = new Date().toLocaleString('default', { month: 'short' }) === m;
+
+                return (
+                  <div key={m} className="flex flex-col items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold text-slate-400 h-4">{count > 0 ? count : ''}</span>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800/60 h-28 rounded-2xl flex items-end p-1 relative group overflow-hidden">
+                      <div
+                        className={`w-full rounded-xl transition-all duration-500 ${isCurrentMonth
+                            ? 'bg-gradient-to-t from-indigo-600 to-purple-500 shadow-md shadow-indigo-500/20'
+                            : count > 0
+                              ? 'bg-gradient-to-t from-indigo-400/80 to-purple-400/60 dark:from-indigo-600/80 dark:to-purple-600/60'
+                              : 'bg-transparent'
+                          }`}
+                        style={{ height: `${heightPercent}%` }}
+                      />
                     </div>
-                  ))
-                )}
+                    <span className={`text-[11px] font-bold ${isCurrentMonth ? 'text-indigo-600 dark:text-indigo-400 font-extrabold' : 'text-slate-500'}`}>
+                      {m}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Large Data Analytics Grid: 2 Columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* CARD 1: Incidents by Category */}
+            <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between overflow-hidden">
+              <CardHeader className="p-6 pb-4 border-b border-slate-100 dark:border-slate-800/60">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base font-bold tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
+                      <Sparkles className="w-4 h-4 text-indigo-500" />
+                      Incidents by Category
+                    </CardTitle>
+                    <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                      Frequency breakdown of all recorded discipline categories
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="font-bold text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800">
+                    {analytics?.byCategory?.length || 0} Categories
+                  </Badge>
+                </div>
+
+                {/* Filter Search Input for Categories */}
+                <div className="relative mt-4">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    placeholder="Search incident category..."
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-medium"
+                  />
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6 pt-4 space-y-3.5 max-h-[420px] overflow-y-auto custom-scrollbar">
+                {(() => {
+                  const filteredCats = (analytics?.byCategory || []).filter(c =>
+                    !categorySearch.trim() || c.name.toLowerCase().includes(categorySearch.toLowerCase())
+                  );
+
+                  if (filteredCats.length === 0) {
+                    return (
+                      <div className="py-12 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50">
+                        <Sparkles className="w-6 h-6 text-slate-300 mx-auto" />
+                        <p className="text-xs font-bold text-slate-400">No categories found matching filter</p>
+                      </div>
+                    );
+                  }
+
+                  const totalCount = analytics?.total || 1;
+
+                  return filteredCats.map((item, idx) => {
+                    const pct = ((item.value / totalCount) * 100).toFixed(1);
+                    return (
+                      <div key={item.name} className="p-3 bg-slate-50/70 dark:bg-slate-950/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-2 hover:border-indigo-500/30 transition-all">
+                        <div className="flex items-center justify-between text-xs font-bold gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${idx === 0 ? 'bg-amber-500 text-white shadow-sm' :
+                                idx === 1 ? 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200' :
+                                  idx === 2 ? 'bg-amber-700 text-white' :
+                                    'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                              }`}>
+                              #{idx + 1}
+                            </span>
+                            <span className="text-slate-900 dark:text-white truncate">{item.name}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 font-mono">
+                            <span className="text-slate-500 text-[11px] font-medium">({pct}%)</span>
+                            <Badge className="font-bold text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800">
+                              {item.value} {item.value === 1 ? 'case' : 'cases'}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="w-full bg-slate-200/60 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, (item.value / totalCount) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </CardContent>
             </Card>
 
-            <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-all">
-              <CardHeader className="p-6">
-                <CardTitle className="text-sm md:text-base font-bold tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Repeated Incidents
-                </CardTitle>
-                <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">Students requiring intervention</CardDescription>
-              </CardHeader>
-              <CardContent className="px-6 pb-6 space-y-3 min-h-[160px] flex flex-col justify-center">
-                {!analytics?.repeatOffenders || analytics.repeatOffenders.length === 0 ? (
-                  <div className="py-8 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800/80 rounded-xl bg-slate-50/50 dark:bg-slate-950/50">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto opacity-50" />
-                    <p className="text-xs text-slate-400 font-medium">No repeat incidents recorded</p>
+            {/* CARD 2: Repeated Incidents (Students Requiring Intervention) */}
+            <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between overflow-hidden">
+              <CardHeader className="p-6 pb-4 border-b border-slate-100 dark:border-slate-800/60">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base font-bold tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      Repeated Incidents (Student Interventions)
+                    </CardTitle>
+                    <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                      Students with multiple recorded discipline offenses
+                    </CardDescription>
                   </div>
-                ) : (
-                  analytics.repeatOffenders.map((item) => (
+                  <Badge variant="outline" className="font-bold text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-300 border-amber-200 dark:border-amber-800">
+                    {analytics?.repeatOffenders?.length || 0} Repeat Students
+                  </Badge>
+                </div>
+
+                {/* Filter Search Input for Repeat Students */}
+                <div className="relative mt-4">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    placeholder="Search student by name or ID..."
+                    value={repeatSearch}
+                    onChange={(e) => setRepeatSearch(e.target.value)}
+                    className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-medium"
+                  />
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6 pt-4 space-y-2.5 max-h-[420px] overflow-y-auto custom-scrollbar">
+                {(() => {
+                  const filteredOffenders = (analytics?.repeatOffenders || []).filter(item =>
+                    !repeatSearch.trim() ||
+                    item.student.fullName.toLowerCase().includes(repeatSearch.toLowerCase()) ||
+                    item.student.student_id.toLowerCase().includes(repeatSearch.toLowerCase())
+                  );
+
+                  if (filteredOffenders.length === 0) {
+                    return (
+                      <div className="py-12 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto opacity-60" />
+                        <p className="text-xs font-bold text-slate-400">
+                          {repeatSearch ? 'No repeat students match search filter' : 'No repeat incident offenders recorded'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return filteredOffenders.map((item) => (
                     <div
                       key={item.student.id}
                       onClick={() => loadStudentProfile(item.student.id)}
-                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-indigo-500/40 transition-colors"
+                      className="p-3 bg-slate-50/70 dark:bg-slate-950/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-all group"
                     >
-                      <div>
-                        <p className="font-bold text-xs text-slate-900 dark:text-white">{item.student.fullName}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">ID: {item.student.student_id}</p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                          {item.student.fullName.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <h5 className="font-bold text-xs text-slate-900 dark:text-white truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                            {item.student.fullName}
+                          </h5>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">
+                            ID: {item.student.student_id} {item.student.grade ? `· ${item.student.grade}` : ''}
+                          </p>
+                        </div>
                       </div>
-                      <Badge variant="destructive" className="font-bold rounded-xl text-[10px]">
-                        {item.count} Cases
-                      </Badge>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
 
-            <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/70 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-md transition-all">
-              <CardHeader className="p-6">
-                <CardTitle className="text-sm md:text-base font-bold tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
-                  <User className="w-4 h-4 text-blue-500" />
-                  Top Reporting Staff
-                </CardTitle>
-                <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">Staff members logging reports</CardDescription>
-              </CardHeader>
-              <CardContent className="px-6 pb-6 space-y-3 min-h-[160px] flex flex-col justify-center">
-                {!analytics?.topReporters || analytics.topReporters.length === 0 ? (
-                  <div className="py-8 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800/80 rounded-xl bg-slate-50/50 dark:bg-slate-950/50">
-                    <User className="w-6 h-6 text-slate-400 mx-auto opacity-40" />
-                    <p className="text-xs text-slate-400 font-medium">No staff reports logged yet</p>
-                  </div>
-                ) : (
-                  analytics.topReporters.map((rep) => (
-                    <div key={rep.name} className="flex items-center justify-between text-xs p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800">
-                      <span className="font-bold text-slate-900 dark:text-white">{rep.name}</span>
-                      <Badge variant="secondary" className="font-bold rounded-xl text-[10px]">{rep.count} reports</Badge>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="destructive" className="font-bold rounded-xl text-[10px] px-2.5 py-0.5 shadow-sm">
+                          {item.count} Cases
+                        </Badge>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 transition-colors" />
+                      </div>
                     </div>
-                  ))
-                )}
+                  ));
+                })()}
               </CardContent>
             </Card>
           </div>
@@ -1489,7 +1565,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         setShowStudentResults(true);
                       }
                     }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fetchStudents(studentSearch); }}}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fetchStudents(studentSearch); } }}
                     className="pl-10 h-11 rounded-2xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-semibold text-sm"
                     autoFocus
                   />
@@ -1792,13 +1868,10 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                 </DialogDescription>
               </DialogHeader>
 
-              {/* 6 Tabs Navigation */}
+              {/* 5 Tabs Navigation */}
               <Tabs value={detailTab} onValueChange={(v: any) => setDetailTab(v)} className="w-full">
                 <TabsList className="bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl w-full justify-start overflow-x-auto gap-1">
                   <TabsTrigger value="incident" className="rounded-xl text-xs font-bold h-9">Incident</TabsTrigger>
-                  {(userRole === 'school_admin' || userRole === 'super_admin' || userRole === 'discipline_officer') && (
-                    <TabsTrigger value="investigation" className="rounded-xl text-xs font-bold h-9">Investigation</TabsTrigger>
-                  )}
                   <TabsTrigger value="action" className="rounded-xl text-xs font-bold h-9">Disciplinary Actions</TabsTrigger>
                   <TabsTrigger value="communication" className="rounded-xl text-xs font-bold h-9">Parent Notices</TabsTrigger>
                   <TabsTrigger value="followup" className="rounded-xl text-xs font-bold h-9">Follow-up Timeline</TabsTrigger>
@@ -1819,45 +1892,56 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                       <p className="text-indigo-800 dark:text-indigo-200 mt-1">{selectedIncident.immediateAction}</p>
                     </div>
                   )}
-                </TabsContent>
-
-                {/* TAB 2: INVESTIGATION */}
-                <TabsContent value="investigation" className="space-y-4 pt-4">
-
-                  <div className="space-y-3 p-4 border rounded-2xl bg-white dark:bg-slate-950">
-                    <Label className="text-xs font-black uppercase text-slate-400">Investigation Notes & Findings</Label>
-                    <Textarea
-                      placeholder="Record investigation notes, witness statements, interviews..."
-                      value={investigationNotes}
-                      onChange={(e) => setInvestigationNotes(e.target.value)}
-                      className="min-h-[90px] text-xs rounded-xl"
-                    />
-                    <Textarea
-                      placeholder="Official Investigation Findings..."
-                      value={findings}
-                      onChange={(e) => setFindings(e.target.value)}
-                      className="min-h-[70px] text-xs rounded-xl"
-                    />
-                    <Textarea
-                      placeholder="Confidential Internal Staff Notes (Hidden from parents)..."
-                      value={confidentialNotes}
-                      onChange={(e) => setConfidentialNotes(e.target.value)}
-                      className="min-h-[70px] text-xs rounded-xl border-rose-200"
-                    />
-                    <Button size="sm" onClick={handleSaveInvestigationSubmit} disabled={isSavingInvestigation} className="bg-purple-600 text-white font-bold text-xs rounded-xl">
-                      Save Investigation Notes
-                    </Button>
+                  {/* Status Quick Change */}
+                  <div className="p-4 border rounded-2xl bg-white dark:bg-slate-950 space-y-2">
+                    <Label className="text-xs font-black uppercase text-slate-400">Update Case Status</Label>
+                    <Select value={selectedIncident.status} onValueChange={(v: any) => handleStatusChange(v)}>
+                      <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="OPEN">Open</SelectItem>
+                        <SelectItem value="UNDER_REVIEW">Under Review</SelectItem>
+                        <SelectItem value="ACTION_REQUIRED">Action Required</SelectItem>
+                        <SelectItem value="RESOLVED">Resolved</SelectItem>
+                        <SelectItem value="CLOSED">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </TabsContent>
 
-                {/* TAB 3: ACTIONS */}
+                {/* TAB 2: DISCIPLINARY ACTIONS */}
                 <TabsContent value="action" className="space-y-4 pt-4">
+                  {/* Current Action Summary */}
+                  {(selectedIncident.approvedAction || selectedIncident.actionStatus) && (
+                    <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Current Approved Action</p>
+                      <p className="text-base font-bold text-emerald-900 dark:text-emerald-200">{selectedIncident.approvedAction || '—'}</p>
+                      <div className="flex items-center gap-3 flex-wrap text-xs">
+                        {selectedIncident.actionStatus && (
+                          <span className={`px-2.5 py-0.5 rounded-full font-bold border ${selectedIncident.actionStatus === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' :
+                              selectedIncident.actionStatus === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 border-blue-300' :
+                                selectedIncident.actionStatus === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' :
+                                  'bg-amber-100 text-amber-700 border-amber-300'
+                            }`}>{selectedIncident.actionStatus.replace('_', ' ')}</span>
+                        )}
+                        {selectedIncident.actionDate && (
+                          <span className="text-slate-500">Action Date: <strong>{new Date(selectedIncident.actionDate).toLocaleDateString()}</strong></span>
+                        )}
+                        {selectedIncident.responsibleStaffName && (
+                          <span className="text-slate-500">Responsible Staff: <strong>{selectedIncident.responsibleStaffName}</strong></span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Edit Action Form */}
                   <div className="space-y-3 p-4 border rounded-2xl bg-white dark:bg-slate-950">
+                    <p className="text-xs font-black uppercase text-slate-400 tracking-wider">Update Disciplinary Action</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-xs font-black uppercase text-slate-400">Approved Action</Label>
+                        <Label className="text-xs font-semibold text-slate-500">Approved Action</Label>
                         <Select value={approvedAction} onValueChange={(v) => setApprovedAction(v)}>
-                          <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                          <SelectTrigger className="h-10 rounded-xl text-xs font-bold mt-1">
                             <SelectValue placeholder="Select Disciplinary Action" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1868,9 +1952,9 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         </Select>
                       </div>
                       <div>
-                        <Label className="text-xs font-black uppercase text-slate-400">Action Status</Label>
+                        <Label className="text-xs font-semibold text-slate-500">Action Status</Label>
                         <Select value={actionStatus} onValueChange={(v) => setActionStatus(v)}>
-                          <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                          <SelectTrigger className="h-10 rounded-xl text-xs font-bold mt-1">
                             <SelectValue placeholder="Status" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1882,50 +1966,188 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         </Select>
                       </div>
                     </div>
-                    <Button size="sm" onClick={handleSaveActionSubmit} disabled={isSavingAction} className="bg-emerald-600 text-white font-bold text-xs rounded-xl">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-500">Action Date</Label>
+                        <input
+                          type="date"
+                          value={actionDate}
+                          onChange={(e) => setActionDate(e.target.value)}
+                          className="mt-1 flex h-10 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-slate-500">Responsible Staff</Label>
+                        <input
+                          type="text"
+                          placeholder="Staff name..."
+                          value={responsibleStaffName}
+                          onChange={(e) => setResponsibleStaffName(e.target.value)}
+                          className="mt-1 flex h-10 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                    <Button size="sm" onClick={handleSaveActionSubmit} disabled={isSavingAction} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl px-5 h-10">
+                      {isSavingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                       Save Disciplinary Action
                     </Button>
                   </div>
                 </TabsContent>
 
-                {/* TAB 4: COMMUNICATION */}
+                {/* TAB 3: PARENT NOTICES */}
                 <TabsContent value="communication" className="space-y-4 pt-4">
-                  <div className="p-4 border rounded-2xl bg-white dark:bg-slate-950 text-xs space-y-2">
-                    <p className="font-bold text-slate-900 dark:text-white">Parent Acknowledgment Status</p>
-                    {selectedIncident.parentAcknowledged ? (
-                      <Badge className="bg-emerald-600 text-white">Acknowledged</Badge>
-                    ) : (
-                      <Badge variant="outline">Pending Acknowledgment</Badge>
+                  <div className="p-4 border rounded-2xl bg-white dark:bg-slate-950 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-500">Parent Notification</p>
+                      {selectedIncident.parentNotified ? (
+                        <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-indigo-300 font-bold text-[10px]">Notified</Badge>
+                      ) : (
+                        <Badge variant="outline" className="font-bold text-[10px]">Not Yet Notified</Badge>
+                      )}
+                    </div>
+                    {selectedIncident.parentNotifiedAt && (
+                      <p className="text-xs text-slate-500">Notification sent on: <strong>{new Date(selectedIncident.parentNotifiedAt).toLocaleDateString()}</strong></p>
                     )}
-                    {selectedIncident.parentAcknowledgementNotes && (
-                      <p className="italic text-slate-600 mt-2">&quot;{selectedIncident.parentAcknowledgementNotes}&quot;</p>
-                    )}
+                    <div className="border-t pt-3">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-2">Parent Acknowledgment</p>
+                      {selectedIncident.parentAcknowledged ? (
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-600 text-white font-bold">Acknowledged</Badge>
+                          {selectedIncident.parentAcknowledgedAt && (
+                            <span className="text-xs text-slate-400">on {new Date(selectedIncident.parentAcknowledgedAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-500 text-amber-600 font-bold">Pending Acknowledgment</Badge>
+                      )}
+                      {selectedIncident.parentAcknowledgementNotes && (
+                        <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border text-xs">
+                          <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Parent's Note</p>
+                          <p className="italic text-slate-700 dark:text-slate-300">&quot;{selectedIncident.parentAcknowledgementNotes}&quot;</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </TabsContent>
 
-                {/* TAB 5: FOLLOW-UP */}
+                {/* TAB 4: FOLLOW-UP TIMELINE */}
                 <TabsContent value="followup" className="space-y-4 pt-4">
-                  <div className="p-4 border rounded-2xl bg-white dark:bg-slate-950 space-y-3">
+                  {/* Existing follow-ups visual timeline */}
+                  {selectedIncident.followUps && selectedIncident.followUps.length > 0 ? (
+                    <div className="relative pl-5 border-l-2 border-indigo-200 dark:border-indigo-800 space-y-5">
+                      {selectedIncident.followUps.slice().reverse().map((fu, idx) => (
+                        <div key={fu.id} className="relative">
+                          <div className="absolute -left-[1.625rem] w-4 h-4 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          </div>
+                          <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm hover:shadow-md transition-all">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">{fu.authorName || 'Staff'}</span>
+                                {fu.statusAfter && fu.statusBefore && fu.statusAfter !== fu.statusBefore && (
+                                  <span className="text-[10px] bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded-full font-bold">
+                                    {fu.statusBefore} → {fu.statusAfter}
+                                  </span>
+                                )}
+                                {fu.actionTaken && (
+                                  <span className="text-[10px] bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-2 py-0.5 rounded-full font-bold">
+                                    Action: {fu.actionTaken}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap font-medium shrink-0">
+                                {new Date(fu.createdAt).toLocaleDateString()} {new Date(fu.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{fu.note}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                      <History className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-400">No follow-up entries yet</p>
+                    </div>
+                  )}
+                  {/* Add new follow-up */}
+                  <div className="p-4 border rounded-2xl bg-slate-50 dark:bg-slate-950 space-y-3">
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-500">Add Follow-up Entry</p>
                     <Textarea
-                      placeholder="Add follow-up note..."
+                      placeholder="Describe the follow-up action, meeting outcome, or status update..."
                       value={followUpNote}
                       onChange={(e) => setFollowUpNote(e.target.value)}
-                      className="min-h-[70px] text-xs rounded-xl"
+                      className="min-h-[80px] text-xs rounded-xl bg-white dark:bg-slate-900"
                     />
-                    <Button size="sm" onClick={handleAddFollowUpSubmit} disabled={isSubmittingFollowUp} className="bg-indigo-600 text-white font-bold text-xs rounded-xl">
-                      Add Follow-up Entry
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        placeholder="Action taken (optional)"
+                        value={followUpActionTaken}
+                        onChange={(e) => setFollowUpActionTaken(e.target.value)}
+                        className="flex-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs font-medium"
+                      />
+                      <Select value={followUpStatus} onValueChange={(v) => setFollowUpStatus(v)}>
+                        <SelectTrigger className="w-40 h-9 rounded-xl text-xs font-bold">
+                          <SelectValue placeholder="Change Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NO_CHANGE">No Status Change</SelectItem>
+                          <SelectItem value="OPEN">Open</SelectItem>
+                          <SelectItem value="UNDER_REVIEW">Under Review</SelectItem>
+                          <SelectItem value="ACTION_REQUIRED">Action Required</SelectItem>
+                          <SelectItem value="RESOLVED">Resolved</SelectItem>
+                          <SelectItem value="CLOSED">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button size="sm" onClick={handleAddFollowUpSubmit} disabled={isSubmittingFollowUp} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl px-5 h-10">
+                      {isSubmittingFollowUp ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                      Submit Follow-up
                     </Button>
                   </div>
                 </TabsContent>
 
-                {/* TAB 6: AUDIT HISTORY */}
-                <TabsContent value="audit" className="space-y-4 pt-4">
-                  {selectedIncident.auditLogs && selectedIncident.auditLogs.map((log) => (
-                    <div key={log.id} className="p-3 border rounded-xl bg-white dark:bg-slate-950 text-xs flex justify-between">
-                      <span className="font-bold">{log.action}</span>
-                      <span className="text-slate-400">{new Date(log.created_at).toLocaleString()}</span>
+                {/* TAB 5: AUDIT HISTORY */}
+                <TabsContent value="audit" className="space-y-3 pt-4">
+                  {selectedIncident.auditLogs && selectedIncident.auditLogs.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedIncident.auditLogs.map((log: any) => (
+                        <div key={log.id} className="p-3.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 space-y-1.5">
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-indigo-400 flex-shrink-0 mt-0.5" />
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-tight">
+                                {log.action.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap">
+                              {new Date(log.created_at).toLocaleDateString()} · {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          {log.authorName && (
+                            <p className="text-[10px] text-slate-500 pl-4">By: <span className="font-bold text-slate-700 dark:text-slate-300">{log.authorName}</span></p>
+                          )}
+                          {log.new_values && Object.keys(log.new_values).length > 0 && (
+                            <div className="pl-4 flex flex-wrap gap-2">
+                              {Object.entries(log.new_values).map(([k, v]: any) => (
+                                v != null && String(v).trim() !== '' && (
+                                  <span key={k} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-lg font-mono">
+                                    {k}: {String(v)}
+                                  </span>
+                                )
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="py-8 text-center space-y-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                      <History className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-400">No audit history available</p>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>

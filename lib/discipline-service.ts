@@ -142,8 +142,7 @@ export interface DisciplineAnalytics {
   byCategory: { name: string; value: number }[];
   bySeverity: { name: string; value: number }[];
   byGrade: { name: string; value: number }[];
-  repeatOffenders: { student: { id: string; fullName: string; student_id: string }; count: number }[];
-  topReporters: { name: string; count: number }[];
+  repeatOffenders: { student: { id: string; fullName: string; student_id: string; grade?: string; section?: string }; count: number }[];
   monthlyMap: Record<string, number>;
 }
 

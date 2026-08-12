@@ -191,8 +191,6 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
           router.push("/school/registrar")
         } else if (confirmedRole === "discipline_officer") {
           router.push("/school/discipline-officer")
-        } else if (confirmedRole === "call_center") {
-          router.push("/school/call-center")
         } else {
           console.warn(`[Login][STAFF] Navigating with role '${confirmedRole}'`)
           onLoginSuccess(result.user)

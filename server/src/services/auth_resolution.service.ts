@@ -109,7 +109,7 @@ export const resolveRoleInSchool = async (userId: string, schoolId: string, requ
     }
 
     // Staff / generic non-teacher school roles
-    const staffRoles = ['staff', 'registrar', 'discipline_officer', 'call_center'];
+    const staffRoles = ['staff', 'registrar', 'discipline_officer'];
     if (staffRoles.includes(requestedRole)) {
       const user = await prisma.user.findFirst({
         where: { id: userId, role: requestedRole }

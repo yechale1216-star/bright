@@ -114,20 +114,20 @@ export const logCall = async (params: LogCallParams) => {
  * Fetch call history for a user within their school,
  * ordered by most recent first.
  */
-export const getCallHistory = async (schoolId: string, userId?: string, limit = 50) => {
-  return await prisma.callHistory.findMany({
+export const getCallHistory = async (schoolId: string, userId?: string, limit = 100) => {
+  const historyRecords = await prisma.callHistory.findMany({
     where: {
       schoolId,
       ...(userId ? { OR: [{ userId }, { recipientId: userId }] } : {}),
     },
     include: {
-      user: { select: { id: true, full_name: true, profile_photo: true, role: true } },
+      user: { select: { id: true, full_name: true, phone: true, profile_photo: true, role: true } },
       callSession: {
         include: {
           participants: {
             include: {
               user: {
-                select: { id: true, full_name: true, profile_photo: true, role: true },
+                select: { id: true, full_name: true, phone: true, profile_photo: true, role: true },
               },
             },
           },
@@ -136,5 +136,32 @@ export const getCallHistory = async (schoolId: string, userId?: string, limit = 
     },
     orderBy: { createdAt: 'desc' },
     take: limit,
+  });
+
+  // Extract recipient IDs to resolve user names and phone numbers
+  const recipientIds = Array.from(
+    new Set(historyRecords.map((r) => r.recipientId).filter(Boolean))
+  ) as string[];
+
+  const recipientUsers = recipientIds.length > 0
+    ? await prisma.user.findMany({
+      where: { id: { in: recipientIds } },
+      select: { id: true, full_name: true, phone: true, role: true, profile_photo: true }
+    })
+    : [];
+
+  const recipientMap = new Map(recipientUsers.map((u) => [u.id, u]));
+
+  return historyRecords.map((r) => {
+    const recipientUser = r.recipientId ? recipientMap.get(r.recipientId) : null;
+    return {
+      ...r,
+      recipientUser,
+      recipientName: recipientUser?.full_name || (r.recipientId ? `Contact (${r.recipientId.slice(0, 8)})` : 'Parent / Contact'),
+      recipientPhone: recipientUser?.phone || null,
+      recipientRole: recipientUser?.role || 'parent',
+      callerName: r.user?.full_name || 'Call Center Agent',
+      callerRole: r.user?.role || 'discipline_officer',
+    };
   });
 };

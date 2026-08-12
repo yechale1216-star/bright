@@ -54,32 +54,6 @@ const SYSTEM_DEFAULT_ROLES = [
       users:                { view: false, create_user: false, edit_user: false, delete_user: false, manage_roles: false },
     },
   },
-  {
-    key: 'call_center',
-    name: 'School Call Center Officer',
-    description: 'Handles parent communications via calls, manages call queues, and logs call outcomes.',
-    color: '#14b8a6',
-    isSystem: true,
-    sortOrder: 3,
-    permissions: {
-      students:             { view: true,  create: false, edit: false, delete: false },
-      teachers:             { view: false, create: false, edit: false, delete: false },
-      assignments:          { view: false, assign: false, remove: false },
-      promotion:            { view: false, promote: false, reverse: false },
-      attendance:           { view: true,  mark: false, export: false },
-      attendance_analytics: { view: false, export: false },
-      discipline:           { view: false, create: false, resolve: false },
-      calls:                { view: true,  make: true },
-      communication:        { view: true,  send: true },
-      reports:              { view: true,  export: false },
-      announcements:        { view: true,  create: false },
-      settings:             { view: false, edit: false },
-      subscription:         { view: false, manage: false },
-      support:              { view: true,  create_ticket: true },
-      profile:              { view: true,  edit: true },
-      users:                { view: false, create_user: false, edit_user: false, delete_user: false, manage_roles: false },
-    },
-  },
 ];
 
 /**

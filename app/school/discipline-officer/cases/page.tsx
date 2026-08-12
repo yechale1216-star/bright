@@ -1,11 +1,5 @@
-import { DisciplineManagement } from '@/components/school/discipline/discipline-management';
+import { redirect } from 'next/navigation';
 
 export default function DisciplineOfficerCasesPage() {
-  return (
-    <div className="p-4 md:p-8">
-      <DisciplineManagement userRole="discipline_officer" />
-    </div>
-  );
+  redirect('/school/discipline-officer/incidents');
 }
-
-

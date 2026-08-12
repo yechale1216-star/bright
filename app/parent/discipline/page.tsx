@@ -154,7 +154,7 @@ export default function ParentDisciplinePage() {
   };
 
   const totalReports = incidents.length;
-  const openReports = incidents.filter(i => i.status === 'OPEN' || i.status === 'UNDER_REVIEW' || i.status === 'INVESTIGATION' || i.status === 'ACTION_REQUIRED').length;
+  const openReports = incidents.filter(i => i.status === 'OPEN' || i.status === 'UNDER_REVIEW' || i.status === 'ACTION_REQUIRED').length;
   const resolvedReports = incidents.filter(i => i.status === 'RESOLVED' || i.status === 'CLOSED').length;
 
   return (
@@ -391,18 +391,25 @@ export default function ParentDisciplinePage() {
                 </div>
               )}
 
-              {/* Teacher Follow-up Notes */}
+              {/* Follow-up Timeline */}
               {selectedIncident.followUps && selectedIncident.followUps.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">{t('teacher_notes_updates')}</h4>
-                  <div className="space-y-2 border rounded-2xl p-4 max-h-40 overflow-y-auto bg-slate-50 dark:bg-slate-950">
-                    {selectedIncident.followUps.map((fu) => (
-                      <div key={fu.id} className="text-xs border-b border-slate-200 dark:border-slate-800 last:border-b-0 pb-2 mb-2 space-y-1">
-                        <div className="flex justify-between font-bold">
-                          <span className="text-slate-900 dark:text-white">{fu.authorName || t('staff')}</span>
-                          <span className="text-slate-400">{formatLocalizedDate(fu.createdAt, language)}</span>
+                  <div className="relative pl-5 border-l-2 border-indigo-200 dark:border-indigo-800 space-y-4">
+                    {selectedIncident.followUps.slice().reverse().map((fu) => (
+                      <div key={fu.id} className="relative">
+                        <div className="absolute -left-[1.625rem] w-4 h-4 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
                         </div>
-                        <p className="text-slate-700 dark:text-slate-300 font-medium">{fu.note}</p>
+                        <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 space-y-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">{fu.authorName || t('staff')}</span>
+                            <span className="text-[10px] text-slate-400">
+                              {formatLocalizedDate(fu.createdAt, language)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{fu.note}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
