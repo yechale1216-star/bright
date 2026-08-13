@@ -793,7 +793,7 @@ const initSocket = (server) => {
             await setActiveCall({ callId, from: data.from, to: data.to, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, conversationId: data.conversationId, schoolId: resolvedSchoolId, startTime: String(callStartTime), timestamp: String(callStartTime) });
             await emitToUser(io, data.to, 'incoming_call', { from: data.from, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, callId });
             if (targetUser.pushToken) {
-                const serverUrl = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend.onrender.com';
+                const serverUrl = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend-dmlv.onrender.com';
                 (0, notification_service_1.sendCallNotification)(targetUser.pushToken, { callId, callerId: data.from, callerName: (data.profile?.name || callerInfo?.full_name || 'Unknown').slice(0, 64), callType: (data.type || 'VOICE'), serverUrl });
             }
         });

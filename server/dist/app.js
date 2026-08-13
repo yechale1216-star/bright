@@ -80,6 +80,7 @@ const socket_1 = require("./socket");
 const app = (0, express_1.default)();
 // Middleware
 const defaultAllowedOrigins = [
+    'http://localhost',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:3002',

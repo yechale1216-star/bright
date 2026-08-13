@@ -88,18 +88,20 @@ const createAssignment = async (data, schoolId) => {
             throw new Error("Stream does not exist in this school context.");
         }
     }
-    // Check for duplicate class assignment for this teacher in this school
-    const existing = await db_1.default.teacherAssignment.findFirst({
+    // HOMEROOM RULE: Check if this class/section already has ANY active homeroom teacher.
+    // One class = max one homeroom teacher. The same teacher MAY manage multiple classes.
+    const existingClassAssignment = await db_1.default.teacherAssignment.findFirst({
         where: {
             schoolId,
-            teacher_id: teacherId,
             gradeId: data.gradeId,
             sectionId: data.sectionId,
             streamId: data.streamId || null,
-        }
+        },
+        include: { teacher: true }
     });
-    if (existing) {
-        throw new Error("This teacher is already assigned to this Grade, Section, and Stream.");
+    if (existingClassAssignment) {
+        const teacherName = existingClassAssignment.teacher?.name || 'another teacher';
+        throw new Error(`This class already has a homeroom teacher assigned (${teacherName}). Remove or edit the existing assignment first.`);
     }
     return await db_1.default.teacherAssignment.create({
         data: {
@@ -156,19 +158,21 @@ const updateAssignment = async (id, data, schoolId) => {
             throw new Error("Stream does not exist in this school context.");
         }
     }
-    // Check for duplicate class assignment for this teacher (excluding current assignment id)
-    const existingDuplicate = await db_1.default.teacherAssignment.findFirst({
+    // HOMEROOM RULE: Check if the target class already has a DIFFERENT active homeroom teacher.
+    // Excludes the current assignment being edited so editing the same class is allowed.
+    const conflictingAssignment = await db_1.default.teacherAssignment.findFirst({
         where: {
             id: { not: id },
             schoolId,
-            teacher_id: teacherId,
             gradeId: data.gradeId,
             sectionId: data.sectionId,
             streamId: data.streamId || null,
-        }
+        },
+        include: { teacher: true }
     });
-    if (existingDuplicate) {
-        throw new Error("This teacher is already assigned to this Grade, Section, and Stream.");
+    if (conflictingAssignment) {
+        const teacherName = conflictingAssignment.teacher?.name || 'another teacher';
+        throw new Error(`This class already has an active homeroom teacher (${teacherName}). Remove or edit the existing assignment first.`);
     }
     return await db_1.default.teacherAssignment.update({
         where: { id, schoolId },

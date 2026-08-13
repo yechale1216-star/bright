@@ -934,6 +934,9 @@ export function StudentManagement() {
                                 <SelectValue placeholder="Select Grade" />
                               </SelectTrigger>
                               <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                <SelectItem value="KG1">KG1</SelectItem>
+                                <SelectItem value="KG2">KG2</SelectItem>
+                                <SelectItem value="Prep">Prep</SelectItem>
                                 {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
                                   <SelectItem key={g} value={`Grade ${g}`}>Grade {g}</SelectItem>
                                 ))}
@@ -953,8 +956,9 @@ export function StudentManagement() {
                             />
                           ) : (
                             (() => {
+                              const noStreamGrades = ['KG1', 'KG2', 'Prep'];
                               const gradeNum = parseInt(formData.grade.replace(/[^\d]/g, ""), 10);
-                              if (!isNaN(gradeNum) && gradeNum < 11) {
+                              if (noStreamGrades.includes(formData.grade) || (!isNaN(gradeNum) && gradeNum < 11)) {
                                 return (
                                   <Input
                                     id="stream"

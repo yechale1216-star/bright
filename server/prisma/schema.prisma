@@ -135,6 +135,7 @@ model TeacherAssignment {
   stream     Stream?  @relation(fields: [streamId], references: [id])
   teacher    Teacher  @relation(fields: [teacher_id], references: [id])
 
+  @@unique([schoolId, gradeId, sectionId, streamId])
   @@index([schoolId])
   @@index([teacher_id])
   @@index([gradeId])

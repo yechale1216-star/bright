@@ -170,18 +170,30 @@ export function TeacherAssignmentManagement() {
       return
     }
 
-    // Check if the teacher already has this exact class assigned
-    const isDuplicate = assignments.some(
+    // HOMEROOM RULE: Check if the target class already has a homeroom teacher assigned.
+    // One class/section = max one homeroom teacher.
+    // The same teacher IS allowed to manage multiple different classes.
+    const classAlreadyHasTeacher = assignments.some(
       (assign) =>
         assign.id !== editingAssignmentId &&
-        (assign.teacher_id === selectedTeacher || assign.teacher?.id === selectedTeacher) &&
         (assign.gradeId === selectedGrade || assign.grade?.id === selectedGrade) &&
         (assign.sectionId === selectedSection || assign.section?.id === selectedSection) &&
         ((assign.streamId || assign.stream?.id || "") === (selectedStream || ""))
     )
 
-    if (isDuplicate) {
-      notifications.error("Duplicate Assignment", "This teacher is already assigned to this Grade, Section, and Stream.")
+    if (classAlreadyHasTeacher) {
+      const existingAssign = assignments.find(
+        (assign) =>
+          assign.id !== editingAssignmentId &&
+          (assign.gradeId === selectedGrade || assign.grade?.id === selectedGrade) &&
+          (assign.sectionId === selectedSection || assign.section?.id === selectedSection) &&
+          ((assign.streamId || assign.stream?.id || "") === (selectedStream || ""))
+      )
+      const existingTeacherName = existingAssign?.teacher?.full_name || "another teacher"
+      notifications.error(
+        "Class Already Has a Homeroom Teacher",
+        `This class is already assigned to ${existingTeacherName}. Edit or remove the existing assignment first.`
+      )
       return
     }
 
