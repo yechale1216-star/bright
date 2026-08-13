@@ -120,11 +120,19 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
         headers: getAuthHeaders()
       });
       if (res.ok) {
-        const data = await res.json();
-        setMediaItems(data || []);
+        const json = await res.json();
+        const items = Array.isArray(json) 
+          ? json 
+          : Array.isArray(json?.data) 
+            ? json.data 
+            : Array.isArray(json?.media) 
+              ? json.media 
+              : [];
+        setMediaItems(items);
       }
     } catch (err) {
       console.error('Failed to fetch group media:', err);
+      setMediaItems([]);
     } finally {
       setIsLoadingMedia(false);
     }
@@ -272,9 +280,10 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
   };
 
   // Filtered media items
-  const mediaFiles = mediaItems.filter(m => m.type === 'IMAGE' || m.type === 'VIDEO');
-  const docFiles = mediaItems.filter(m => m.type === 'FILE');
-  const linkFiles = mediaItems.filter(m => m.content && (m.content.includes('http://') || m.content.includes('https://')));
+  const safeMediaItems = Array.isArray(mediaItems) ? mediaItems : [];
+  const mediaFiles = safeMediaItems.filter(m => m?.type === 'IMAGE' || m?.type === 'VIDEO');
+  const docFiles = safeMediaItems.filter(m => m?.type === 'FILE');
+  const linkFiles = safeMediaItems.filter(m => m?.content && (typeof m.content === 'string' && (m.content.includes('http://') || m.content.includes('https://'))));
 
   return (
     <div className="w-full md:w-[380px] lg:w-[420px] h-full border-l border-slate-800 bg-[#0c131d] text-slate-100 flex flex-col select-none animate-in slide-in-from-right duration-250 fixed inset-0 md:relative overflow-hidden z-50">
