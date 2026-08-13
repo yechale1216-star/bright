@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
@@ -17,33 +17,35 @@ import { useTheme } from '@/components/theme-provider'
 import { TopNav } from '@/components/layout/top-nav'
 import { PageSkeleton } from '@/components/ui/page-skeleton'
 import { LanguageProvider } from '@/lib/context/language-context'
-
-import { clearMessageCache } from '@/lib/utils/message-cache'
+import { Button } from '@/components/ui/button'
+import { useUnread } from '@/lib/context/unread-context'
 
 export default function TeacherClientLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const [mounted, setMounted] = React.useState(false)
-  const [sidebarOpen, setSidebarOpen] = React.useState(false)
-  const [showBottomNav, setShowBottomNav] = React.useState(true)
-  const [lastScrollY, setLastScrollY] = React.useState(0)
-  const { theme, setTheme } = useTheme()
-  const isDark = theme === 'dark'
-  
-  const { user, logout } = useAuth()
-  const { clearSchoolContext } = useSchool()
+  return (
+    <TeacherClientLayoutContent>{children}</TeacherClientLayoutContent>
+  )
+}
 
-  React.useEffect(() => {
+function TeacherClientLayoutContent({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const { user, logout } = useAuth()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showBottomNav, setShowBottomNav] = useState(true)
+  const [lastScrollY, setLastScrollY] = useState(0)
+  const { totalUnreadCount } = useUnread()
+
+  useEffect(() => {
     setMounted(true)
   }, [])
 
-  React.useEffect(() => {
-    (window as any).goBack = () => router.push('/school/teacher')
-  }, [router])
+  const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches)
 
   const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {
     const currentScrollY = e.currentTarget.scrollTop
@@ -67,7 +69,7 @@ export default function TeacherClientLayout({
 
   const navItems = [
     { href: "/school/teacher", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },
-    { href: "/school/teacher/communication", icon: <MessageSquare className="w-5 h-5" />, label: "Messages" },
+    { href: "/school/teacher/communication", icon: <MessageSquare className="w-5 h-5" />, label: "Messages", badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
     { href: "/school/teacher/attendance", icon: <CheckSquare className="w-5 h-5" />, label: "Attendance" },
     { href: "/school/teacher/classes", icon: <BookOpen className="w-5 h-5" />, label: "Classes" },
     { href: "/school/teacher/reports", icon: <BarChart2 className="w-5 h-5" />, label: "Reports" },
@@ -101,7 +103,8 @@ export default function TeacherClientLayout({
                       href={item.href} 
                       icon={item.icon} 
                       label={item.label} 
-                      active={isActive(item.href)} 
+                      active={isActive(item.href)}
+                      badge={item.badge}
                     />
                   ))}
 
@@ -110,24 +113,23 @@ export default function TeacherClientLayout({
                     className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer group mt-2"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-slate-500 group-hover:text-foreground">
-                        {isDark ? <Moon className="w-5 h-5 animate-in fade-in zoom-in duration-200" /> : <Sun className="w-5 h-5 animate-in fade-in zoom-in duration-200" />}
-                      </span>
-                      <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
+                      {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+                      <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
                     </div>
-                    <div className="flex h-5 w-9 items-center rounded-full bg-primary/20 px-0.5 pointer-events-none">
-                      <div className={cn(
-                        "h-4 w-4 rounded-full bg-primary shadow transition-transform duration-300",
-                        isDark ? 'translate-x-4' : 'translate-x-0'
-                      )} />
+                    <div className={cn("w-8 h-4 rounded-full p-0.5 transition-colors", isDark ? "bg-primary" : "bg-slate-300 dark:bg-slate-700")}>
+                      <div className={cn("w-3 h-3 rounded-full bg-white transition-transform", isDark ? "translate-x-4" : "translate-x-0")} />
                     </div>
                   </button>
                 </nav>
-                <div className="p-4 border-t border-border">
-                  <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2 rounded-lg hover:bg-secondary text-muted-foreground transition text-sm font-medium">
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </button>
+                <div className="p-4 border-t border-border mt-auto">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 font-bold rounded-xl"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </Button>
                 </div>
               </aside>
 
@@ -225,15 +227,22 @@ export default function TeacherClientLayout({
   )
 }
 
-function NavLink({ href, icon, label, active }: { href: string, icon: React.ReactNode, label: string, active: boolean }) {
+function NavLink({ href, icon, label, active, badge }: { href: string, icon: React.ReactNode, label: string, active: boolean, badge?: number }) {
   return (
     <Link href={href}>
       <div className={cn(
-        "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0 group",
+        "flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0 group relative",
         active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary"
       )}>
-        <span className={active ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{icon}</span>
-        <span>{label}</span>
+        <div className="flex items-center gap-3">
+          <span className={active ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{icon}</span>
+          <span>{label}</span>
+        </div>
+        {badge && (
+          <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+            {badge}
+          </span>
+        )}
       </div>
     </Link>
   )

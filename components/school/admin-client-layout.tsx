@@ -15,6 +15,7 @@ import { useSchool } from '@/lib/context/school-context'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { useRouter } from 'next/navigation'
 import { notifications } from '@/lib/utils/notifications'
+import { useUnread } from '@/lib/context/unread-context'
 import { TopNav } from '@/components/layout/top-nav'
 
 
@@ -77,6 +78,7 @@ export default function SchoolAdminClientLayout({
 
   const isActive = (path: string) => pathname === path
   const isCommunicationPage = pathname?.includes('/communication')
+  const { totalUnreadCount } = useUnread()
 
   const handleLogout = async () => {
     await logout()
@@ -88,7 +90,7 @@ export default function SchoolAdminClientLayout({
   const allNavItems = [
     { href: '/school/admin', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard', show: true },
     { href: '/school/admin/announcements', icon: <Megaphone className="w-5 h-5" />, label: 'Announcements', show: true },
-    { href: '/school/admin/communication', icon: <MessageSquare className="w-5 h-5" />, label: 'Communication', show: true },
+    { href: '/school/admin/communication', icon: <MessageSquare className="w-5 h-5" />, label: 'Communication', show: true, badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
     { href: '/school/admin/students', icon: <Users className="w-5 h-5" />, label: 'Students', show: true },
     { href: '/school/admin/teachers', icon: <User className="w-5 h-5" />, label: 'Teachers', show: true },
     { href: '/school/admin/users-and-roles', icon: <ShieldCheck className="w-5 h-5" />, label: 'Users & Roles', show: true },
@@ -153,7 +155,12 @@ export default function SchoolAdminClientLayout({
                           isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
                         )}>{item.icon}</span>
                         <span className="flex-1">{item.label}</span>
-                        {isActive(item.href) && <ChevronRight className="w-4 h-4" />}
+                        {(item as any).badge && (
+                          <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+                            {(item as any).badge}
+                          </span>
+                        )}
+                        {isActive(item.href) && !(item as any).badge && <ChevronRight className="w-4 h-4" />}
                       </div>
                     </Link>
                   ))}
@@ -208,6 +215,7 @@ export default function SchoolAdminClientLayout({
                       label={item.label}
                       active={isActive(item.href)}
                       isCollapsed={isCollapsed}
+                      badge={(item as any).badge}
                     />
                   ))}
                 </nav>
@@ -252,7 +260,7 @@ export default function SchoolAdminClientLayout({
                       <MobileTabLink href="/school/admin/announcements" icon={<Megaphone className="w-5 h-5" />} label="Alerts" active={isActive('/school/admin/announcements')} />
                       <MobileTabLink href="/school/admin/attendance-by-grade" icon={<BarChart2 className="w-5 h-5" />} label="Stats" active={isActive('/school/admin/attendance-by-grade')} />
                       <MobileTabLink href="/school/admin/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Presence" active={isActive('/school/admin/attendance')} />
-                      <MobileTabLink href="/school/admin/communication" icon={<MessageCircle className="w-5 h-5" />} label="Chat" active={isActive('/school/admin/communication')} />
+                      <MobileTabLink href="/school/admin/communication" icon={<MessageCircle className="w-5 h-5" />} label="Chat" active={isActive('/school/admin/communication')} badge={totalUnreadCount > 0 ? totalUnreadCount : undefined} />
                     </div>
                   </nav>
                 )}
@@ -262,7 +270,7 @@ export default function SchoolAdminClientLayout({
   )
 }
 
-function NavLink({ href, icon, label, active, isCollapsed }: { href: string, icon: React.ReactNode, label: string, active: boolean, isCollapsed?: boolean }) {
+function NavLink({ href, icon, label, active, isCollapsed, badge }: { href: string, icon: React.ReactNode, label: string, active: boolean, isCollapsed?: boolean, badge?: number }) {
   return (
     <Link href={href} title={isCollapsed ? label : undefined}>
       <div className={cn(
@@ -274,7 +282,12 @@ function NavLink({ href, icon, label, active, isCollapsed }: { href: string, ico
           "transition-colors flex-shrink-0",
           active ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
         )}>{icon}</span>
-        {!isCollapsed && <span className="truncate">{label}</span>}
+        {!isCollapsed && <span className="flex-1 truncate">{label}</span>}
+        {!isCollapsed && badge && (
+          <span className="ml-auto h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+            {badge}
+          </span>
+        )}
       </div>
     </Link>
   )

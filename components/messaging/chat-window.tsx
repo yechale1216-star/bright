@@ -47,6 +47,8 @@ interface Message {
   senderName: string;
   content: string;
   timestamp: string;
+  createdAt?: string | Date;
+  isRead?: boolean;
   status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
   type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'VIDEO_MESSAGE' | 'CALL_VOICE' | 'CALL_VIDEO' | 'CALL_MISSED_VOICE' | 'CALL_MISSED_VIDEO';
   isMe: boolean;
@@ -88,6 +90,7 @@ interface ChatWindowProps {
   onLoadOlderMessages?: () => void;
   hasMoreOlderMessages?: boolean;
   isLoadingOlderMessages?: boolean;
+  unreadSeparatorMessageId?: string | null;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
@@ -103,6 +106,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   onLoadOlderMessages,
   hasMoreOlderMessages,
   isLoadingOlderMessages,
+  unreadSeparatorMessageId,
 }) => {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
@@ -935,6 +939,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
               while (i < displayMessages.length) {
                 const message = displayMessages[i];
 
+                // ── Unread Messages Separator ──────────────────────────────
+                if (unreadSeparatorMessageId && message.id === unreadSeparatorMessageId) {
+                  rendered.push(<UnreadSeparator key="unread-messages-separator" />);
+                }
+
                 // ── Date Separator ─────────────────────────────────────────
                 const msgDateKey = message.createdAt
                   ? getLocalDateKey(message.createdAt)
@@ -943,7 +952,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                   rendered.push(
                     <DateSeparator
                       key={`date-sep-${msgDateKey}`}
-                      date={getMessageDateLabel(message.createdAt)}
+                      date={getMessageDateLabel(message.createdAt || message.timestamp)}
                     />
                   );
                   lastDateKey = msgDateKey;
@@ -2879,6 +2888,16 @@ const DateSeparator = ({ date }: { date: string }) => (
       {date}
     </span>
     <div className="flex-1 h-px bg-border/40" />
+  </div>
+);
+
+const UnreadSeparator = () => (
+  <div className="flex items-center justify-center my-4 px-4 select-none animate-in fade-in zoom-in duration-200">
+    <div className="flex-1 h-px bg-rose-500/40 dark:bg-rose-500/30" />
+    <span className="mx-3 px-3.5 py-1 rounded-full text-[11px] font-extrabold text-white bg-rose-500/90 backdrop-blur-md shadow-md border border-rose-400/30 tracking-wider uppercase">
+      Unread Messages
+    </span>
+    <div className="flex-1 h-px bg-rose-500/40 dark:bg-rose-500/30" />
   </div>
 );
 

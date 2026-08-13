@@ -719,6 +719,7 @@ export const initSocket = (server: HttpServer) => {
           })
         ));
         socket.to(data.conversationId).emit('messages_read', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
+        emitToUser(io, data.userId, 'conversation_read_ack', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
       } catch (err) { console.warn('[Socket] mark_conversation_read error (non-fatal):', err); }
     });
 

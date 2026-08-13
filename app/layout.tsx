@@ -16,6 +16,7 @@ import { StartupLoadingScreen } from "@/components/system/startup-loading-screen
 import { GlobalOfflineOverlay } from "@/components/system/global-offline-overlay"
 import { InAppNotificationProvider } from "@/components/providers/in-app-notification-provider"
 import { SocketProvider } from "@/components/providers/socket-provider"
+import { UnreadProvider } from "@/lib/context/unread-context"
 import { CallProvider } from "@/components/providers/call-provider"
 import { OrganizationJsonLd } from "@/components/seo/json-ld"
 import {
@@ -123,11 +124,13 @@ export default function RootLayout({
                   <StartupLoadingScreen />
                   <SchoolProvider>
                     <SocketProvider>
-                      <CallProvider>
-                        <InAppNotificationProvider>
-                          {children}
-                        </InAppNotificationProvider>
-                      </CallProvider>
+                      <UnreadProvider>
+                        <CallProvider>
+                          <InAppNotificationProvider>
+                            {children}
+                          </InAppNotificationProvider>
+                        </CallProvider>
+                      </UnreadProvider>
                     </SocketProvider>
                     <Toaster />
                     <SonnerToaster position="top-right" richColors />

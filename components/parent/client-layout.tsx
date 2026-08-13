@@ -35,6 +35,7 @@ import { useAuth } from "@/lib/context/auth-context"
 import { AuthGuard } from "@/components/auth/auth-guard"
 import { clearMessageCache } from "@/lib/utils/message-cache"
 import { cn } from "@/lib/utils/utils"
+import { useUnread } from "@/lib/context/unread-context"
 
 
 export default function ParentClientLayout({ children }: { children: React.ReactNode }) {
@@ -217,9 +218,11 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (!selectedStudent) return null
 
+  const { totalUnreadCount } = useUnread()
+
   const navLinks = [
     { href: "/parent/dashboard", label: t("dashboard"), icon: <LayoutDashboard /> },
-    { href: "/parent/communication", label: t("communication"), icon: <MessageSquare />, badge: unreadCount > 0 ? unreadCount : undefined },
+    { href: "/parent/communication", label: t("communication"), icon: <MessageSquare />, badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
     { href: "/parent/announcements", label: t("notifications"), icon: <Megaphone /> },
     { href: "/parent/attendance", label: t("attendance"), icon: <Calendar /> },
     { href: "/parent/discipline", label: t("discipline"), icon: <ShieldAlert /> },
@@ -459,7 +462,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
           )}>
             <div className="flex items-stretch justify-around h-16 px-2">
               <MobileTabLink href="/parent/dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label={t("dashboard")} active={isActive("/parent/dashboard")} />
-              <MobileTabLink href="/parent/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive("/parent/communication")} badge={unreadCount > 0 ? unreadCount : undefined} />
+              <MobileTabLink href="/parent/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive("/parent/communication")} badge={totalUnreadCount > 0 ? totalUnreadCount : undefined} />
               <MobileTabLink href="/parent/announcements" icon={<Megaphone className="w-5 h-5" />} label={t("notifications")} active={isActive("/parent/announcements")} />
               <MobileTabLink href="/parent/attendance" icon={<Calendar className="w-5 h-5" />} label={t("attendance")} active={isActive("/parent/attendance")} />
               <MobileTabLink href="/parent/profile" icon={<User className="w-5 h-5" />} label={t("profile")} active={isActive("/parent/profile")} />

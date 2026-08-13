@@ -19,6 +19,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { notifications } from '@/lib/utils/notifications';
 import { updateAppBadge } from '@/lib/utils/app-badge';
 import { formatLocalizedTime } from '@/lib/utils/date-utils';
+import { useUnread } from '@/lib/context/unread-context';
 import {
   cacheMessages,
   getCachedMessages,
@@ -48,9 +49,11 @@ function getAuthHeaders(): Record<string, string> {
 
 export function MessagingCenter() {
   const { t, language } = useLanguage();
+  const { unreadMap, markConversationRead, syncConversations } = useUnread();
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeConversationData, setActiveConversationData] = useState<any>(null);
+  const [unreadSeparatorMessageId, setUnreadSeparatorMessageId] = useState<string | null>(null);
   
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, any[]>>({});
   const [paginationByConversation, setPaginationByConversation] = useState<
@@ -217,7 +220,7 @@ export function MessagingCenter() {
               ? formatLocalizedTime(c.messages[0].createdAt, language)
               : '',
             updatedAt: new Date(c.updatedAt || c.createdAt).getTime(),
-            unreadCount: 0,
+            unreadCount: c.unreadCount || 0,
             isGroup,
             memberIds: c.members.map((m: any) => m.userId),
             phone: otherMember?.phone || '',
@@ -263,6 +266,7 @@ export function MessagingCenter() {
 
       const finalConversations = [...activeChats, ...directory];
       setConversations(finalConversations);
+      syncConversations(finalConversations);
 
       // ── Telegram-style: persist conversations to IndexedDB for offline ──
       cacheConversations(finalConversations).catch(() => {});
@@ -1020,15 +1024,30 @@ export function MessagingCenter() {
         (window as any).activeConversationId = activeConversationId;
       }
       const msgs = messagesByConversation[activeConversationId];
-      if (msgs) {
+      if (msgs && msgs.length > 0) {
+        // Locate first unread message before marking them as read
+        const firstUnread = msgs.find(m => !m.isMe && (m.isRead === false || m.status !== 'read'));
+        if (firstUnread) {
+          setUnreadSeparatorMessageId(firstUnread.id);
+        }
+
         markMessagesAsRead(activeConversationId, msgs);
+        markConversationRead(activeConversationId);
+
+        // Telegram-style: Remove unread separator pill smoothly after messages are marked read
+        const timer = setTimeout(() => {
+          setUnreadSeparatorMessageId(null);
+        }, 2500);
+
+        return () => clearTimeout(timer);
       }
     } else {
       if (typeof window !== 'undefined') {
         (window as any).activeConversationId = null;
       }
+      setUnreadSeparatorMessageId(null);
     }
-  }, [activeConversationId, messagesByConversation, markMessagesAsRead]);
+  }, [activeConversationId, messagesByConversation, markMessagesAsRead, markConversationRead]);
 
   // ── Socket: listen for new messages ───────────────────────────
   useEffect(() => {
@@ -1504,13 +1523,20 @@ export function MessagingCenter() {
     ? messagesByConversation[activeConversationId] || []
     : [];
 
+  const conversationsWithUnreadState = React.useMemo(() => {
+    return conversations.map(c => ({
+      ...c,
+      unreadCount: unreadMap[c.id] !== undefined ? unreadMap[c.id] : (c.unreadCount || 0),
+    }));
+  }, [conversations, unreadMap]);
+
   return (
     <div className="h-full relative overflow-hidden">
       <ChatLayout
         showContentOnMobile={!!activeConversationId || showSavedMessages}
         sidebar={
           <ChatSidebar
-            conversations={conversations}
+            conversations={conversationsWithUnreadState}
             activeConversationId={showSavedMessages ? 'saved-messages' : (activeConversationId || undefined)}
             onSelectConversation={id => {
               setShowSavedMessages(false);
@@ -1548,6 +1574,7 @@ export function MessagingCenter() {
                   onToggleInfo={() => setIsInfoPanelOpen(!isInfoPanelOpen)}
                   onAction={handleAction}
                   pinnedMessage={activeConversationId ? pinnedByConversation[activeConversationId] : undefined}
+                  unreadSeparatorMessageId={unreadSeparatorMessageId}
                 />
                 {isInfoPanelOpen && activeConversationData?.isGroup && (
                   <GroupInfoPanel 

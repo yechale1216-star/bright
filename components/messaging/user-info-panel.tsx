@@ -32,6 +32,7 @@ import { useCall } from '@/components/providers/call-provider';
 import { cn } from '@/lib/utils/utils';
 import { useLanguage } from '@/lib/context/language-context';
 import { apiUrl } from '@/lib/api-config';
+import { useUnread } from '@/lib/context/unread-context';
 import { ConversationDetailsTabs, type TabKey } from '@/components/messaging/conversation-details-tabs';
 
 interface SavedItem {
@@ -356,6 +357,9 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
 
   const TAB_LABELS: Record<TabKey, string> = { media: 'Media', saved: 'Saved', files: 'Files', links: 'Links' };
 
+  const { getUnreadForUser } = useUnread();
+  const profileUnreadCount = getUnreadForUser(user?.realContactId || user?.id || user?.userId);
+
   return (
     <>
       {/* Lightbox */}
@@ -380,7 +384,14 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
               <div className="absolute inset-0 w-full h-full bg-gradient-to-tr from-emerald-700 via-teal-800 to-cyan-900" />
             )}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/45 to-transparent pt-24 pb-5 px-5">
-              <h2 className="text-2xl font-black text-white leading-tight drop-shadow-md">{user?.name || 'User'}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-black text-white leading-tight drop-shadow-md">{user?.name || 'User'}</h2>
+                {profileUnreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-500 text-white shadow-md animate-in zoom-in">
+                    {profileUnreadCount} new
+                  </span>
+                )}
+              </div>
               <p className="text-[13px] text-zinc-300 font-medium mt-1 drop-shadow-sm flex items-center gap-1.5">
                 <span className={cn('h-2 w-2 rounded-full', user?.isOnline ? 'bg-emerald-500' : 'bg-zinc-400')} />
                 {user?.isOnline ? t('online') : user?.timestamp || 'last seen recently'}
@@ -401,16 +412,21 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
           {/* Action Buttons */}
           <div className="p-4 flex justify-between gap-2.5 border-b border-border/50 bg-secondary/15">
             {[
-              { icon: MessageSquare, label: 'Message', onClick: onClose },
+              { icon: MessageSquare, label: 'Message', onClick: onClose, badge: profileUnreadCount > 0 ? profileUnreadCount : undefined },
               { icon: isMuted ? BellOff : Bell, label: isMuted ? 'Muted' : 'Mute', onClick: handleMuteToggle, muted: isMuted },
               { icon: Phone, label: 'Call',  onClick: () => initiateCall(user?.realContactId || user?.id, 'VOICE', user) },
               { icon: Video, label: 'Video', onClick: () => initiateCall(user?.realContactId || user?.id, 'VIDEO', user) },
-            ].map(({ icon: Icon, label, onClick, muted }) => (
+            ].map(({ icon: Icon, label, onClick, muted, badge }) => (
               <button key={label} onClick={onClick}
                 className={cn(
-                  'flex-1 flex flex-col items-center justify-center rounded-2xl py-3.5 gap-1 transition-all active:scale-95 shadow-md cursor-pointer',
+                  'flex-1 flex flex-col items-center justify-center rounded-2xl py-3.5 gap-1 transition-all active:scale-95 shadow-md cursor-pointer relative',
                   muted ? 'bg-slate-700/80 hover:bg-slate-800 text-slate-100' : 'bg-emerald-600/90 hover:bg-emerald-700/95 text-white shadow-emerald-900/10',
                 )}>
+                {badge && (
+                  <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center border-2 border-background shadow-sm animate-bounce">
+                    {badge}
+                  </span>
+                )}
                 <Icon className="h-5 w-5" />
                 <span className="text-[11px] font-black uppercase tracking-wider">{label}</span>
               </button>

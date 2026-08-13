@@ -72,7 +72,23 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
       orderBy: { updatedAt: 'desc' },
     });
 
-    res.status(200).json(conversations);
+    // Calculate unread message count per conversation for the requesting user
+    const conversationsWithUnread = await Promise.all(
+      conversations.map(async (conv) => {
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: conv.id,
+            schoolId,
+            senderId: { not: userId },
+            isDeleted: false,
+            readBy: { none: { userId } },
+          },
+        });
+        return { ...conv, unreadCount };
+      })
+    );
+
+    res.status(200).json(conversationsWithUnread);
   } catch (error) {
     console.error('Error fetching conversations:', error);
     res.status(500).json({ error: 'Failed to fetch conversations' });
@@ -124,8 +140,8 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
             },
           },
           readBy: {
-            where: { schoolId, userId: { not: userId } },
-            take: 1,
+            where: { schoolId },
+            take: 20,
             select: {
               userId: true,
             },
@@ -162,9 +178,20 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
     const page = hasMore ? messages.slice(0, take) : messages;
     const nextCursor = hasMore ? page[page.length - 1]?.id : null;
 
+    const formattedMessages = page.map((m) => {
+      const isMe = m.senderId === userId;
+      const isRead = isMe
+        ? m.readBy.some((r) => r.userId !== userId)
+        : m.readBy.some((r) => r.userId === userId);
+      return {
+        ...m,
+        isRead,
+      };
+    });
+
     // Return in chronological order (oldest first)
     res.status(200).json({
-      messages: page.reverse(),
+      messages: formattedMessages.reverse(),
       nextCursor,
       hasMore,
       hasNextPage: hasMore,
