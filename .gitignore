@@ -28,6 +28,9 @@ tsconfig.tsbuildinfo
 
 # Android APK binaries
 *.apk
+*.jks
+*.keystore
+keystore.properties
 
 # IDE files
 .vscode/

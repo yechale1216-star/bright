@@ -821,7 +821,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
       {/* Main Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full space-y-6">
-        {!hideTabsList && userRole !== 'discipline_officer' && (
+        {!hideTabsList && (
           <TabsList className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800 inline-flex flex-wrap gap-1">
             <TabsTrigger value="incidents" className="rounded-xl font-bold text-xs h-9 px-4 gap-2">
               <ClipboardList className="w-4 h-4" />
