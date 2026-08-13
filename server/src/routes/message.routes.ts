@@ -20,5 +20,15 @@ router.delete('/:messageId/pin', featureGuard('messaging'), groupController.unpi
 router.post('/:messageId/react', featureGuard('messaging'), groupController.toggleReaction);
 router.post('/:messageId/bookmark', featureGuard('messaging'), bookmarkController.toggleBookmark);
 
-export default router;
+// ── Conversation-level Actions ─────────────────────────────────────────────────
+router.get('/conversations/:id/mute', featureGuard('messaging'), messageController.getMuteStatus);
+router.post('/conversations/:id/mute', featureGuard('messaging'), messageController.toggleMuteConversation);
+router.post('/conversations/:id/clear', featureGuard('messaging'), messageController.clearChatHistory);
+router.delete('/conversations/:id', featureGuard('messaging'), messageController.deleteConversation);
 
+// ── Block / Unblock Actions ───────────────────────────────────────────────────
+router.get('/users/:targetUserId/block-status', featureGuard('messaging'), messageController.getBlockStatus);
+router.post('/users/:targetUserId/block', featureGuard('messaging'), messageController.blockUser);
+router.post('/users/:targetUserId/unblock', featureGuard('messaging'), messageController.unblockUser);
+
+export default router;

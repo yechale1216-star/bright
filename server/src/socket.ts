@@ -551,6 +551,29 @@ export const initSocket = (server: HttpServer) => {
       }
 
       try {
+        // ── Block Check ─────────────────────────────────────────────────────────
+        // For 1:1 conversations, silently reject if either user has blocked the other.
+        const convMembers = await prisma.conversationMember.findMany({
+          where: { conversationId: data.conversationId },
+          select: { userId: true, isMuted: true },
+        });
+        const recipientIds = convMembers.map(m => m.userId).filter(id => id !== data.senderId);
+        if (recipientIds.length === 1) {
+          const blockExists = await prisma.userBlock.findFirst({
+            where: {
+              OR: [
+                { blockerId: data.senderId, blockedId: recipientIds[0] },
+                { blockerId: recipientIds[0], blockedId: data.senderId },
+              ]
+            },
+            select: { id: true },
+          });
+          if (blockExists) {
+            socket.emit('message_blocked', { tempId: data.tempId, message: 'You cannot send messages to this user.' });
+            return;
+          }
+        }
+
         if (data.tempId) {
           const dedupeKey = `${tenant.schoolId}:${data.tempId}`;
           const { alreadyExists, existingMessageId } = await checkAndSetTempId(dedupeKey, 'pending');
@@ -622,9 +645,15 @@ export const initSocket = (server: HttpServer) => {
             where: { id: { in: offlineTargets }, pushToken: { not: null } },
             select: { id: true, pushToken: true }
           });
+          // Filter out members who have muted this conversation
+          const mutedMemberIds = new Set(
+            convMembers.filter(m => m.isMuted).map(m => m.userId)
+          );
           const expiredIds: string[] = [];
           for (const u of usersWithTokens) {
             if (!u.pushToken) continue;
+            // Skip push for muted members
+            if (mutedMemberIds.has(u.id)) continue;
             const result = await sendMessageNotification(u.pushToken, {
               conversationId: data.conversationId,
               senderId: message.sender.id, senderName: message.sender.full_name,

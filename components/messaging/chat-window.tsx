@@ -6,8 +6,8 @@ import {
   Check, CheckCheck, Reply, Forward, Trash2, Heart, Search, X, Clock,
   Pin, Copy, FileText, FileJson, FileType, Music, Play, ExternalLink,
   Download, Globe, FileArchive, Mic, MicOff, StopCircle, ImageIcon, File as FileIcon,
-  Info, Bell, RotateCw, PhoneIncoming, PhoneMissed, PhoneOff, PhoneCall,
-  ArrowUpRight, ArrowDownLeft, PhoneOutgoing, Edit
+  Info, Bell, BellOff, RotateCw, PhoneIncoming, PhoneMissed, PhoneOff, PhoneCall,
+  ArrowUpRight, ArrowDownLeft, PhoneOutgoing, Edit, ShieldAlert, ShieldOff, Eraser, LogOut, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -85,6 +85,12 @@ interface ChatWindowProps {
   onBack?: () => void;
   onToggleInfo?: () => void;
   onAction?: (action: string, data: any) => void;
+  onDeleteChat?: () => void;
+  onClearHistory?: () => void;
+  onToggleBlock?: (isBlocked: boolean) => void;
+  isMuted?: boolean;
+  isBlocked?: boolean;
+  onToggleMute?: () => void;
   isLoading?: boolean;
   pinnedMessage?: { messageId: string; content?: string; senderName?: string; type?: string } | null;
   onLoadOlderMessages?: () => void;
@@ -101,6 +107,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   onBack,
   onToggleInfo,
   onAction,
+  onDeleteChat,
+  onClearHistory,
+  onToggleBlock,
+  isMuted = false,
+  isBlocked = false,
+  onToggleMute,
   isLoading,
   pinnedMessage,
   onLoadOlderMessages,
@@ -122,11 +134,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [editTarget, setEditTarget] = useState<Message | null>(null);
-  // Legacy delete dialog state (kept for desktop ContextMenu path)
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState<Message | null>(null);
   // Telegram-style bottom sheet state
   const [actionSheetMessage, setActionSheetMessage] = useState<Message | null>(null);
   const [uploads, setUploads] = useState<Record<string, { progress: number; controller: AbortController; fileData?: { file: File; type: string; preview: string }; text?: string }>>({});
+  // Chat action dialog states
+  const [showDeleteChatDialog, setShowDeleteChatDialog] = useState(false);
+  const [showClearHistoryDialog, setShowClearHistoryDialog] = useState(false);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
 
   const handleCancelUpload = (tempId: string) => {
     const upload = uploads[tempId];
@@ -807,7 +822,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl border-border/50 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-200">
+            <DropdownMenuContent align="end" className="w-60 rounded-2xl border-border/50 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-200">
               {!isStudent && !activeConversation.isGroup && (
                 <>
                   <DropdownMenuItem
@@ -829,15 +844,56 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                   <DropdownMenuSeparator className="my-1 bg-border/40" />
                 </>
               )}
-              <DropdownMenuItem className="rounded-xl h-10 gap-3">
-                <Info className="h-4 w-4" /> {activeConversation.isGroup ? 'Group Info' : t("view_profile")}
+
+              {/* ── View Profile / Group Info ───────────────────── */}
+              <DropdownMenuItem
+                className="rounded-xl h-10 gap-3 cursor-pointer"
+                onClick={() => onToggleInfo?.()}
+              >
+                <Info className="h-4 w-4 text-foreground/70" />
+                <span>{activeConversation.isGroup ? 'Group Info' : t("view_profile")}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem className="rounded-xl h-10 gap-3">
-                <Bell className="h-4 w-4" /> {t("mute_notifications")}
+
+              {/* ── Mute / Unmute ──────────────────────────────── */}
+              <DropdownMenuItem
+                className="rounded-xl h-10 gap-3 cursor-pointer"
+                onClick={() => onToggleMute?.()}
+              >
+                {isMuted
+                  ? <><BellOff className="h-4 w-4 text-amber-500" /><span>Unmute Notifications</span></>
+                  : <><Bell className="h-4 w-4 text-foreground/70" /><span>Mute Notifications</span></>}
               </DropdownMenuItem>
+
+              {/* ── Block / Unblock (1:1 only) ─────────────────── */}
+              {!activeConversation.isGroup && (
+                <DropdownMenuItem
+                  className="rounded-xl h-10 gap-3 cursor-pointer text-orange-600 focus:bg-orange-50 dark:focus:bg-orange-950/30 focus:text-orange-600"
+                  onClick={() => setShowBlockDialog(true)}
+                >
+                  {isBlocked
+                    ? <><ShieldOff className="h-4 w-4" /><span>Unblock User</span></>
+                    : <><ShieldAlert className="h-4 w-4" /><span>Block User</span></>}
+                </DropdownMenuItem>
+              )}
+
               <DropdownMenuSeparator className="my-1 bg-border/40" />
-              <DropdownMenuItem className="rounded-xl h-10 gap-3 text-destructive focus:bg-destructive/10 focus:text-destructive">
-                <Trash2 className="h-4 w-4" /> {activeConversation.isGroup ? 'Leave Group' : t("delete_chat")}
+
+              {/* ── Clear Chat History ─────────────────────────── */}
+              <DropdownMenuItem
+                className="rounded-xl h-10 gap-3 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                onClick={() => setShowClearHistoryDialog(true)}
+              >
+                <Eraser className="h-4 w-4" />
+                <span>Clear Chat History</span>
+              </DropdownMenuItem>
+
+              {/* ── Delete Chat ────────────────────────────────── */}
+              <DropdownMenuItem
+                className="rounded-xl h-10 gap-3 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                onClick={() => setShowDeleteChatDialog(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>{activeConversation.isGroup ? 'Leave Group' : 'Delete Chat'}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1095,6 +1151,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
 
       {/* Message Input */}
       <div className="p-2 md:p-4 bg-background/80 backdrop-blur-md border-t border-border z-50 sticky bottom-0 pb-safe">
+
+        {/* Blocked User Banner */}
+        {isBlocked && (
+          <div className="flex items-center justify-center gap-2 py-2.5 px-4 mb-2 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/50 rounded-xl text-orange-700 dark:text-orange-400">
+            <ShieldAlert className="h-4 w-4 flex-shrink-0" />
+            <span className="text-xs font-semibold">You have blocked this contact. Unblock to send messages.</span>
+          </div>
+        )}
 
         <div className="max-w-4xl w-full mx-auto space-y-2">
 
@@ -1569,6 +1633,132 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
           </div>
         )}
       </AnimatePresence>
+
+      {/* ─── Delete Chat Confirmation Dialog ─────────────────────────────── */}
+      <AnimatePresence>
+        {showDeleteChatDialog && (
+          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowDeleteChatDialog(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="relative z-10 bg-background rounded-3xl border border-border shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="p-5 border-b border-border/50 flex items-start gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                  <Trash2 className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Delete Chat?</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This will remove the conversation from your chat list. The other person's account and their messages are not affected.
+                  </p>
+                </div>
+              </div>
+              <div className="p-4 flex flex-col gap-2">
+                <Button variant="destructive" className="w-full rounded-2xl h-11 font-bold"
+                  onClick={() => { setShowDeleteChatDialog(false); onDeleteChat?.(); }}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete Chat
+                </Button>
+                <Button variant="ghost" className="w-full rounded-2xl h-11"
+                  onClick={() => setShowDeleteChatDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Clear Chat History Confirmation Dialog ───────────────────────── */}
+      <AnimatePresence>
+        {showClearHistoryDialog && (
+          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowClearHistoryDialog(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="relative z-10 bg-background rounded-3xl border border-border shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="p-5 border-b border-border/50 flex items-start gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                  <Eraser className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Clear Chat History?</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    All messages will be cleared from your view only. The other person's history remains. New messages will still work normally.
+                  </p>
+                </div>
+              </div>
+              <div className="p-4 flex flex-col gap-2">
+                <Button variant="destructive" className="w-full rounded-2xl h-11 font-bold"
+                  onClick={() => { setShowClearHistoryDialog(false); onClearHistory?.(); }}>
+                  <Eraser className="h-4 w-4 mr-2" /> Clear History
+                </Button>
+                <Button variant="ghost" className="w-full rounded-2xl h-11"
+                  onClick={() => setShowClearHistoryDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Block / Unblock Confirmation Dialog ─────────────────────────── */}
+      <AnimatePresence>
+        {showBlockDialog && (
+          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowBlockDialog(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              className="relative z-10 bg-background rounded-3xl border border-border shadow-2xl w-full max-w-sm overflow-hidden"
+            >
+              <div className="p-5 border-b border-border/50 flex items-start gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center flex-shrink-0">
+                  {isBlocked ? <ShieldOff className="h-5 w-5 text-orange-600" /> : <ShieldAlert className="h-5 w-5 text-orange-600" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">
+                    {isBlocked ? 'Unblock User?' : `Block ${activeConversation?.name}?`}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isBlocked
+                      ? 'They will be able to send you messages and call you again.'
+                      : 'They will no longer be able to message you, call you, or see when you are online. Existing messages are not deleted.'}
+                  </p>
+                </div>
+              </div>
+              <div className="p-4 flex flex-col gap-2">
+                <Button
+                  className={`w-full rounded-2xl h-11 font-bold ${isBlocked ? 'bg-primary hover:bg-primary/90' : 'bg-orange-600 hover:bg-orange-700 text-white'}`}
+                  onClick={() => {
+                    setShowBlockDialog(false);
+                    onToggleBlock?.(isBlocked);
+                  }}>
+                  {isBlocked ? <><ShieldOff className="h-4 w-4 mr-2" /> Unblock User</> : <><ShieldAlert className="h-4 w-4 mr-2" /> Block User</>}
+                </Button>
+                <Button variant="ghost" className="w-full rounded-2xl h-11"
+                  onClick={() => setShowBlockDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 });

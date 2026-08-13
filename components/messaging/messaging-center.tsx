@@ -27,6 +27,8 @@ import {
   updateCachedMessage,
   cacheConversations,
   getCachedConversations,
+  deleteCachedMessages,
+  clearCachedMessages,
   enqueueOutboxMessage,
   getOutboxMessages,
   removeOutboxMessage,
@@ -72,6 +74,8 @@ export function MessagingCenter() {
   } | null>(null);
   const [forwardSearchQuery, setForwardSearchQuery] = useState('');
   const [pinnedByConversation, setPinnedByConversation] = useState<Record<string, any>>({}); // conversationId -> pinnedMessage info
+  const [isMuted, setIsMuted] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   const { socket, isConnected } = useSocket();
   const [user, setUser] = useState<any>(null);
@@ -87,6 +91,139 @@ export function MessagingCenter() {
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  // Sync mute and block status when active conversation changes
+  useEffect(() => {
+    if (!activeConversationData) {
+      setIsMuted(false);
+      setIsBlocked(false);
+      return;
+    }
+
+    setIsMuted(!!activeConversationData.isMuted);
+
+    // Fetch block status for 1:1 conversations
+    if (!activeConversationData.isGroup && user) {
+      const targetUserId = activeConversationData.realContactId ||
+        activeConversationData.memberIds?.find((id: string) => id !== user.id) ||
+        activeConversationData.members?.find((m: any) => (m.userId || m.id) !== user.id)?.userId;
+
+      if (targetUserId) {
+        fetch(`${API_URL}/api/messages/users/${targetUserId}/block-status`, {
+          headers: getAuthHeaders(),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            setIsBlocked(!!data.iBlockedThem);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [activeConversationData, user]);
+
+  // ── Toggle Mute Handler ───────────────────────────────────────────────────
+  const handleToggleMute = useCallback(async () => {
+    if (!activeConversationId) return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages/conversations/${activeConversationId}/mute`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsMuted(data.isMuted);
+        setActiveConversationData((prev: any) => prev ? { ...prev, isMuted: data.isMuted } : prev);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === activeConversationId ? { ...c, isMuted: data.isMuted } : c))
+        );
+        notifications.success(
+          data.isMuted ? 'Notifications Muted' : 'Notifications Unmuted',
+          data.isMuted ? 'Notifications muted for this conversation' : 'Notifications unmuted'
+        );
+      }
+    } catch (err) {
+      notifications.error('Failed', 'Could not toggle mute state');
+    }
+  }, [activeConversationId]);
+
+  // ── Toggle Block Handler ──────────────────────────────────────────────────
+  const handleToggleBlock = useCallback(async (currentlyBlocked: boolean) => {
+    if (!activeConversationData || !user) return;
+    const targetUserId = activeConversationData.realContactId ||
+      activeConversationData.memberIds?.find((id: string) => id !== user.id) ||
+      activeConversationData.members?.find((m: any) => (m.userId || m.id) !== user.id)?.userId;
+
+    if (!targetUserId) return;
+
+    const endpoint = currentlyBlocked ? 'unblock' : 'block';
+    try {
+      const res = await fetch(`${API_URL}/api/messages/users/${targetUserId}/${endpoint}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const newBlockedState = !currentlyBlocked;
+        setIsBlocked(newBlockedState);
+        notifications.success(
+          newBlockedState ? 'User Blocked' : 'User Unblocked',
+          newBlockedState
+            ? `${activeConversationData.name} has been blocked.`
+            : `${activeConversationData.name} has been unblocked.`
+        );
+      }
+    } catch (err) {
+      notifications.error('Failed', 'Could not update block state');
+    }
+  }, [activeConversationData, user]);
+
+  // ── Clear Chat History Handler ──────────────────────────────────────────
+  const handleClearHistory = useCallback(async () => {
+    if (!activeConversationId) return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages/conversations/${activeConversationId}/clear`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        setMessagesByConversation((prev) => ({
+          ...prev,
+          [activeConversationId]: [],
+        }));
+        await clearCachedMessages(activeConversationId);
+        notifications.success('Chat Cleared', 'All message history cleared for you');
+      }
+    } catch (err) {
+      notifications.error('Failed', 'Could not clear chat history');
+    }
+  }, [activeConversationId]);
+
+  // ── Delete Chat Handler ───────────────────────────────────────────────────
+  const handleDeleteChat = useCallback(async () => {
+    if (!activeConversationId) return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages/conversations/${activeConversationId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const deletedId = activeConversationId;
+        setActiveConversationId(null);
+        setActiveConversationData(null);
+        setIsInfoPanelOpen(false);
+        setConversations((prev) => prev.filter((c) => c.id !== deletedId));
+        setMessagesByConversation((prev) => {
+          const next = { ...prev };
+          delete next[deletedId];
+          return next;
+        });
+        await deleteCachedMessages(deletedId);
+        notifications.success('Chat Deleted', 'Conversation removed from your chat list');
+      }
+    } catch (err) {
+      notifications.error('Failed', 'Could not delete conversation');
+    }
+  }, [activeConversationId]);
+
 
   useEffect(() => {
     userRef.current = user;
@@ -1573,6 +1710,12 @@ export function MessagingCenter() {
                   }}
                   onToggleInfo={() => setIsInfoPanelOpen(!isInfoPanelOpen)}
                   onAction={handleAction}
+                  onDeleteChat={handleDeleteChat}
+                  onClearHistory={handleClearHistory}
+                  onToggleBlock={handleToggleBlock}
+                  isMuted={isMuted}
+                  isBlocked={isBlocked}
+                  onToggleMute={handleToggleMute}
                   pinnedMessage={activeConversationId ? pinnedByConversation[activeConversationId] : undefined}
                   unreadSeparatorMessageId={unreadSeparatorMessageId}
                 />

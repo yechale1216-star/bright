@@ -111,11 +111,11 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
     const [membership, messages] = await Promise.all([
       prisma.conversationMember.findFirst({
         where: { conversationId, userId },
-        select: { id: true },
+        select: { id: true, clearedAt: true },
       }),
       prisma.message.findMany({
         where: { conversationId, schoolId },
-        take: take + 1, // fetch one extra to determine if there's a next page
+        take: take + 1,
         ...(cursor ? { skip: 1, cursor: { id: String(cursor) } } : {}),
         orderBy: { createdAt: 'desc' },
         select: {
@@ -174,8 +174,14 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden: You are not a member of this conversation' });
     }
 
-    const hasMore = messages.length > take;
-    const page = hasMore ? messages.slice(0, take) : messages;
+    // Filter out messages that were cleared by this user
+    const clearedAt = membership.clearedAt;
+    const visibleMessages = clearedAt
+      ? messages.filter((m) => m.createdAt > clearedAt)
+      : messages;
+
+    const hasMore = visibleMessages.length > take;
+    const page = hasMore ? visibleMessages.slice(0, take) : visibleMessages;
     const nextCursor = hasMore ? page[page.length - 1]?.id : null;
 
     const formattedMessages = page.map((m) => {
@@ -201,6 +207,202 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 };
+
+// ── Toggle Mute / Unmute Conversation ─────────────────────────────────────────
+export const toggleMuteConversation = async (req: AuthenticatedRequest, res: Response) => {
+  const { id: conversationId } = req.params;
+  const userId = req.user?.id;
+  const schoolId = req.user?.schoolId;
+
+  if (!userId || !schoolId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const membership = await prisma.conversationMember.findFirst({
+      where: { conversationId, userId },
+      select: { id: true, isMuted: true },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'You are not a member of this conversation' });
+    }
+
+    const updated = await prisma.conversationMember.update({
+      where: { id: membership.id },
+      data: { isMuted: !membership.isMuted },
+      select: { isMuted: true },
+    });
+
+    return res.status(200).json({ isMuted: updated.isMuted });
+  } catch (error) {
+    console.error('[toggleMuteConversation] error:', error);
+    return res.status(500).json({ error: 'Failed to toggle mute' });
+  }
+};
+
+// ── Get Mute Status ───────────────────────────────────────────────────────────
+export const getMuteStatus = async (req: AuthenticatedRequest, res: Response) => {
+  const { id: conversationId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const membership = await prisma.conversationMember.findFirst({
+      where: { conversationId, userId },
+      select: { isMuted: true },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'You are not a member of this conversation' });
+    }
+
+    return res.status(200).json({ isMuted: membership.isMuted });
+  } catch (error) {
+    console.error('[getMuteStatus] error:', error);
+    return res.status(500).json({ error: 'Failed to get mute status' });
+  }
+};
+
+// ── Clear Chat History (per-user) ─────────────────────────────────────────────
+export const clearChatHistory = async (req: AuthenticatedRequest, res: Response) => {
+  const { id: conversationId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const membership = await prisma.conversationMember.findFirst({
+      where: { conversationId, userId },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'You are not a member of this conversation' });
+    }
+
+    // Set clearedAt to NOW — getMessages will filter out all messages before this point
+    await prisma.conversationMember.update({
+      where: { id: membership.id },
+      data: { clearedAt: new Date() },
+    });
+
+    return res.status(200).json({ success: true, clearedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('[clearChatHistory] error:', error);
+    return res.status(500).json({ error: 'Failed to clear chat history' });
+  }
+};
+
+// ── Delete Conversation (remove user's membership) ───────────────────────────
+export const deleteConversation = async (req: AuthenticatedRequest, res: Response) => {
+  const { id: conversationId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const membership = await prisma.conversationMember.findFirst({
+      where: { conversationId, userId },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'You are not a member of this conversation' });
+    }
+
+    // Delete only this user's membership — the conversation itself and the other user's
+    // history remain completely untouched.
+    await prisma.conversationMember.delete({
+      where: { id: membership.id },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('[deleteConversation] error:', error);
+    return res.status(500).json({ error: 'Failed to delete conversation' });
+  }
+};
+
+// ── Block User ────────────────────────────────────────────────────────────────
+export const blockUser = async (req: AuthenticatedRequest, res: Response) => {
+  const { targetUserId } = req.params;
+  const blockerId = req.user?.id;
+  const schoolId = req.user?.schoolId;
+
+  if (!blockerId) return res.status(401).json({ error: 'Unauthorized' });
+  if (blockerId === targetUserId) return res.status(400).json({ error: 'Cannot block yourself' });
+
+  try {
+    // Verify target user exists and belongs to same school
+    const target = await prisma.user.findFirst({
+      where: { id: targetUserId, schoolId },
+      select: { id: true },
+    });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    // Upsert to prevent duplicate block records
+    const block = await prisma.userBlock.upsert({
+      where: { blockerId_blockedId: { blockerId, blockedId: targetUserId } },
+      create: { blockerId, blockedId: targetUserId, schoolId },
+      update: {},
+    });
+
+    return res.status(200).json({ blocked: true, blockId: block.id });
+  } catch (error) {
+    console.error('[blockUser] error:', error);
+    return res.status(500).json({ error: 'Failed to block user' });
+  }
+};
+
+// ── Unblock User ──────────────────────────────────────────────────────────────
+export const unblockUser = async (req: AuthenticatedRequest, res: Response) => {
+  const { targetUserId } = req.params;
+  const blockerId = req.user?.id;
+
+  if (!blockerId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    await prisma.userBlock.deleteMany({
+      where: { blockerId, blockedId: targetUserId },
+    });
+
+    return res.status(200).json({ blocked: false });
+  } catch (error) {
+    console.error('[unblockUser] error:', error);
+    return res.status(500).json({ error: 'Failed to unblock user' });
+  }
+};
+
+// ── Get Block Status ──────────────────────────────────────────────────────────
+export const getBlockStatus = async (req: AuthenticatedRequest, res: Response) => {
+  const { targetUserId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const [iBlockedThem, theyBlockedMe] = await Promise.all([
+      prisma.userBlock.findFirst({
+        where: { blockerId: userId, blockedId: targetUserId },
+        select: { id: true },
+      }),
+      prisma.userBlock.findFirst({
+        where: { blockerId: targetUserId, blockedId: userId },
+        select: { id: true },
+      }),
+    ]);
+
+    return res.status(200).json({
+      iBlockedThem: !!iBlockedThem,
+      theyBlockedMe: !!theyBlockedMe,
+    });
+  } catch (error) {
+    console.error('[getBlockStatus] error:', error);
+    return res.status(500).json({ error: 'Failed to get block status' });
+  }
+};
+
+
 
 export const createConversation = async (req: AuthenticatedRequest, res: Response) => {
   const { name, isGroup, memberIds, avatar } = req.body;

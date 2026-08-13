@@ -232,6 +232,44 @@ export async function updateCachedMessage(
   }
 }
 
+/**
+ * Completely remove the cached message record for a conversation from IndexedDB.
+ * Used when the user deletes the conversation (removes membership).
+ */
+export async function deleteCachedMessages(conversationId: string): Promise<void> {
+  try {
+    const db = await openDB()
+    const tx = db.transaction(MESSAGES_STORE, "readwrite")
+    await idbDelete(tx.objectStore(MESSAGES_STORE), conversationId)
+    await txComplete(tx)
+  } catch (err) {
+    console.warn("[MessageCache] deleteCachedMessages failed:", err)
+  }
+}
+
+/**
+ * Clear messages in IndexedDB for a conversation (sets messages to []).
+ * Used when the user clears chat history. Keeps the conversation entry
+ * in the sidebar but empties the message list so cleared messages
+ * do not reappear from local cache.
+ */
+export async function clearCachedMessages(conversationId: string): Promise<void> {
+  try {
+    const db = await openDB()
+    const tx = db.transaction(MESSAGES_STORE, "readwrite")
+    const store = tx.objectStore(MESSAGES_STORE)
+    const existing = await idbGet<{ conversationId: string; messages: any[]; updatedAt: number }>(
+      store, conversationId
+    )
+    if (existing) {
+      await idbPut(store, { conversationId, messages: [], updatedAt: Date.now() })
+    }
+    await txComplete(tx)
+  } catch (err) {
+    console.warn("[MessageCache] clearCachedMessages failed:", err)
+  }
+}
+
 // ─── Conversations (Sidebar) ────────────────────────────────────────────────
 
 /** Cache the full conversations/sidebar list for offline access. */
