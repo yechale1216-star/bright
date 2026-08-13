@@ -277,10 +277,10 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
   const linkFiles = mediaItems.filter(m => m.content && (m.content.includes('http://') || m.content.includes('https://')));
 
   return (
-    <div className="w-full md:w-[380px] lg:w-[420px] h-full border-l border-slate-800 bg-[#0c131d] text-slate-100 flex flex-col z-30 select-none animate-in slide-in-from-right duration-250">
+    <div className="w-full md:w-[380px] lg:w-[420px] h-full border-l border-slate-800 bg-[#0c131d] text-slate-100 flex flex-col select-none animate-in slide-in-from-right duration-250 fixed inset-0 md:relative overflow-hidden z-50">
       
-      {/* ── 1. Top Header Bar ────────────────────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between bg-[#111a28]">
+      {/* ── 1. Top Header Bar (Fixed at top) ────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between bg-[#111a28] shrink-0">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -385,7 +385,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-16 scrollbar-thin scrollbar-thumb-slate-700/50">
         
         {/* ── 2. Hero Profile Header Section ──────────────────────────────── */}
         <div className="p-6 flex flex-col items-center text-center space-y-3 relative">
@@ -624,7 +624,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
           </Tabs>
         </div>
 
-      </ScrollArea>
+      </div>
 
       {/* ── Modals & Dialogs ────────────────────────────────────────────── */}
 
