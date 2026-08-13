@@ -54,7 +54,7 @@ export class NotificationService {
         border: "1px solid #fdba74",
       },
     })
-    console.error(`[Error] ${displayTitle}: ${displayMessage}`)
+    console.warn(`[Error] ${displayTitle}: ${displayMessage}`)
   }
 
   async warning(title: string, message: string): Promise<void> {

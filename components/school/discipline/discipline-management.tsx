@@ -195,6 +195,11 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const [responsibleStaffName, setResponsibleStaffName] = useState('');
   const [actionStatus, setActionStatus] = useState('PENDING');
   const [isSavingAction, setIsSavingAction] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [isDeletingCategoryId, setIsDeletingCategoryId] = useState<string | null>(null);
+  const [isDeletingActionId, setIsDeletingActionId] = useState<string | null>(null);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [isCreatingAction, setIsCreatingAction] = useState(false);
 
   const [followUpNote, setFollowUpNote] = useState('');
   const [followUpActionTaken, setFollowUpActionTaken] = useState('');
@@ -456,6 +461,8 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         assignedToId: ''
       });
 
+      // Immediately trigger data refresh across all listeners
+      window.dispatchEvent(new Event('disciplineDataChanged'));
       fetchIncidents();
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
@@ -492,6 +499,8 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         actionStatus
       });
       setSelectedIncident(updated);
+      // Immediately patch the list row so the status column reflects the new data
+      setIncidents(prev => prev.map(inc => inc.id === updated.id ? updated : inc));
       toast.success('Disciplinary action plan saved');
       fetchIncidents();
       fetchAnalyticsAndConfigs();
@@ -522,6 +531,8 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
       const updated = await DisciplineApi.getIncidentById(selectedIncident.id);
       setSelectedIncident(updated);
+      // Immediately patch the list row
+      setIncidents(prev => prev.map(inc => inc.id === updated.id ? updated : inc));
       fetchIncidents();
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
@@ -539,7 +550,9 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         notifyParent: true
       });
       setSelectedIncident(updated);
-      toast.success(`Case status updated to ${newStatus}`);
+      // Immediately patch the list row so the status column updates right away
+      setIncidents(prev => prev.map(inc => inc.id === updated.id ? updated : inc));
+      toast.success(`Case status updated to ${newStatus.replace('_', ' ')}`);
       fetchIncidents();
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
@@ -549,19 +562,25 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
   const handleDeleteIncident = async (id: string) => {
     if (!confirm('Are you sure you want to delete this discipline record? This action cannot be undone.')) return;
+    setIsDeletingId(id);
     try {
       await DisciplineApi.deleteIncident(id);
       toast.success('Incident deleted');
       if (selectedIncident?.id === id) setIsDetailOpen(false);
+      // Immediately trigger data refresh
+      window.dispatchEvent(new Event('disciplineDataChanged'));
       fetchIncidents();
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete record');
+    } finally {
+      setIsDeletingId(null);
     }
   };
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
+    setIsCreatingCategory(true);
     try {
       await DisciplineApi.createCategory(newCategoryName, newCategoryDesc);
       toast.success('Category added');
@@ -571,21 +590,27 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create category');
+    } finally {
+      setIsCreatingCategory(false);
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
+    setIsDeletingCategoryId(id);
     try {
       await DisciplineApi.deleteCategory(id);
       toast.success('Category deleted');
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete category');
+    } finally {
+      setIsDeletingCategoryId(null);
     }
   };
 
   const handleCreateActionConfig = async () => {
     if (!newActionConfigName.trim()) return;
+    setIsCreatingAction(true);
     try {
       await DisciplineApi.createActionConfig(newActionConfigName, newActionConfigDesc);
       toast.success('Disciplinary action added');
@@ -595,16 +620,21 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create action configuration');
+    } finally {
+      setIsCreatingAction(false);
     }
   };
 
   const handleDeleteActionConfig = async (id: string) => {
+    setIsDeletingActionId(id);
     try {
       await DisciplineApi.deleteActionConfig(id);
       toast.success('Disciplinary action deleted');
       fetchAnalyticsAndConfigs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete action configuration');
+    } finally {
+      setIsDeletingActionId(null);
     }
   };
 
@@ -1106,10 +1136,13 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="rounded-xl text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                className="rounded-xl text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1.5"
                                 onClick={() => handleDeleteIncident(inc.id)}
+                                disabled={isDeletingId === inc.id}
                               >
-                                <Trash2 className="w-4 h-4" />
+                                {isDeletingId === inc.id
+                                  ? <><RefreshCw className="w-4 h-4 animate-spin" /><span className="text-xs font-bold">Deleting…</span></>
+                                  : <Trash2 className="w-4 h-4" />}
                               </Button>
                             )}
                           </div>
@@ -1420,12 +1453,15 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
                     {!cat.isDefault && (
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        className="rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        className="rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1.5"
                         onClick={() => handleDeleteCategory(cat.id)}
+                        disabled={isDeletingCategoryId === cat.id}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {isDeletingCategoryId === cat.id
+                          ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span className="text-xs font-bold">Deleting…</span></>
+                          : <><Trash2 className="w-3.5 h-3.5" /><span className="text-xs font-bold">Delete</span></>}
                       </Button>
                     )}
                   </div>
@@ -1475,12 +1511,15 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
 
                     {!act.isDefault && (
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        className="rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        className="rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1.5"
                         onClick={() => handleDeleteActionConfig(act.id)}
+                        disabled={isDeletingActionId === act.id}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {isDeletingActionId === act.id
+                          ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span className="text-xs font-bold">Deleting…</span></>
+                          : <><Trash2 className="w-3.5 h-3.5" /><span className="text-xs font-bold">Delete</span></>}
                       </Button>
                     )}
                   </div>
@@ -1987,9 +2026,14 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         />
                       </div>
                     </div>
-                    <Button size="sm" onClick={handleSaveActionSubmit} disabled={isSavingAction} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl px-5 h-10">
-                      {isSavingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-                      Save Disciplinary Action
+                    <Button
+                      size="sm"
+                      onClick={handleSaveActionSubmit}
+                      disabled={isSavingAction}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl h-11 gap-1.5"
+                    >
+                      {isSavingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {isSavingAction ? 'Saving…' : 'Save Disciplinary Action'}
                     </Button>
                   </div>
                 </TabsContent>
@@ -2160,7 +2204,17 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         <DialogContent className="max-w-md rounded-3xl p-6">
           <DialogHeader><DialogTitle>Add Custom Category</DialogTitle></DialogHeader>
           <Input placeholder="Category Name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="h-11 rounded-2xl" />
-          <DialogFooter><Button onClick={handleCreateCategory}>Save</Button></DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              onClick={handleCreateCategory}
+              disabled={isCreatingCategory}
+              className="w-full sm:w-auto gap-1.5"
+            >
+              {isCreatingCategory
+                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                : 'Save'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2169,7 +2223,17 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         <DialogContent className="max-w-md rounded-3xl p-6">
           <DialogHeader><DialogTitle>Add Custom Disciplinary Action</DialogTitle></DialogHeader>
           <Input placeholder="Action Name (e.g. Detention)" value={newActionConfigName} onChange={(e) => setNewActionConfigName(e.target.value)} className="h-11 rounded-2xl" />
-          <DialogFooter><Button onClick={handleCreateActionConfig}>Save Action</Button></DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              onClick={handleCreateActionConfig}
+              disabled={isCreatingAction}
+              className="w-full sm:w-auto gap-1.5"
+            >
+              {isCreatingAction
+                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving…</>
+                : 'Save Action'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

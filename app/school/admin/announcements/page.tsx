@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   Calendar,
   Edit2,
-  RefreshCw
+  RefreshCw,
+  Eye
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -56,6 +57,15 @@ export default function AdminAnnouncementsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+
+  // View Modal state
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null)
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+
+  // Delete Modal state
+  const [deletingAnnouncement, setDeletingAnnouncement] = useState<Announcement | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Use AuthContext as the single source of truth for tenant identity.
   // NEVER read x-school-id or attendance_token directly from localStorage in page
@@ -195,21 +205,49 @@ export default function AdminAnnouncementsPage() {
     setIsCreateModalOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this announcement? This will remove it for all parents.")) return
+  const handleView = (announcement: Announcement) => {
+    setSelectedAnnouncement(announcement)
+    setIsViewModalOpen(true)
+  }
 
+  const handleConfirmDelete = (announcement: Announcement) => {
+    setDeletingAnnouncement(announcement)
+    setIsDeleteModalOpen(true)
+  }
+
+  const executeDelete = async () => {
+    if (!deletingAnnouncement) return
+    setIsDeleting(true)
     try {
-      const res = await fetch(`${API_URL}/api/parent/notifications/${id}`, {
+      let res = await fetch(`${API_URL}/api/announcements/${deletingAnnouncement.id}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       })
 
-      if (res.ok) {
-        notifications.success("Deleted", "Announcement removed.")
-        setAnnouncements(prev => prev.filter(a => a.id !== id))
+      if (!res.ok) {
+        res = await fetch(`${API_URL}/api/parent/notifications/${deletingAnnouncement.id}`, {
+          method: "DELETE",
+          headers: getAuthHeaders()
+        })
       }
-    } catch (error) {
-      notifications.error("Error", "Failed to delete announcement")
+
+      if (res.ok) {
+        notifications.success("Deleted", "Announcement removed successfully.")
+        queryCache.invalidate("announcements_")
+        setAnnouncements(prev => prev.filter(a => a.id !== deletingAnnouncement.id))
+        setIsDeleteModalOpen(false)
+        if (isViewModalOpen && selectedAnnouncement?.id === deletingAnnouncement.id) {
+          setIsViewModalOpen(false)
+          setSelectedAnnouncement(null)
+        }
+      } else {
+        const text = await res.text()
+        throw new Error(text || "Failed to delete announcement")
+      }
+    } catch (error: any) {
+      notifications.error("Error", error.message || "Failed to delete announcement")
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -345,7 +383,8 @@ export default function AdminAnnouncementsPage() {
                 {filteredAnnouncements.map((announcement) => (
                   <div
                     key={announcement.id}
-                    className="group flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all"
+                    onClick={() => handleView(announcement)}
+                    className="group cursor-pointer flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all"
                   >
                     {/* Type Icon */}
                     <div className={cn(
@@ -358,7 +397,7 @@ export default function AdminAnnouncementsPage() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h4 className="typography-card-title text-slate-900 dark:text-white truncate">
+                        <h4 className="typography-card-title text-slate-900 dark:text-white truncate group-hover:text-primary transition-colors">
                           {announcement.title}
                         </h4>
                         <Badge
@@ -385,23 +424,35 @@ export default function AdminAnnouncementsPage() {
                       </div>
                     </div>
 
-                    {/* Actions — always visible on desktop, hidden on mobile until hover */}
-                    <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Actions Toolbar — always visible on desktop and mobile */}
+                    <div 
+                      className="flex items-center gap-1 flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleView(announcement)}
+                        className="h-8 w-8 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => startEdit(announcement)}
-                        className="h-8 w-8 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10"
-                        title="Edit"
+                        className="h-8 w-8 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                        title="Edit Announcement"
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(announcement.id)}
-                        className="h-8 w-8 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                        title="Delete"
+                        onClick={() => handleConfirmDelete(announcement)}
+                        className="h-8 w-8 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                        title="Delete Announcement"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -527,6 +578,127 @@ export default function AdminAnnouncementsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* ── View Announcement Dialog ── */}
+        <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+          <DialogContent className="sm:max-w-[580px] max-h-[90vh] rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
+            {selectedAnnouncement && (
+              <>
+                <DialogHeader className={cn(
+                  "p-6 md:p-7 text-white relative overflow-hidden shrink-0",
+                  selectedAnnouncement.type === "emergency" ? "bg-rose-600 dark:bg-rose-700" :
+                  selectedAnnouncement.type === "info" ? "bg-blue-600 dark:bg-blue-700" : "bg-primary"
+                )}>
+                  <div className="absolute -top-4 -right-4 opacity-10">
+                    <Megaphone className="w-32 h-32 rotate-12" />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2 relative z-10">
+                    <Badge className="bg-white/20 text-white hover:bg-white/30 border-none capitalize px-2.5 py-0.5 text-xs font-semibold">
+                      {selectedAnnouncement.type === "announcement" ? "Standard Announcement" : selectedAnnouncement.type === "info" ? "General Information" : "Emergency Alert"}
+                    </Badge>
+                  </div>
+                  <DialogTitle className="text-xl md:text-2xl font-bold relative z-10 leading-snug">
+                    {selectedAnnouncement.title}
+                  </DialogTitle>
+                  <DialogDescription className="text-white/80 mt-1.5 relative z-10 text-xs flex items-center gap-4 flex-wrap">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {format(new Date(selectedAnnouncement.createdAt), 'MMM dd, yyyy')}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      {format(new Date(selectedAnnouncement.createdAt), 'hh:mm a')}
+                    </span>
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="p-6 md:p-7 bg-card dark:bg-slate-900 flex flex-col flex-1 overflow-hidden min-h-0 space-y-4">
+                  <div className="overflow-y-auto max-h-[50vh] pr-2 space-y-3">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Message Content</h4>
+                    <div className="typography-body text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-sm">
+                      {selectedAnnouncement.message}
+                    </div>
+                  </div>
+
+                  <DialogFooter className="flex items-center gap-2 pt-4 border-t border-border shrink-0 sm:justify-between flex-wrap">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl h-10 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                        onClick={() => {
+                          setIsViewModalOpen(false);
+                          startEdit(selectedAnnouncement);
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4 mr-2 text-primary" />
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl h-10 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        onClick={() => {
+                          setIsViewModalOpen(false);
+                          handleConfirmDelete(selectedAnnouncement);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      className="rounded-xl h-10 px-5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-semibold w-full sm:w-auto mt-2 sm:mt-0"
+                      onClick={() => setIsViewModalOpen(false)}
+                    >
+                      Close
+                    </Button>
+                  </DialogFooter>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Delete Confirmation Dialog ── */}
+        <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+          <DialogContent className="sm:max-w-[440px] rounded-3xl p-6 bg-card dark:bg-slate-900 border-none shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1 min-w-0">
+                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
+                  Delete Announcement
+                </DialogTitle>
+                <DialogDescription className="typography-body text-slate-500 dark:text-slate-400 text-sm">
+                  Are you sure you want to delete <span className="font-semibold text-slate-700 dark:text-slate-300">"{deletingAnnouncement?.title}"</span>? This broadcast will be removed for all parents.
+                </DialogDescription>
+              </div>
+            </div>
+
+            <DialogFooter className="flex items-center gap-3 mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl h-10 flex-1 border-slate-200 dark:border-slate-700"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={executeDelete}
+                disabled={isDeleting}
+                className="bg-rose-600 hover:bg-rose-700 text-white h-10 flex-1 rounded-xl font-semibold shadow-sm shadow-rose-600/20"
+              >
+                {isDeleting ? "Deleting..." : "Delete Broadcast"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Mobile FAB — only on small screens */}
         <div className="sm:hidden fixed bottom-24 right-6 z-50">
           <Button
@@ -541,3 +713,4 @@ export default function AdminAnnouncementsPage() {
     </div>
   )
 }
+

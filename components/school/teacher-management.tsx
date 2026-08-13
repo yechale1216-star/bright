@@ -23,8 +23,6 @@ import {
   Search,
   Filter,
   ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
   RotateCcw,
   ShieldAlert,
   Users
@@ -84,8 +82,6 @@ export function TeacherManagement() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all")
   const [subjectFilter, setSubjectFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<"newest" | "name_asc" | "name_desc" | "experience_desc" | "experience_asc">("newest")
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 8
 
   const loadData = async (isBackground = false, forceRefetch = false) => {
     if (!isBackground && teachers.length === 0) setIsLoading(true)
@@ -202,19 +198,7 @@ export function TeacherManagement() {
       })
   }, [teachers, searchQuery, statusFilter, subjectFilter, sortBy])
 
-  // Pagination Calculations
-  const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / itemsPerPage))
-  const paginatedTeachers = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage
-    return filteredTeachers.slice(start, start + itemsPerPage)
-  }, [filteredTeachers, currentPage, itemsPerPage])
-
-  // Auto-clamp page index if items were removed
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [totalPages, currentPage])
+  // Show all teachers — no pagination
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -533,7 +517,7 @@ export function TeacherManagement() {
             <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
             <Input
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => { setSearchQuery(e.target.value); }}
               placeholder="Search by name, email, phone..."
               className="pl-10 h-11 rounded-2xl border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-xs font-semibold"
             />
@@ -552,7 +536,7 @@ export function TeacherManagement() {
             <Filter className="w-4 h-4 text-slate-400 flex-shrink-0" />
             <select
               value={statusFilter}
-              onChange={(e: any) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+              onChange={(e: any) => { setStatusFilter(e.target.value); }}
               className="w-full h-11 px-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none"
             >
               <option value="all">All Statuses</option>
@@ -566,7 +550,7 @@ export function TeacherManagement() {
             <BookOpen className="w-4 h-4 text-slate-400 flex-shrink-0" />
             <select
               value={subjectFilter}
-              onChange={(e) => { setSubjectFilter(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => { setSubjectFilter(e.target.value); }}
               className="w-full h-11 px-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none"
             >
               <option value="all">All Specializations</option>
@@ -606,7 +590,6 @@ export function TeacherManagement() {
                 setSearchQuery("")
                 setStatusFilter("all")
                 setSubjectFilter("all")
-                setCurrentPage(1)
               }}
               className="h-7 text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50"
             >
@@ -623,14 +606,9 @@ export function TeacherManagement() {
             <BookOpen className="w-4 h-4 text-blue-600" />
             Faculty Roster ({filteredTeachers.length})
           </span>
-          {totalPages > 1 && (
-            <span className="text-[10px] font-normal text-slate-400">
-              Page {currentPage} of {totalPages}
-            </span>
-          )}
         </h2>
 
-        {paginatedTeachers.length === 0 ? (
+        {filteredTeachers.length === 0 ? (
           <div className="py-20 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-800 mx-1">
             <div className="w-16 h-16 bg-background rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
               <User className="w-7 h-7 text-slate-300 dark:text-slate-600" />
@@ -644,7 +622,7 @@ export function TeacherManagement() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1 md:px-0">
-            {paginatedTeachers.map((teacher) => {
+            {filteredTeachers.map((teacher) => {
               const bgGradient = getAvatarGradient(teacher.id)
               const isActive = teacher.is_active !== false
 
@@ -751,40 +729,7 @@ export function TeacherManagement() {
           </div>
         )}
 
-        {/* Pagination Bar */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 px-1">
-            <p className="text-xs font-semibold text-slate-500">
-              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredTeachers.length)} of {filteredTeachers.length}
-            </p>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" /> Prev
-              </Button>
-
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 px-2">
-                {currentPage} / {totalPages}
-              </span>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800"
-              >
-                Next <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Register / Edit Dialog */}

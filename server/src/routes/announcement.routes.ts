@@ -7,5 +7,6 @@ const router = Router();
 router.get('/', parentController.getAnnouncements);
 router.post('/', parentController.postAnnouncement);
 router.put('/:id', parentController.updateAnnouncement);
+router.delete('/:id', parentController.deleteNotification);
 
 export default router;

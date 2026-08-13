@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Mail, Save, Calendar } from "lucide-react"
+import { User, Mail, Save, Calendar, Lock, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
-import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { db } from "@/lib/db/database"
 import { supabase } from "@/lib/utils/supabase"
 import { useCalendar } from "@/lib/context/calendar-context"
@@ -17,9 +16,17 @@ export function UserProfile() {
   const [school, setSchool] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [formData, setFormData] = useState<any>({})
 
-  // Normalize user object so full_name is always populated (User interface stores 'name')
+  // Password change section state
+  const [showPasswordSection, setShowPasswordSection] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirmPassword: "" })
+  const [showNewPwd, setShowNewPwd] = useState(false)
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false)
+  const [isSavingPassword, setIsSavingPassword] = useState(false)
+
+  // Normalize user object so full_name is always populated
   const normalizeUser = (u: any) => ({
     ...u,
     full_name: u.full_name || u.name || "",
@@ -31,33 +38,31 @@ export function UserProfile() {
 
   const loadUserProfile = async () => {
     try {
-      // 1. Instantly hydrate from IndexedDB for 0ms offline rendering
-      const { getCachedUserProfile, getCachedSchoolLogo, cacheUserProfile } = await import("@/lib/utils/indexeddb-store")
+      const { getCachedUserProfile, cacheUserProfile } = await import("@/lib/utils/indexeddb-store")
       const idbUser = await getCachedUserProfile()
       if (idbUser) {
-        setUser(normalizeUser(idbUser))
+        const norm = normalizeUser(idbUser)
+        setUser(norm)
         setFormData({
-          full_name: idbUser.name || idbUser.full_name || "",
-          email: idbUser.email || "",
-          phone: idbUser.phone || "",
-          profile_photo: idbUser.profile_photo || "",
+          full_name: norm.full_name,
+          email: norm.email || "",
+          role: norm.role || "",
+          profile_photo: norm.profile_photo || "",
         })
         setIsLoading(false)
       }
 
-      // 2. Fetch latest user session and settings
       const currentUser = authService.getCurrentUser() as any
       if (currentUser) {
         const normalized = normalizeUser(currentUser)
         setUser(normalized)
         setFormData({
-          full_name: currentUser.name || currentUser.full_name || "",
-          email: currentUser.email || "",
-          phone: currentUser.phone || "",
-          profile_photo: currentUser.profile_photo || "",
+          full_name: normalized.full_name,
+          email: normalized.email || "",
+          role: normalized.role || "",
+          profile_photo: normalized.profile_photo || "",
         })
         await cacheUserProfile(normalized)
-        
         const schoolDetails = await db.getSettings()
         setSchool(schoolDetails)
       }
@@ -69,16 +74,12 @@ export function UserProfile() {
   }
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev: any) => ({
-      ...prev,
-      [field]: value,
-    }))
+    setFormData((prev: any) => ({ ...prev, [field]: value }))
   }
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     try {
       const fileExt = file.name.split('.').pop()
       const fileName = `user-${Date.now()}.${fileExt}`
@@ -87,13 +88,12 @@ export function UserProfile() {
       if (!uploadError) {
         const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
         setFormData((prev: any) => ({ ...prev, profile_photo: data.publicUrl }))
-        notifications.success("Success", "Profile photo uploaded to Supabase Storage")
+        notifications.success("Success", "Profile photo uploaded")
         return
       }
     } catch (err) {
       console.warn("Supabase avatar upload error, fallback to local:", err)
     }
-
     const reader = new FileReader()
     reader.onload = (event) => {
       const base64 = event.target?.result as string
@@ -103,47 +103,26 @@ export function UserProfile() {
   }
 
   const handleSaveProfile = async () => {
+    if (!formData.full_name || formData.full_name.trim() === "") {
+      notifications.error("Profile Update", "Full name cannot be empty")
+      return
+    }
+    if (!formData.email || !formData.email.includes("@")) {
+      notifications.error("Profile Update", "Please enter a valid email address")
+      return
+    }
+    setIsSaving(true)
     try {
-      if (!formData.full_name || formData.full_name.trim() === "") {
-        notifications.error("Profile Update", "Full name cannot be empty")
-        return
-      }
-
-      if (!formData.email || !formData.email.includes("@")) {
-        notifications.error("Profile Update", "Please enter a valid email address")
-        return
-      }
-
-      if (formData.password) {
-        if (formData.password !== formData.confirmPassword) {
-          notifications.error("Profile Update", "Passwords do not match")
-          return
-        }
-        if (formData.password.length < 6) {
-          notifications.error("Profile Update", "Password must be at least 6 characters long")
-          return
-        }
-      }
-
       const updatePayload: any = {
         full_name: formData.full_name.trim(),
         email: formData.email.trim(),
       }
-
       if (formData.profile_photo !== undefined) {
         updatePayload.profile_photo = formData.profile_photo
       }
-
-      if (formData.password) {
-        updatePayload.password_hash = formData.password
-      }
-
-      // Use the generic user update endpoint — works for admin, teacher, and super_admin
       await db.updateTeacher(user.id, updatePayload)
-      
-      // Update local user session in localStorage so they remain authenticated with new credentials
-      const updatedUser = { 
-        ...user, 
+      const updatedUser = {
+        ...user,
         name: updatePayload.full_name,
         full_name: updatePayload.full_name,
         email: updatePayload.email,
@@ -152,24 +131,43 @@ export function UserProfile() {
       localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
       setUser(updatedUser)
       setIsEditing(false)
-      
-      // Clear password inputs from form
-      setFormData((prev: any) => ({
-        ...prev,
-        full_name: updatePayload.full_name,
-        email: updatePayload.email,
-        password: "",
-        confirmPassword: ""
-      }))
-
       notifications.success("Profile Update", "Profile updated successfully")
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      console.error("Profile update error:", errorMsg)
       notifications.error("Profile Update", `Failed to update profile: ${errorMsg}`)
+    } finally {
+      setIsSaving(false)
     }
   }
-  
+
+  const handleSavePassword = async () => {
+    const { newPassword, confirmPassword } = passwordForm
+    if (!newPassword) {
+      notifications.error("Password Update", "Please enter a new password")
+      return
+    }
+    if (newPassword.length < 6) {
+      notifications.error("Password Update", "Password must be at least 6 characters")
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      notifications.error("Password Update", "Passwords do not match")
+      return
+    }
+    setIsSavingPassword(true)
+    try {
+      await db.updateTeacher(user.id, { password_hash: newPassword })
+      setPasswordForm({ newPassword: "", confirmPassword: "" })
+      setShowPasswordSection(false)
+      notifications.success("Password Update", "Password changed successfully")
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      notifications.error("Password Update", `Failed to change password: ${errorMsg}`)
+    } finally {
+      setIsSavingPassword(false)
+    }
+  }
+
   const getGreeting = () => {
     const hour = parseInt(new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: 'numeric' }), 10)
     if (hour < 12) return "Good morning"
@@ -183,6 +181,7 @@ export function UserProfile() {
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* Hero Banner */}
       <div className="bg-gradient-to-br from-primary via-indigo-600 to-indigo-700 text-white rounded-2xl p-8 mb-8 shadow-lg shadow-primary/20">
         <div className="flex items-center gap-6">
           <div className="relative group">
@@ -232,7 +231,7 @@ export function UserProfile() {
           </h2>
           <div className="space-y-5">
             <div className="space-y-2">
-              <label className="typography-label block text-muted-foreground">Name</label>
+              <label className="typography-label block text-muted-foreground">Full Name</label>
               <input
                 type="text"
                 value={formData.full_name || ""}
@@ -254,43 +253,163 @@ export function UserProfile() {
                 className="w-full px-4 py-2.5 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:bg-muted/50 disabled:text-muted-foreground"
               />
             </div>
-            {isEditing && (
-              <>
-                <div className="space-y-2">
-                  <label className="typography-label block text-muted-foreground">New Password</label>
-                  <input
-                    type="password"
-                    placeholder="Leave blank to keep current password"
-                    value={formData.password || ""}
-                    onChange={(e) => handleInputChange("password", e.target.value)}
-                    className="w-full px-4 py-2.5 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="typography-label block text-muted-foreground">Confirm New Password</label>
-                  <input
-                    type="password"
-                    placeholder="Confirm your new password"
-                    value={formData.confirmPassword || ""}
-                    onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    className="w-full px-4 py-2.5 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
-              </>
-            )}
             <div className="space-y-2">
               <label className="typography-label block text-muted-foreground">Role</label>
               <input
                 type="text"
-                value={formData.role || ""}
+                value={formData.role || user?.role || ""}
                 disabled
                 className="w-full px-4 py-2.5 border border-input bg-muted/30 rounded-lg text-muted-foreground capitalize cursor-not-allowed"
               />
             </div>
           </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 justify-end pt-6">
+            {!isEditing ? (
+              <Button onClick={() => setIsEditing(true)} className="px-8 shadow-lg shadow-primary/20">
+                Edit Profile
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={() => {
+                    setIsEditing(false)
+                    setFormData({
+                      full_name: user?.full_name || user?.name || "",
+                      email: user?.email || "",
+                      role: user?.role || "",
+                      profile_photo: user?.profile_photo || "",
+                    })
+                  }}
+                  variant="outline"
+                  className="px-6"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 px-6 shadow-lg shadow-green-500/20"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? "Saving…" : "Save Changes"}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* System Preferences */}
+        {/* ───── Change Password Section ───── */}
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowPasswordSection((prev) => !prev)}
+            className="w-full flex items-center justify-between p-6 hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-950/40 rounded-xl">
+                <KeyRound className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="text-left">
+                <p className="font-bold text-sm text-foreground">Change Password</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Update your account password</p>
+              </div>
+            </div>
+            <Lock className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${showPasswordSection ? "rotate-180" : ""}`} />
+          </button>
+
+          {showPasswordSection && (
+            <div className="px-6 pb-6 space-y-4 border-t border-border pt-5">
+              {/* New Password */}
+              <div className="space-y-2">
+                <label className="typography-label block text-muted-foreground">New Password</label>
+                <div className="relative">
+                  <input
+                    type={showNewPwd ? "text" : "password"}
+                    placeholder="Enter new password (min. 6 characters)"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                    className="w-full px-4 py-2.5 pr-11 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPwd((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <label className="typography-label block text-muted-foreground">Confirm New Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPwd ? "text" : "password"}
+                    placeholder="Re-enter your new password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="w-full px-4 py-2.5 pr-11 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPwd((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Mismatch & Strength Hints */}
+              {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                  Passwords do not match
+                </div>
+              )}
+              {passwordForm.newPassword && passwordForm.confirmPassword && passwordForm.newPassword === passwordForm.confirmPassword && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-green-600 dark:text-green-400">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Passwords match
+                </div>
+              )}
+              {passwordForm.newPassword && !passwordForm.confirmPassword && (
+                <div className={`flex items-center gap-2 text-xs font-semibold ${passwordForm.newPassword.length >= 8 ? "text-green-600" : "text-amber-600"}`}>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  {passwordForm.newPassword.length >= 8 ? "Strong password" : "Use 8+ characters for a stronger password"}
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPasswordSection(false)
+                    setPasswordForm({ newPassword: "", confirmPassword: "" })
+                  }}
+                  disabled={isSavingPassword}
+                  className="px-5"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSavePassword}
+                  disabled={isSavingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
+                  className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white flex items-center gap-2 px-6"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  {isSavingPassword ? "Updating…" : "Update Password"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Calendar Preference */}
         <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
           <h2 className="typography-card-title mb-4 text-foreground flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
@@ -356,38 +475,7 @@ export function UserProfile() {
             </div>
           </div>
         )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-end pt-4">
-          {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} className="px-8 shadow-lg shadow-primary/20">
-              Edit Profile
-            </Button>
-          ) : (
-            <>
-              <Button
-                onClick={() => {
-                  setIsEditing(false)
-                  setFormData(normalizeUser(user))
-                }}
-                variant="outline"
-                className="px-6"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveProfile}
-                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 px-6 shadow-lg shadow-green-500/20"
-              >
-                <Save className="w-4 h-4" />
-                Save Changes
-              </Button>
-            </>
-          )}
-        </div>
       </div>
     </div>
   )
 }
-
-
