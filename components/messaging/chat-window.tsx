@@ -926,88 +926,104 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
           <MessageWindowSkeleton />
         ) : (
           <>
-            <DateSeparator date={t("today")} />
             {(() => {
               const displayMessages = messages.filter(m => !m.isDeleted);
               const rendered: React.ReactNode[] = [];
-          let i = 0;
-          while (i < displayMessages.length) {
-            const message = displayMessages[i];
-            const isCallType = message.type === 'CALL_VOICE' || message.type === 'CALL_VIDEO' ||
-              message.type === 'CALL_MISSED_VOICE' || message.type === 'CALL_MISSED_VIDEO';
+              let lastDateKey: string | null = null;
+              let i = 0;
 
-            if (isCallType) {
-              const isMissed = message.type === 'CALL_MISSED_VOICE' || message.type === 'CALL_MISSED_VIDEO';
-              // Group consecutive missed calls from same sender
-              if (isMissed) {
-                let count = 1;
-                while (
-                  i + count < displayMessages.length &&
-                  displayMessages[i + count].type === message.type &&
-                  displayMessages[i + count].senderId === message.senderId
-                ) count++;
+              while (i < displayMessages.length) {
+                const message = displayMessages[i];
 
-                rendered.push(
-                  <CallMessageBubble
-                    key={message.id}
-                    message={message}
-                    missedCount={count}
-                    onCallAgain={(type) => {
-                      if (isSuspended) {
-                        toast.error('Portal Read-Only: Calls are disabled while the school is suspended.');
-                        return;
-                      }
-                      const contactId = activeConversation.realContactId || activeConversation.id;
-                      initiateCall(contactId, type, activeConversation);
-                    }}
-                    onAction={handleBubbleAction}
-                  />
-                );
-                i += count;
-              } else {
-                rendered.push(
-                  <CallMessageBubble
-                    key={message.id}
-                    message={message}
-                    missedCount={1}
-                    onCallAgain={(type) => {
-                      if (isSuspended) {
-                        toast.error('Portal Read-Only: Calls are disabled while the school is suspended.');
-                        return;
-                      }
-                      const contactId = activeConversation.realContactId || activeConversation.id;
-                      initiateCall(contactId, type, activeConversation);
-                    }}
-                    onAction={handleBubbleAction}
-                  />
-                );
-                i++;
+                // ── Date Separator ─────────────────────────────────────────
+                const msgDateKey = message.createdAt
+                  ? getLocalDateKey(message.createdAt)
+                  : null;
+                if (msgDateKey && msgDateKey !== lastDateKey) {
+                  rendered.push(
+                    <DateSeparator
+                      key={`date-sep-${msgDateKey}`}
+                      date={getMessageDateLabel(message.createdAt)}
+                    />
+                  );
+                  lastDateKey = msgDateKey;
+                }
+
+                const isCallType = message.type === 'CALL_VOICE' || message.type === 'CALL_VIDEO' ||
+                  message.type === 'CALL_MISSED_VOICE' || message.type === 'CALL_MISSED_VIDEO';
+
+                if (isCallType) {
+                  const isMissed = message.type === 'CALL_MISSED_VOICE' || message.type === 'CALL_MISSED_VIDEO';
+                  // Group consecutive missed calls from same sender
+                  if (isMissed) {
+                    let count = 1;
+                    while (
+                      i + count < displayMessages.length &&
+                      displayMessages[i + count].type === message.type &&
+                      displayMessages[i + count].senderId === message.senderId
+                    ) count++;
+
+                    rendered.push(
+                      <CallMessageBubble
+                        key={message.id}
+                        message={message}
+                        missedCount={count}
+                        onCallAgain={(type) => {
+                          if (isSuspended) {
+                            toast.error('Portal Read-Only: Calls are disabled while the school is suspended.');
+                            return;
+                          }
+                          const contactId = activeConversation.realContactId || activeConversation.id;
+                          initiateCall(contactId, type, activeConversation);
+                        }}
+                        onAction={handleBubbleAction}
+                      />
+                    );
+                    i += count;
+                  } else {
+                    rendered.push(
+                      <CallMessageBubble
+                        key={message.id}
+                        message={message}
+                        missedCount={1}
+                        onCallAgain={(type) => {
+                          if (isSuspended) {
+                            toast.error('Portal Read-Only: Calls are disabled while the school is suspended.');
+                            return;
+                          }
+                          const contactId = activeConversation.realContactId || activeConversation.id;
+                          initiateCall(contactId, type, activeConversation);
+                        }}
+                        onAction={handleBubbleAction}
+                      />
+                    );
+                    i++;
+                  }
+                } else {
+                  const isNextSameSender = displayMessages[i + 1]?.senderId === message.senderId;
+                  rendered.push(
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isLastInGroup={!isNextSameSender}
+                      isSelectionMode={isSelectionMode}
+                      isSelected={selectedIds.includes(message.id)}
+                      onToggleSelect={() => toggleSelect(message.id)}
+                      onEnterSelectionMode={() => setIsSelectionMode(true)}
+                      t={t}
+                      isGroup={activeConversation.isGroup}
+                      onAction={handleBubbleAction}
+                      currentUser={currentUser}
+                      uploadState={uploads[message.id]}
+                      onCancelUpload={handleCancelUpload}
+                      isMobile={isMobile}
+                    />
+                  );
+                  i++;
+                }
               }
-            } else {
-              const isNextSameSender = displayMessages[i + 1]?.senderId === message.senderId;
-              rendered.push(
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  isLastInGroup={!isNextSameSender}
-                  isSelectionMode={isSelectionMode}
-                  isSelected={selectedIds.includes(message.id)}
-                  onToggleSelect={() => toggleSelect(message.id)}
-                  onEnterSelectionMode={() => setIsSelectionMode(true)}
-                  t={t}
-                  isGroup={activeConversation.isGroup}
-                  onAction={handleBubbleAction}
-                  currentUser={currentUser}
-                  uploadState={uploads[message.id]}
-                  onCancelUpload={handleCancelUpload}
-                  isMobile={isMobile}
-                />
-              );
-              i++;
-            }
-          }
-          return rendered;
-        })()}
+              return rendered;
+            })()}
           </>
         )}
         {/* Invisible anchor element always at the very bottom */}
@@ -2857,10 +2873,48 @@ const MessageBubble = React.memo(({
 });
 
 const DateSeparator = ({ date }: { date: string }) => (
-  <div className="flex justify-center my-6">
-    <div className="typography-label bg-secondary/40 backdrop-blur-sm px-4 py-1 rounded-full text-[11px] text-muted-foreground uppercase shadow-sm">
+  <div className="flex items-center justify-center my-4 px-4 select-none">
+    <div className="flex-1 h-px bg-border/40" />
+    <span className="mx-3 px-3 py-1 rounded-full text-[11px] font-semibold text-muted-foreground bg-secondary/50 backdrop-blur-sm shadow-sm border border-border/30 tracking-wide whitespace-nowrap">
       {date}
-    </div>
+    </span>
+    <div className="flex-1 h-px bg-border/40" />
   </div>
 );
+
+/**
+ * Returns a human-readable date label for a message timestamp:
+ * "Today", "Yesterday", or a full locale date like "August 10, 2026".
+ * Uses the local (device) timezone so it matches the user's experience.
+ */
+function getMessageDateLabel(dateInput: string | Date | number): string {
+  const msgDate = new Date(dateInput);
+  const now = new Date();
+
+  const toMidnight = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  const msgMidnight = toMidnight(msgDate);
+  const todayMidnight = toMidnight(now);
+
+  const diffMs = todayMidnight.getTime() - msgMidnight.getTime();
+  const diffDays = Math.round(diffMs / 86400000);
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+
+  return msgDate.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Returns a YYYY-MM-DD string in local timezone for grouping purposes.
+ */
+function getLocalDateKey(dateInput: string | Date | number): string {
+  const d = new Date(dateInput);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
