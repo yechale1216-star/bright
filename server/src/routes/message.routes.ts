@@ -24,7 +24,6 @@ router.post('/:messageId/bookmark', featureGuard('messaging'), bookmarkControlle
 router.get('/conversations/:id/mute', featureGuard('messaging'), messageController.getMuteStatus);
 router.post('/conversations/:id/mute', featureGuard('messaging'), messageController.toggleMuteConversation);
 router.post('/conversations/:id/clear', featureGuard('messaging'), messageController.clearChatHistory);
-router.delete('/conversations/:id', featureGuard('messaging'), messageController.deleteConversation);
 
 // ── Block / Unblock Actions ───────────────────────────────────────────────────
 router.get('/users/:targetUserId/block-status', featureGuard('messaging'), messageController.getBlockStatus);

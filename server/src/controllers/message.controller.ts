@@ -293,36 +293,6 @@ export const clearChatHistory = async (req: AuthenticatedRequest, res: Response)
   }
 };
 
-// ── Delete Conversation (remove user's membership) ───────────────────────────
-export const deleteConversation = async (req: AuthenticatedRequest, res: Response) => {
-  const { id: conversationId } = req.params;
-  const userId = req.user?.id;
-
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    const membership = await prisma.conversationMember.findFirst({
-      where: { conversationId, userId },
-      select: { id: true },
-    });
-
-    if (!membership) {
-      return res.status(403).json({ error: 'You are not a member of this conversation' });
-    }
-
-    // Delete only this user's membership — the conversation itself and the other user's
-    // history remain completely untouched.
-    await prisma.conversationMember.delete({
-      where: { id: membership.id },
-    });
-
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('[deleteConversation] error:', error);
-    return res.status(500).json({ error: 'Failed to delete conversation' });
-  }
-};
-
 // ── Block User ────────────────────────────────────────────────────────────────
 export const blockUser = async (req: AuthenticatedRequest, res: Response) => {
   const { targetUserId } = req.params;

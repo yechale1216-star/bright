@@ -27,7 +27,6 @@ import {
   updateCachedMessage,
   cacheConversations,
   getCachedConversations,
-  deleteCachedMessages,
   clearCachedMessages,
   enqueueOutboxMessage,
   getOutboxMessages,
@@ -194,33 +193,6 @@ export function MessagingCenter() {
       }
     } catch (err) {
       notifications.error('Failed', 'Could not clear chat history');
-    }
-  }, [activeConversationId]);
-
-  // ── Delete Chat Handler ───────────────────────────────────────────────────
-  const handleDeleteChat = useCallback(async () => {
-    if (!activeConversationId) return;
-    try {
-      const res = await fetch(`${API_URL}/api/messages/conversations/${activeConversationId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const deletedId = activeConversationId;
-        setActiveConversationId(null);
-        setActiveConversationData(null);
-        setIsInfoPanelOpen(false);
-        setConversations((prev) => prev.filter((c) => c.id !== deletedId));
-        setMessagesByConversation((prev) => {
-          const next = { ...prev };
-          delete next[deletedId];
-          return next;
-        });
-        await deleteCachedMessages(deletedId);
-        notifications.success('Chat Deleted', 'Conversation removed from your chat list');
-      }
-    } catch (err) {
-      notifications.error('Failed', 'Could not delete conversation');
     }
   }, [activeConversationId]);
 
@@ -1710,7 +1682,6 @@ export function MessagingCenter() {
                   }}
                   onToggleInfo={() => setIsInfoPanelOpen(!isInfoPanelOpen)}
                   onAction={handleAction}
-                  onDeleteChat={handleDeleteChat}
                   onClearHistory={handleClearHistory}
                   onToggleBlock={handleToggleBlock}
                   isMuted={isMuted}

@@ -233,21 +233,6 @@ export async function updateCachedMessage(
 }
 
 /**
- * Completely remove the cached message record for a conversation from IndexedDB.
- * Used when the user deletes the conversation (removes membership).
- */
-export async function deleteCachedMessages(conversationId: string): Promise<void> {
-  try {
-    const db = await openDB()
-    const tx = db.transaction(MESSAGES_STORE, "readwrite")
-    await idbDelete(tx.objectStore(MESSAGES_STORE), conversationId)
-    await txComplete(tx)
-  } catch (err) {
-    console.warn("[MessageCache] deleteCachedMessages failed:", err)
-  }
-}
-
-/**
  * Clear messages in IndexedDB for a conversation (sets messages to []).
  * Used when the user clears chat history. Keeps the conversation entry
  * in the sidebar but empties the message list so cleared messages

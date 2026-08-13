@@ -85,7 +85,6 @@ interface ChatWindowProps {
   onBack?: () => void;
   onToggleInfo?: () => void;
   onAction?: (action: string, data: any) => void;
-  onDeleteChat?: () => void;
   onClearHistory?: () => void;
   onToggleBlock?: (isBlocked: boolean) => void;
   isMuted?: boolean;
@@ -107,7 +106,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   onBack,
   onToggleInfo,
   onAction,
-  onDeleteChat,
   onClearHistory,
   onToggleBlock,
   isMuted = false,
@@ -139,7 +137,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   const [actionSheetMessage, setActionSheetMessage] = useState<Message | null>(null);
   const [uploads, setUploads] = useState<Record<string, { progress: number; controller: AbortController; fileData?: { file: File; type: string; preview: string }; text?: string }>>({});
   // Chat action dialog states
-  const [showDeleteChatDialog, setShowDeleteChatDialog] = useState(false);
   const [showClearHistoryDialog, setShowClearHistoryDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
 
@@ -886,15 +883,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                 <Eraser className="h-4 w-4" />
                 <span>Clear Chat History</span>
               </DropdownMenuItem>
-
-              {/* ── Delete Chat ────────────────────────────────── */}
-              <DropdownMenuItem
-                className="rounded-xl h-10 gap-3 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-                onClick={() => setShowDeleteChatDialog(true)}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>{activeConversation.isGroup ? 'Leave Group' : 'Delete Chat'}</span>
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1626,45 +1614,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                   className="w-full rounded-2xl h-11"
                   onClick={() => setDeleteConfirmMessage(null)}
                 >
-                  Cancel
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── Delete Chat Confirmation Dialog ─────────────────────────────── */}
-      <AnimatePresence>
-        {showDeleteChatDialog && (
-          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowDeleteChatDialog(false)}
-            />
-            <motion.div
-              initial={{ scale: 0.95, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              className="relative z-10 bg-background rounded-3xl border border-border shadow-2xl w-full max-w-sm overflow-hidden"
-            >
-              <div className="p-5 border-b border-border/50 flex items-start gap-3">
-                <div className="h-10 w-10 rounded-2xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                  <Trash2 className="h-5 w-5 text-destructive" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-foreground">Delete Chat?</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This will remove the conversation from your chat list. The other person's account and their messages are not affected.
-                  </p>
-                </div>
-              </div>
-              <div className="p-4 flex flex-col gap-2">
-                <Button variant="destructive" className="w-full rounded-2xl h-11 font-bold"
-                  onClick={() => { setShowDeleteChatDialog(false); onDeleteChat?.(); }}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete Chat
-                </Button>
-                <Button variant="ghost" className="w-full rounded-2xl h-11"
-                  onClick={() => setShowDeleteChatDialog(false)}>
                   Cancel
                 </Button>
               </div>
