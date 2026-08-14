@@ -125,6 +125,7 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch(`${API_URL}/api/users/me/schools`, {
         headers: getAuthHeaders(),
+        cache: "no-store",
       })
       if (!res.ok) return
       const result = await res.json()

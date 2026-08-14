@@ -349,6 +349,19 @@ export default function ParentNotifications() {
     return () => window.removeEventListener("studentChanged", handler)
   }, [authChecked, signedOut])
 
+  useEffect(() => {
+    if (!currentUser?.phone) return
+    const handler = () => {
+      fetchNotificationsList(currentUser.phone)
+    }
+    window.addEventListener("parentNotificationsChanged", handler)
+    window.addEventListener("refreshNotifications", handler)
+    return () => {
+      window.removeEventListener("parentNotificationsChanged", handler)
+      window.removeEventListener("refreshNotifications", handler)
+    }
+  }, [currentUser, fetchNotificationsList])
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleMarkAsRead = async (id: string) => {
     if (!currentUser?.phone) return

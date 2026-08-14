@@ -135,15 +135,15 @@ export function StudentManagement() {
     loadStudents()
     fetchNextStudentId()
 
-    const handleStudentChanged = () => {
-      loadStudents(true, true)
+     const handleStudentChanged = () => {
+      loadStudents(true, false)
     }
 
     window.addEventListener("studentDataChanged", handleStudentChanged)
 
     // Background polling for "instant" updates (every 10 seconds)
     const pollInterval = setInterval(() => {
-      loadStudents(true, true)
+      loadStudents(true, false)
     }, 10000)
 
     return () => {

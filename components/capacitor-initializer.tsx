@@ -163,12 +163,41 @@ export function CapacitorInitializer() {
         console.warn('Failed to listen to native foreground notifications:', err);
       }
 
+      // Listen for app foreground/resume events to invalidate cache and refresh UI
+      let appStateSub: any = null;
+      try {
+        appStateSub = App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            console.log('[CapacitorInitializer] App resumed. Invalidating caches...');
+            try {
+              const { queryCache } = require('@/lib/utils/query-cache');
+              queryCache.clear();
+            } catch (err) {
+              console.warn('[CapacitorInitializer] Failed to clear query cache:', err);
+            }
+            // Dispatch events to active components to force reloading from network
+            window.dispatchEvent(new CustomEvent('studentDataChanged'));
+            window.dispatchEvent(new CustomEvent('attendanceDataChanged'));
+            window.dispatchEvent(new CustomEvent('settingsDataChanged'));
+            window.dispatchEvent(new CustomEvent('teacherDataChanged'));
+            window.dispatchEvent(new CustomEvent('userDataChanged'));
+            window.dispatchEvent(new CustomEvent('parentNotificationsChanged'));
+            window.dispatchEvent(new CustomEvent('disciplineDataChanged'));
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to listen to appStateChange:', err);
+      }
+
       // Splash screen is now hidden manually by StartupLoadingScreen to guarantee smooth transition
       // SplashScreen.hide()
 
       return () => {
         if (foregroundSub) {
           foregroundSub.then((s: any) => s?.remove()).catch(() => { });
+        }
+        if (appStateSub) {
+          appStateSub.then((s: any) => s?.remove()).catch(() => { });
         }
       };
     }

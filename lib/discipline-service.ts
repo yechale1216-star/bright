@@ -1,5 +1,6 @@
 import { getApiUrl } from './api-config';
 import { queryCache } from './utils/query-cache';
+import { apiFetch } from './utils/fetch-with-timeout';
 
 const API_URL = getApiUrl();
 
@@ -187,54 +188,66 @@ function notifyDisciplineDataChanged() {
 
 export const DisciplineApi = {
   async getCategories(): Promise<DisciplineCategory[]> {
-    const res = await fetch(`${API_URL}/api/discipline/categories`, { headers: getAuthHeaders() });
-    const data = await handleResponse(res, 'Failed to fetch categories');
+    const data = await apiFetch<{ success: boolean; data?: DisciplineCategory[] }>(
+      `${API_URL}/api/discipline/categories`,
+      { headers: getAuthHeaders() }
+    );
     return data.data || [];
   },
 
   async createCategory(name: string, description?: string): Promise<DisciplineCategory> {
-    const res = await fetch(`${API_URL}/api/discipline/categories`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ name, description })
-    });
-    const data = await handleResponse(res, 'Failed to create category');
+    const data = await apiFetch<{ success: boolean; data: DisciplineCategory }>(
+      `${API_URL}/api/discipline/categories`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name, description })
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async deleteCategory(id: string): Promise<void> {
-    const res = await fetch(`${API_URL}/api/discipline/categories/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    });
-    await handleResponse(res, 'Failed to delete category');
+    await apiFetch(
+      `${API_URL}/api/discipline/categories/${id}`,
+      {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      }
+    );
     notifyDisciplineDataChanged();
   },
 
   async getActionsConfig(): Promise<DisciplineActionConfig[]> {
-    const res = await fetch(`${API_URL}/api/discipline/actions-config`, { headers: getAuthHeaders() });
-    const data = await handleResponse(res, 'Failed to fetch action configurations');
+    const data = await apiFetch<{ success: boolean; data?: DisciplineActionConfig[] }>(
+      `${API_URL}/api/discipline/actions-config`,
+      { headers: getAuthHeaders() }
+    );
     return data.data || [];
   },
 
   async createActionConfig(name: string, description?: string): Promise<DisciplineActionConfig> {
-    const res = await fetch(`${API_URL}/api/discipline/actions-config`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ name, description })
-    });
-    const data = await handleResponse(res, 'Failed to create action configuration');
+    const data = await apiFetch<{ success: boolean; data: DisciplineActionConfig }>(
+      `${API_URL}/api/discipline/actions-config`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name, description })
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async deleteActionConfig(id: string): Promise<void> {
-    const res = await fetch(`${API_URL}/api/discipline/actions-config/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    });
-    await handleResponse(res, 'Failed to delete action configuration');
+    await apiFetch(
+      `${API_URL}/api/discipline/actions-config/${id}`,
+      {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      }
+    );
     notifyDisciplineDataChanged();
   },
 
@@ -251,14 +264,23 @@ export const DisciplineApi = {
         query.append(k, String(v));
       }
     });
-    const res = await fetch(`${API_URL}/api/discipline?${query.toString()}`, { headers: getAuthHeaders() });
-    const data = await handleResponse(res, 'Failed to fetch incidents');
-    return data;
+    return await apiFetch<{
+      items: StudentDiscipline[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(
+      `${API_URL}/api/discipline?${query.toString()}`,
+      { headers: getAuthHeaders() }
+    );
   },
 
   async getIncidentById(id: string): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}`, { headers: getAuthHeaders() });
-    const data = await handleResponse(res, 'Failed to fetch incident detail');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline/${id}`,
+      { headers: getAuthHeaders() }
+    );
     return data.data;
   },
 
@@ -269,40 +291,48 @@ export const DisciplineApi = {
         query.append(k, String(v));
       }
     });
-    const res = await fetch(`${API_URL}/api/discipline/student/${studentId}?${query.toString()}`, { headers: getAuthHeaders() });
-    const data = await handleResponse(res, 'Failed to fetch student discipline profile');
+    const data = await apiFetch<{ success: boolean; data: StudentDisciplineProfile }>(
+      `${API_URL}/api/discipline/student/${studentId}?${query.toString()}`,
+      { headers: getAuthHeaders() }
+    );
     return data.data;
   },
 
   async createIncident(payload: any): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await handleResponse(res, 'Failed to create incident');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async updateIncident(id: string, payload: any): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await handleResponse(res, 'Failed to update incident');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline/${id}`,
+      {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async assignOfficer(id: string, officerId: string, notes?: string): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}/assign`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ officerId, notes })
-    });
-    const data = await handleResponse(res, 'Failed to assign officer');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline/${id}/assign`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ officerId, notes })
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
@@ -314,12 +344,14 @@ export const DisciplineApi = {
     confidentialNotes?: string;
     status?: string;
   }): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}/investigation`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await handleResponse(res, 'Failed to update investigation');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline/${id}/investigation`,
+      {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
@@ -333,50 +365,60 @@ export const DisciplineApi = {
     status?: string;
     notes?: string;
   }): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}/action`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await handleResponse(res, 'Failed to update action plan');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline/${id}/action`,
+      {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async deleteIncident(id: string): Promise<void> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    });
-    await handleResponse(res, 'Failed to delete incident');
+    await apiFetch(
+      `${API_URL}/api/discipline/${id}`,
+      {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      }
+    );
     notifyDisciplineDataChanged();
   },
 
   async acknowledgeIncident(id: string, notes?: string): Promise<StudentDiscipline> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}/acknowledge`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ notes })
-    });
-    const data = await handleResponse(res, 'Failed to acknowledge incident');
+    const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
+      `${API_URL}/api/discipline/${id}/acknowledge`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ notes })
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async addFollowUp(id: string, payload: { note: string; actionTaken?: string; status?: string }): Promise<DisciplineFollowUp> {
-    const res = await fetch(`${API_URL}/api/discipline/${id}/follow-up`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const data = await handleResponse(res, 'Failed to add follow-up');
+    const data = await apiFetch<{ success: boolean; data: DisciplineFollowUp }>(
+      `${API_URL}/api/discipline/${id}/follow-up`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      }
+    );
     notifyDisciplineDataChanged();
     return data.data;
   },
 
   async getAnalytics(): Promise<DisciplineAnalytics> {
-    const res = await fetch(`${API_URL}/api/discipline/analytics`, { headers: getAuthHeaders() });
-    const data = await handleResponse(res, 'Failed to fetch analytics');
+    const data = await apiFetch<{ success: boolean; data: DisciplineAnalytics }>(
+      `${API_URL}/api/discipline/analytics`,
+      { headers: getAuthHeaders() }
+    );
     return data.data;
   }
 };

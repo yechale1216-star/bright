@@ -54,8 +54,8 @@ public class MainActivity extends BridgeActivity {
                 settings.setMediaPlaybackRequiresUserGesture(false);
                 // Persist DOM storage (localStorage) across restarts
                 settings.setDomStorageEnabled(true);
-                // Use cached assets when available — avoids re-parsing the full JS bundle on cold start
-                settings.setCacheMode(android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                // Use default cache mode to respect HTTP headers and avoid stale API responses
+                settings.setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
                 // Enable database storage for offline capability
                 settings.setDatabaseEnabled(true);
                 // Enable Geolocation for attendance tracking GPS verification

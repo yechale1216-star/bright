@@ -115,6 +115,11 @@ class QueryCache {
    * Manually populate cache.
    */
   set<T>(key: string, data: T, persist = true): void {
+    const cached = this.memoryCache.get(key)
+    const oldDataStr = cached ? JSON.stringify(cached.data) : null
+    const newDataStr = JSON.stringify(data)
+    const hasChanged = oldDataStr !== newDataStr
+
     const entry: CacheEntry<T> = {
       key,
       data,
@@ -128,6 +133,24 @@ class QueryCache {
       } catch (e) {
         // QuotaExceededError safety catch
         console.warn("[QueryCache] Storage limit reached for:", key)
+      }
+    }
+
+    if (hasChanged && typeof window !== "undefined") {
+      if (key.startsWith("students_")) {
+        window.dispatchEvent(new CustomEvent("studentDataChanged"))
+      } else if (key.startsWith("attendance_")) {
+        window.dispatchEvent(new CustomEvent("attendanceDataChanged"))
+      } else if (key.startsWith("settings_")) {
+        window.dispatchEvent(new CustomEvent("settingsDataChanged"))
+      } else if (key.startsWith("teachers_") || key.startsWith("assignments_")) {
+        window.dispatchEvent(new CustomEvent("teacherDataChanged"))
+      } else if (key.startsWith("users_")) {
+        window.dispatchEvent(new CustomEvent("userDataChanged"))
+      } else if (key.startsWith("parent_notifications_")) {
+        window.dispatchEvent(new CustomEvent("parentNotificationsChanged"))
+      } else if (key.startsWith("discipline_")) {
+        window.dispatchEvent(new CustomEvent("disciplineDataChanged"))
       }
     }
   }

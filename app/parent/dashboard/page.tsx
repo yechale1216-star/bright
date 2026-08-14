@@ -179,9 +179,23 @@ export default function ParentDashboard() {
       loadStudentData()
     }
 
+    const handleNotificationsChange = () => {
+      const userStr = localStorage.getItem("attendance_current_user")
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr)
+          fetchNotifications(user.phone)
+        } catch (e) {}
+      }
+    }
+
     window.addEventListener("studentChanged", handleStudentChange)
+    window.addEventListener("parentNotificationsChanged", handleNotificationsChange)
+    window.addEventListener("refreshNotifications", handleNotificationsChange)
     return () => {
       window.removeEventListener("studentChanged", handleStudentChange)
+      window.removeEventListener("parentNotificationsChanged", handleNotificationsChange)
+      window.removeEventListener("refreshNotifications", handleNotificationsChange)
       clearInterval(pollInterval)
     }
   }, [statsMode]) // Re-run poll if statsMode changes to ensure correct fetch

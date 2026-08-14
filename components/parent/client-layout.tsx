@@ -178,8 +178,16 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
       setUnreadCount(list.filter(n => !n.isRead).length)
     }
     fetchCounts()
+
+    window.addEventListener("parentNotificationsChanged", fetchCounts)
+    window.addEventListener("refreshNotifications", fetchCounts)
+
     const timer = setInterval(fetchCounts, 30000)
-    return () => clearInterval(timer)
+    return () => {
+      window.removeEventListener("parentNotificationsChanged", fetchCounts)
+      window.removeEventListener("refreshNotifications", fetchCounts)
+      clearInterval(timer)
+    }
   }, [currentUser, activeSchool])
 
   const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {

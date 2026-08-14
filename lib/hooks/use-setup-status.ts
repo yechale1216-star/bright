@@ -55,6 +55,7 @@ export function useSetupStatus(): SetupStatus {
         const res = await fetch(`${API_URL}/api/auth/setup-status`, {
           method: "GET",
           headers: { "Content-Type": "application/json" },
+          cache: "no-store",
           // No credentials needed — this is a public status endpoint
         })
 

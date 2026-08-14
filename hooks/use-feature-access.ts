@@ -29,6 +29,7 @@ export function useFeatureAccess() {
         const token = localStorage.getItem("attendance_token")
         const res = await fetch(`${getApiUrl()}/api/schools/${schoolId}/features`, {
           headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
         })
         const json = await res.json()
         if (json.success) {
