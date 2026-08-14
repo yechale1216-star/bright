@@ -78,7 +78,7 @@ export const getSingleSchool = async () => {
   });
 
   if (!school) {
-    school = await createSchool({ name: 'Zetime School' });
+    school = await createSchool({ name: 'Addis Hiwot School' });
   }
 
   return school;

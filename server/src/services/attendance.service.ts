@@ -568,7 +568,7 @@ export const sendAttendanceParentNotification = async (
       where: { id: schoolId },
       select: { name: true }
     });
-    const schoolName = school?.name || 'ZeTime School';
+    const schoolName = school?.name || 'Addis Hiwot School';
     const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
 
     for (const link of parentLinks) {

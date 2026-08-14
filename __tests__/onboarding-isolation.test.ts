@@ -35,7 +35,7 @@ function setLocalStorage(user: Record<string, unknown>, schoolId?: string) {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-describe("Cross-tenant isolation after onboarding", () => {
+describe("Single-school session isolation after onboarding", () => {
   let fetchMock: jest.Mock
 
   beforeEach(() => {

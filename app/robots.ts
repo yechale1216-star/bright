@@ -12,9 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/school/",
           "/parent/",
-          "/super-admin/",
           "/auth/",
-          "/checkout-simulation/",
           "/api/",
         ],
       },

@@ -123,7 +123,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response, next: Ne
 
     let schoolId = user.schoolId || singleSchool.id;
     let customSchoolId = singleSchool.schoolId || 'SCH-0001';
-    let schoolName = singleSchool.name || 'Zetime School';
+    let schoolName = singleSchool.name || 'Addis Hiwot School';
     let schoolLogo = (singleSchool as any).settings?.school_logo || '';
 
     const token = generateToken({

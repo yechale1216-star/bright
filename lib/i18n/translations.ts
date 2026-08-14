@@ -158,8 +158,8 @@ export const translations = {
     error: "Error",
     load_conv_error: "Could not load conversations",
     start_conv_error: "Could not start conversation",
-    plan_expired_error: "Your school subscription has expired. Please renew to continue using communication features.",
-    feature_restricted_error: "This feature is not included in your current plan. Please upgrade to access it.",
+    plan_expired_error: "Unable to access communication features at this time.",
+    feature_restricted_error: "This feature is currently unavailable.",
     replying_to: "Replying to {name}",
 
     // Login Form
@@ -223,8 +223,8 @@ export const translations = {
     portal_session_securing: "Securing portal session...",
     grade: "Grade",
     section: "Section",
-    switch_school: "Switch School",
-    zetime_portal: "Zetime Portal",
+    switch_school: "School Portal",
+    zetime_portal: "Addis Hiwot Portal",
     mixed: "Mixed",
     attendance_rate_desc: "Cumulative presence ratio",
     days_in_class: "Days in class",

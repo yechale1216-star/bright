@@ -110,10 +110,8 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
     }
 
     readFromStorage()
-    window.addEventListener("schoolSwitched", readFromStorage)
     window.addEventListener("userSessionChanged", readFromStorage)
     return () => {
-      window.removeEventListener("schoolSwitched", readFromStorage)
       window.removeEventListener("userSessionChanged", readFromStorage)
     }
   }, [])
@@ -167,8 +165,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadStudents()
-    window.addEventListener("schoolSwitched", loadStudents)
-    return () => window.removeEventListener("schoolSwitched", loadStudents)
   }, [loadStudents])
 
   useEffect(() => {
@@ -231,13 +227,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
 
-  const filteredStudents = students.filter((s: any) => {
-    if (activeSchool) return s.schoolId === activeSchool.id
-    const xSchoolId = typeof window !== "undefined" ? localStorage.getItem("x-school-id") : null
-    if (xSchoolId) return s.schoolId === xSchoolId
-    if (selectedStudent?.schoolId) return s.schoolId === selectedStudent.schoolId
-    return true
-  })
+  const filteredStudents = students
 
   return (
     <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">

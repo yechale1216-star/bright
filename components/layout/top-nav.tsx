@@ -50,7 +50,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
     }).catch(() => {})
   }, [activeSchool?.id, user?.schoolId])
 
-  const schoolName = activeSchool ? activeSchool.name : (user?.schoolName || "Zetime Portal")
+  const schoolName = activeSchool ? activeSchool.name : (user?.schoolName || "Addis Hiwot")
   const schoolLogo = activeSchool ? (activeSchool.logo || "") : (user?.schoolLogo || "")
   const logoUrl = schoolLogo || cachedLogo || ""
 

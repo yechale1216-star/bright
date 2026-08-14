@@ -17,9 +17,6 @@ const ROOT_PATHS = [
   '/parent/dashboard',
   '/school/admin',
   '/school/teacher',
-  '/super-admin',
-  '/onboarding',
-  '/auth/school-select',
 ]
 
 function isRootPath(pathname: string): boolean {
