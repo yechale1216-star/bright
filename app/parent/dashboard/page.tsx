@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { ChevronRight } from "lucide-react"
 import { formatLocalizedDate } from "@/lib/utils/date-utils"
+import { useGreeting } from "@/lib/utils/greeting-utils"
 
 import { apiUrl } from "@/lib/api-config"
 const API_URL = apiUrl;
@@ -39,6 +40,7 @@ const API_URL = apiUrl;
 export default function ParentDashboard() {
   const router = useRouter()
   const { t } = useLanguage()
+  const greeting = useGreeting('parent')
 
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [firstName, setFirstName] = useState("Parent")
@@ -392,21 +394,13 @@ export default function ParentDashboard() {
     )
   }
 
-  const getGreeting = () => {
-    const hour = parseInt(new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: 'numeric' }), 10)
-    if (hour < 12) return t("good_morning")
-    if (hour < 17) return t("good_afternoon")
-    return t("good_evening")
-  }
-
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-2">
         <div className="space-y-1.5 w-full md:w-auto">
           <h2 className="text-[22px] sm:text-3xl md:text-5xl font-semibold text-foreground leading-tight">
-            {getGreeting()}, <span className="text-emerald-600 dark:text-emerald-400">{firstName}</span>
+            {greeting}, <span className="text-emerald-600 dark:text-emerald-400">{firstName}</span>
           </h2>
           <p className="typography-label text-muted-foreground">
             {t("dashboard_overview")}

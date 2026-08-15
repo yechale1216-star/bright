@@ -14,10 +14,12 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils/utils'
 import Link from 'next/link'
 import { useCalendar } from '@/lib/context/calendar-context'
+import { useGreeting } from '@/lib/utils/greeting-utils'
 
 export default function RegistrarDashboardPage() {
   const { formatDate } = useCalendar()
   const { user } = useAuth()
+  const greeting = useGreeting('registrar')
   const [students, setStudents] = useState<any[]>([])
   const [grades, setGrades] = useState<any[]>([])
   const [sections, setSections] = useState<any[]>([])
@@ -64,7 +66,7 @@ export default function RegistrarDashboardPage() {
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight">
-            Welcome back, {user?.name?.split(' ')[0] || 'Registrar'}
+            {greeting}, {user?.name?.split(' ')[0] || 'Registrar'}
           </h1>
           <p className="text-sm text-indigo-100/80 max-w-xl">
             {todayStr} — Manage student admissions, individual registrations, bulk imports, and official academic records.

@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/context/auth-context'
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { TopNav } from '@/components/layout/top-nav'
 import { notifications } from '@/lib/utils/notifications'
+import { DeveloperBrand } from '@/components/developer-brand'
 
 interface NavItem {
   href: string;
@@ -144,19 +145,9 @@ export default function DisciplineOfficerClientLayout({ children }: { children: 
         ))}
       </nav>
 
-      {/* Sign Out Action */}
-      <div className="p-3 border-t border-border/80">
-        <button
-          onClick={handleLogout}
-          title={!mobile && isCollapsed ? 'Sign Out' : undefined}
-          className={cn(
-            'flex items-center gap-3 w-full rounded-xl hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-sm font-semibold transition-colors',
-            !mobile && isCollapsed ? 'justify-center p-3' : 'px-3.5 py-2.5'
-          )}
-        >
-          <LogOut className="w-4 h-4 flex-shrink-0" />
-          {(mobile || !isCollapsed) && <span>Sign Out</span>}
-        </button>
+      {/* Footer Branding */}
+      <div className={cn("p-4 border-t border-border/80 text-center bg-card/50", !mobile && isCollapsed && "hidden")}>
+        <DeveloperBrand type="powered" collapsed={!mobile && isCollapsed} />
       </div>
     </div>
   )

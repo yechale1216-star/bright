@@ -9,6 +9,7 @@ import { notifications } from "@/lib/utils/notifications"
 import { db } from "@/lib/db/database"
 import { supabase } from "@/lib/utils/supabase"
 import { useCalendar } from "@/lib/context/calendar-context"
+import { useGreeting } from "@/lib/utils/greeting-utils"
 
 export function UserProfile() {
   const { calendarPreference, setCalendarPreference } = useCalendar()
@@ -168,12 +169,7 @@ export function UserProfile() {
     }
   }
 
-  const getGreeting = () => {
-    const hour = parseInt(new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: 'numeric' }), 10)
-    if (hour < 12) return "Good morning"
-    if (hour < 17) return "Good afternoon"
-    return "Good evening"
-  }
+  const greeting = useGreeting(user?.role)
 
   if (isLoading) {
     return <PageSkeleton variant="form" />
@@ -212,7 +208,7 @@ export function UserProfile() {
             )}
           </div>
           <div>
-            <p className="typography-label text-indigo-100/80 mb-1">{getGreeting()}</p>
+            <p className="typography-label text-indigo-100/80 mb-1">{greeting}</p>
             <h1 className="typography-page-title">{user?.full_name || user?.name}</h1>
             <div className="flex items-center gap-2 mt-1">
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />

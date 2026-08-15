@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation"
 import { ResetPasswordForm } from "@/components/auth/reset-password-form"
 import { Logo } from "@/components/logo"
+import { DeveloperBrand } from "@/components/developer-brand"
 
 export default function ResetPasswordPageContent() {
   const searchParams = useSearchParams()
@@ -30,12 +31,18 @@ export default function ResetPasswordPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="max-w-md w-full">
         <div className="flex justify-center mb-8">
           <Logo size="md" href="/" />
         </div>
         <ResetPasswordForm token={token} onResetSuccess={() => router.push("/login")} />
+        <div className="mt-8 text-center flex flex-col items-center gap-2">
+          <div className="text-[10px] text-slate-500/50 dark:text-slate-400/50 font-medium uppercase tracking-[0.25em]">
+            &copy; {new Date().getFullYear()} Addis Hiwot &bull; Management Suite
+          </div>
+          <DeveloperBrand type="developed" />
+        </div>
       </div>
     </div>
   )

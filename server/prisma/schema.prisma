@@ -669,8 +669,8 @@ model PendingRegistration {
 
 model PlatformConfig {
   id               String   @id @default("singleton")
-  platformName     String   @default("Zetime")
-  supportEmail     String   @default("support@zetime.io")
+  platformName     String   @default("Addis Hiwot")
+  supportEmail     String   @default("support@addishiwot.edu.et")
   maintenanceMode  Boolean  @default(false)
   autoBackup       Boolean  @default(true)
   apiRateLimit     Int      @default(1000)

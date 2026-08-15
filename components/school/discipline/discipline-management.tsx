@@ -58,6 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useGreeting } from '@/lib/utils/greeting-utils';
 import { toast } from 'sonner';
 import { getApiUrl } from '@/lib/api-config';
 import { useCalendar } from '@/lib/context/calendar-context';
@@ -112,14 +113,8 @@ interface DisciplineManagementProps {
 export function DisciplineManagement({ userRole = 'school_admin', initialTab = 'incidents', hideTabsList = false }: DisciplineManagementProps) {
   const { formatDate } = useCalendar();
   const { user } = useAuth();
+  const greeting = useGreeting(userRole);
   const [activeTab, setActiveTab] = useState<'incidents' | 'analytics' | 'categories' | 'actions'>(initialTab);
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
-  };
 
   useEffect(() => {
     if (initialTab) {
@@ -727,7 +722,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                 </span>
               </div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-300 to-indigo-100">{user?.name || 'Staff'}</span>
+                {greeting}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-300 to-indigo-100">{user?.name || 'Staff'}</span>
               </h1>
               <p className="text-xs md:text-sm font-medium text-slate-300 mt-1 max-w-2xl">
                 Track student discipline cases, official disciplinary actions, follow-up timelines, and parent communications.

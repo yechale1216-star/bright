@@ -19,6 +19,7 @@ import { PageSkeleton } from '@/components/ui/page-skeleton'
 import { LanguageProvider } from '@/lib/context/language-context'
 import { Button } from '@/components/ui/button'
 import { useUnread } from '@/lib/context/unread-context'
+import { DeveloperBrand } from '@/components/developer-brand'
 
 export default function TeacherClientLayout({
   children,
@@ -121,15 +122,8 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                     </div>
                   </button>
                 </nav>
-                <div className="p-4 border-t border-border mt-auto">
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-start text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 font-bold rounded-xl"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
-                  </Button>
+                <div className="p-4 border-t border-border mt-auto text-center bg-card/50">
+                  <DeveloperBrand type="powered" />
                 </div>
               </aside>
 
@@ -187,11 +181,8 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                      </div>
                    </button>
                 </nav>
-                 <div className="shrink-0 p-3 border-t border-border space-y-1.5 pb-safe">
-                   <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-sm font-semibold">
-                      <LogOut className="w-4 h-4" />
-                      Sign Out
-                   </button>
+                 <div className="shrink-0 p-4 border-t border-border text-center bg-card/50 pb-safe">
+                   <DeveloperBrand type="powered" />
                  </div>
               </aside>
 

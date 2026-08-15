@@ -36,7 +36,8 @@ export const translations = {
     good_morning: "Good morning",
     good_afternoon: "Good afternoon",
     good_evening: "Good evening",
-    dashboard_overview: "Here's what's happening with your children today.",
+    good_night: "Good night",
+    dashboard_overview: "Discover today’s updates, activities, and important information.",
 
     // Attendance Page
     view_history: "Attendance History",
@@ -158,8 +159,8 @@ export const translations = {
     error: "Error",
     load_conv_error: "Could not load conversations",
     start_conv_error: "Could not start conversation",
-    plan_expired_error: "Your school subscription has expired. Please renew to continue using communication features.",
-    feature_restricted_error: "This feature is not included in your current plan. Please upgrade to access it.",
+    plan_expired_error: "Unable to access communication features at this time.",
+    feature_restricted_error: "This feature is currently unavailable.",
     replying_to: "Replying to {name}",
 
     // Login Form
@@ -223,8 +224,8 @@ export const translations = {
     portal_session_securing: "Securing portal session...",
     grade: "Grade",
     section: "Section",
-    switch_school: "Switch School",
-    zetime_portal: "Zetime Portal",
+    switch_school: "School Portal",
+    zetime_portal: "Addis Hiwot Portal",
     mixed: "Mixed",
     attendance_rate_desc: "Cumulative presence ratio",
     days_in_class: "Days in class",
@@ -300,7 +301,7 @@ export const translations = {
     disciplinary_action_label: "Disciplinary Action",
     case_number_label: "Case #",
     evidence_files: "Evidence Files ({count})",
-    teacher_notes_updates: "Teacher Notes & Updates",
+    teacher_notes_updates: "Notes & Updates",
     child_label: "Child",
     date_label: "Date",
     acknowledge_discipline_report: "Acknowledge Discipline Report",
@@ -377,8 +378,9 @@ export const translations = {
     no_announcements: "ምንም የትምህርት ቤት ማስታወቂያ የለም",
     good_morning: "እንደምን አደሩ",
     good_afternoon: "እንደምን ዋሉ",
-    good_evening: "እንደምን አምሸዋል",
-    dashboard_overview: "ዛሬ ልጆችዎ ምን እየሆነ እንዳለ ይመልከቱ።",
+    good_evening: "እንደምን አመሹ",
+    good_night: "መልካም ሌሊት",
+    dashboard_overview: "የዛሬን ወቅታዊ መረጃዎች፣ እንቅስቃሴዎች እና አስፈላጊ መረጃዎችን ይመልከቱ።",
 
     // Attendance Page
     view_history: "የመገኘት ታሪክ",
@@ -645,7 +647,7 @@ export const translations = {
     disciplinary_action_label: "የተወሰደ የሥነ-ምግባር እርምጃ",
     case_number_label: "ጉዳይ #",
     evidence_files: "የማስረጃ ፋይሎች ({count})",
-    teacher_notes_updates: "የመምህራን ማስታወሻዎች እና ዝመናዎች",
+    teacher_notes_updates: "ማስታወሻዎች እና ዝመናዎች",
     child_label: "ልጅ",
     date_label: "ቀን",
     acknowledge_discipline_report: "የሥነ-ምግባር ሪፖርቱን ማረጋገጥ",

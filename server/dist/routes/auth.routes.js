@@ -145,7 +145,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         const singleSchool = await schoolService.getSingleSchool();
         let schoolId = user.schoolId || singleSchool.id;
         let customSchoolId = singleSchool.schoolId || 'SCH-0001';
-        let schoolName = singleSchool.name || 'Zetime School';
+        let schoolName = singleSchool.name || 'Addis Hiwot School';
         let schoolLogo = singleSchool.settings?.school_logo || '';
         const token = (0, jwt_1.generateToken)({
             id: user.id,

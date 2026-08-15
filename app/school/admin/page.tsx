@@ -16,10 +16,8 @@ export default function SchoolAdminDashboard() {
       'attendance': '/school/admin/attendance',
       'reports': '/school/admin/reports',
       'settings': '/school/admin/settings',
-      'subscription': '/school/admin/subscription',
       'attendance-by-grade': '/school/admin/attendance-by-grade',
       'users-and-roles': '/school/admin/users-and-roles',
-      'roles': '/school/admin/users-and-roles/roles',
     }
 
     const path = tabToPath[tab]

@@ -635,24 +635,43 @@ export const initSocket = (server: HttpServer) => {
           }
         }).catch(() => { });
 
-        // Push notifications for offline members
+        // ── Push notifications ────────────────────────────────────────────────
+        // CRITICAL: We send push to members who are NOT actively viewing this
+        // specific conversation room — NOT just "offline" users.
+        // When the Android app is backgrounded, the socket stays alive (user
+        // appears "online") but they cannot see the in-app banner. Without FCM
+        // they never get notified. This mirrors how Telegram works.
         getConversationMemberIds(data.conversationId).then(async (memberIds) => {
-          const onlineChecks = await Promise.all(memberIds.map(async id => ({ id, online: id === data.senderId || await isUserOnline(id) })));
-          const offlineTargets = onlineChecks.filter(u => !u.online).map(u => u.id);
-          if (offlineTargets.length === 0) return;
+          // Which sockets are actively in this conversation's room right now?
+          const roomSockets = io.sockets.adapter.rooms.get(data.conversationId) || new Set<string>();
+          
+          // Build set of userIds currently viewing this conversation
+          const activeViewerIds = new Set<string>();
+          for (const sid of roomSockets) {
+            const d = await getSocketData(sid);
+            if (d) activeViewerIds.add(d.userId);
+          }
+
+          // Push targets = all members except the sender AND those actively viewing
+          const pushTargetIds = memberIds.filter(id =>
+            id !== data.senderId && !activeViewerIds.has(id)
+          );
+
+          if (pushTargetIds.length === 0) return;
 
           const usersWithTokens = await prisma.user.findMany({
-            where: { id: { in: offlineTargets }, pushToken: { not: null } },
+            where: { id: { in: pushTargetIds }, pushToken: { not: null } },
             select: { id: true, pushToken: true }
           });
+
           // Filter out members who have muted this conversation
           const mutedMemberIds = new Set(
             convMembers.filter(m => m.isMuted).map(m => m.userId)
           );
+
           const expiredIds: string[] = [];
           for (const u of usersWithTokens) {
             if (!u.pushToken) continue;
-            // Skip push for muted members
             if (mutedMemberIds.has(u.id)) continue;
             const result = await sendMessageNotification(u.pushToken, {
               conversationId: data.conversationId,

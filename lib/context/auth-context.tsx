@@ -171,14 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // it now would cause a race condition (wiping the data just fetched).
     const isSessionChange = storedSessionId !== sessionId || options?.forceRefetch
     const isFreshLoginCheck = localStorage.getItem(FRESH_LOGIN_KEY) === "1"
-    // A school switch also writes a new token, which looks like a session change to
-    // validateSession. Don't wipe the school context in this case — it was just set intentionally.
-    const isSchoolSwitch = localStorage.getItem("_zt_school_switch") === "1"
-    if (isSchoolSwitch) {
-      localStorage.removeItem("_zt_school_switch")
-    }
 
-    if (isSessionChange && !isFreshLoginCheck && !isSchoolSwitch) {
+    if (isSessionChange && !isFreshLoginCheck) {
       console.log(`[AuthContext][validateSession] Session changed/force-refetch (${sessionId} → ${storedSessionId}) — clearing stale state`)
       clearSchoolContextRef.current?.()
       setUser(null)
@@ -337,8 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const currentPath2 = typeof window !== "undefined" ? window.location.pathname : pathname
           const isOnNeutralPage = !currentPath2.startsWith('/parent') &&
             !currentPath2.startsWith('/school/teacher') &&
-            !currentPath2.startsWith('/school/admin') &&
-            !currentPath2.startsWith('/super-admin')
+            !currentPath2.startsWith('/school/admin')
 
           let resolvedRole = dbUser.role || currentUser!.role
           if (isOnNeutralPage && currentUser!.role && dbUser.role && currentUser!.role !== dbUser.role) {

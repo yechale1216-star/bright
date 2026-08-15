@@ -112,11 +112,9 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
     const handleSessionChange = () => loadStoredData()
     window.addEventListener("userSessionChanged", handleSessionChange)
     window.addEventListener("storage", loadStoredData)
-    window.addEventListener("schoolSwitched", loadStoredData)
     return () => {
       window.removeEventListener("userSessionChanged", handleSessionChange)
       window.removeEventListener("storage", loadStoredData)
-      window.removeEventListener("schoolSwitched", loadStoredData)
     }
   }, [loadStoredData])
 

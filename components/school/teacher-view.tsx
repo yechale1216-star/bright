@@ -16,6 +16,7 @@ import { authService } from "@/lib/auth/auth"
 import { cn } from "@/lib/utils/utils"
 import { DisciplineApi, type StudentDiscipline } from "@/lib/discipline-service"
 import { useCalendar } from "@/lib/context/calendar-context"
+import { useGreeting } from "@/lib/utils/greeting-utils"
 
 interface TeacherAssignment {
   id: string
@@ -140,12 +141,7 @@ export function TeacherView() {
     }
   }
 
-  const getGreeting = () => {
-    const hour = parseInt(new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: 'numeric' }), 10)
-    if (hour < 12) return "Good morning"
-    if (hour < 17) return "Good afternoon"
-    return "Good evening"
-  }
+  const greeting = useGreeting('teacher')
 
   const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem("attendance_current_user") || "{}") : {}
   const firstName = currentUser?.name?.split(' ')[0] || currentUser?.full_name?.split(' ')[0] || "Teacher"
@@ -177,7 +173,7 @@ export function TeacherView() {
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="px-1 md:px-0 pt-safe">
-        <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">{getGreeting()}</p>
+        <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">{greeting}</p>
         <h2 className="text-xl md:text-4xl font-black text-foreground uppercase tracking-tight leading-none whitespace-nowrap overflow-hidden text-ellipsis">
           Hello, <span className="text-primary">{firstName}</span>
         </h2>

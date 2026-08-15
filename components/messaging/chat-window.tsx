@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
-  Send, Paperclip, Smile, MoreVertical, Phone, Video, ChevronLeft,
+  Send, Paperclip, Smile, MoreVertical, Phone, Video, ChevronLeft, ChevronUp, ChevronDown,
   Check, CheckCheck, Reply, Forward, Trash2, Heart, Search, X, Clock,
   Pin, Copy, FileText, FileJson, FileType, Music, Play, ExternalLink,
   Download, Globe, FileArchive, Mic, MicOff, StopCircle, ImageIcon, File as FileIcon,
@@ -140,6 +140,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
   const [showClearHistoryDialog, setShowClearHistoryDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
 
+  // In-chat search states
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeMatchIndex, setActiveMatchIndex] = useState<number>(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const handleCancelUpload = (tempId: string) => {
     const upload = uploads[tempId];
     if (upload) {
@@ -222,6 +228,76 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
 
   // Track which message to flash/highlight after scrolling to it
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+
+  // Filter messages matching the search query
+  const matchingMessageIds = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.trim().toLowerCase();
+    const matches: string[] = [];
+    messages.forEach((msg) => {
+      if (msg.isDeleted) return;
+      const contentMatch = Boolean(msg.content && msg.content.toLowerCase().includes(query));
+      const attachmentMatch = Boolean(msg.attachments && msg.attachments.some(att => att.name && att.name.toLowerCase().includes(query)));
+      const senderMatch = Boolean(msg.senderName && msg.senderName.toLowerCase().includes(query));
+      if (contentMatch || attachmentMatch || senderMatch) {
+        matches.push(msg.id);
+      }
+    });
+    return matches;
+  }, [messages, searchQuery]);
+
+  const scrollToMatch = useCallback((index: number) => {
+    if (matchingMessageIds.length === 0) return;
+    const targetId = matchingMessageIds[index];
+    if (!targetId) return;
+    setHighlightedMsgId(targetId);
+    const el = document.getElementById(`msg-${targetId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [matchingMessageIds]);
+
+  const handleNextMatch = () => {
+    if (matchingMessageIds.length === 0) return;
+    const nextIndex = (activeMatchIndex + 1) % matchingMessageIds.length;
+    setActiveMatchIndex(nextIndex);
+    scrollToMatch(nextIndex);
+  };
+
+  const handlePrevMatch = () => {
+    if (matchingMessageIds.length === 0) return;
+    const prevIndex = (activeMatchIndex - 1 + matchingMessageIds.length) % matchingMessageIds.length;
+    setActiveMatchIndex(prevIndex);
+    scrollToMatch(prevIndex);
+  };
+
+  useEffect(() => {
+    if (matchingMessageIds.length > 0) {
+      const initialIndex = matchingMessageIds.length - 1;
+      setActiveMatchIndex(initialIndex);
+      scrollToMatch(initialIndex);
+    } else {
+      setActiveMatchIndex(0);
+      setHighlightedMsgId(null);
+    }
+  }, [searchQuery, matchingMessageIds.length]); // eslint-disable-line
+
+  useEffect(() => {
+    if (isSearchOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 80);
+    } else {
+      setSearchQuery('');
+      setActiveMatchIndex(0);
+      setHighlightedMsgId(null);
+    }
+  }, [isSearchOpen]);
+
+  useEffect(() => {
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    setActiveMatchIndex(0);
+    setHighlightedMsgId(null);
+  }, [activeConversation?.id]);
 
   const focusInput = () => {
     setTimeout(() => textInputRef.current?.focus(), 80);
@@ -737,155 +813,243 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
 
       {/* Telegram-style Compact Chat Header - With Safe Area for Notch/Status Bar */}
       <header className="h-[calc(88px+env(safe-area-inset-top))] md:h-[96px] border-b border-border/50 bg-background/95 backdrop-blur-md flex items-center justify-between px-3 z-40 sticky top-0 font-sans shadow-sm pt-[env(safe-area-inset-top)]">
-        <div className="flex items-center gap-1 flex-1 min-w-0 h-full">
-          {onBack && (
-            <Button variant="ghost" size="icon" onClick={onBack} className="h-10 w-10 rounded-full transition-colors hover:bg-secondary mt-9">
+        {isSearchOpen ? (
+          <div className="flex items-center gap-2 flex-1 min-w-0 h-full mt-9">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSearchOpen(false)}
+              className="h-10 w-10 rounded-full hover:bg-secondary shrink-0"
+            >
               <ChevronLeft className="h-6 w-6 text-foreground" />
             </Button>
-          )}
 
-          <div
-            className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer h-full pt-10 pb-1"
-            onClick={() => onToggleInfo?.()}
-          >
-            <div className="relative shrink-0 self-center">
-              {callStatus !== 'IDLE' && (
-                <div className="absolute inset-0 -z-10">
-                  <motion.div
-                    initial={{ scale: 1, opacity: 0.8 }}
-                    animate={{ scale: 2, opacity: 0 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                    className="absolute inset-0 rounded-full bg-green-500/60"
-                  />
-                  <motion.div
-                    initial={{ scale: 1, opacity: 0.5 }}
-                    animate={{ scale: 2.5, opacity: 0 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
-                    className="absolute inset-0 rounded-full bg-green-500/40"
-                  />
-                  <motion.div
-                    initial={{ scale: 1, opacity: 0.3 }}
-                    animate={{ scale: 3, opacity: 0 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 1.2 }}
-                    className="absolute inset-0 rounded-full bg-green-500/20"
-                  />
-                </div>
-              )}
-              <Avatar className={cn(
-                "h-10 w-10 border overflow-hidden shadow-sm transition-all duration-500",
-                callStatus !== 'IDLE' ? "border-green-500 ring-4 ring-green-500/20 scale-110" : "border-border/10"
-              )}>
-                <AvatarImage src={activeConversation?.avatar || undefined} className="object-cover" />
-                <AvatarFallback className={cn(
-                  "text-xs font-black transition-colors",
-                  callStatus !== 'IDLE' ? "bg-green-500 text-white" : "bg-primary/5 text-primary"
-                )}>
-                  {activeConversation.name.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              {activeConversation.isOnline && callStatus === 'IDLE' && (
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-green-500 border-2 border-background rounded-full shadow-sm" />
+            <div className="flex-1 flex items-center gap-2 bg-secondary/70 dark:bg-slate-900 border border-border/50 rounded-2xl px-3 h-11 focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 transition-all min-w-0">
+              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (e.shiftKey) handlePrevMatch();
+                    else handleNextMatch();
+                  } else if (e.key === 'Escape') {
+                    setIsSearchOpen(false);
+                  }
+                }}
+                placeholder="Search in conversation..."
+                className="flex-1 bg-transparent border-none text-sm outline-none text-foreground placeholder:text-muted-foreground/60 min-w-0"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="h-5 w-5 rounded-full hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
-            <div className="flex flex-col min-w-0 justify-center">
-              <span className="font-bold text-[15px] truncate tracking-tight text-foreground leading-tight">
-                {activeConversation.name}
-              </span>
-              {activeConversation.isGroup ? (
-                <span className="text-[11px] text-muted-foreground/80 truncate">
-                  {typingStatus || `${activeConversation.members?.length} members`}
+
+            {searchQuery.trim() && (
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-xs font-semibold text-muted-foreground px-1 select-none whitespace-nowrap">
+                  {matchingMessageIds.length > 0
+                    ? `${activeMatchIndex + 1}/${matchingMessageIds.length}`
+                    : '0 found'}
                 </span>
-              ) : typingStatus ? (
-                <span className="text-[11px] text-primary font-bold animate-pulse">{typingStatus}</span>
-              ) : activeConversation.isOnline ? (
-                <span className="text-[11px] text-primary font-medium tracking-tight">online</span>
-              ) : (
-                <span className="text-[11px] text-muted-foreground/60">
-                  {formatLastSeen(activeConversation.lastActive)}
-                </span>
-              )}
-            </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={matchingMessageIds.length === 0}
+                  onClick={handlePrevMatch}
+                  title="Previous match (Shift+Enter)"
+                  className="h-9 w-9 rounded-full text-foreground hover:bg-secondary disabled:opacity-30"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={matchingMessageIds.length === 0}
+                  onClick={handleNextMatch}
+                  title="Next match (Enter)"
+                  className="h-9 w-9 rounded-full text-foreground hover:bg-secondary disabled:opacity-30"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSearchOpen(false)}
+              className="h-9 w-9 rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground shrink-0"
+            >
+              <X className="h-5 w-5" />
+            </Button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-0.5 mt-9">
-          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground/80 hover:bg-secondary">
-            <Search className="h-5 w-5" />
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground/80 hover:bg-secondary">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60 rounded-2xl border-border/50 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-200">
-              {!isStudent && !activeConversation.isGroup && (
-                <>
-                  <DropdownMenuItem
-                    className={`rounded-xl h-10 gap-3 ${isSuspended ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    onClick={() => !isSuspended && initiateCall(activeConversation.realContactId || activeConversation.id, 'VOICE', activeConversation)}
-                    title={isSuspended ? 'Voice calls are disabled while the school is suspended' : undefined}
-                  >
-                    <Phone className="h-4 w-4 text-primary" /> {t("voice_call")}
-                    {isSuspended && <span className="ml-auto text-[10px] font-semibold text-orange-500 uppercase">Suspended</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className={`rounded-xl h-10 gap-3 ${isSuspended ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    onClick={() => !isSuspended && initiateCall(activeConversation.realContactId || activeConversation.id, 'VIDEO', activeConversation)}
-                    title={isSuspended ? 'Video calls are disabled while the school is suspended' : undefined}
-                  >
-                    <Video className="h-4 w-4 text-primary" /> {t("video_call")}
-                    {isSuspended && <span className="ml-auto text-[10px] font-semibold text-orange-500 uppercase">Suspended</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="my-1 bg-border/40" />
-                </>
+        ) : (
+          <>
+            <div className="flex items-center gap-1 flex-1 min-w-0 h-full">
+              {onBack && (
+                <Button variant="ghost" size="icon" onClick={onBack} className="h-10 w-10 rounded-full transition-colors hover:bg-secondary mt-9">
+                  <ChevronLeft className="h-6 w-6 text-foreground" />
+                </Button>
               )}
 
-              {/* ── View Profile / Group Info ───────────────────── */}
-              <DropdownMenuItem
-                className="rounded-xl h-10 gap-3 cursor-pointer"
+              <div
+                className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer h-full pt-10 pb-1"
                 onClick={() => onToggleInfo?.()}
               >
-                <Info className="h-4 w-4 text-foreground/70" />
-                <span>{activeConversation.isGroup ? 'Group Info' : t("view_profile")}</span>
-              </DropdownMenuItem>
+                <div className="relative shrink-0 self-center">
+                  {callStatus !== 'IDLE' && (
+                    <div className="absolute inset-0 -z-10">
+                      <motion.div
+                        initial={{ scale: 1, opacity: 0.8 }}
+                        animate={{ scale: 2, opacity: 0 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                        className="absolute inset-0 rounded-full bg-green-500/60"
+                      />
+                      <motion.div
+                        initial={{ scale: 1, opacity: 0.5 }}
+                        animate={{ scale: 2.5, opacity: 0 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
+                        className="absolute inset-0 rounded-full bg-green-500/40"
+                      />
+                      <motion.div
+                        initial={{ scale: 1, opacity: 0.3 }}
+                        animate={{ scale: 3, opacity: 0 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 1.2 }}
+                        className="absolute inset-0 rounded-full bg-green-500/20"
+                      />
+                    </div>
+                  )}
+                  <Avatar className={cn(
+                    "h-10 w-10 border overflow-hidden shadow-sm transition-all duration-500",
+                    callStatus !== 'IDLE' ? "border-green-500 ring-4 ring-green-500/20 scale-110" : "border-border/10"
+                  )}>
+                    <AvatarImage src={activeConversation?.avatar || undefined} className="object-cover" />
+                    <AvatarFallback className={cn(
+                      "text-xs font-black transition-colors",
+                      callStatus !== 'IDLE' ? "bg-green-500 text-white" : "bg-primary/5 text-primary"
+                    )}>
+                      {activeConversation.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {activeConversation.isOnline && callStatus === 'IDLE' && (
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-green-500 border-2 border-background rounded-full shadow-sm" />
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0 justify-center">
+                  <span className="font-bold text-[15px] truncate tracking-tight text-foreground leading-tight">
+                    {activeConversation.name}
+                  </span>
+                  {activeConversation.isGroup ? (
+                    <span className="text-[11px] text-muted-foreground/80 truncate">
+                      {typingStatus || `${activeConversation.members?.length} members`}
+                    </span>
+                  ) : typingStatus ? (
+                    <span className="text-[11px] text-primary font-bold animate-pulse">{typingStatus}</span>
+                  ) : activeConversation.isOnline ? (
+                    <span className="text-[11px] text-primary font-medium tracking-tight">online</span>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground/60">
+                      {formatLastSeen(activeConversation.lastActive)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
 
-              {/* ── Mute / Unmute ──────────────────────────────── */}
-              <DropdownMenuItem
-                className="rounded-xl h-10 gap-3 cursor-pointer"
-                onClick={() => onToggleMute?.()}
+            <div className="flex items-center gap-0.5 mt-9">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSearchOpen(true)}
+                className="h-10 w-10 rounded-full text-muted-foreground/80 hover:bg-secondary"
               >
-                {isMuted
-                  ? <><BellOff className="h-4 w-4 text-amber-500" /><span>Unmute Notifications</span></>
-                  : <><Bell className="h-4 w-4 text-foreground/70" /><span>Mute Notifications</span></>}
-              </DropdownMenuItem>
+                <Search className="h-5 w-5" />
+              </Button>
 
-              {/* ── Block / Unblock (1:1 only) ─────────────────── */}
-              {!activeConversation.isGroup && (
-                <DropdownMenuItem
-                  className="rounded-xl h-10 gap-3 cursor-pointer text-orange-600 focus:bg-orange-50 dark:focus:bg-orange-950/30 focus:text-orange-600"
-                  onClick={() => setShowBlockDialog(true)}
-                >
-                  {isBlocked
-                    ? <><ShieldOff className="h-4 w-4" /><span>Unblock User</span></>
-                    : <><ShieldAlert className="h-4 w-4" /><span>Block User</span></>}
-                </DropdownMenuItem>
-              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full text-muted-foreground/80 hover:bg-secondary">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 rounded-2xl border-border/50 shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-200">
+                  {!isStudent && !activeConversation.isGroup && (
+                    <>
+                      <DropdownMenuItem
+                        className={`rounded-xl h-10 gap-3 ${isSuspended ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        onClick={() => !isSuspended && initiateCall(activeConversation.realContactId || activeConversation.id, 'VOICE', activeConversation)}
+                        title={isSuspended ? 'Voice calls are disabled while the school is suspended' : undefined}
+                      >
+                        <Phone className="h-4 w-4 text-primary" /> {t("voice_call")}
+                        {isSuspended && <span className="ml-auto text-[10px] font-semibold text-orange-500 uppercase">Suspended</span>}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className={`rounded-xl h-10 gap-3 ${isSuspended ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        onClick={() => !isSuspended && initiateCall(activeConversation.realContactId || activeConversation.id, 'VIDEO', activeConversation)}
+                        title={isSuspended ? 'Video calls are disabled while the school is suspended' : undefined}
+                      >
+                        <Video className="h-4 w-4 text-primary" /> {t("video_call")}
+                        {isSuspended && <span className="ml-auto text-[10px] font-semibold text-orange-500 uppercase">Suspended</span>}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-1 bg-border/40" />
+                    </>
+                  )}
 
-              <DropdownMenuSeparator className="my-1 bg-border/40" />
+                  {/* ── View Profile / Group Info ───────────────────── */}
+                  <DropdownMenuItem
+                    className="rounded-xl h-10 gap-3 cursor-pointer"
+                    onClick={() => onToggleInfo?.()}
+                  >
+                    <Info className="h-4 w-4 text-foreground/70" />
+                    <span>{activeConversation.isGroup ? 'Group Info' : t("view_profile")}</span>
+                  </DropdownMenuItem>
 
-              {/* ── Clear Chat History ─────────────────────────── */}
-              <DropdownMenuItem
-                className="rounded-xl h-10 gap-3 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-                onClick={() => setShowClearHistoryDialog(true)}
-              >
-                <Eraser className="h-4 w-4" />
-                <span>Clear Chat History</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                  {/* ── Mute / Unmute ──────────────────────────────── */}
+                  <DropdownMenuItem
+                    className="rounded-xl h-10 gap-3 cursor-pointer"
+                    onClick={() => onToggleMute?.()}
+                  >
+                    {isMuted
+                      ? <><BellOff className="h-4 w-4 text-amber-500" /><span>Unmute Notifications</span></>
+                      : <><Bell className="h-4 w-4 text-foreground/70" /><span>Mute Notifications</span></>}
+                  </DropdownMenuItem>
+
+                  {/* ── Block / Unblock (1:1 only) ─────────────────── */}
+                  {!activeConversation.isGroup && (
+                    <DropdownMenuItem
+                      className="rounded-xl h-10 gap-3 cursor-pointer text-orange-600 focus:bg-orange-50 dark:focus:bg-orange-950/30 focus:text-orange-600"
+                      onClick={() => setShowBlockDialog(true)}
+                    >
+                      {isBlocked
+                        ? <><ShieldOff className="h-4 w-4" /><span>Unblock User</span></>
+                        : <><ShieldAlert className="h-4 w-4" /><span>Block User</span></>}
+                    </DropdownMenuItem>
+                  )}
+
+                  <DropdownMenuSeparator className="my-1 bg-border/40" />
+
+                  {/* ── Clear Chat History ─────────────────────────── */}
+                  <DropdownMenuItem
+                    className="rounded-xl h-10 gap-3 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    onClick={() => setShowClearHistoryDialog(true)}
+                  >
+                    <Eraser className="h-4 w-4" />
+                    <span>Clear Chat History</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </>
+        )}
       </header>
 
       {/* Telegram-style thin loading bar at top of messages — never blocks the chat window */}
@@ -1021,6 +1185,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                         key={message.id}
                         message={message}
                         missedCount={count}
+                        isHighlighted={highlightedMsgId === message.id}
                         onCallAgain={(type) => {
                           if (isSuspended) {
                             toast.error('Portal Read-Only: Calls are disabled while the school is suspended.');
@@ -1039,6 +1204,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                         key={message.id}
                         message={message}
                         missedCount={1}
+                        isHighlighted={highlightedMsgId === message.id}
                         onCallAgain={(type) => {
                           if (isSuspended) {
                             toast.error('Portal Read-Only: Calls are disabled while the school is suspended.');
@@ -1061,6 +1227,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                       isLastInGroup={!isNextSameSender}
                       isSelectionMode={isSelectionMode}
                       isSelected={selectedIds.includes(message.id)}
+                      isHighlighted={highlightedMsgId === message.id}
                       onToggleSelect={() => toggleSelect(message.id)}
                       onEnterSelectionMode={() => setIsSelectionMode(true)}
                       t={t}
@@ -1723,9 +1890,10 @@ function formatCallDuration(seconds: number): string {
 }
 
 // ─── CallMessageBubble ───────────────────────────────────────────────────────
-const CallMessageBubble = React.memo(({ message, missedCount, onCallAgain, onAction }: {
+const CallMessageBubble = React.memo(({ message, missedCount, isHighlighted, onCallAgain, onAction }: {
   message: Message;
   missedCount: number;
+  isHighlighted?: boolean;
   onCallAgain: (type: 'VOICE' | 'VIDEO') => void;
   onAction?: (action: string, data: any) => void;
 }) => {
@@ -1814,10 +1982,14 @@ const CallMessageBubble = React.memo(({ message, missedCount, onCallAgain, onAct
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <motion.div
+          id={`msg-${message.id}`}
           initial={{ opacity: 0, y: 6, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          animate={{ opacity: 1, y: 0, scale: isHighlighted ? 1.05 : 1 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="flex justify-center my-1.5"
+          className={cn(
+            "flex justify-center my-1.5 transition-all duration-300",
+            isHighlighted && "ring-2 ring-primary ring-offset-4 ring-offset-background rounded-2xl shadow-xl z-20"
+          )}
         >
           <div
             className="flex items-center gap-3 bg-white/95 dark:bg-slate-900 border border-border/40 rounded-2xl px-4 py-2.5 shadow-sm hover:shadow-md transition-all cursor-pointer max-w-[300px] backdrop-blur-sm group select-none relative overflow-hidden"
@@ -2483,6 +2655,7 @@ const MessageBubble = React.memo(({
   isLastInGroup,
   isSelectionMode,
   isSelected,
+  isHighlighted,
   onToggleSelect,
   onEnterSelectionMode,
   t,
@@ -2497,6 +2670,7 @@ const MessageBubble = React.memo(({
   isLastInGroup: boolean,
   isSelectionMode: boolean,
   isSelected: boolean,
+  isHighlighted?: boolean,
   onToggleSelect: () => void,
   onEnterSelectionMode: () => void,
   t: any,
@@ -2566,9 +2740,11 @@ const MessageBubble = React.memo(({
     <motion.div
       id={`msg-${message.id}`}
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      animate={{ opacity: 1, y: 0, scale: isHighlighted ? 1.03 : 1 }}
+      transition={{ duration: 0.2 }}
       className={cn(
-        "flex flex-col group relative transition-all",
+        "flex flex-col group relative transition-all duration-300",
+        isHighlighted && "ring-2 ring-primary ring-offset-4 ring-offset-background rounded-2xl shadow-xl z-20",
         isMe ? "ml-auto items-end" : "mr-auto items-start",
         isMediaOnly ? "max-w-[70%] md:max-w-[40%] w-full" : "max-w-[75%]",
         isLastInGroup && "mb-2",

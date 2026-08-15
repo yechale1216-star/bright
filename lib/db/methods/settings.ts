@@ -37,7 +37,7 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
     )
     const s = result.data
     const settingsData = {
-      schoolName: s.school_name || "Zetime School",
+      schoolName: s.school_name || "Addis Hiwot School",
       schoolPhone: s.school_phone || "",
       schoolAddress: s.school_address || "",
       academicYear: s.academic_year || new Date().getFullYear().toString(),

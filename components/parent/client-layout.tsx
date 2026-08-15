@@ -33,6 +33,7 @@ import { LanguageProvider, useLanguage } from "@/lib/context/language-context"
 import { useSchool } from "@/lib/context/school-context"
 import { useAuth } from "@/lib/context/auth-context"
 import { AuthGuard } from "@/components/auth/auth-guard"
+import { DeveloperBrand } from "@/components/developer-brand"
 import { clearMessageCache } from "@/lib/utils/message-cache"
 import { cn } from "@/lib/utils/utils"
 import { useUnread } from "@/lib/context/unread-context"
@@ -58,6 +59,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const { activeSchool: ctxActiveSchool, availableSchools: ctxAvailableSchools, clearSchoolContext } = useSchool()
   const { user: currentUser, logout: authLogout } = useAuth()
+  const { totalUnreadCount } = useUnread()
 
   // Fallback to localStorage when SchoolContext hasn't hydrated yet.
   const [lsActiveSchool, setLsActiveSchool] = useState<any>(null)
@@ -110,10 +112,8 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
     }
 
     readFromStorage()
-    window.addEventListener("schoolSwitched", readFromStorage)
     window.addEventListener("userSessionChanged", readFromStorage)
     return () => {
-      window.removeEventListener("schoolSwitched", readFromStorage)
       window.removeEventListener("userSessionChanged", readFromStorage)
     }
   }, [])
@@ -167,8 +167,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadStudents()
-    window.addEventListener("schoolSwitched", loadStudents)
-    return () => window.removeEventListener("schoolSwitched", loadStudents)
   }, [loadStudents])
 
   useEffect(() => {
@@ -226,8 +224,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (!selectedStudent) return null
 
-  const { totalUnreadCount } = useUnread()
-
   const navLinks = [
     { href: "/parent/dashboard", label: t("dashboard"), icon: <LayoutDashboard /> },
     { href: "/parent/communication", label: t("communication"), icon: <MessageSquare />, badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
@@ -239,13 +235,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
 
-  const filteredStudents = students.filter((s: any) => {
-    if (activeSchool) return s.schoolId === activeSchool.id
-    const xSchoolId = typeof window !== "undefined" ? localStorage.getItem("x-school-id") : null
-    if (xSchoolId) return s.schoolId === xSchoolId
-    if (selectedStudent?.schoolId) return s.schoolId === selectedStudent.schoolId
-    return true
-  })
+  const filteredStudents = students
 
   return (
     <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
@@ -335,10 +325,8 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         </nav>
 
-        <div className="shrink-0 p-3 border-t border-border space-y-1.5">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 px-3 text-rose-500 border border-rose-500/20 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all font-semibold text-sm">
-            <LogOut className="w-4 h-4" /><span>{t("logout")}</span>
-          </button>
+        <div className="shrink-0 p-4 border-t border-border text-center bg-card/50">
+          <DeveloperBrand type="powered" />
         </div>
       </aside>
 
@@ -403,10 +391,8 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
             </span>
           </button>
         </nav>
-        <div className="shrink-0 p-3 border-t border-border space-y-1.5 pb-safe">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 border border-rose-500/20 text-rose-500 rounded-xl font-semibold text-sm hover:bg-rose-50 dark:hover:bg-rose-900/20">
-            <LogOut className="w-4 h-4" /><span>{t("logout")}</span>
-          </button>
+        <div className="shrink-0 p-4 border-t border-border text-center bg-card/50 pb-safe">
+          <DeveloperBrand type="powered" />
         </div>
       </aside>
 

@@ -35,43 +35,6 @@ router.get('/me/streams', async (req: AuthenticatedRequest, res: Response, next:
   } catch (error) { next(error); }
 });
 
-// ─── Help Desk (Support Tickets & Feedback) ──────────────────────────────────────────────
-router.get('/support', authorize(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) return res.status(401).json({ success: false, message: 'Unauthorized' });
-
-    const tickets = await prisma.supportTicket.findMany({
-      where: { schoolId },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json({ success: true, data: tickets });
-  } catch (error) { next(error); }
-});
-
-router.post('/support', authorize(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  try {
-    const schoolId = req.user?.schoolId;
-    const authorId = req.user?.id;
-    if (!schoolId) return res.status(401).json({ success: false, message: 'Unauthorized' });
-
-    const { subject, message, category, priority } = req.body;
-    const ticket = await prisma.supportTicket.create({
-      data: {
-        ticketNumber: `TCK-${Date.now()}`,
-        schoolId,
-        authorId,
-        subject: subject || 'Support Ticket',
-        description: message || '',
-        category: category || 'GENERAL',
-        priority: priority || 'MEDIUM',
-        status: 'OPEN',
-      }
-    });
-    res.status(201).json({ success: true, data: ticket });
-  } catch (error) { next(error); }
-});
-
 // Get school by ID
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {

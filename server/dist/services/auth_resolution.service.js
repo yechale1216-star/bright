@@ -19,7 +19,7 @@ const getMemberships = async (userId) => {
     if (user && user.schoolId && user.role && user.role !== 'parent') {
         memberships.push({
             id: user.schoolId,
-            name: user.school?.name || 'My School',
+            name: user.school?.name || 'Addis Hiwot School',
             role: user.role,
             customSchoolId: user.school?.schoolId || '',
             logo: user.school?.settings?.school_logo || ''
@@ -35,7 +35,7 @@ const getMemberships = async (userId) => {
         if (t.schoolId && !memberships.some(m => m.id === t.schoolId && m.role === 'teacher')) {
             memberships.push({
                 id: t.schoolId,
-                name: t.school?.name || 'My School',
+                name: t.school?.name || 'Addis Hiwot School',
                 role: 'teacher',
                 customSchoolId: t.school?.schoolId || '',
                 logo: t.school?.settings?.school_logo || ''
@@ -51,7 +51,7 @@ const getMemberships = async (userId) => {
         if (l.schoolId && !memberships.some(m => m.id === l.schoolId && m.role === 'parent')) {
             memberships.push({
                 id: l.schoolId,
-                name: l.school?.name || 'My School',
+                name: l.school?.name || 'Addis Hiwot School',
                 role: 'parent',
                 customSchoolId: l.school?.schoolId || '',
                 logo: l.school?.settings?.school_logo || ''

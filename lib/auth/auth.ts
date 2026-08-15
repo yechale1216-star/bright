@@ -200,7 +200,7 @@ class AuthService {
 
       const user: User = {
         id: data.id,
-        email: `parent-${phone}@zetime.com`,
+        email: `parent-${phone}@addishiwot.edu.et`,
         phone: phone,
         name: data.parentName || parentName,
         role: "parent",

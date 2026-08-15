@@ -13,6 +13,7 @@ import { AuthGuard } from '@/components/auth/auth-guard'
 import { Logo } from '@/components/logo'
 import { TopNav } from '@/components/layout/top-nav'
 import { notifications } from '@/lib/utils/notifications'
+import { DeveloperBrand } from '@/components/developer-brand'
 
 const navItems = [
   { href: '/school/registrar', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -93,10 +94,8 @@ export default function RegistrarClientLayout({ children }: { children: React.Re
               </Link>
             ))}
           </nav>
-          <div className="p-3 border-t border-border">
-            <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 text-sm font-semibold">
-              <LogOut className="w-4 h-4" /> Sign Out
-            </button>
+          <div className="shrink-0 p-4 border-t border-border text-center bg-card/50">
+            <DeveloperBrand type="powered" />
           </div>
         </aside>
 
@@ -145,15 +144,8 @@ export default function RegistrarClientLayout({ children }: { children: React.Re
               </Link>
             ))}
           </nav>
-          <div className="p-3 border-t border-border">
-            <button onClick={handleLogout} title={isCollapsed ? 'Sign Out' : undefined}
-              className={cn(
-                'flex items-center gap-3 w-full rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 text-sm font-semibold',
-                isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5'
-              )}>
-              <LogOut className="w-4 h-4 flex-shrink-0" />
-              {!isCollapsed && <span>Sign Out</span>}
-            </button>
+          <div className={cn("p-4 border-t border-border/80 text-center bg-card/50", isCollapsed && "hidden")}>
+            <DeveloperBrand type="powered" collapsed={isCollapsed} />
           </div>
         </aside>
 

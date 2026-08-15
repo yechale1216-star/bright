@@ -13,14 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
-import { EmailStatus } from "@/components/school/email-status"
 import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
 import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { supabase } from "@/lib/utils/supabase"
-import { Lock, Edit2, Check, Calendar, MapPin, ShieldCheck, Navigation } from "lucide-react"
+import { Edit2, Check, Calendar, MapPin, ShieldCheck, Navigation } from "lucide-react"
 import { PhoneInput } from "@/components/ui/phone-input"
 import { useCalendar } from "@/lib/context/calendar-context"
 
@@ -37,8 +36,6 @@ export function Settings() {
   })
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isEditingSchoolInfo, setIsEditingSchoolInfo] = useState(false)
-  const [emailConfigPassword, setEmailConfigPassword] = useState("")
-  const [isEmailConfigUnlocked, setIsEmailConfigUnlocked] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
 
@@ -318,18 +315,6 @@ export function Settings() {
     reader.readAsText(file)
   }
 
-  const handleUnlockEmailConfig = () => {
-    if (emailConfigPassword === "@muluye56") {
-      setIsEmailConfigUnlocked(true)
-      setEmailConfigPassword("")
-      notifications.success("Access Granted", "Email configuration unlocked")
-    } else {
-      notifications.error("Access Denied", "Incorrect password")
-
-      setEmailConfigPassword("")
-    }
-  }
-
   if (isLoading) {
     return <PageSkeleton variant="form" />
   }
@@ -357,7 +342,6 @@ export function Settings() {
         <TabsList className="flex w-full bg-slate-100/50 dark:bg-slate-900/50 p-1 rounded-[20px] overflow-x-auto scrollbar-hide border border-slate-200/50 dark:border-slate-800/50 h-12">
           <TabsTrigger value="general" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">General</TabsTrigger>
           <TabsTrigger value="academic_year" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Academic Year</TabsTrigger>
-          <TabsTrigger value="notifications" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Alerts</TabsTrigger>
           <TabsTrigger value="attendance" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Rules</TabsTrigger>
           <TabsTrigger value="system" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">System</TabsTrigger>
         </TabsList>
@@ -487,84 +471,6 @@ export function Settings() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="notifications" className="space-y-4">
-          {!isEmailConfigUnlocked ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lock className="h-5 w-5" />
-                  Email Configuration Locked
-                </CardTitle>
-                <CardDescription>Enter password to access email settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="emailConfigPassword">Password</Label>
-                  <Input
-                    id="emailConfigPassword"
-                    type="password"
-                    value={emailConfigPassword}
-                    onChange={(e) => setEmailConfigPassword(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleUnlockEmailConfig()
-                      }
-                    }}
-                    placeholder="Enter password to unlock"
-                  />
-                </div>
-                <Button onClick={handleUnlockEmailConfig} className="w-full">
-                  Unlock Email Configuration
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <EmailStatus />
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notification Preferences</CardTitle>
-                  <CardDescription>Configure when and how notifications are sent</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Email Notifications</Label>
-                      <p className="typography-body text-muted-foreground">Send attendance notifications via email</p>
-                    </div>
-                    <Switch
-                      checked={settings.emailNotifications || false}
-                      onCheckedChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
-                    />
-                  </div>
-
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Daily Reports</Label>
-                      <p className="typography-body text-muted-foreground">Automatically generate daily attendance reports</p>
-                    </div>
-                    <Switch
-                      checked={settings.dailyReports || false}
-                      onCheckedChange={(checked) => setSettings({ ...settings, dailyReports: checked })}
-                    />
-                  </div>
-                  <Separator />
-                  <div>
-                    <Label htmlFor="notificationTime">Daily Report Time</Label>
-                    <Input
-                      id="notificationTime"
-                      type="time"
-                      value={settings.notificationTime || "16:00"}
-                      onChange={(e) => setSettings({ ...settings, notificationTime: e.target.value })}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
         </TabsContent>
 
         <TabsContent value="attendance" className="space-y-4">
