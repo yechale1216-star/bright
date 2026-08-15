@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getConversationShared = exports.createConversation = exports.getMessages = exports.getConversations = void 0;
+exports.getConversationShared = exports.createConversation = exports.getBlockStatus = exports.unblockUser = exports.blockUser = exports.clearChatHistory = exports.getMuteStatus = exports.toggleMuteConversation = exports.getMessages = exports.getConversations = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const getConversations = async (req, res) => {
     const userId = req.user?.id;
@@ -71,7 +71,20 @@ const getConversations = async (req, res) => {
             },
             orderBy: { updatedAt: 'desc' },
         });
-        res.status(200).json(conversations);
+        // Calculate unread message count per conversation for the requesting user
+        const conversationsWithUnread = await Promise.all(conversations.map(async (conv) => {
+            const unreadCount = await db_1.default.message.count({
+                where: {
+                    conversationId: conv.id,
+                    schoolId,
+                    senderId: { not: userId },
+                    isDeleted: false,
+                    readBy: { none: { userId } },
+                },
+            });
+            return { ...conv, unreadCount };
+        }));
+        res.status(200).json(conversationsWithUnread);
     }
     catch (error) {
         console.error('Error fetching conversations:', error);
@@ -92,11 +105,11 @@ const getMessages = async (req, res) => {
         const [membership, messages] = await Promise.all([
             db_1.default.conversationMember.findFirst({
                 where: { conversationId, userId },
-                select: { id: true },
+                select: { id: true, clearedAt: true },
             }),
             db_1.default.message.findMany({
                 where: { conversationId, schoolId },
-                take: take + 1, // fetch one extra to determine if there's a next page
+                take: take + 1,
                 ...(cursor ? { skip: 1, cursor: { id: String(cursor) } } : {}),
                 orderBy: { createdAt: 'desc' },
                 select: {
@@ -121,8 +134,8 @@ const getMessages = async (req, res) => {
                         },
                     },
                     readBy: {
-                        where: { schoolId, userId: { not: userId } },
-                        take: 1,
+                        where: { schoolId },
+                        take: 20,
                         select: {
                             userId: true,
                         },
@@ -153,12 +166,27 @@ const getMessages = async (req, res) => {
         if (!membership) {
             return res.status(403).json({ error: 'Forbidden: You are not a member of this conversation' });
         }
-        const hasMore = messages.length > take;
-        const page = hasMore ? messages.slice(0, take) : messages;
+        // Filter out messages that were cleared by this user
+        const clearedAt = membership.clearedAt;
+        const visibleMessages = clearedAt
+            ? messages.filter((m) => m.createdAt > clearedAt)
+            : messages;
+        const hasMore = visibleMessages.length > take;
+        const page = hasMore ? visibleMessages.slice(0, take) : visibleMessages;
         const nextCursor = hasMore ? page[page.length - 1]?.id : null;
+        const formattedMessages = page.map((m) => {
+            const isMe = m.senderId === userId;
+            const isRead = isMe
+                ? m.readBy.some((r) => r.userId !== userId)
+                : m.readBy.some((r) => r.userId === userId);
+            return {
+                ...m,
+                isRead,
+            };
+        });
         // Return in chronological order (oldest first)
         res.status(200).json({
-            messages: page.reverse(),
+            messages: formattedMessages.reverse(),
             nextCursor,
             hasMore,
             hasNextPage: hasMore,
@@ -170,6 +198,160 @@ const getMessages = async (req, res) => {
     }
 };
 exports.getMessages = getMessages;
+// ── Toggle Mute / Unmute Conversation ─────────────────────────────────────────
+const toggleMuteConversation = async (req, res) => {
+    const { id: conversationId } = req.params;
+    const userId = req.user?.id;
+    const schoolId = req.user?.schoolId;
+    if (!userId || !schoolId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const membership = await db_1.default.conversationMember.findFirst({
+            where: { conversationId, userId },
+            select: { id: true, isMuted: true },
+        });
+        if (!membership) {
+            return res.status(403).json({ error: 'You are not a member of this conversation' });
+        }
+        const updated = await db_1.default.conversationMember.update({
+            where: { id: membership.id },
+            data: { isMuted: !membership.isMuted },
+            select: { isMuted: true },
+        });
+        return res.status(200).json({ isMuted: updated.isMuted });
+    }
+    catch (error) {
+        console.error('[toggleMuteConversation] error:', error);
+        return res.status(500).json({ error: 'Failed to toggle mute' });
+    }
+};
+exports.toggleMuteConversation = toggleMuteConversation;
+// ── Get Mute Status ───────────────────────────────────────────────────────────
+const getMuteStatus = async (req, res) => {
+    const { id: conversationId } = req.params;
+    const userId = req.user?.id;
+    if (!userId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const membership = await db_1.default.conversationMember.findFirst({
+            where: { conversationId, userId },
+            select: { isMuted: true },
+        });
+        if (!membership) {
+            return res.status(403).json({ error: 'You are not a member of this conversation' });
+        }
+        return res.status(200).json({ isMuted: membership.isMuted });
+    }
+    catch (error) {
+        console.error('[getMuteStatus] error:', error);
+        return res.status(500).json({ error: 'Failed to get mute status' });
+    }
+};
+exports.getMuteStatus = getMuteStatus;
+// ── Clear Chat History (per-user) ─────────────────────────────────────────────
+const clearChatHistory = async (req, res) => {
+    const { id: conversationId } = req.params;
+    const userId = req.user?.id;
+    if (!userId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const membership = await db_1.default.conversationMember.findFirst({
+            where: { conversationId, userId },
+            select: { id: true },
+        });
+        if (!membership) {
+            return res.status(403).json({ error: 'You are not a member of this conversation' });
+        }
+        // Set clearedAt to NOW — getMessages will filter out all messages before this point
+        await db_1.default.conversationMember.update({
+            where: { id: membership.id },
+            data: { clearedAt: new Date() },
+        });
+        return res.status(200).json({ success: true, clearedAt: new Date().toISOString() });
+    }
+    catch (error) {
+        console.error('[clearChatHistory] error:', error);
+        return res.status(500).json({ error: 'Failed to clear chat history' });
+    }
+};
+exports.clearChatHistory = clearChatHistory;
+// ── Block User ────────────────────────────────────────────────────────────────
+const blockUser = async (req, res) => {
+    const { targetUserId } = req.params;
+    const blockerId = req.user?.id;
+    const schoolId = req.user?.schoolId;
+    if (!blockerId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    if (blockerId === targetUserId)
+        return res.status(400).json({ error: 'Cannot block yourself' });
+    try {
+        // Verify target user exists and belongs to same school
+        const target = await db_1.default.user.findFirst({
+            where: { id: targetUserId, schoolId },
+            select: { id: true },
+        });
+        if (!target)
+            return res.status(404).json({ error: 'User not found' });
+        // Upsert to prevent duplicate block records
+        const block = await db_1.default.userBlock.upsert({
+            where: { blockerId_blockedId: { blockerId, blockedId: targetUserId } },
+            create: { blockerId, blockedId: targetUserId, schoolId },
+            update: {},
+        });
+        return res.status(200).json({ blocked: true, blockId: block.id });
+    }
+    catch (error) {
+        console.error('[blockUser] error:', error);
+        return res.status(500).json({ error: 'Failed to block user' });
+    }
+};
+exports.blockUser = blockUser;
+// ── Unblock User ──────────────────────────────────────────────────────────────
+const unblockUser = async (req, res) => {
+    const { targetUserId } = req.params;
+    const blockerId = req.user?.id;
+    if (!blockerId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        await db_1.default.userBlock.deleteMany({
+            where: { blockerId, blockedId: targetUserId },
+        });
+        return res.status(200).json({ blocked: false });
+    }
+    catch (error) {
+        console.error('[unblockUser] error:', error);
+        return res.status(500).json({ error: 'Failed to unblock user' });
+    }
+};
+exports.unblockUser = unblockUser;
+// ── Get Block Status ──────────────────────────────────────────────────────────
+const getBlockStatus = async (req, res) => {
+    const { targetUserId } = req.params;
+    const userId = req.user?.id;
+    if (!userId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const [iBlockedThem, theyBlockedMe] = await Promise.all([
+            db_1.default.userBlock.findFirst({
+                where: { blockerId: userId, blockedId: targetUserId },
+                select: { id: true },
+            }),
+            db_1.default.userBlock.findFirst({
+                where: { blockerId: targetUserId, blockedId: userId },
+                select: { id: true },
+            }),
+        ]);
+        return res.status(200).json({
+            iBlockedThem: !!iBlockedThem,
+            theyBlockedMe: !!theyBlockedMe,
+        });
+    }
+    catch (error) {
+        console.error('[getBlockStatus] error:', error);
+        return res.status(500).json({ error: 'Failed to get block status' });
+    }
+};
+exports.getBlockStatus = getBlockStatus;
 const createConversation = async (req, res) => {
     const { name, isGroup, memberIds, avatar } = req.body;
     // Use x-school-id header as the authoritative school context.

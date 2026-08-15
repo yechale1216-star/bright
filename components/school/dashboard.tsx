@@ -21,6 +21,7 @@ import { ErrorBanner } from "@/components/ui/data-state-view"
 import { getErrorMessage } from "@/lib/utils/fetch-with-timeout"
 import { cn } from "../../lib/utils/utils"
 import { useCalendar } from "@/lib/context/calendar-context"
+import { useGreeting } from "@/lib/utils/greeting-utils"
 
 interface DashboardStats {
   totalStudents: number
@@ -192,12 +193,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
   }
 
-  const getGreeting = () => {
-    const hour = parseInt(new Date().toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: 'numeric' }), 10)
-    if (hour < 12) return "Good morning"
-    if (hour < 17) return "Good afternoon"
-    return "Good evening"
-  }
+  const greeting = useGreeting('school_admin')
 
   const [firstName, setFirstName] = useState("User")
 
@@ -548,7 +544,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <div className="space-y-1 w-full md:w-auto">
           <h2 className="typography-page-title">
-            {getGreeting()}, <span className="text-primary">{firstName}</span>
+            {greeting}, <span className="text-primary">{firstName}</span>
           </h2>
           <p className="typography-helper text-xs md:text-sm font-medium">
             Here is what happened with your school today

@@ -9,8 +9,7 @@ import {
   Trash2, 
   CalendarDays,
   ShieldCheck,
-  Globe,
-  Info
+  Globe
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -482,20 +481,6 @@ export function AcademicYearManagementTab() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Calendar mode notice */}
-          <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold border ${
-            isEthiopian 
-              ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400' 
-              : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400'
-          }`}>
-            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span>
-              {isEthiopian
-                ? 'You are in Ethiopian Calendar mode. Start/End dates are stored in Gregorian (ISO) format, but the Year Label should be in E.C. (e.g. 2016 E.C.). Dates displayed throughout the app will automatically convert to EC.'
-                : 'You are in Gregorian Calendar mode. Enter dates in GC format. Dates will display in standard Gregorian format throughout the app.'}
-            </span>
-          </div>
-
           <form onSubmit={handleCreateSubmit} className="space-y-4 mt-2">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -600,19 +585,6 @@ export function AcademicYearManagementTab() {
               Update academic year label, start/end dates, or active status.
             </DialogDescription>
           </DialogHeader>
-
-          {/* Calendar mode notice */}
-          <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold border ${
-            isEthiopian 
-              ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/40 text-amber-700 dark:text-amber-400' 
-              : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400'
-          }`}>
-            <Globe className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span>
-              Calendar mode: <strong>{calendarLabel}</strong>. 
-              {isEthiopian ? ' EC equivalents shown below each date field.' : ''}
-            </span>
-          </div>
 
           <form onSubmit={handleEditSubmit} className="space-y-4 mt-2">
             <div className="space-y-1.5">

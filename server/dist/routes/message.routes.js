@@ -51,4 +51,12 @@ router.post('/:messageId/pin', (0, auth_middleware_1.featureGuard)('messaging'),
 router.delete('/:messageId/pin', (0, auth_middleware_1.featureGuard)('messaging'), groupController.unpinMessage);
 router.post('/:messageId/react', (0, auth_middleware_1.featureGuard)('messaging'), groupController.toggleReaction);
 router.post('/:messageId/bookmark', (0, auth_middleware_1.featureGuard)('messaging'), bookmarkController.toggleBookmark);
+// ── Conversation-level Actions ─────────────────────────────────────────────────
+router.get('/conversations/:id/mute', (0, auth_middleware_1.featureGuard)('messaging'), messageController.getMuteStatus);
+router.post('/conversations/:id/mute', (0, auth_middleware_1.featureGuard)('messaging'), messageController.toggleMuteConversation);
+router.post('/conversations/:id/clear', (0, auth_middleware_1.featureGuard)('messaging'), messageController.clearChatHistory);
+// ── Block / Unblock Actions ───────────────────────────────────────────────────
+router.get('/users/:targetUserId/block-status', (0, auth_middleware_1.featureGuard)('messaging'), messageController.getBlockStatus);
+router.post('/users/:targetUserId/block', (0, auth_middleware_1.featureGuard)('messaging'), messageController.blockUser);
+router.post('/users/:targetUserId/unblock', (0, auth_middleware_1.featureGuard)('messaging'), messageController.unblockUser);
 exports.default = router;

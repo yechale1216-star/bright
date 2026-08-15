@@ -551,6 +551,28 @@ const initSocket = (server) => {
                 return;
             }
             try {
+                // ── Block Check ─────────────────────────────────────────────────────────
+                // For 1:1 conversations, silently reject if either user has blocked the other.
+                const convMembers = await db_1.default.conversationMember.findMany({
+                    where: { conversationId: data.conversationId },
+                    select: { userId: true, isMuted: true },
+                });
+                const recipientIds = convMembers.map(m => m.userId).filter(id => id !== data.senderId);
+                if (recipientIds.length === 1) {
+                    const blockExists = await db_1.default.userBlock.findFirst({
+                        where: {
+                            OR: [
+                                { blockerId: data.senderId, blockedId: recipientIds[0] },
+                                { blockerId: recipientIds[0], blockedId: data.senderId },
+                            ]
+                        },
+                        select: { id: true },
+                    });
+                    if (blockExists) {
+                        socket.emit('message_blocked', { tempId: data.tempId, message: 'You cannot send messages to this user.' });
+                        return;
+                    }
+                }
                 if (data.tempId) {
                     const dedupeKey = `${tenant.schoolId}:${data.tempId}`;
                     const { alreadyExists, existingMessageId } = await checkAndSetTempId(dedupeKey, 'pending');
@@ -619,9 +641,14 @@ const initSocket = (server) => {
                         where: { id: { in: offlineTargets }, pushToken: { not: null } },
                         select: { id: true, pushToken: true }
                     });
+                    // Filter out members who have muted this conversation
+                    const mutedMemberIds = new Set(convMembers.filter(m => m.isMuted).map(m => m.userId));
                     const expiredIds = [];
                     for (const u of usersWithTokens) {
                         if (!u.pushToken)
+                            continue;
+                        // Skip push for muted members
+                        if (mutedMemberIds.has(u.id))
                             continue;
                         const result = await (0, notification_service_1.sendMessageNotification)(u.pushToken, {
                             conversationId: data.conversationId,
@@ -744,6 +771,7 @@ const initSocket = (server) => {
                     create: { messageId, userId: data.userId, schoolId: tenant.schoolId },
                 })));
                 socket.to(data.conversationId).emit('messages_read', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
+                emitToUser(io, data.userId, 'conversation_read_ack', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
             }
             catch (err) {
                 console.warn('[Socket] mark_conversation_read error (non-fatal):', err);

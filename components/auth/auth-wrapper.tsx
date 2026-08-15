@@ -17,6 +17,8 @@ interface AuthWrapperProps {
   defaultView?: AuthView
 }
 
+import { DeveloperBrand } from "@/components/developer-brand"
+
 export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrapperProps) {
   const { t } = useLanguage()
   const [currentView, setCurrentView] = useState<AuthView>(defaultView)
@@ -129,10 +131,11 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
           {renderAuthForm()}
         </div>
 
-        <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">
-           <div className="text-[10px] text-slate-500/40 dark:text-slate-400/40 font-medium uppercase tracking-[0.3em]">
+        <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500 flex flex-col items-center gap-2">
+          <div className="text-[10px] text-slate-500/50 dark:text-slate-400/50 font-medium uppercase tracking-[0.25em]">
             &copy; {new Date().getFullYear()} Addis Hiwot &bull; Management Suite
           </div>
+          <DeveloperBrand type="developed" />
         </div>
       </div>
     </div>

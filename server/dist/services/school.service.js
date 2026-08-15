@@ -78,7 +78,7 @@ const getSingleSchool = async () => {
         orderBy: { createdAt: 'asc' }
     });
     if (!school) {
-        school = await (0, exports.createSchool)({ name: 'Zetime School' });
+        school = await (0, exports.createSchool)({ name: 'Addis Hiwot School' });
     }
     return school;
 };

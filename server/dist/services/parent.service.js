@@ -176,7 +176,7 @@ const loginParent = async (phone, password, schoolId) => {
     const singleSchool = await schoolService.getSingleSchool();
     let resolvedSchoolId = user.schoolId || students[0]?.schoolId || singleSchool.id;
     let customSchoolId = singleSchool.schoolId || 'SCH-0001';
-    let schoolName = singleSchool.name || 'Zetime School';
+    let schoolName = singleSchool.name || 'Addis Hiwot School';
     let schoolLogo = singleSchool.settings?.school_logo || '';
     if (resolvedSchoolId && resolvedSchoolId !== singleSchool.id) {
         const school = await schoolService.getSchoolById(resolvedSchoolId);
@@ -188,7 +188,7 @@ const loginParent = async (phone, password, schoolId) => {
     }
     const token = (0, jwt_1.generateToken)({
         id: user.id,
-        email: user.email || `parent-${cleanPhone}@zetime.com`,
+        email: user.email || `parent-${cleanPhone}@addishiwot.edu.et`,
         role: 'parent',
         schoolId: resolvedSchoolId,
         customSchoolId,
@@ -349,7 +349,7 @@ const postAnnouncement = async (schoolId, data) => {
             where: { id: schoolId },
             select: { name: true }
         });
-        const schoolName = schoolRecord?.name || 'ZeTime School';
+        const schoolName = schoolRecord?.name || 'Addis Hiwot School';
         for (const parent of uniqueParents) {
             if (parent && parent.pushToken) {
                 // Check parent preferences only if phone is set
@@ -563,8 +563,8 @@ const findOrCreateParentByPhone = async (phone, data) => {
     }
     const hashedPassword = data.password
         ? await bcryptjs_1.default.hash(data.password, 10)
-        : await bcryptjs_1.default.hash('zetime123', 10);
-    const parentEmail = data.email || `parent-${cleanPhone.replace('+', '')}@zetime.com`;
+        : await bcryptjs_1.default.hash('addishiwot123', 10);
+    const parentEmail = data.email || `parent-${cleanPhone.replace('+', '')}@addishiwot.edu.et`;
     // 4. Creation with UNIQUE Constraint Violation (P2002) Error Handling & Recovery
     try {
         const newParent = await db_1.default.user.create({

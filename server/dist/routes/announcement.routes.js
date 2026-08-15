@@ -40,4 +40,5 @@ const router = (0, express_1.Router)();
 router.get('/', parentController.getAnnouncements);
 router.post('/', parentController.postAnnouncement);
 router.put('/:id', parentController.updateAnnouncement);
+router.delete('/:id', parentController.deleteNotification);
 exports.default = router;

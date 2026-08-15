@@ -32,13 +32,8 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const auth_middleware_1 = require("../middleware/auth.middleware");
-const db_1 = __importDefault(require("../config/db"));
 const schoolService = __importStar(require("../services/school.service"));
 const router = (0, express_1.Router)();
 // Get all grades for current school
@@ -75,47 +70,6 @@ router.get('/me/streams', async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const streams = await schoolService.getStreams(schoolId);
         res.status(200).json({ success: true, data: streams });
-    }
-    catch (error) {
-        next(error);
-    }
-});
-// ─── Help Desk (Support Tickets & Feedback) ──────────────────────────────────────────────
-router.get('/support', (0, auth_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
-    try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const tickets = await db_1.default.supportTicket.findMany({
-            where: { schoolId },
-            orderBy: { createdAt: 'desc' }
-        });
-        res.json({ success: true, data: tickets });
-    }
-    catch (error) {
-        next(error);
-    }
-});
-router.post('/support', (0, auth_middleware_1.authorize)(['admin', 'teacher', 'parent', 'student', 'school_admin']), async (req, res, next) => {
-    try {
-        const schoolId = req.user?.schoolId;
-        const authorId = req.user?.id;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const { subject, message, category, priority } = req.body;
-        const ticket = await db_1.default.supportTicket.create({
-            data: {
-                ticketNumber: `TCK-${Date.now()}`,
-                schoolId,
-                authorId,
-                subject: subject || 'Support Ticket',
-                description: message || '',
-                category: category || 'GENERAL',
-                priority: priority || 'MEDIUM',
-                status: 'OPEN',
-            }
-        });
-        res.status(201).json({ success: true, data: ticket });
     }
     catch (error) {
         next(error);
