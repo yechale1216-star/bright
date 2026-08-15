@@ -631,14 +631,25 @@ const initSocket = (server) => {
                         }
                     }
                 }).catch(() => { });
-                // Push notifications for offline members
+                // ── Push notifications ────────────────────────────────────────────────
+                // Only send FCM push to members who have NO active socket connection —
+                // i.e. they are truly offline / backgrounded with socket disconnected.
+                // If the user is online (any socket alive = they are using the app),
+                // the real-time socket message already reaches them. No native push needed.
                 getConversationMemberIds(data.conversationId).then(async (memberIds) => {
-                    const onlineChecks = await Promise.all(memberIds.map(async (id) => ({ id, online: id === data.senderId || await isUserOnline(id) })));
-                    const offlineTargets = onlineChecks.filter(u => !u.online).map(u => u.id);
-                    if (offlineTargets.length === 0)
+                    // Push targets = members excluding sender AND any user with an active socket
+                    const pushTargetIds = [];
+                    for (const id of memberIds) {
+                        if (id === data.senderId)
+                            continue;
+                        const online = await isUserOnline(id);
+                        if (!online)
+                            pushTargetIds.push(id);
+                    }
+                    if (pushTargetIds.length === 0)
                         return;
                     const usersWithTokens = await db_1.default.user.findMany({
-                        where: { id: { in: offlineTargets }, pushToken: { not: null } },
+                        where: { id: { in: pushTargetIds }, pushToken: { not: null } },
                         select: { id: true, pushToken: true }
                     });
                     // Filter out members who have muted this conversation
@@ -647,7 +658,6 @@ const initSocket = (server) => {
                     for (const u of usersWithTokens) {
                         if (!u.pushToken)
                             continue;
-                        // Skip push for muted members
                         if (mutedMemberIds.has(u.id))
                             continue;
                         const result = await (0, notification_service_1.sendMessageNotification)(u.pushToken, {

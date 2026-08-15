@@ -636,26 +636,18 @@ export const initSocket = (server: HttpServer) => {
         }).catch(() => { });
 
         // ── Push notifications ────────────────────────────────────────────────
-        // CRITICAL: We send push to members who are NOT actively viewing this
-        // specific conversation room — NOT just "offline" users.
-        // When the Android app is backgrounded, the socket stays alive (user
-        // appears "online") but they cannot see the in-app banner. Without FCM
-        // they never get notified. This mirrors how Telegram works.
+        // Only send FCM push to members who have NO active socket connection —
+        // i.e. they are truly offline / backgrounded with socket disconnected.
+        // If the user is online (any socket alive = they are using the app),
+        // the real-time socket message already reaches them. No native push needed.
         getConversationMemberIds(data.conversationId).then(async (memberIds) => {
-          // Which sockets are actively in this conversation's room right now?
-          const roomSockets = io.sockets.adapter.rooms.get(data.conversationId) || new Set<string>();
-          
-          // Build set of userIds currently viewing this conversation
-          const activeViewerIds = new Set<string>();
-          for (const sid of roomSockets) {
-            const d = await getSocketData(sid);
-            if (d) activeViewerIds.add(d.userId);
+          // Push targets = members excluding sender AND any user with an active socket
+          const pushTargetIds: string[] = [];
+          for (const id of memberIds) {
+            if (id === data.senderId) continue;
+            const online = await isUserOnline(id);
+            if (!online) pushTargetIds.push(id);
           }
-
-          // Push targets = all members except the sender AND those actively viewing
-          const pushTargetIds = memberIds.filter(id =>
-            id !== data.senderId && !activeViewerIds.has(id)
-          );
 
           if (pushTargetIds.length === 0) return;
 
