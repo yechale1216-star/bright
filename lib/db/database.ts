@@ -152,10 +152,13 @@ class Database extends BaseDatabase {
     return attendance.getAttendanceAuditLogs(this.getApiHeaders())
   }
 
-  async saveAttendance(record: Partial<AttendanceRecord>): Promise<AttendanceRecord> {
+  async saveAttendance(record: Partial<AttendanceRecord>, locationData?: any): Promise<AttendanceRecord> {
     const schoolId = this.getSchoolId()
     if (!schoolId) throw new Error("School ID not found")
     const recDate = record.attendance_date || record.date
+    const rawSess = record.session ? record.session.toString().toLowerCase() : null
+    const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
+
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/attendance`,
       {
@@ -164,12 +167,21 @@ class Database extends BaseDatabase {
         body: JSON.stringify({
           studentId: record.student_id,
           status: record.status,
-          session: record.session || null,
+          session: normSess,
           remarks: record.remarks || record.note || "",
           date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
+          latitude: locationData?.latitude,
+          longitude: locationData?.longitude,
+          locationVerified: locationData?.locationVerified,
+          locationDistance: locationData?.locationDistance,
         }),
       }
     )
+    queryCache.invalidate(/^attendance_/)
+    queryCache.invalidate("attendance_")
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("attendanceDataChanged"))
+    }
     return attendance.mapAttendance(result.data, schoolId)
   }
 

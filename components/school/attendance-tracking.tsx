@@ -89,6 +89,7 @@ export function AttendanceTracking() {
   const [sectionFilter, setSectionFilter] = useState("All Sections")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [savingStudentId, setSavingStudentId] = useState<string | null>(null)
   const [isSendingNotifications, setIsSendingNotifications] = useState(false)
   const [showAbsentStudents, setShowAbsentStudents] = useState(false)
   const [absentSearchTerm, setAbsentSearchTerm] = useState("")
@@ -589,6 +590,183 @@ export function AttendanceTracking() {
     }
   }
 
+  const resolveLocationData = async () => {
+    let locationData: any = null
+
+    if (settings?.restrictLocation && !settings?.allowOutsideAttendance) {
+      if (!navigator.geolocation) {
+        notifications.error(
+          "GPS Required",
+          "Geolocation is not supported by your device/browser. Cannot verify school location."
+        )
+        throw new Error("Geolocation not supported")
+      }
+
+      // Native Android Pre-flight: Check System GPS & Request Runtime Permissions
+      if (NativeBridge.isNative()) {
+        const gpsActive = await NativeBridge.isLocationServicesEnabled()
+        if (!gpsActive) {
+          notifications.error(
+            "GPS Turned Off",
+            "Device Location Services (GPS) are turned off. Please turn on Location in Settings to submit attendance."
+          )
+          throw new Error("GPS turned off")
+        }
+
+        const permResult = await NativeBridge.requestLocationPermission()
+        if (permResult === 'denied' || permResult === 'prompt-with-rationale') {
+          notifications.error(
+            "Location Permission Required",
+            "Location permission is required to verify school proximity. Please enable location access in App Settings."
+          )
+          throw new Error("Location permission required")
+        }
+      }
+
+      notifications.info("Verifying Location", "Fetching GPS location to verify school proximity...")
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 0,
+          })
+        })
+
+        const userLat = position.coords.latitude
+        const userLon = position.coords.longitude
+
+        if (settings.schoolLatitude != null && settings.schoolLongitude != null) {
+          const distance = calculateDistanceMeters(
+            userLat,
+            userLon,
+            Number(settings.schoolLatitude),
+            Number(settings.schoolLongitude)
+          )
+
+          const allowedRadius = Number(settings.allowedRadiusMeters) || 200
+
+          if (distance > allowedRadius) {
+            notifications.error(
+              "Submission Blocked",
+              `Outside school boundary! You are ${distance}m away (Allowed: ${allowedRadius}m). Attendance submission blocked.`
+            )
+            throw new Error("Outside school boundary")
+          }
+
+          locationData = {
+            latitude: userLat,
+            longitude: userLon,
+            locationVerified: true,
+            locationDistance: distance,
+          }
+          notifications.success("Location Verified", `GPS verified: ${distance}m from school.`)
+        }
+      } catch (geoError: any) {
+        if (geoError.message === "Outside school boundary") throw geoError
+        let msg = "Failed to obtain GPS coordinates."
+        if (geoError.code === 1) {
+          msg = "Location permission denied. Please grant location permission in Settings to submit attendance."
+        } else if (geoError.code === 2) {
+          msg = "GPS location unavailable. Please verify your device location services are enabled."
+        } else if (geoError.code === 3) {
+          msg = "Location request timed out. Please try again."
+        }
+        notifications.error("GPS Verification Failed", msg)
+        throw new Error(msg)
+      }
+    } else if (navigator.geolocation) {
+      // Optional location capture when geofence restriction is OFF or bypass is ON
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 })
+        }).catch(() => null)
+
+        if (position) {
+          const userLat = position.coords.latitude
+          const userLon = position.coords.longitude
+          let dist: number | null = null
+          if (settings?.schoolLatitude != null && settings?.schoolLongitude != null) {
+            dist = calculateDistanceMeters(userLat, userLon, Number(settings.schoolLatitude), Number(settings.schoolLongitude))
+          }
+          locationData = {
+            latitude: userLat,
+            longitude: userLon,
+            locationVerified: dist != null ? dist <= (Number(settings?.allowedRadiusMeters) || 200) : false,
+            locationDistance: dist,
+          }
+        }
+      } catch (err) {
+        // Ignore fallback errors
+      }
+    }
+
+    return locationData
+  }
+
+  const saveSingleStudentAttendance = async (studentId: string) => {
+    // 1. Check Edit Permission Restriction for Teachers
+    if (isEditingBlockedForTeacher()) {
+      notifications.warning(
+        "Edit Permission Required",
+        "Attendance editing is disabled by School Admin. Please submit an edit request for approval."
+      )
+      setEditRequestModalOpen(true)
+      return
+    }
+
+    const studentData = attendanceState[studentId]
+    if (!studentData || studentData.status === null) {
+      notifications.warning("No Status Selected", "Please select an attendance status before saving.")
+      return
+    }
+
+    setSavingStudentId(studentId)
+    try {
+      const locationData = await resolveLocationData()
+      const isSessionBased = settings?.attendanceMode === "session_based"
+
+      await db.saveAttendance({
+        student_id: studentId,
+        date: selectedDate,
+        status: studentData.status,
+        note: studentData.note || "",
+        session: isSessionBased ? selectedSession : null,
+      }, locationData)
+
+      // Update base state and clear isDirty
+      setBaseAttendanceState((prev) => ({
+        ...prev,
+        [studentId]: {
+          status: studentData.status,
+          note: studentData.note || "",
+          isDirty: false,
+        }
+      }))
+
+      setAttendanceState((prev) => ({
+        ...prev,
+        [studentId]: {
+          ...prev[studentId],
+          isDirty: false,
+        }
+      }))
+
+      const student = students.find((s) => s.id === studentId)
+      const studentName = student?.name || "Student"
+      notifications.success("Attendance Saved", `Saved ${studentData.status.toUpperCase()} for ${studentName}`)
+      await fetchEditRequests()
+    } catch (error: any) {
+      console.error("Error saving single attendance:", error)
+      if (error.message !== "Outside school boundary" && error.message !== "GPS turned off" && error.message !== "Location permission required") {
+        notifications.error("Save Failed", error.message || "Failed to save attendance.")
+      }
+    } finally {
+      setSavingStudentId(null)
+    }
+  }
+
   const saveAttendance = async () => {
     // 1. Check Edit Permission Restriction for Teachers
     if (isEditingBlockedForTeacher()) {
@@ -619,121 +797,7 @@ export function AttendanceTracking() {
         return
       }
 
-      let locationData: any = null
-
-      // 2. Geofence Location Restriction Verification
-      if (settings?.restrictLocation && !settings?.allowOutsideAttendance) {
-        if (!navigator.geolocation) {
-          notifications.error(
-            "GPS Required",
-            "Geolocation is not supported by your device/browser. Cannot verify school location."
-          )
-          setIsSaving(false)
-          return
-        }
-
-        // Native Android Pre-flight: Check System GPS & Request Runtime Permissions
-        if (NativeBridge.isNative()) {
-          const gpsActive = await NativeBridge.isLocationServicesEnabled()
-          if (!gpsActive) {
-            notifications.error(
-              "GPS Turned Off",
-              "Device Location Services (GPS) are turned off. Please turn on Location in Settings to submit attendance."
-            )
-            setIsSaving(false)
-            return
-          }
-
-          const permResult = await NativeBridge.requestLocationPermission()
-          if (permResult === 'denied' || permResult === 'prompt-with-rationale') {
-            notifications.error(
-              "Location Permission Required",
-              "Location permission is required to verify school proximity. Please enable location access in App Settings."
-            )
-            setIsSaving(false)
-            return
-          }
-        }
-
-        notifications.info("Verifying Location", "Fetching GPS location to verify school proximity...")
-
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 12000,
-              maximumAge: 0,
-            })
-          })
-
-          const userLat = position.coords.latitude
-          const userLon = position.coords.longitude
-
-          if (settings.schoolLatitude != null && settings.schoolLongitude != null) {
-            const distance = calculateDistanceMeters(
-              userLat,
-              userLon,
-              Number(settings.schoolLatitude),
-              Number(settings.schoolLongitude)
-            )
-
-            const allowedRadius = Number(settings.allowedRadiusMeters) || 200
-
-            if (distance > allowedRadius) {
-              notifications.error(
-                "Submission Blocked",
-                `Outside school boundary! You are ${distance}m away (Allowed: ${allowedRadius}m). Attendance submission blocked.`
-              )
-              setIsSaving(false)
-              return
-            }
-
-            locationData = {
-              latitude: userLat,
-              longitude: userLon,
-              locationVerified: true,
-              locationDistance: distance,
-            }
-            notifications.success("Location Verified", `GPS verified: ${distance}m from school.`)
-          }
-        } catch (geoError: any) {
-          let msg = "Failed to obtain GPS coordinates."
-          if (geoError.code === 1) {
-            msg = "Location permission denied. Please grant location permission in Settings to submit attendance."
-          } else if (geoError.code === 2) {
-            msg = "GPS location unavailable. Please verify your device location services are enabled."
-          } else if (geoError.code === 3) {
-            msg = "Location request timed out. Please try again."
-          }
-          notifications.error("GPS Verification Failed", msg)
-          setIsSaving(false)
-          return
-        }
-      } else if (navigator.geolocation) {
-        // Optional location capture when geofence restriction is OFF or bypass is ON
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 })
-          }).catch(() => null)
-
-          if (position) {
-            const userLat = position.coords.latitude
-            const userLon = position.coords.longitude
-            let dist: number | null = null
-            if (settings?.schoolLatitude != null && settings?.schoolLongitude != null) {
-              dist = calculateDistanceMeters(userLat, userLon, Number(settings.schoolLatitude), Number(settings.schoolLongitude))
-            }
-            locationData = {
-              latitude: userLat,
-              longitude: userLon,
-              locationVerified: dist != null ? dist <= (Number(settings?.allowedRadiusMeters) || 200) : false,
-              locationDistance: dist,
-            }
-          }
-        } catch (err) {
-          // Ignore fallback errors
-        }
-      }
+      const locationData = await resolveLocationData()
 
       await db.markAttendance(attendanceRecords, locationData)
 
@@ -767,7 +831,9 @@ export function AttendanceTracking() {
       await fetchEditRequests()
     } catch (error: any) {
       console.error("Error saving attendance:", error)
-      notifications.error("Error", error.message || "Failed to save attendance. Please try again.")
+      if (error.message !== "Outside school boundary" && error.message !== "GPS turned off" && error.message !== "Location permission required") {
+        notifications.error("Error", error.message || "Failed to save attendance. Please try again.")
+      }
     } finally {
       setIsSaving(false)
     }
@@ -1427,18 +1493,54 @@ export function AttendanceTracking() {
                   attendance.status === 'excused' && "ring-2 ring-sky-500/30"
                 )}
               >
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="h-12 w-12 rounded-[18px] bg-primary/10 flex items-center justify-center text-primary text-base font-black border border-primary/20 shadow-inner shrink-0">
-                    {(student.name || "S").charAt(0).toUpperCase()}
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="h-12 w-12 rounded-[18px] bg-primary/10 flex items-center justify-center text-primary text-base font-black border border-primary/20 shadow-inner shrink-0">
+                      {(student.name || "S").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white truncate uppercase tracking-tight leading-none mb-1.5">
+                        {student.name}
+                      </h3>
+                      <p className="text-[9px] font-black text-slate-500/50 uppercase tracking-widest truncate">
+                        {student.student_id} • {student.grade} {student.section}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white truncate uppercase tracking-tight leading-none mb-1.5">
-                      {student.name}
-                    </h3>
-                    <p className="text-[9px] font-black text-slate-500/50 uppercase tracking-widest truncate">
-                      {student.student_id} • {student.grade} {student.section}
-                    </p>
-                  </div>
+
+                  {/* Individual Save Button */}
+                  {attendance.status && (
+                    <Button
+                      size="sm"
+                      variant={attendance.isDirty ? "default" : "ghost"}
+                      disabled={savingStudentId === student.id}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        saveSingleStudentAttendance(student.id)
+                      }}
+                      className={cn(
+                        "h-8 px-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider shrink-0 transition-all gap-1",
+                        attendance.isDirty
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 active:scale-95 animate-pulse"
+                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      )}
+                      title={`Save ${student.name}'s attendance`}
+                    >
+                      {savingStudentId === student.id ? (
+                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : attendance.isDirty ? (
+                        <>
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Saved</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-4 gap-2">
@@ -1469,13 +1571,28 @@ export function AttendanceTracking() {
                 </div>
 
                 {attendance.status && ["absent", "late", "excused"].includes(attendance.status) && (
-                  <div className="mt-4 animate-in fade-in slide-in-from-top-1 duration-300">
+                  <div className="mt-4 flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-300">
                     <Input
                       placeholder="Reason for status..."
                       value={attendance.note}
                       onChange={(e) => updateNote(student.id, e.target.value)}
-                      className="h-9 text-[10px] uppercase font-black tracking-widest bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-800 rounded-xl focus:ring-primary/20 placeholder:text-slate-400/50"
+                      className="h-9 text-[10px] uppercase font-black tracking-widest bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-800 rounded-xl focus:ring-primary/20 placeholder:text-slate-400/50 flex-1"
                     />
+                    {attendance.isDirty && (
+                      <Button
+                        size="sm"
+                        disabled={savingStudentId === student.id}
+                        onClick={() => saveSingleStudentAttendance(student.id)}
+                        className="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase shrink-0"
+                        title="Save note"
+                      >
+                        {savingStudentId === student.id ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Save className="w-3.5 h-3.5" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1501,6 +1618,7 @@ export function AttendanceTracking() {
                   <TableHead className="w-32">Student ID</TableHead>
                   <TableHead className="w-40 xl:w-[350px] text-center">Attendance Status</TableHead>
                   <TableHead className="min-w-[150px]">Remarks</TableHead>
+                  <TableHead className="w-24 text-center">Save</TableHead>
                   <TableHead className="w-24 text-center">Notify</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1556,6 +1674,37 @@ export function AttendanceTracking() {
                           onChange={(e) => updateNote(student.id, e.target.value)}
                           className="typography-helper h-8 border-gray-200 focus:border-blue-400"
                         />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          size="sm"
+                          variant={attendance.isDirty ? "default" : "outline"}
+                          disabled={!attendance.status || savingStudentId === student.id}
+                          onClick={() => saveSingleStudentAttendance(student.id)}
+                          className={cn(
+                            "h-8 px-2.5 text-xs font-bold gap-1 rounded-xl transition-all",
+                            attendance.isDirty
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                              : "text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                          )}
+                          title={`Save attendance for ${student.name}`}
+                        >
+                          {savingStudentId === student.id ? (
+                            <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : attendance.isDirty ? (
+                            <>
+                              <Save className="w-3.5 h-3.5" />
+                              <span>Save</span>
+                            </>
+                          ) : attendance.status ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Saved</span>
+                            </>
+                          ) : (
+                            <Save className="w-3.5 h-3.5 opacity-30" />
+                          )}
+                        </Button>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-center gap-1">

@@ -82,6 +82,40 @@ export async function markAttendance(
   notifyAttendanceDataChanged()
 }
 
+export async function markSingleAttendance(
+  headers: any,
+  schoolId: string,
+  record: { studentId: string; status: string; date: string; session?: string | null; remarks?: string; note?: string },
+  locationData?: { latitude?: number | null; longitude?: number | null; locationVerified?: boolean; locationDistance?: number | null }
+): Promise<any> {
+  if (!schoolId) throw new Error("School ID not found")
+  const recDate = record.date || new Date().toISOString()
+  const rawSess = record.session ? record.session.toString().toLowerCase() : null
+  const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
+
+  const result = await apiFetch<{ success: boolean; data: any }>(
+    `${API_URL}/api/attendance`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        studentId: record.studentId,
+        status: record.status,
+        session: normSess,
+        remarks: record.remarks || record.note || "",
+        date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
+        latitude: locationData?.latitude,
+        longitude: locationData?.longitude,
+        locationVerified: locationData?.locationVerified,
+        locationDistance: locationData?.locationDistance,
+      }),
+    }
+  )
+
+  notifyAttendanceDataChanged()
+  return result.data
+}
+
 export async function createEditRequest(headers: any, payload: { studentId?: string; gradeId?: string; sectionId?: string; date: string; session?: string | null; reason?: string }): Promise<any> {
   const result = await apiFetch<{ success: boolean; data: any }>(
     `${API_URL}/api/attendance/edit-requests`,
