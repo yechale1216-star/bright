@@ -213,7 +213,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
     <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in fade-in duration-500 relative z-10">
       <CardHeader className="space-y-3 pb-6 pt-8 px-8 text-center flex flex-col items-center">
         <Logo size="xl" withText={true} href="/" className="mb-2" />
-        <CardTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">{t("welcome_back")}</CardTitle>
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">{t("welcome_back")}</h1>
         <CardDescription className="typography-label text-slate-600 dark:text-slate-400 max-w-[280px] mx-auto">
           {activeTab === "parent" 
             ? t("login_desc_parent")

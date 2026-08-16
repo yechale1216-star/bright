@@ -1,14 +1,14 @@
 import type { MetadataRoute } from "next"
 import { SITE_URL } from "@/lib/seo/metadata-constants"
 
-export const dynamic = "force-static"
-
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()
 
+  // Only public, indexable pages belong in sitemap.
+  // Private, admin, teacher, registrar, parent portals, API routes, and password reset screens are strictly excluded.
   return [
     {
-      url: SITE_URL,
+      url: `${SITE_URL}/`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 1.0,
@@ -17,7 +17,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${SITE_URL}/login`,
       lastModified: now,
       changeFrequency: "monthly",
-      priority: 0.6,
+      priority: 0.8,
     },
   ]
 }
+

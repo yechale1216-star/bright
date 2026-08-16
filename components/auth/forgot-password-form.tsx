@@ -65,7 +65,7 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps) {
           <div className="mx-auto w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20">
             <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <CardTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Check Your Email</CardTitle>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Check Your Email</h2>
           <CardDescription className="typography-label text-slate-600 dark:text-slate-400">We&apos;ve sent reset instructions to your inbox</CardDescription>
         </CardHeader>
         <CardContent className="px-8 pb-8 text-center space-y-6">
@@ -99,7 +99,7 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps) {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <Logo size="xl" withText={true} href="/" className="mb-2" />
-        <CardTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Reset Password</CardTitle>
+        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Reset Password</h2>
         <CardDescription className="typography-label text-slate-600 dark:text-slate-400">
           Enter your email and we&apos;ll send recovery instructions
         </CardDescription>

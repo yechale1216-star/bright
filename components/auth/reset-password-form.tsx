@@ -99,7 +99,7 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
           <div className="mx-auto w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mb-4 border border-red-500/20">
             <XCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
           </div>
-          <CardTitle className="text-3xl font-black text-red-600 dark:text-red-400 tracking-tight leading-none pt-2">Invalid Reset Link</CardTitle>
+          <h2 className="text-2xl sm:text-3xl font-black text-red-600 dark:text-red-400 tracking-tight leading-none pt-2">Invalid Reset Link</h2>
           <CardDescription className="typography-label text-slate-600 dark:text-slate-400">This link is invalid or has expired</CardDescription>
         </CardHeader>
         <CardContent className="px-8 pb-8 text-center space-y-6">
@@ -118,7 +118,7 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
     <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in fade-in duration-500 relative z-10">
       <CardHeader className="space-y-4 pb-6 pt-9 px-8 text-center relative flex flex-col items-center">
         <Logo size="xl" withText={true} href="/" className="mb-2" />
-        <CardTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Set New Password</CardTitle>
+        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none pt-2">Set New Password</h2>
         <CardDescription className="typography-label text-slate-600 dark:text-slate-400">
           Create a secure new password for your account
         </CardDescription>

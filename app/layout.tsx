@@ -18,9 +18,10 @@ import { InAppNotificationProvider } from "@/components/providers/in-app-notific
 import { SocketProvider } from "@/components/providers/socket-provider"
 import { UnreadProvider } from "@/lib/context/unread-context"
 import { CallProvider } from "@/components/providers/call-provider"
-import { OrganizationJsonLd } from "@/components/seo/json-ld"
+import { SchoolJsonLd } from "@/components/seo/json-ld"
 import {
   SITE_NAME,
+  SCHOOL_FULL_NAME,
   SITE_URL,
   DEFAULT_OG_IMAGE,
   DEFAULT_DESCRIPTION,
@@ -48,7 +49,21 @@ export const metadata: Metadata = {
   },
   description: DEFAULT_DESCRIPTION,
   keywords: DEFAULT_KEYWORDS,
+  authors: [{ name: SCHOOL_FULL_NAME }, { name: "Ethio Nova" }],
+  creator: SCHOOL_FULL_NAME,
+  publisher: SCHOOL_FULL_NAME,
+  category: "education",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/addis-hiwot-logo.png", sizes: "any", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: ["/icon-192.png"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -58,7 +73,22 @@ export const metadata: Metadata = {
     telephone: false,
   },
   alternates: {
-    canonical: SITE_URL,
+    canonical: "/",
+    languages: {
+      "en-US": "/",
+      "am-ET": "/",
+    },
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
   openGraph: {
     type: "website",
@@ -67,6 +97,7 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
+    alternateLocale: ["am_ET"],
     images: [
       {
         url: DEFAULT_OG_IMAGE,
@@ -79,6 +110,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: TWITTER_HANDLE,
+    creator: TWITTER_HANDLE,
     title: `${SITE_NAME} — School Attendance Management & Communication System`,
     description: DEFAULT_DESCRIPTION,
     images: [DEFAULT_OG_IMAGE],
@@ -106,7 +138,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <OrganizationJsonLd />
+        <SchoolJsonLd />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <ThemeProvider

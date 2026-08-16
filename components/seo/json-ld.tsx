@@ -1,33 +1,93 @@
 import React from "react"
-import { SITE_URL } from "@/lib/seo/metadata-constants"
+import {
+  SITE_URL,
+  SITE_NAME,
+  SCHOOL_FULL_NAME,
+  SCHOOL_AMHARIC_NAME,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_OG_IMAGE,
+} from "@/lib/seo/metadata-constants"
 
-// ── Organization Schema ─────────────────────────────────────────────────────────
-interface OrganizationJsonLdProps {
+// ── School & Educational Organization Schema ────────────────────────────────────
+interface SchoolJsonLdProps {
   name?: string
   url?: string
   logo?: string
   description?: string
 }
 
-export function OrganizationJsonLd({
-  name = "Addis Hiwot",
+export function SchoolJsonLd({
+  name = SCHOOL_FULL_NAME,
   url = SITE_URL,
-  logo = `${SITE_URL}/addis-hiwot-logo.png`,
-  description = "School Attendance Management & Communication System for educational institutions.",
-}: OrganizationJsonLdProps) {
+  logo = `${SITE_URL}${DEFAULT_OG_IMAGE}`,
+  description = DEFAULT_DESCRIPTION,
+}: SchoolJsonLdProps) {
   const schema = {
     "@context": "https://schema.org",
-    "@type": "Organization",
-    name,
-    url,
-    logo,
-    description,
-    sameAs: [],
-    contactPoint: {
-      "@type": "ContactPoint",
-      contactType: "customer support",
-      availableLanguage: ["English", "Amharic"],
-    },
+    "@graph": [
+      {
+        "@type": ["EducationalOrganization", "School"],
+        "@id": `${url}/#school`,
+        name,
+        alternateName: [SCHOOL_AMHARIC_NAME, SITE_NAME, "Addis Hiwot School Portal"],
+        url,
+        logo: {
+          "@type": "ImageObject",
+          "@id": `${url}/#logo`,
+          url: logo,
+          caption: `${name} Logo`,
+        },
+        image: logo,
+        description,
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: "Addis Ababa",
+          addressCountry: "ET",
+        },
+        inLanguage: ["en", "am"],
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "administrative support",
+          availableLanguage: ["English", "Amharic"],
+        },
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url}/#website`,
+        url,
+        name: SITE_NAME,
+        alternateName: SCHOOL_AMHARIC_NAME,
+        description,
+        publisher: {
+          "@id": `${url}/#school`,
+        },
+        inLanguage: ["en-US", "am-ET"],
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${url}/#application`,
+        name: `${SITE_NAME} Attendance & Communication Suite`,
+        applicationCategory: "EducationalApplication",
+        operatingSystem: "Web, Android, iOS",
+        browserRequirements: "Requires JavaScript. Requires HTML5.",
+        softwareVersion: "1.0.0",
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "ETB",
+        },
+        featureList: [
+          "Student Attendance Tracking and Session Monitoring",
+          "Real-time Parent Absent & Late Notifications",
+          "Student Conduct and Discipline Management",
+          "Multi-role Teacher, Admin, Registrar & Parent Portals",
+          "Offline-first Progressive Web App (PWA)",
+        ],
+        author: {
+          "@id": `${url}/#school`,
+        },
+      },
+    ],
   }
 
   return (
@@ -37,6 +97,9 @@ export function OrganizationJsonLd({
     />
   )
 }
+
+// Backward compatibility alias for OrganizationJsonLd
+export const OrganizationJsonLd = SchoolJsonLd
 
 // ── WebApplication Schema ───────────────────────────────────────────────────────
 interface WebApplicationJsonLdProps {
@@ -52,11 +115,11 @@ interface WebApplicationJsonLdProps {
 }
 
 export function WebApplicationJsonLd({
-  name = "Addis Hiwot",
+  name = `${SITE_NAME} Portal`,
   url = SITE_URL,
-  description = "Addis Hiwot School Attendance Management & Communication System — smart attendance tracking, discipline management, and real-time parent notifications.",
-  applicationCategory = "EducationApplication",
-  operatingSystem = "Web, Android",
+  description = DEFAULT_DESCRIPTION,
+  applicationCategory = "EducationalApplication",
+  operatingSystem = "Web, Android, iOS",
   offers = { price: "0", priceCurrency: "ETB" },
 }: WebApplicationJsonLdProps) {
   const schema = {
@@ -75,11 +138,11 @@ export function WebApplicationJsonLd({
       "Daily & Session-Based Attendance Tracking",
       "Student Discipline Management",
       "Real-Time Parent Notifications",
-      "Multi-School Tenant Support",
-      "Offline-First PWA",
+      "Multi-Role Access Control",
+      "Offline-First PWA Support",
       "Teacher & Admin Dashboards",
       "Automated Absent Alerts",
-      "Communication & Messaging",
+      "Direct Communication & Messaging",
     ],
   }
 
@@ -111,7 +174,7 @@ export function BreadcrumbJsonLd({ items }: BreadcrumbJsonLdProps) {
       name: item.name,
       item: item.href.startsWith("http")
         ? item.href
-        : `${SITE_URL}${item.href}`,
+        : `${SITE_URL}${item.href.startsWith("/") ? item.href : `/${item.href}`}`,
     })),
   }
 

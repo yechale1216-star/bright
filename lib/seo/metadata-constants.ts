@@ -1,26 +1,40 @@
 import type { Metadata } from "next"
 
-// ── Site-wide constants ─────────────────────────────────────────────────────────
+// ── Site-wide constants & Canonical URL Helper ──────────────────────────────────
+function resolveSiteUrl(): string {
+  const rawUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "https://zetime.pro.et")
+  // Strip trailing slashes to ensure uniform canonical URLs
+  return rawUrl.replace(/\/+$/, "")
+}
+
 export const SITE_NAME = "Addis Hiwot"
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://zetime.pro.et"
+export const SCHOOL_FULL_NAME = "Addis Hiwot School"
+export const SCHOOL_AMHARIC_NAME = "አዲስ ህይወት ት/ቤት"
+export const SITE_URL = resolveSiteUrl()
 export const DEFAULT_OG_IMAGE = "/addis-hiwot-logo.png"
 export const TWITTER_HANDLE = "@AddisHiwot"
 
 export const DEFAULT_DESCRIPTION =
-  "Addis Hiwot School Attendance Management & Communication System — smart attendance tracking, discipline management, and real-time parent notifications."
+  "Addis Hiwot School Attendance Management & Communication System — smart student attendance tracking, discipline records management, and real-time parent notifications in Addis Ababa, Ethiopia."
 
 export const DEFAULT_KEYWORDS = [
   "Addis Hiwot",
-  "school attendance",
-  "attendance tracking",
-  "student attendance management",
-  "school management system",
-  "parent notifications",
-  "discipline management",
-  "Ethiopia schools",
-  "education technology",
-  "communication system",
-  "teacher tools",
+  "Addis Hiwot School",
+  "አዲስ ህይወት ት/ቤት",
+  "school attendance management",
+  "Ethiopia school portal",
+  "Addis Ababa schools",
+  "student attendance tracking",
+  "parent notification system",
+  "school discipline management",
+  "education management Ethiopia",
+  "teacher attendance app",
+  "parent school communication",
 ]
 
 // ── Helper: build a fully-formed Metadata object ────────────────────────────────
@@ -29,11 +43,11 @@ interface PageMetadataOptions {
   title: string
   /** Page-specific description (≤ 160 chars recommended) */
   description: string
-  /** Path segment, e.g. "/about" — used for canonical URL */
+  /** Path segment, e.g. "/login" — used for canonical URL */
   path?: string
   /** Override default OG image */
   ogImage?: string
-  /** If true, sets robots to noindex/nofollow (for authenticated pages) */
+  /** If true, sets robots to noindex/nofollow (for authenticated/private pages) */
   noIndex?: boolean
   /** Additional keywords to merge with defaults */
   keywords?: string[]
@@ -50,8 +64,10 @@ export function createPageMetadata({
   keywords,
   ogType = "website",
 }: PageMetadataOptions): Metadata {
-  const url = `${SITE_URL}${path}`
+  const cleanPath = path.startsWith("/") ? path : `/${path}`
+  const canonicalUrl = `${SITE_URL}${cleanPath === "/" ? "" : cleanPath}`
   const image = ogImage || DEFAULT_OG_IMAGE
+  const fullImageUrl = image.startsWith("http") ? image : `${SITE_URL}${image}`
 
   const metadata: Metadata = {
     title,
@@ -60,30 +76,36 @@ export function createPageMetadata({
       ? [...DEFAULT_KEYWORDS, ...keywords]
       : DEFAULT_KEYWORDS,
     alternates: {
-      canonical: url,
+      canonical: canonicalUrl,
+      languages: {
+        "en-US": canonicalUrl,
+        "am-ET": canonicalUrl,
+      },
     },
     openGraph: {
       type: ogType,
       siteName: SITE_NAME,
-      title,
+      title: `${title} | ${SITE_NAME}`,
       description,
-      url,
+      url: canonicalUrl,
       locale: "en_US",
+      alternateLocale: ["am_ET"],
       images: [
         {
-          url: image,
+          url: fullImageUrl,
           width: 1200,
           height: 630,
-          alt: `${title} — ${SITE_NAME}`,
+          alt: `${title} — ${SCHOOL_FULL_NAME}`,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
       site: TWITTER_HANDLE,
-      title,
+      creator: TWITTER_HANDLE,
+      title: `${title} | ${SITE_NAME}`,
       description,
-      images: [image],
+      images: [fullImageUrl],
     },
   }
 
@@ -91,9 +113,26 @@ export function createPageMetadata({
     metadata.robots = {
       index: false,
       follow: false,
+      nocache: true,
       googleBot: {
         index: false,
         follow: false,
+        noimageindex: true,
+        "max-video-preview": -1,
+        "max-image-preview": "none",
+        "max-snippet": -1,
+      },
+    }
+  } else {
+    metadata.robots = {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
       },
     }
   }
