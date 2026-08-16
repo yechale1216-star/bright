@@ -1493,54 +1493,18 @@ export function AttendanceTracking() {
                   attendance.status === 'excused' && "ring-2 ring-sky-500/30"
                 )}
               >
-                <div className="flex items-center justify-between gap-3 mb-5">
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="h-12 w-12 rounded-[18px] bg-primary/10 flex items-center justify-center text-primary text-base font-black border border-primary/20 shadow-inner shrink-0">
-                      {(student.name || "S").charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-black text-slate-900 dark:text-white truncate uppercase tracking-tight leading-none mb-1.5">
-                        {student.name}
-                      </h3>
-                      <p className="text-[9px] font-black text-slate-500/50 uppercase tracking-widest truncate">
-                        {student.student_id} • {student.grade} {student.section}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3.5 mb-5">
+                  <div className="h-12 w-12 rounded-[18px] bg-primary/10 flex items-center justify-center text-primary text-base font-black border border-primary/20 shadow-inner shrink-0">
+                    {(student.name || "S").charAt(0).toUpperCase()}
                   </div>
-
-                  {/* Individual Save Button */}
-                  {attendance.status && (
-                    <Button
-                      size="sm"
-                      variant={attendance.isDirty ? "default" : "ghost"}
-                      disabled={savingStudentId === student.id}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        saveSingleStudentAttendance(student.id)
-                      }}
-                      className={cn(
-                        "h-8 px-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider shrink-0 transition-all gap-1",
-                        attendance.isDirty
-                          ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 active:scale-95 animate-pulse"
-                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                      )}
-                      title={`Save ${student.name}'s attendance`}
-                    >
-                      {savingStudentId === student.id ? (
-                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : attendance.isDirty ? (
-                        <>
-                          <Save className="w-3.5 h-3.5" />
-                          <span>Save</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-500" />
-                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Saved</span>
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white truncate uppercase tracking-tight leading-none mb-1.5">
+                      {student.name}
+                    </h3>
+                    <p className="text-[9px] font-black text-slate-500/50 uppercase tracking-widest truncate">
+                      {student.student_id} • {student.grade} {student.section}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-2">
@@ -1576,23 +1540,62 @@ export function AttendanceTracking() {
                       placeholder="Reason for status..."
                       value={attendance.note}
                       onChange={(e) => updateNote(student.id, e.target.value)}
-                      className="h-9 text-[10px] uppercase font-black tracking-widest bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-800 rounded-xl focus:ring-primary/20 placeholder:text-slate-400/50 flex-1"
+                      className="h-11 text-[11px] font-bold tracking-wide bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-primary/20 placeholder:text-slate-400/50 flex-1 px-3.5"
                     />
-                    {attendance.isDirty && (
-                      <Button
-                        size="sm"
-                        disabled={savingStudentId === student.id}
-                        onClick={() => saveSingleStudentAttendance(student.id)}
-                        className="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase shrink-0"
-                        title="Save note"
-                      >
-                        {savingStudentId === student.id ? (
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Save className="w-3.5 h-3.5" />
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      disabled={savingStudentId === student.id}
+                      onClick={() => saveSingleStudentAttendance(student.id)}
+                      className={cn(
+                        "h-11 w-11 p-0 rounded-2xl text-white font-black shrink-0 transition-all shadow-md active:scale-95",
+                        attendance.isDirty
+                          ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                          : "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
+                      )}
+                      title={`Save attendance for ${student.name}`}
+                    >
+                      {savingStudentId === student.id ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : attendance.isDirty ? (
+                        <Save className="w-4 h-4" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {attendance.status === "present" && (
+                  <div className="mt-3 flex items-center justify-between pt-1 animate-in fade-in duration-200">
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" /> Present
+                    </span>
+                    <Button
+                      size="sm"
+                      disabled={savingStudentId === student.id}
+                      onClick={() => saveSingleStudentAttendance(student.id)}
+                      className={cn(
+                        "h-8 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider text-white transition-all shadow-sm active:scale-95 gap-1.5",
+                        attendance.isDirty
+                          ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                          : "bg-emerald-600/90 hover:bg-emerald-600"
+                      )}
+                      title={`Save attendance for ${student.name}`}
+                    >
+                      {savingStudentId === student.id ? (
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : attendance.isDirty ? (
+                        <>
+                          <Save className="w-3 h-3" />
+                          <span>Save</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3 h-3" />
+                          <span>Saved</span>
+                        </>
+                      )}
+                    </Button>
                   </div>
                 )}
               </div>
