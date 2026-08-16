@@ -1564,40 +1564,6 @@ export function AttendanceTracking() {
                     </Button>
                   </div>
                 )}
-
-                {attendance.status === "present" && (
-                  <div className="mt-3 flex items-center justify-between pt-1 animate-in fade-in duration-200">
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" /> Present
-                    </span>
-                    <Button
-                      size="sm"
-                      disabled={savingStudentId === student.id}
-                      onClick={() => saveSingleStudentAttendance(student.id)}
-                      className={cn(
-                        "h-8 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider text-white transition-all shadow-sm active:scale-95 gap-1.5",
-                        attendance.isDirty
-                          ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
-                          : "bg-emerald-600/90 hover:bg-emerald-600"
-                      )}
-                      title={`Save attendance for ${student.name}`}
-                    >
-                      {savingStudentId === student.id ? (
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : attendance.isDirty ? (
-                        <>
-                          <Save className="w-3 h-3" />
-                          <span>Save</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-3 h-3" />
-                          <span>Saved</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
               </div>
             )
           })}
@@ -1681,29 +1647,23 @@ export function AttendanceTracking() {
                       <TableCell className="text-center">
                         <Button
                           size="sm"
-                          variant={attendance.isDirty ? "default" : "outline"}
+                          variant={attendance.isDirty ? "default" : "ghost"}
                           disabled={!attendance.status || savingStudentId === student.id}
                           onClick={() => saveSingleStudentAttendance(student.id)}
                           className={cn(
-                            "h-8 px-2.5 text-xs font-bold gap-1 rounded-xl transition-all",
+                            "h-8 w-8 p-0 rounded-xl transition-all mx-auto flex items-center justify-center",
                             attendance.isDirty
                               ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                              : "text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                              : "text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
                           )}
                           title={`Save attendance for ${student.name}`}
                         >
                           {savingStudentId === student.id ? (
                             <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                           ) : attendance.isDirty ? (
-                            <>
-                              <Save className="w-3.5 h-3.5" />
-                              <span>Save</span>
-                            </>
+                            <Save className="w-3.5 h-3.5" />
                           ) : attendance.status ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>Saved</span>
-                            </>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
                           ) : (
                             <Save className="w-3.5 h-3.5 opacity-30" />
                           )}
