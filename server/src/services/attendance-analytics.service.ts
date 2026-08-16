@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { academicYearService } from './academic-year.service';
 
 // Helpers for the rules
 const isP = (s: string | undefined): boolean => s?.toLowerCase() === 'present';
@@ -13,6 +14,18 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
   const isSessionMode = mode === 'session_based';
 
   const where: any = { schoolId };
+
+  // Scope to active academic year unless academicYear filter is 'all'
+  if (!academicYear || academicYear === 'current' || academicYear === 'active') {
+    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+    if (activeAY) where.academicYearId = activeAY.id;
+  } else if (academicYear && academicYear !== 'all') {
+    const targetAY = await prisma.academicYear.findUnique({
+      where: { schoolId_name: { schoolId, name: academicYear } }
+    });
+    if (targetAY) where.academicYearId = targetAY.id;
+  }
+
   if (startDate || endDate) {
     where.date = {};
     if (startDate) where.date.gte = new Date(startDate);

@@ -22,6 +22,7 @@ import { NotificationPopover } from "@/components/ui/notification-popover"
 import { useTheme } from "@/components/theme-provider"
 import { CommandPalette } from "@/components/ui/command-palette"
 import { useCalendar } from "@/lib/context/calendar-context"
+import { AcademicYearBadge } from "@/components/school/academic-year-badge"
 
 interface TopNavProps {
   onMenuClick?: () => void
@@ -131,6 +132,9 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
               <CalendarDays className="w-3.5 h-3.5" />
               <span className="hidden md:inline">{calendarPreference === 'ethiopian' ? 'EC' : 'GC'}</span>
             </button>
+
+            {/* Academic Year Badge */}
+            <AcademicYearBadge className="hidden sm:inline-flex" />
 
             <div className="hidden sm:block">
               <ModeToggle />

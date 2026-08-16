@@ -44,6 +44,7 @@ model School {
   disciplineActions    DisciplineActionConfig[]
   systemRoles          SystemRole[]
   academicYears        AcademicYear[]
+  studentAcademicYearRecords StudentAcademicYearRecord[]
   academicTerms        AcademicTerm[]
   subjects             Subject[]
   classrooms           Classroom[]
@@ -178,6 +179,7 @@ model Grade {
   name           String
   school         School?             @relation(fields: [schoolId], references: [id])
   students       Student[]
+  studentAcademicYearRecords StudentAcademicYearRecord[]
   fromPromotions StudentPromotion[]  @relation("FromGrade")
   toPromotions   StudentPromotion[]  @relation("ToGrade")
   assignments    TeacherAssignment[]
@@ -195,6 +197,7 @@ model Section {
   name           String
   school         School?             @relation(fields: [schoolId], references: [id])
   students       Student[]
+  studentAcademicYearRecords StudentAcademicYearRecord[]
   fromPromotions StudentPromotion[]  @relation("FromSection")
   toPromotions   StudentPromotion[]  @relation("ToSection")
   assignments    TeacherAssignment[]
@@ -212,6 +215,7 @@ model Stream {
   name           String
   school         School?             @relation(fields: [schoolId], references: [id])
   students       Student[]
+  studentAcademicYearRecords StudentAcademicYearRecord[]
   fromPromotions StudentPromotion[]  @relation("FromStream")
   toPromotions   StudentPromotion[]  @relation("ToStream")
   assignments    TeacherAssignment[]
@@ -249,6 +253,7 @@ model Student {
   section             Section              @relation(fields: [sectionId], references: [id])
   stream              Stream?              @relation(fields: [streamId], references: [id])
   promotions          StudentPromotion[]
+  academicRecords     StudentAcademicYearRecord[]
   attendanceEditRequests AttendanceEditRequest[]
 
   @@unique([student_id, schoolId])
@@ -256,6 +261,36 @@ model Student {
   @@index([gradeId])
   @@index([sectionId])
   @@index([streamId])
+}
+
+model StudentAcademicYearRecord {
+  id              String        @id @default(uuid())
+  schoolId        String
+  studentId       String
+  academicYearId  String
+  gradeId         String
+  sectionId       String
+  streamId        String?
+  status          String        @default("ACTIVE") // ACTIVE, PROMOTED, REPEATED, GRADUATED, TRANSFERRED, DROPPED
+  enrolledAt      DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear    AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  grade           Grade         @relation(fields: [gradeId], references: [id])
+  section         Section       @relation(fields: [sectionId], references: [id])
+  stream          Stream?       @relation(fields: [streamId], references: [id])
+  attendance      Attendance[]
+  disciplines     StudentDiscipline[]
+
+  @@unique([studentId, academicYearId])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([studentId])
+  @@index([gradeId, sectionId])
+  @@index([status])
+  @@map("student_academic_year_records")
 }
 
 model StudentPromotion {
@@ -290,6 +325,8 @@ model StudentPromotion {
 model Attendance {
   id        String   @id @default(uuid())
   studentId String
+  academicYearId String?
+  academicYearRecordId String?
   date      DateTime @default(now())
   status    String
   session   String?
@@ -305,14 +342,19 @@ model Attendance {
   school           School?  @relation(fields: [schoolId], references: [id])
   student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacher          Teacher? @relation(fields: [teacherId], references: [id])
+  academicYear     AcademicYear? @relation(fields: [academicYearId], references: [id])
+  academicYearRecord StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
 
   @@index([studentId])
   @@index([schoolId])
+  @@index([academicYearId])
+  @@index([academicYearRecordId])
   @@index([date])
   @@index([session])
   @@index([status])
   @@index([schoolId, date])
   @@index([schoolId, date, status])
+  @@index([schoolId, academicYearId, date])
   @@index([schoolId, teacherId, date])
 }
 
@@ -782,6 +824,8 @@ model StudentDiscipline {
   caseNumber                String?
   schoolId                  String
   studentId                 String
+  academicYearId            String?
+  academicYearRecordId      String?
   gradeId                   String
   sectionId                 String
   streamId                  String?
@@ -822,6 +866,8 @@ model StudentDiscipline {
 
   school                    School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student                   Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear              AcademicYear?        @relation(fields: [academicYearId], references: [id])
+  academicYearRecord        StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
   grade                     Grade                @relation(fields: [gradeId], references: [id])
   section                   Section              @relation(fields: [sectionId], references: [id])
   stream                    Stream?              @relation(fields: [streamId], references: [id])
@@ -832,6 +878,8 @@ model StudentDiscipline {
 
   @@index([schoolId])
   @@index([studentId])
+  @@index([academicYearId])
+  @@index([academicYearRecordId])
   @@index([gradeId])
   @@index([sectionId])
   @@index([status])
@@ -839,6 +887,8 @@ model StudentDiscipline {
   @@index([date])
   @@index([caseNumber])
   @@index([assignedToId])
+  @@index([schoolId, academicYearId, status])
+  @@index([schoolId, academicYearId, date])
   @@map("student_disciplines")
 }
 
@@ -887,6 +937,9 @@ model AcademicYear {
   school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   terms       AcademicTerm[]
   timetables  Timetable[]
+  studentRecords StudentAcademicYearRecord[]
+  attendance  Attendance[]
+  disciplines StudentDiscipline[]
 
   @@unique([schoolId, name])
   @@index([schoolId])

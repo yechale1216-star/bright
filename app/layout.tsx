@@ -19,6 +19,7 @@ import { SocketProvider } from "@/components/providers/socket-provider"
 import { UnreadProvider } from "@/lib/context/unread-context"
 import { CallProvider } from "@/components/providers/call-provider"
 import { SchoolJsonLd } from "@/components/seo/json-ld"
+import { AcademicYearProvider } from "@/lib/context/academic-year-context"
 import {
   SITE_NAME,
   SCHOOL_FULL_NAME,
@@ -155,18 +156,20 @@ export default function RootLayout({
                   <CapacitorInitializer />
                   <StartupLoadingScreen />
                   <SchoolProvider>
-                    <SocketProvider>
-                      <UnreadProvider>
-                        <CallProvider>
-                          <InAppNotificationProvider>
-                            {children}
-                          </InAppNotificationProvider>
-                        </CallProvider>
-                      </UnreadProvider>
-                    </SocketProvider>
-                    <Toaster />
-                    <SonnerToaster position="top-right" richColors />
-                    <PWAClientWrapper />
+                    <AcademicYearProvider>
+                      <SocketProvider>
+                        <UnreadProvider>
+                          <CallProvider>
+                            <InAppNotificationProvider>
+                              {children}
+                            </InAppNotificationProvider>
+                          </CallProvider>
+                        </UnreadProvider>
+                      </SocketProvider>
+                      <Toaster />
+                      <SonnerToaster position="top-right" richColors />
+                      <PWAClientWrapper />
+                    </AcademicYearProvider>
                   </SchoolProvider>
                 </AuthProvider>
               </CalendarProvider>

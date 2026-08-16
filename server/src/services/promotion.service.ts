@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { academicYearService } from './academic-year.service';
 
 export interface PromotionData {
   studentIds?: string[];
@@ -104,6 +105,18 @@ export class PromotionService {
    */
   async promoteStudents(data: PromotionData, schoolId: string, promotedByUserId: string) {
     let { studentIds, gradeId, sectionId, streamId, toGradeId, toSectionId, toSectionName, toStreamId, academicYear, notes } = data;
+
+    // Resolve the target AcademicYear DB record from the name
+    let targetAcademicYearRecord = await prisma.academicYear.findUnique({
+      where: { schoolId_name: { schoolId, name: academicYear } }
+    });
+    // If not found by exact name, fall back to the current active year
+    if (!targetAcademicYearRecord) {
+      targetAcademicYearRecord = await academicYearService.getCurrentAcademicYear(schoolId);
+    }
+
+    // Also resolve the source (current active) AY for marking source records
+    const sourceAcademicYearRecord = await academicYearService.getCurrentAcademicYear(schoolId);
 
     // 1. If criteria provided, fetch student IDs
     if (!studentIds && (gradeId || sectionId || streamId)) {
@@ -247,6 +260,41 @@ export class PromotionService {
             },
           });
 
+          // Mark source academic year record as PROMOTED
+          if (sourceAcademicYearRecord) {
+            await tx.studentAcademicYearRecord.updateMany({
+              where: { studentId: student.id, academicYearId: sourceAcademicYearRecord.id },
+              data: { status: 'PROMOTED' }
+            }).catch(() => {});
+          }
+
+          // Create StudentAcademicYearRecord for target academic year (prevent duplicates via upsert)
+          if (targetAcademicYearRecord) {
+            await tx.studentAcademicYearRecord.upsert({
+              where: {
+                studentId_academicYearId: {
+                  studentId: student.id,
+                  academicYearId: targetAcademicYearRecord.id
+                }
+              },
+              create: {
+                schoolId,
+                studentId: student.id,
+                academicYearId: targetAcademicYearRecord.id,
+                gradeId: toGradeId,
+                sectionId: effectiveTargetSectionId || student.sectionId,
+                streamId: effectiveTargetStreamId || null,
+                status: 'ACTIVE',
+              },
+              update: {
+                gradeId: toGradeId,
+                sectionId: effectiveTargetSectionId || student.sectionId,
+                streamId: effectiveTargetStreamId || null,
+                status: 'ACTIVE',
+              }
+            });
+          }
+
           // Create parent notification
           const streamInfo = targetStreamObj ? ` (${targetStreamObj.name})` : '';
           const sectionName = toSectionName || student.section?.name || '';
@@ -270,6 +318,14 @@ export class PromotionService {
               status: 'GRADUATED',
             },
           });
+
+          // Mark source academic year record as GRADUATED
+          if (sourceAcademicYearRecord) {
+            await tx.studentAcademicYearRecord.updateMany({
+              where: { studentId: student.id, academicYearId: sourceAcademicYearRecord.id },
+              data: { status: 'GRADUATED' }
+            }).catch(() => {});
+          }
 
           await tx.parentNotification.create({
             data: {

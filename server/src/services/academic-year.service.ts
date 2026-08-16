@@ -215,6 +215,20 @@ export class AcademicYearService {
   }
 
   /**
+   * Ensure there is an active academic year for the school; throws if none found.
+   * Use this in write-path service methods that must operate on a defined active year.
+   */
+  async ensureActiveAcademicYear(schoolId: string) {
+    const active = await this.getCurrentAcademicYear(schoolId);
+    if (!active) {
+      throw new Error(
+        'No active academic year is configured for this school. Please activate an academic year before performing this operation.'
+      );
+    }
+    return active;
+  }
+
+  /**
    * Delete an academic year record
    */
   async deleteAcademicYear(schoolId: string, id: string) {

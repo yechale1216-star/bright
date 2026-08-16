@@ -107,6 +107,34 @@ interface PromotionHistory {
   notes?: string
 }
 
+function getNextAcademicYearSuggestion(currentYearName: string): string {
+  if (!currentYearName) return ''
+  const trimmed = currentYearName.trim()
+  // Match Ethiopian Calendar format: e.g. "2018 E.C." or "2018"
+  const ecMatch = trimmed.match(/^(\d{4})(\s*E\.?C\.?.*)?$/i)
+  if (ecMatch) {
+    const nextYearNum = parseInt(ecMatch[1], 10) + 1
+    const suffix = ecMatch[2] || ' E.C.'
+    return `${nextYearNum}${suffix}`
+  }
+  // Match range format: e.g. "2025/26" or "2025/2026" or "2025-2026"
+  const rangeMatch = trimmed.match(/^(\d{4})([\/\-])(\d{2,4})(.*)$/)
+  if (rangeMatch) {
+    const y1 = parseInt(rangeMatch[1], 10) + 1
+    const separator = rangeMatch[2]
+    const y2Str = rangeMatch[3]
+    const suffix = rangeMatch[4] || ''
+    if (y2Str.length === 2) {
+      const nextY2 = (parseInt(y2Str, 10) + 1) % 100
+      return `${y1}${separator}${String(nextY2).padStart(2, '0')}${suffix}`
+    } else {
+      const nextY2 = parseInt(y2Str, 10) + 1
+      return `${y1}${separator}${nextY2}${suffix}`
+    }
+  }
+  return ''
+}
+
 export default function StudentPromotionPage() {
   const { formatDateTime } = useCalendar()
   const [activeTab, setActiveTab] = useState("promote")
@@ -187,10 +215,13 @@ export default function StudentPromotionPage() {
         setConfiguredAcademicYears(ayList)
         if (ayList.length > 0) {
           const currentAY = ayList.find(y => y.isCurrent) || ayList[0]
-          setToAcademicYear(prev => prev || currentAY.name)
+          // From Academic Year MUST be the current active academic year
+          setFromAcademicYear(prev => prev || currentAY.name)
 
-          const otherAY = ayList.find(y => !y.isCurrent) || ayList[0]
-          setFromAcademicYear(prev => prev || otherAY.name)
+          // To Academic Year: pick configured future year or compute smart suggestion
+          const otherAY = ayList.find(y => !y.isCurrent)
+          const suggested = getNextAcademicYearSuggestion(currentAY.name)
+          setToAcademicYear(prev => prev || (otherAY ? otherAY.name : suggested))
         }
       }
 
@@ -705,7 +736,7 @@ export default function StudentPromotionPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
                           <div className="space-y-1.5">
                             <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                              <Calendar className="w-4 h-4 text-slate-500" /> From Academic Year
+                              <Calendar className="w-4 h-4 text-emerald-600" /> From Academic Year (Current Source)
                             </Label>
                             <Select value={fromAcademicYear} onValueChange={setFromAcademicYear}>
                               <SelectTrigger className="w-full bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-11 rounded-xl font-bold text-sm">
@@ -714,17 +745,17 @@ export default function StudentPromotionPage() {
                               <SelectContent>
                                 {configuredAcademicYears.map(ay => (
                                   <SelectItem key={ay.id} value={ay.name}>
-                                    {ay.name} {ay.isCurrent ? '(Current Active)' : ''}
+                                    {ay.name} {ay.isCurrent ? '🟢 (Current Active)' : ''}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            <p className="text-[11px] text-slate-400 font-medium">Source academic year for current student records.</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Source academic year where students are currently enrolled.</p>
                           </div>
 
                           <div className="space-y-1.5">
                             <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                              <Calendar className="w-4 h-4 text-primary" /> To Academic Year (Target)
+                              <Calendar className="w-4 h-4 text-primary" /> To Academic Year (Target Advancement)
                             </Label>
                             <Select value={toAcademicYear} onValueChange={setToAcademicYear}>
                               <SelectTrigger className="w-full bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-11 rounded-xl font-bold text-sm text-primary">
@@ -733,14 +764,34 @@ export default function StudentPromotionPage() {
                               <SelectContent>
                                 {configuredAcademicYears.map(ay => (
                                   <SelectItem key={ay.id} value={ay.name}>
-                                    {ay.name} {ay.isCurrent ? '🎓 (Current Active)' : ''}
+                                    {ay.name} {ay.isCurrent ? '(Current Active)' : ''}
                                   </SelectItem>
                                 ))}
+                                {/* Render smart suggestion if not already in configured list */}
+                                {(() => {
+                                  const currentAY = configuredAcademicYears.find(y => y.isCurrent) || configuredAcademicYears[0]
+                                  const suggested = currentAY ? getNextAcademicYearSuggestion(currentAY.name) : ''
+                                  if (suggested && !configuredAcademicYears.some(y => y.name.toLowerCase() === suggested.toLowerCase())) {
+                                    return (
+                                      <SelectItem key="suggested-next" value={suggested}>
+                                        ✨ {suggested} (Suggested Next Year)
+                                      </SelectItem>
+                                    )
+                                  }
+                                  return null
+                                })()}
                               </SelectContent>
                             </Select>
-                            <p className="text-[11px] text-slate-400 font-medium">Configured target academic year for student promotion.</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Upcoming academic year where promoted students will be enrolled.</p>
                           </div>
                         </div>
+
+                        {fromAcademicYear === toAcademicYear && fromAcademicYear && (
+                          <div className="p-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                            <span><strong>Note:</strong> Promotion advances students into a <strong>new upcoming academic year</strong>. Please select a different Target Academic Year (e.g. {getNextAcademicYearSuggestion(fromAcademicYear) || 'next year'}).</span>
+                          </div>
+                        )}
 
                         {/* Mode Select options */}
                         <div className="space-y-3">

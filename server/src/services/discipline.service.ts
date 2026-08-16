@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { academicYearService } from './academic-year.service';
 
 export const DEFAULT_DISCIPLINE_CATEGORIES = [
   'Late Arrival',
@@ -383,6 +384,18 @@ export class DisciplineService {
 
     const caseNumber = await generateCaseNumber(schoolId);
 
+    // Resolve active academic year and student enrollment record
+    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+    const disciplineAcademicYearId = activeAY?.id || null;
+    let disciplineAcademicYearRecordId: string | null = null;
+    if (activeAY) {
+      const enrRecord = await prisma.studentAcademicYearRecord.findUnique({
+        where: { studentId_academicYearId: { studentId: student.id, academicYearId: activeAY.id } },
+        select: { id: true }
+      });
+      disciplineAcademicYearRecordId = enrRecord?.id || null;
+    }
+
     const incident = await prisma.studentDiscipline.create({
       data: {
         caseNumber,
@@ -409,7 +422,9 @@ export class DisciplineService {
         parentNotified: Boolean(data.parentNotified),
         parentNotifiedAt: data.parentNotified ? new Date() : null,
         followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
-        status: data.assignedToId ? 'UNDER_REVIEW' : 'OPEN'
+        status: data.assignedToId ? 'UNDER_REVIEW' : 'OPEN',
+        academicYearId: disciplineAcademicYearId,
+        academicYearRecordId: disciplineAcademicYearRecordId,
       },
       include: {
         student: true,
@@ -492,6 +507,16 @@ export class DisciplineService {
     const skip = (page - 1) * limit;
 
     const where: any = { schoolId };
+
+    // Scope to active academic year by default
+    if (!(query as any).academicYearId) {
+      const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+      if (activeAY) {
+        where.academicYearId = activeAY.id;
+      }
+    } else {
+      where.academicYearId = (query as any).academicYearId;
+    }
 
     if (user.role === 'teacher') {
       const assignments = await getTeacherAssignments(user.id, schoolId);

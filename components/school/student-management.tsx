@@ -29,9 +29,12 @@ import { DisciplineApi, StudentDiscipline } from "@/lib/discipline-service"
 import { useCalendar } from "@/lib/context/calendar-context"
 
 import { PhoneInput } from "@/components/ui/phone-input"
+import { useAcademicYear } from "@/lib/context/academic-year-context"
+import { History } from "lucide-react"
 
 export function StudentManagement() {
   const { formatDate } = useCalendar()
+  const { activeAcademicYear, viewingAcademicYear, isHistoricalMode } = useAcademicYear()
   const [students, setStudents] = useState<Student[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [gradeFilter, setGradeFilter] = useState("All Grades")
@@ -135,22 +138,22 @@ export function StudentManagement() {
     loadStudents()
     fetchNextStudentId()
 
-     const handleStudentChanged = () => {
-      loadStudents(true, false)
+    const handleStudentChanged = () => {
+      loadStudents(true, true)
     }
 
     window.addEventListener("studentDataChanged", handleStudentChanged)
 
-    // Background polling for "instant" updates (every 10 seconds)
+    // Background polling for "instant" updates (every 15 seconds)
     const pollInterval = setInterval(() => {
       loadStudents(true, false)
-    }, 10000)
+    }, 15000)
 
     return () => {
       window.removeEventListener("studentDataChanged", handleStudentChanged)
       clearInterval(pollInterval)
     }
-  }, [])
+  }, [viewingAcademicYear?.name, activeAcademicYear?.name])
 
   const filteredStudents = useMemo(() => {
     let filtered = students
@@ -190,7 +193,8 @@ export function StudentManagement() {
     if (!isBackground && students.length === 0) setIsLoading(true)
     try {
       const user = authService.getCurrentUser()
-      const studentsData = await db.getStudents(forceRefetch, "ALL")
+      const targetYearName = viewingAcademicYear?.name || activeAcademicYear?.name
+      const studentsData = await db.getStudents(forceRefetch, "ALL", targetYearName)
       
       if (user?.role === "teacher") {
         // Fetch teacher's assigned classes

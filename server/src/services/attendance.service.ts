@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { academicYearService } from './academic-year.service';
 
 export function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3; // Earth's radius in meters
@@ -199,6 +200,18 @@ export const markAttendance = async (data: any, schoolId: string) => {
     }
   }
 
+  // Resolve active academic year and student's enrollment record
+  const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+  const academicYearId = activeAY?.id || null;
+  let academicYearRecordId: string | null = null;
+  if (activeAY) {
+    const enrollmentRecord = await prisma.studentAcademicYearRecord.findUnique({
+      where: { studentId_academicYearId: { studentId, academicYearId: activeAY.id } },
+      select: { id: true }
+    });
+    academicYearRecordId = enrollmentRecord?.id || null;
+  }
+
   const result = existing
     ? await prisma.attendance.update({
         where: { id: existing.id },
@@ -226,6 +239,8 @@ export const markAttendance = async (data: any, schoolId: string) => {
           longitude: data.longitude != null ? Number(data.longitude) : null,
           locationVerified: locVerified,
           locationDistance: locDistance,
+          academicYearId,
+          academicYearRecordId,
         }
       });
 
@@ -257,8 +272,18 @@ export const markAttendance = async (data: any, schoolId: string) => {
 };
 
 export const getAttendance = async (filters: any, schoolId: string) => {
-  const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate } = filters;
+  const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate, academicYearId: filterAcademicYearId } = filters;
   const where: any = { schoolId };
+
+  // Scope to active academic year by default (can be overridden by explicit academicYearId filter)
+  if (filterAcademicYearId) {
+    where.academicYearId = filterAcademicYearId;
+  } else {
+    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+    if (activeAY) {
+      where.academicYearId = activeAY.id;
+    }
+  }
 
   if (studentId) where.studentId = studentId;
   if (date) {
@@ -711,6 +736,20 @@ export const bulkMarkAttendance = async (
         })
       );
     } else {
+      // Resolve AY record ids for new creates (batch lookup)
+      let bulkAcademicYearId: string | null = null;
+      let bulkAcademicYearRecordId: string | null = null;
+      if (!bulkAcademicYearId) {
+        const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+        bulkAcademicYearId = activeAY?.id || null;
+        if (activeAY) {
+          const enrRec = await prisma.studentAcademicYearRecord.findUnique({
+            where: { studentId_academicYearId: { studentId: record.studentId, academicYearId: activeAY.id } },
+            select: { id: true }
+          });
+          bulkAcademicYearRecordId = enrRec?.id || null;
+        }
+      }
       txOps.push(
         prisma.attendance.create({
           data: {
@@ -723,6 +762,8 @@ export const bulkMarkAttendance = async (
             remarks,
             locationVerified: locVerified,
             locationDistance: locDistance,
+            academicYearId: bulkAcademicYearId,
+            academicYearRecordId: bulkAcademicYearRecordId,
           }
         })
       );
