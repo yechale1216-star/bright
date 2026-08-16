@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Search, Plus, Shield, User, Filter, CheckCircle2, XCircle, Mail, Phone, Lock,
-  Edit, Trash2, Power, Loader2, ArrowLeft, MoreHorizontal, ShieldCheck, Sparkles, Users, Activity
+  Edit, Trash2, Power, Loader2, ArrowLeft, MoreHorizontal, ShieldCheck, Sparkles, Users, Activity, X
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { apiFetch } from '@/lib/utils/fetch-with-timeout'
@@ -265,11 +265,13 @@ export default function UsersAndRolesPage() {
   ]
 
   return (
-    <div className="relative min-h-screen p-4 md:p-8 space-y-8 max-w-7xl mx-auto w-full overflow-hidden">
+    <div className="relative min-h-full p-4 md:p-8 pb-24 space-y-8 max-w-7xl mx-auto w-full">
       {/* ── Ambient Glassmorphic Background Blur Spheres ── */}
-      <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-500/15 rounded-full blur-[120px] pointer-events-none -z-10" />
-      <div className="absolute top-1/3 -right-24 w-96 h-96 bg-purple-500/15 rounded-full blur-[140px] pointer-events-none -z-10" />
-      <div className="absolute -bottom-24 left-1/3 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-500/15 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 -right-24 w-96 h-96 bg-purple-500/15 rounded-full blur-[140px]" />
+        <div className="absolute -bottom-24 left-1/3 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
+      </div>
 
       {/* ── Frosted Glass Top Header ── */}
       <motion.div
@@ -448,7 +450,7 @@ export default function UsersAndRolesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="border-b border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold backdrop-blur-sm">
                   <th className="px-6 py-4">Staff Member</th>
@@ -548,24 +550,33 @@ export default function UsersAndRolesPage() {
       {/* ── Glassmorphic Create Staff Member Modal ── */}
       <AnimatePresence>
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white/90 dark:bg-slate-900/90 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-md w-full space-y-5 shadow-2xl backdrop-blur-2xl"
+              className="bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl backdrop-blur-2xl my-auto"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <Plus className="w-5 h-5" />
+              <div className="flex items-center justify-between gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800/60 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                    <Plus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Add Staff Member</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Create a staff profile with system access</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Add Staff Member</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Create a staff profile with system access</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <form onSubmit={handleCreateUser} className="space-y-4">
+              <form onSubmit={handleCreateUser} className="space-y-4 overflow-y-auto flex-1 min-h-0 py-3 pr-1">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Full Name *</label>
                   <Input
@@ -623,25 +634,25 @@ export default function UsersAndRolesPage() {
                     ))}
                   </select>
                 </div>
-
-                <div className="flex items-center justify-end gap-2.5 pt-3">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    onClick={() => setShowCreateModal(false)}
-                    className="rounded-xl h-11 px-4 text-xs font-bold"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={creating} 
-                    className="h-11 px-5 rounded-xl bg-gradient-to-r from-primary to-indigo-600 text-white text-xs font-bold shadow-lg shadow-primary/25"
-                  >
-                    {creating ? 'Creating...' : 'Create Account'}
-                  </Button>
-                </div>
               </form>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/60 shrink-0">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setShowCreateModal(false)}
+                  className="rounded-xl h-11 px-4 text-xs font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateUser}
+                  disabled={creating} 
+                  className="h-11 px-5 rounded-xl bg-gradient-to-r from-primary to-indigo-600 text-white text-xs font-bold shadow-lg shadow-primary/25"
+                >
+                  {creating ? 'Creating...' : 'Create Account'}
+                </Button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -650,24 +661,33 @@ export default function UsersAndRolesPage() {
       {/* ── Glassmorphic Edit Staff Member Modal ── */}
       <AnimatePresence>
         {editingUser && (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white/90 dark:bg-slate-900/90 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-md w-full space-y-5 shadow-2xl backdrop-blur-2xl"
+              className="bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl backdrop-blur-2xl my-auto"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                  <Edit className="w-5 h-5" />
+              <div className="flex items-center justify-between gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800/60 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                    <Edit className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Edit Staff Profile</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Update account details and role assignment</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Edit Staff Profile</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Update account details and role assignment</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <form onSubmit={handleUpdateUser} className="space-y-4">
+              <form onSubmit={handleUpdateUser} className="space-y-4 overflow-y-auto flex-1 min-h-0 py-3 pr-1">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Full Name *</label>
                   <Input
@@ -735,25 +755,25 @@ export default function UsersAndRolesPage() {
                     Account is Active & Enabled
                   </label>
                 </div>
-
-                <div className="flex items-center justify-end gap-2.5 pt-3">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    onClick={() => setEditingUser(null)}
-                    className="rounded-xl h-11 px-4 text-xs font-bold"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={updating} 
-                    className="h-11 px-5 rounded-xl bg-gradient-to-r from-primary to-indigo-600 text-white text-xs font-bold shadow-lg shadow-primary/25"
-                  >
-                    {updating ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                </div>
               </form>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/60 shrink-0">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setEditingUser(null)}
+                  className="rounded-xl h-11 px-4 text-xs font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleUpdateUser}
+                  disabled={updating} 
+                  className="h-11 px-5 rounded-xl bg-gradient-to-r from-primary to-indigo-600 text-white text-xs font-bold shadow-lg shadow-primary/25"
+                >
+                  {updating ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
             </motion.div>
           </div>
         )}
