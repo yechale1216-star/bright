@@ -1588,7 +1588,6 @@ export function AttendanceTracking() {
                   <TableHead className="w-40 xl:w-[350px] text-center">Attendance Status</TableHead>
                   <TableHead className="min-w-[150px]">Remarks</TableHead>
                   <TableHead className="w-24 text-center">Save</TableHead>
-                  <TableHead className="w-24 text-center">Notify</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1668,32 +1667,6 @@ export function AttendanceTracking() {
                             <Save className="w-3.5 h-3.5 opacity-30" />
                           )}
                         </Button>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          {attendance.status && ["absent", "late", "excused"].includes(attendance.status) ? (
-                            <>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                onClick={() => sendStudentNotification(student.id, "email")}
-                              >
-                                <Mail className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={() => sendStudentNotification(student.id, "sms")}
-                              >
-                                <MessageSquare className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <span className="text-[10px] text-gray-400">N/A</span>
-                          )}
-                        </div>
                       </TableCell>
                     </TableRow>
                   )
