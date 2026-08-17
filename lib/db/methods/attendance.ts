@@ -39,6 +39,9 @@ export async function getAttendance(headers: any, schoolId: string): Promise<Att
   )
 }
 
+import { isOfflineError } from "@/lib/utils/fetch-with-timeout"
+import { queueOfflineAttendance } from "@/lib/utils/attendance-offline-store"
+
 export async function markAttendance(
   headers: any,
   schoolId: string,
@@ -64,20 +67,36 @@ export async function markAttendance(
     }
   })
 
-  await apiFetch(
-    `${API_URL}/api/attendance/bulk`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        records: formattedRecords,
-        latitude: locationData?.latitude,
-        longitude: locationData?.longitude,
-        locationVerified: locationData?.locationVerified,
-        locationDistance: locationData?.locationDistance,
-      }),
+  try {
+    await apiFetch(
+      `${API_URL}/api/attendance/bulk`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          records: formattedRecords,
+          latitude: locationData?.latitude,
+          longitude: locationData?.longitude,
+          locationVerified: locationData?.locationVerified,
+          locationDistance: locationData?.locationDistance,
+        }),
+      }
+    )
+  } catch (err: any) {
+    if (isOfflineError(err) || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      console.warn("[Attendance] Network offline. Safely buffering attendance into IndexedDB outbox...")
+      await queueOfflineAttendance(
+        schoolId,
+        formattedRecords as any,
+        locationData,
+        records[0]?.attendance_date || records[0]?.date,
+        records[0]?.session
+      )
+      notifyAttendanceDataChanged()
+      return
     }
-  )
+    throw err
+  }
 
   notifyAttendanceDataChanged()
 }
@@ -93,27 +112,45 @@ export async function markSingleAttendance(
   const rawSess = record.session ? record.session.toString().toLowerCase() : null
   const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
 
-  const result = await apiFetch<{ success: boolean; data: any }>(
-    `${API_URL}/api/attendance`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        studentId: record.studentId,
-        status: record.status,
-        session: normSess,
-        remarks: record.remarks || record.note || "",
-        date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
-        latitude: locationData?.latitude,
-        longitude: locationData?.longitude,
-        locationVerified: locationData?.locationVerified,
-        locationDistance: locationData?.locationDistance,
-      }),
-    }
-  )
+  const payload = {
+    studentId: record.studentId,
+    status: record.status,
+    session: normSess,
+    remarks: record.remarks || record.note || "",
+    date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
+    latitude: locationData?.latitude ?? null,
+    longitude: locationData?.longitude ?? null,
+    locationVerified: locationData?.locationVerified ?? false,
+    locationDistance: locationData?.locationDistance ?? null,
+  }
 
-  notifyAttendanceDataChanged()
-  return result.data
+  try {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/attendance`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      }
+    )
+
+    notifyAttendanceDataChanged()
+    return result.data
+  } catch (err: any) {
+    if (isOfflineError(err) || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      console.warn("[Attendance] Network offline. Safely buffering single attendance into IndexedDB outbox...")
+      await queueOfflineAttendance(
+        schoolId,
+        [payload],
+        locationData,
+        record.date,
+        normSess
+      )
+      notifyAttendanceDataChanged()
+      return { offlineQueued: true, studentId: record.studentId, status: record.status }
+    }
+    throw err
+  }
 }
 
 export async function createEditRequest(headers: any, payload: { studentId?: string; gradeId?: string; sectionId?: string; date: string; session?: string | null; reason?: string }): Promise<any> {

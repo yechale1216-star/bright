@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Addis Hiwot School Management System — Executive Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Noto+Sans+Ethiopic:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #121827;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-light: #60a5fa;
+      --secondary: #8b5cf6;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --gold: #fbbf24;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    .amharic {
+      font-family: 'Noto Sans Ethiopic', 'Outfit', sans-serif;
+    }
+
+    /* ── HEADER NAVIGATION ────────────────────────── */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 68px;
+      background: rgba(11, 15, 25, 0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-sub {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-track {
+      display: flex;
+      gap: 0.35rem;
+    }
+
+    .nav-pill {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.4rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .nav-pill:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .nav-pill.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: var(--primary-light);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .slide-indicator {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--primary-light);
+      background: rgba(59, 130, 246, 0.1);
+      padding: 0.3rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    /* ── SLIDE CONTAINER ────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 88px 2rem 80px;
+      position: relative;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1180px;
+      animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      display: block;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.99); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ── TYPOGRAPHY ─────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .badge-primary { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--primary-light); }
+    .badge-emerald { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+    .badge-purple { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd; }
+    .badge-gold { background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.3); color: var(--gold); }
+
+    .slide-title {
+      font-size: clamp(2rem, 3.8vw, 3rem);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+    }
+
+    .slide-title .gradient-text {
+      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 820px;
+      margin-bottom: 2rem;
+    }
+
+    /* ── CARDS & GRIDS ──────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 1.75rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-accent-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.01em;
+    }
+
+    .card-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ── PROBLEM VS SOLUTION ────────────────────── */
+    .compare-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.75rem;
+    }
+
+    .compare-col {
+      border-radius: 18px;
+      padding: 1.75rem;
+      border: 1px solid;
+    }
+
+    .problem-col {
+      background: rgba(239, 68, 68, 0.04);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .solution-col {
+      background: rgba(16, 185, 129, 0.04);
+      border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .compare-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+
+    .problem-header { color: #f87171; }
+    .solution-header { color: #34d399; }
+
+    .compare-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .compare-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .compare-icon {
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+
+    /* ── HERO BANNER ────────────────────────────── */
+    .hero-box {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+      border-radius: 24px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .hero-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin-top: 2.5rem;
+    }
+
+    .hero-stat-box {
+      background: rgba(18, 24, 39, 0.8);
+      border: 1px solid var(--card-border);
+      padding: 1.5rem;
+      border-radius: 16px;
+      text-align: center;
+    }
+
+    .hero-stat-value {
+      font-size: 2.4rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--primary-light), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.25rem;
+    }
+
+    .hero-stat-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* ── ROLES TABS ─────────────────────────────── */
+    .role-matrix {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    .role-card {
+      background: #141c2e;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 16px;
+      padding: 1.4rem;
+      transition: all 0.2s;
+    }
+
+    .role-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .role-top {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .role-emoji {
+      font-size: 1.6rem;
+      width: 42px;
+      height: 42px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .role-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .role-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 0.75rem;
+    }
+
+    .role-perks {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .role-perks li {
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .role-perks li::before {
+      content: "•";
+      color: var(--primary-light);
+      font-weight: bold;
+    }
+
+    /* ── FOOTER CONTROLS ────────────────────────── */
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: rgba(11, 15, 25, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 100;
+    }
+
+    .btn-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.4rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .btn-prev {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      border: 1px solid var(--card-border);
+    }
+
+    .btn-prev:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-next {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #fff;
+      border: none;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-next:hover:not(:disabled) {
+      box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-nav:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .nav-dots-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dot-pill {
+      width: 8px;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+
+    .dot-pill.active {
+      width: 28px;
+      background: var(--primary-light);
+    }
+
+    /* ── RESPONSIVE ─────────────────────────────── */
+    @media (max-width: 900px) {
+      .grid-2, .grid-3, .grid-4, .role-matrix, .compare-container, .hero-stat-grid {
+        grid-template-columns: 1fr;
+      }
+      .nav-track { display: none; }
+      main { padding: 80px 1rem 80px; }
+      .slide-title { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🏫</div>
+      <div>
+        <div class="brand-title">Addis Hiwot School Platform</div>
+        <div class="brand-sub">Executive Board &amp; Management Briefing</div>
+      </div>
+    </div>
+
+    <div class="nav-track">
+      <button class="nav-pill active" onclick="jumpSlide(0)">1. Overview</button>
+      <button class="nav-pill" onclick="jumpSlide(1)">2. Problems Solved</button>
+      <button class="nav-pill" onclick="jumpSlide(2)">3. How It Works</button>
+      <button class="nav-pill" onclick="jumpSlide(3)">4. Key Features</button>
+      <button class="nav-pill" onclick="jumpSlide(4)">5. Roles &amp; Portals</button>
+      <button class="nav-pill" onclick="jumpSlide(5)">6. Ethiopian Context</button>
+      <button class="nav-pill" onclick="jumpSlide(6)">7. Institutional Impact</button>
+    </div>
+
+    <div class="header-actions">
+      <div class="slide-indicator" id="slideIndicator">Slide 1 of 7</div>
+    </div>
+  </header>
+
+  <!-- MAIN SLIDES -->
+  <main>
+
+    <!-- SLIDE 1: SYSTEM OVERVIEW & VISION -->
+    <div class="slide active" id="slide-0">
+      <div class="hero-box">
+        <div class="badge badge-primary">✨ Strategic Digital Transformation</div>
+        <h1 class="slide-title">
+          Modernizing School Operations<br />
+          <span class="gradient-text">Through One Unified Digital Hub</span>
+        </h1>
+        <p class="slide-desc" style="margin: 0 auto 1.5rem;">
+          Addis Hiwot School Management Platform connects Leadership, Teachers, Discipline Officers, and Parents into a single, real-time ecosystem — operating seamlessly on both <strong>Web Browsers</strong> and <strong>Android Mobile Devices</strong>.
+        </p>
+
+        <div class="hero-stat-grid">
+          <div class="hero-stat-box">
+            <div class="hero-stat-value">&lt; 1 Min</div>
+            <div class="hero-stat-label">Class Attendance Time</div>
+          </div>
+          <div class="hero-stat-box">
+            <div class="hero-stat-value">100%</div>
+            <div class="hero-stat-label">Offline Attendance Support</div>
+          </div>
+          <div class="hero-stat-box">
+            <div class="hero-stat-value">0 Sec</div>
+            <div class="hero-stat-label">Instant Absentee Parent Alert</div>
+          </div>
+          <div class="hero-stat-box">
+            <div class="hero-stat-value">6 Portals</div>
+            <div class="hero-stat-label">Tailored Stakeholder Views</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: PROBLEMS IT SOLVES -->
+    <div class="slide" id="slide-1">
+      <div class="badge badge-gold">⚠️ Current Challenges vs. Digital Solutions</div>
+      <h2 class="slide-title">What Critical Problems Does This Solve?</h2>
+      <p class="slide-desc">
+        Traditional paper-based school administration causes communication delays, inaccurate attendance records, lost discipline histories, and lack of parent engagement.
+      </p>
+
+      <div class="compare-container">
+        <!-- The Problem -->
+        <div class="compare-col problem-col">
+          <div class="compare-header problem-header">
+            <span>❌</span> Traditional Paper &amp; Manual Workflow
+          </div>
+          <ul class="compare-list">
+            <li class="compare-item">
+              <span class="compare-icon">📄</span>
+              <div><strong>Slow Paper Attendance:</strong> Takes 10–15 minutes per period; paper rosters get torn, lost, or forged by students.</div>
+            </li>
+            <li class="compare-item">
+              <span class="compare-icon">🔕</span>
+              <div><strong>Delayed Parent Communication:</strong> Parents only find out their child skipped class weeks later when grades drop or during report cards.</div>
+            </li>
+            <li class="compare-item">
+              <span class="compare-icon">📁</span>
+              <div><strong>Scattered Discipline Records:</strong> Student incident reports are stored in paper files, making it hard to track repeated behavioral issues.</div>
+            </li>
+            <li class="compare-item">
+              <span class="compare-icon">📉</span>
+              <div><strong>No Real-Time Insights:</strong> Principals cannot view today's school-wide attendance numbers without manual physical tallying.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- The Solution -->
+        <div class="compare-col solution-col">
+          <div class="compare-header solution-header">
+            <span>✅</span> Addis Hiwot Digital Platform
+          </div>
+          <ul class="compare-list">
+            <li class="compare-item">
+              <span class="compare-icon">⚡</span>
+              <div><strong>One-Tap Digital Attendance:</strong> Takes under 60 seconds. Works even if the internet drops, syncing automatically when back online.</div>
+            </li>
+            <li class="compare-item">
+              <span class="compare-icon">📲</span>
+              <div><strong>Instant Parent Push &amp; SMS:</strong> Parents receive an automated notification the exact minute their child is marked absent or late.</div>
+            </li>
+            <li class="compare-item">
+              <span class="compare-icon">⚖️</span>
+              <div><strong>Centralized Incident History:</strong> Full discipline log with severity, witness statements, evidence attachments, and parent acknowledgment.</div>
+            </li>
+            <li class="compare-item">
+              <span class="compare-icon">📊</span>
+              <div><strong>Executive Live Analytics:</strong> Leadership sees daily attendance percentages, chronic absenteeism trends, and teacher coverage in one dashboard.</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: HOW IT WORKS IN PRACTICE -->
+    <div class="slide" id="slide-2">
+      <div class="badge badge-primary">🔄 Live Operational Workflow</div>
+      <h2 class="slide-title">How It Works in Daily School Life</h2>
+      <p class="slide-desc">
+        A seamless 4-step chain of events connecting morning roll-call directly to the principal's desk and the parent's phone.
+      </p>
+
+      <div class="grid-4" style="margin-bottom: 2rem;">
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">1️⃣</div>
+          <div class="card-title">Teacher Marks Class</div>
+          <div class="card-text">Teacher opens mobile phone or laptop, taps Absent/Late for student in under 60 seconds. Location is verified via GPS geofence.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-icon" style="background: rgba(139, 92, 246, 0.15); color: #c4b5fd;">2️⃣</div>
+          <div class="card-title">Instant Synchronization</div>
+          <div class="card-text">If online, updates central database instantly. If internet is down, data saves locally to device and syncs in background when connection returns.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-icon" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7;">3️⃣</div>
+          <div class="card-title">Parent Alert Sent</div>
+          <div class="card-text">Guardian's phone rings or receives push alert: <em>"Abebe was marked absent for Period 1."</em> Parent can open the app to verify or call the school.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-icon" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">4️⃣</div>
+          <div class="card-title">Principal Live View</div>
+          <div class="card-text">School leadership opens live dashboard to view total attendance rate across all grades, missing teacher rosters, and flagged safety alerts.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: CORE PILLARS & FEATURES -->
+    <div class="slide" id="slide-3">
+      <div class="badge badge-purple">💎 Comprehensive Capabilities</div>
+      <h2 class="slide-title">System Features at a Glance</h2>
+      <p class="slide-desc">
+        Engineered specifically for complete institutional management — eliminating the need for separate standalone apps.
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon" style="background: rgba(59, 130, 246, 0.15);">📋</div>
+          <div class="card-title">Smart Attendance</div>
+          <div class="card-text">Period-by-period or daily roll-call. Supports GPS geofencing to ensure attendance is recorded physically on school premises.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(16, 185, 129, 0.15);">💬</div>
+          <div class="card-title">Official School Chat</div>
+          <div class="card-text">Secure messaging channels for announcements, grade-level groups, teacher-to-teacher chats, and direct parent messaging.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(139, 92, 246, 0.15);">📞</div>
+          <div class="card-title">Free VoIP Voice/Video Calls</div>
+          <div class="card-text">Make high-quality internal voice and video calls between staff and parents without airtime costs, waking locked Android devices like a phone call.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(239, 68, 68, 0.15);">⚖️</div>
+          <div class="card-title">Discipline Tracking</div>
+          <div class="card-text">Log infractions (Minor, Medium, Critical), upload photos/evidence, record parent conferences, and track repeat offenders across academic years.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(251, 191, 36, 0.15);">📊</div>
+          <div class="card-title">Leadership Analytics</div>
+          <div class="card-text">Visual charts, grade comparison bars, chronic absenteeism reports, and one-click PDF/CSV exports for Ministry of Education reporting.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(6, 182, 212, 0.15);">🎓</div>
+          <div class="card-title">Promotion &amp; Rostering</div>
+          <div class="card-text">Bulk student enrollment via Excel/CSV, section assignment, teacher subject mapping, and end-of-year automated grade promotion.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: 6 ROLE-BASED PORTALS -->
+    <div class="slide" id="slide-4">
+      <div class="badge badge-emerald">👥 Tailored Access Control</div>
+      <h2 class="slide-title">6 Role-Based Portals for Clean Governance</h2>
+      <p class="slide-desc">
+        Every staff member and parent gets a dedicated, distraction-free interface matching their exact duties.
+      </p>
+
+      <div class="role-matrix">
+        <div class="role-card">
+          <div class="role-top">
+            <div class="role-emoji">🏫</div>
+            <div class="role-name">School Principal &amp; Admin</div>
+          </div>
+          <div class="role-desc">Full administrative control and institutional oversight.</div>
+          <ul class="role-perks">
+            <li>Live attendance &amp; academic analytics</li>
+            <li>Teacher &amp; staff account management</li>
+            <li>School settings &amp; calendar configuration</li>
+            <li>School-wide broadcast announcements</li>
+          </ul>
+        </div>
+
+        <div class="role-card">
+          <div class="role-top">
+            <div class="role-emoji">👩‍🏫</div>
+            <div class="role-name">Teachers</div>
+          </div>
+          <div class="role-desc">Fast classroom tools designed for mobile and tablet use.</div>
+          <ul class="role-perks">
+            <li>Take attendance in under 1 minute</li>
+            <li>View student rosters &amp; parent contact cards</li>
+            <li>Direct messaging with parents</li>
+            <li>Flag behavioral incidents to discipline officer</li>
+          </ul>
+        </div>
+
+        <div class="role-card">
+          <div class="role-top">
+            <div class="role-emoji">👨‍👩‍👧</div>
+            <div class="role-name">Parents &amp; Guardians</div>
+          </div>
+          <div class="role-desc">Simple phone-number login with instant student oversight.</div>
+          <ul class="role-perks">
+            <li>Real-time attendance &amp; tardy alerts</li>
+            <li>Switch between multiple enrolled children</li>
+            <li>Receive school notices &amp; payment updates</li>
+            <li>Direct contact with homeroom teachers</li>
+          </ul>
+        </div>
+
+        <div class="role-card">
+          <div class="role-top">
+            <div class="role-emoji">⚖️</div>
+            <div class="role-name">Discipline Officer</div>
+          </div>
+          <div class="role-desc">Incident logging, investigation records, and parent hearings.</div>
+          <ul class="role-perks">
+            <li>Detailed incident registry (Low to Critical)</li>
+            <li>Evidence &amp; witness statement recording</li>
+            <li>Parent summon &amp; meeting tracking</li>
+            <li>Student behavior history archive</li>
+          </ul>
+        </div>
+
+        <div class="role-card">
+          <div class="role-top">
+            <div class="role-emoji">📋</div>
+            <div class="role-name">Registrar</div>
+          </div>
+          <div class="role-desc">Student onboarding and academic progression.</div>
+          <ul class="role-perks">
+            <li>Bulk student import via CSV/Excel</li>
+            <li>Grade, section, and stream management</li>
+            <li>End-of-year promotion workflow</li>
+            <li>Student profile and guardian linking</li>
+          </ul>
+        </div>
+
+        <div class="role-card">
+          <div class="role-top">
+            <div class="role-emoji">🛡️</div>
+            <div class="role-name">System Administrator</div>
+          </div>
+          <div class="role-desc">Technical infrastructure and data security oversight.</div>
+          <ul class="role-perks">
+            <li>Data backup and restore management</li>
+            <li>Role and permission customization</li>
+            <li>Audit logs &amp; security event monitoring</li>
+            <li>Multi-branch / campus configuration</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: BUILT FOR ETHIOPIA -->
+    <div class="slide" id="slide-5">
+      <div class="badge badge-gold">🇪🇹 Ethiopian Context &amp; Localization</div>
+      <h2 class="slide-title">Built Specifically for Ethiopian Schools</h2>
+      <p class="slide-desc">
+        Unlike generic international software, Addis Hiwot is tailored to local infrastructure reality, Ethiopian calendars, and native languages.
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">📅</div>
+          <div class="card-title">Ethiopian Calendar Engine</div>
+          <div class="card-text">
+            Full native support for <strong>ዓመተ ምሕረት (EC)</strong> — Meskerem to Pagume. Dates, terms, and report cycles display automatically in Ethiopian or Gregorian calendar formats based on user preference.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">🌍</div>
+          <div class="card-title amharic">ሙሉ የአማርኛ ቋንቋ (Amharic i18n)</div>
+          <div class="card-text">
+            Complete bilingual interface. Every button, alert, notification, and report can be switched instantly between <strong>English</strong> and <strong>አማርኛ (Amharic)</strong> for non-English speaking staff and parents.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7;">📴</div>
+          <div class="card-title">Offline-First for Low Connectivity</div>
+          <div class="card-text">
+            Engineered for power outages and internet downtime. Teachers take attendance with <strong>zero internet</strong>; the system queues records on the device and syncs automatically when connection restores.
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.5rem; background: #131b2e; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <div style="font-size: 2rem;">📱</div>
+          <div>
+            <div style="font-weight: 700; font-size: 1.05rem;">Works on Existing Hardware</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">No need to purchase expensive biometric hardware. Runs on teachers' existing Android smartphones and school office PCs.</div>
+          </div>
+        </div>
+        <div style="font-weight: 800; color: #34d399; font-size: 1.1rem;">Zero Extra Hardware Cost</div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: INSTITUTIONAL IMPACT & NEXT STEPS -->
+    <div class="slide" id="slide-6">
+      <div class="badge badge-primary">🚀 Strategic Impact &amp; Next Steps</div>
+      <h2 class="slide-title">Why School Management Should Adopt Now</h2>
+      <p class="slide-desc">
+        Tangible return on investment in administrative efficiency, student safety, and school prestige.
+      </p>
+
+      <div class="grid-3" style="margin-bottom: 2rem;">
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-title" style="color: #60a5fa;">⏱️ Time &amp; Cost Savings</div>
+          <div class="card-text">
+            Saves an estimated <strong>150+ administrative hours per month</strong> previously spent on paper attendance rosters, manual SMS drafting, and compiling periodic reports.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-title" style="color: #34d399;">🛡️ Student Safety &amp; Retention</div>
+          <div class="card-text">
+            Early detection of truancy and unexcused absences. Parents are immediately alerted if a student doesn't arrive at school, preventing student drop-out and safety incidents.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-accent-top"></div>
+          <div class="card-title" style="color: #fbbf24;">⭐ Institutional Reputation</div>
+          <div class="card-text">
+            Elevates Addis Hiwot School as a premier technology-forward institution in the eyes of parents, the community, and educational accreditation bodies.
+          </div>
+        </div>
+      </div>
+
+      <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(139, 92, 246, 0.12)); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 18px; padding: 1.75rem; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div style="font-size: 1.2rem; font-weight: 800; margin-bottom: 0.25rem;">Ready for Immediate Deployment</div>
+          <div style="font-size: 0.9rem; color: var(--text-muted);">The software is fully tested, built, and ready for staff onboarding and parent registration.</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 1.5rem; font-weight: 900; color: #fff;">Version 1.4.0</div>
+          <div style="font-size: 0.75rem; color: var(--gold); text-transform: uppercase; font-weight: 700;">Production Ready</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER NAVIGATION -->
+  <footer>
+    <button class="btn-nav btn-prev" id="btnPrev" onclick="prevSlide()" disabled>
+      ← Previous
+    </button>
+
+    <div class="nav-dots-container" id="dotsContainer"></div>
+
+    <button class="btn-nav btn-next" id="btnNext" onclick="nextSlide()">
+      Next Slide →
+    </button>
+  </footer>
+
+  <script>
+    const TOTAL_SLIDES = 7;
+    let currentSlide = 0;
+
+    function init() {
+      const dotsContainer = document.getElementById('dotsContainer');
+      for (let i = 0; i < TOTAL_SLIDES; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot-pill' + (i === 0 ? ' active' : '');
+        dot.onclick = () => jumpSlide(i);
+        dotsContainer.appendChild(dot);
+      }
+      updateUI();
+    }
+
+    function jumpSlide(index) {
+      if (index < 0 || index >= TOTAL_SLIDES) return;
+      currentSlide = index;
+
+      document.querySelectorAll('.slide').forEach((s, idx) => {
+        s.classList.toggle('active', idx === currentSlide);
+      });
+
+      document.querySelectorAll('.nav-pill').forEach((p, idx) => {
+        p.classList.toggle('active', idx === currentSlide);
+      });
+
+      document.querySelectorAll('.dot-pill').forEach((d, idx) => {
+        d.classList.toggle('active', idx === currentSlide);
+      });
+
+      updateUI();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function nextSlide() {
+      if (currentSlide < TOTAL_SLIDES - 1) jumpSlide(currentSlide + 1);
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) jumpSlide(currentSlide - 1);
+    }
+
+    function updateUI() {
+      document.getElementById('slideIndicator').textContent = `Slide ${currentSlide + 1} of ${TOTAL_SLIDES}`;
+      document.getElementById('btnPrev').disabled = currentSlide === 0;
+      document.getElementById('btnNext').disabled = currentSlide === TOTAL_SLIDES - 1;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

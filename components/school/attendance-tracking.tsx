@@ -46,6 +46,7 @@ import { ImpactStyle } from "@capacitor/haptics"
 import { cn } from "@/lib/utils/utils"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { DualDatePicker } from "@/components/ui/dual-date-picker"
+import { flushOfflineAttendanceQueue, getOfflineAttendanceQueue } from "@/lib/utils/attendance-offline-store"
 
 
 interface AttendanceRecordState {
@@ -102,6 +103,8 @@ export function AttendanceTracking() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set())
   const [showUnmarkedOnly, setShowUnmarkedOnly] = useState(false)
   const [uiType, setUiType] = useState<"card_based" | "tabular">("card_based")
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0)
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false)
 
   // Refs so event listeners & polling intervals always use the current date/session
   // instead of the stale closure values from mount time
@@ -129,31 +132,89 @@ export function AttendanceTracking() {
     }
   }, [settings?.attendanceUiType])
 
+  const checkOfflineQueue = useCallback(async () => {
+    try {
+      const queue = await getOfflineAttendanceQueue()
+      const total = queue.reduce((sum, b) => sum + (b.records?.length || 0), 0)
+      setPendingOfflineCount(total)
+    } catch { /* ignore */ }
+  }, [])
+
+  const manualSyncOffline = async () => {
+    setIsSyncingOffline(true)
+    try {
+      const result = await flushOfflineAttendanceQueue()
+      if (result.syncedBatches > 0) {
+        notifications.success(
+          "Offline Sync Complete",
+          `Successfully synchronized ${result.totalRecords} offline attendance records to server.`
+        )
+      } else if (result.errors.length > 0) {
+        notifications.error("Sync Error", result.errors[0])
+      }
+      await checkOfflineQueue()
+      loadAttendanceForDateStable(true)
+    } catch (err: any) {
+      notifications.error("Sync Failed", err.message || "Failed to flush offline records.")
+    } finally {
+      setIsSyncingOffline(false)
+    }
+  }
+
   useEffect(() => {
     const user = authService.getCurrentUser()
     setIsTeacher(user?.role === "teacher")
     loadStudents()
     fetchEditRequests()
+    checkOfflineQueue()
 
     const handleAttendanceChanged = () => {
       // Read from refs to always use the current date/session (not stale closure values)
       loadAttendanceForDateStable(true)
       fetchEditRequests()
+      checkOfflineQueue()
+    }
+
+    const handleOnline = async () => {
+      console.log("[AttendanceTracking] Network recovered online: syncing offline buffer...")
+      try {
+        const result = await flushOfflineAttendanceQueue()
+        if (result.syncedBatches > 0) {
+          notifications.success(
+            "Connection Restored & Synced",
+            `Flushed ${result.totalRecords} attendance records to server automatically.`
+          )
+        }
+        await checkOfflineQueue()
+        loadAttendanceForDateStable(true)
+      } catch (err) {
+        console.error("Auto offline sync error:", err)
+      }
+    }
+
+    const handleOfflineSynced = () => {
+      checkOfflineQueue()
+      loadAttendanceForDateStable(true)
     }
 
     window.addEventListener("attendanceDataChanged", handleAttendanceChanged)
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offlineAttendanceSynced", handleOfflineSynced)
 
     // Background polling every 30 seconds
     const pollInterval = setInterval(() => {
       loadAttendanceForDateStable(true)
       fetchEditRequests()
+      checkOfflineQueue()
     }, 30000)
 
     return () => {
       window.removeEventListener("attendanceDataChanged", handleAttendanceChanged)
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offlineAttendanceSynced", handleOfflineSynced)
       clearInterval(pollInterval)
     }
-  }, [])
+  }, [checkOfflineQueue])
 
   const fetchEditRequests = async () => {
     try {
@@ -218,20 +279,26 @@ export function AttendanceTracking() {
     if (!isTeacher) return false
     if (settings?.allowAttendanceEditing !== false) return false
 
-    // Allow initial attendance marking if no records are saved yet
-    const hasSavedRecords = Object.values(attendanceState).some(item => item.status !== null)
-    if (!hasSavedRecords) return false
+    // Allow initial attendance marking if no records have been saved to server yet
+    const hasCommittedRecords = Object.values(baseAttendanceState).some(item => item.status !== null)
+    if (!hasCommittedRecords) return false
 
-    // Check if teacher has active approved request
+    // Check if teacher has active approved request specifically for this date & session
     const dateStr = selectedDate
     const isSessionBased = settings?.attendanceMode === "session_based"
-    const hasApproved = editRequests.some(
-      (req: any) =>
-        req.status === 'APPROVED' &&
-        !req.isUsed &&
-        req.date?.split("T")[0] === dateStr &&
-        (!isSessionBased || !req.session || req.session.toLowerCase() === selectedSession.toLowerCase())
-    )
+    const hasApproved = editRequests.some((req: any) => {
+      if (req.status !== 'APPROVED' || req.isUsed) return false
+      const reqDateStr = req.date?.split("T")[0]
+      if (reqDateStr !== dateStr) return false
+
+      if (isSessionBased) {
+        // Strict session match: Morning unlocks Morning only; Afternoon unlocks Afternoon only
+        return req.session && req.session.toLowerCase() === selectedSession.toLowerCase()
+      } else {
+        // Daily mode match: permission must be daily (session null or 'daily')
+        return !req.session || req.session.toLowerCase() === "daily" || req.session === ""
+      }
+    })
 
     return !hasApproved
   }
@@ -1115,6 +1182,30 @@ export function AttendanceTracking() {
 
   return (
     <div className="space-y-6 pb-24">
+      {/* Offline Buffer & Auto-Sync Banner */}
+      {pendingOfflineCount > 0 && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-700 dark:text-amber-300 text-xs font-semibold shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-3 w-3 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span>
+              <strong>Offline Shield Active:</strong> {pendingOfflineCount} attendance record{pendingOfflineCount > 1 ? "s" : ""} buffered safely in device IndexedDB. Records will flush automatically when connection is restored.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={manualSyncOffline}
+            disabled={isSyncingOffline}
+            className="h-8 px-3 text-[11px] border-amber-500/40 hover:bg-amber-500/20 text-amber-800 dark:text-amber-200 font-bold rounded-xl whitespace-nowrap self-end sm:self-auto"
+          >
+            {isSyncingOffline ? "Syncing to Server..." : "Sync Now"}
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1 pt-2 md:pt-4">
         <div>
@@ -1899,7 +1990,10 @@ export function AttendanceTracking() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-muted-foreground">
-              Editing attendance for <strong>{selectedDate}</strong> ({selectedSession}) is currently restricted. Submit a request to the School Admin for approval.
+              Editing attendance for <strong>{selectedDate}</strong>
+              {settings?.attendanceMode === "session_based"
+                ? ` (${selectedSession === "morning" ? "Morning Session" : "Afternoon Session"})`
+                : " (Daily Mode)"} is currently restricted. Submit a request to the School Admin for approval.
             </p>
             <div>
               <Label htmlFor="editReason" className="text-xs font-semibold">

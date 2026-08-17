@@ -1,13 +1,4 @@
-# Addis Hiwot School Management System
-## Commercial Product Showcase & Buyer Handover Presentation
 
-> **Target Audience:** School Executives, Educational Boards, Investors, and Enterprise Software Buyers  
-> **System Scope:** Integrated Web Platform & Native Android Mobile Application  
-> **Current Release:** v1.4.0 (Web) / Version Code 5 (Android Native)  
-> **Deployment Architecture:** Single-School Enterprise Edition (Addis Hiwot School)  
-> **Localization:** Full Bi-Lingual Engine (Amharic & English) with Native Ethiopian Calendar (E.C. & G.C.) Support
-
----
 
 ## Executive Summary
 
@@ -58,10 +49,7 @@ To eliminate paper-based administrative friction, eliminate attendance spoofing,
 4. **Calendar & Language Mismatches:** Standard Western SaaS platforms fail in the Ethiopian educational context. Addis Hiwot features full native Ethiopian Calendar (E.C. / G.C.) support and seamless English-Amharic switching.
 5. **Connectivity Failures:** Network disruptions in school environments halt administrative workflows. Addis Hiwot integrates client-side IndexedDB caching and an automated background synchronization engine that stores actions offline and flushes them when connectivity resumes.
 
-### 1.4 Key Differentiators & Commercial Benefits
-- **Zero Ongoing Per-Student Licensing Fees:** Delivered as a self-hosted single-school enterprise system.
-- **True Multi-Channel Presence:** Real-time WebSockets, WebRTC P2P voice/video calling, and direct in-app instant messaging.
-- **Bi-Lingual Amharic & English Execution:** Every interface, label, notification template, and report can be operated seamlessly in both languages.
+
 
 ---
 

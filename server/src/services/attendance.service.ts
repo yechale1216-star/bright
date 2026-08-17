@@ -160,27 +160,41 @@ export const markAttendance = async (data: any, schoolId: string) => {
   // 2. Attendance Edit Permission Verification
   if (existing && userRole === 'teacher') {
     if (settings && settings.allow_attendance_editing === false) {
-      // Find active approved request
+      // Build session-aware matching:
+      // - If editing a session-based record (session = 'morning'/'afternoon'), the approved
+      //   permission must match that exact session.
+      // - If editing a daily record (session = null), the approved permission must also
+      //   have session = null (no cross-mode permission bleeding).
+      const sessionFilter: any = session
+        ? { session: { equals: session, mode: 'insensitive' } }
+        : { session: null };
+
+      // Find an APPROVED, unused permission scoped to this teacher + date + session.
+      // Critically: status must be 'APPROVED' — PENDING/REJECTED records must not pass.
       const approvedRequest = await prisma.attendanceEditRequest.findFirst({
         where: {
-          OR: [
-            ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
-            ...(teacherId ? [{ teacherId }] : []),
-            ...(userId ? [{ teacherId: userId }] : [])
-          ],
+          schoolId,   // scope to this school — prevents cross-school data leaks
+          status: 'APPROVED',   // BUG FIX: was missing — PENDING requests were passing
           isUsed: false,
           date: {
             gte: startDate,
             lte: endDate,
           },
+          ...sessionFilter,   // BUG FIX: was missing — Morning permission was satisfying Afternoon edits
+          OR: [
+            ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
+            ...(teacherId ? [{ teacherId }] : []),
+            ...(userId ? [{ teacherId: userId }] : [])
+          ],
         }
       });
 
       if (!approvedRequest) {
-        throw new Error("Attendance editing is disabled by School Admin. Please submit an edit request.");
+        const sessionLabel = session ? ` (${session} session)` : '';
+        throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${dateStr}${sessionLabel}.`);
       }
 
-      // Consume the approved permission
+      // Consume the approved permission — mark as used so it cannot be reused
       await prisma.attendanceEditRequest.update({
         where: { id: approvedRequest.id },
         data: { isUsed: true }
@@ -194,7 +208,7 @@ export const markAttendance = async (data: any, schoolId: string) => {
           entity_type: 'ATTENDANCE_EDIT_REQUEST',
           entity_id: approvedRequest.id,
           old_values: { status: existing.status, remarks: existing.remarks },
-          new_values: { newStatus: status, remarks }
+          new_values: { newStatus: status, session: session || null, remarks }
         }
       }).catch(err => console.error('[AuditLog] edit permission use log error:', err));
     }
@@ -707,6 +721,59 @@ export const bulkMarkAttendance = async (
     const sKey = normalizeSession(e.session) || 'daily';
     existingMap.set(`${e.studentId}:${sKey}`, e);
   });
+
+  // Edit Permission Verification for Bulk Updates
+  const hasExistingUpdates = records.some(r => {
+    const recSession = normalizeSession(r.session);
+    const mapKey = `${r.studentId}:${recSession || 'daily'}`;
+    return existingMap.has(mapKey);
+  });
+
+  if (hasExistingUpdates && userRole === 'teacher' && settings && settings.allow_attendance_editing === false) {
+    const sessionFilter: any = sampleSession
+      ? { session: { equals: sampleSession, mode: 'insensitive' } }
+      : { session: null };
+
+    const approvedRequest = await prisma.attendanceEditRequest.findFirst({
+      where: {
+        schoolId,
+        status: 'APPROVED',
+        isUsed: false,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        ...sessionFilter,
+        OR: [
+          ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
+          ...(teacherId ? [{ teacherId }] : []),
+          ...(userId ? [{ teacherId: userId }] : [])
+        ],
+      }
+    });
+
+    if (!approvedRequest) {
+      const sessionLabel = sampleSession ? ` (${sampleSession} session)` : '';
+      throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${dateStr}${sessionLabel}.`);
+    }
+
+    // Consume the approved permission
+    await prisma.attendanceEditRequest.update({
+      where: { id: approvedRequest.id },
+      data: { isUsed: true }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        schoolId,
+        user_id: userId || teacherId || null,
+        action: 'ATTENDANCE_EDIT_PERMITTED',
+        entity_type: 'ATTENDANCE_EDIT_REQUEST',
+        entity_id: approvedRequest.id,
+        new_values: { count: records.length, session: sampleSession || null, dateStr }
+      }
+    }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
+  }
 
   // Build atomic transaction queries
   const txOps: any[] = [];

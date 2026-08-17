@@ -13,6 +13,9 @@ export async function getNextStudentId(headers: any): Promise<string> {
   return result.data
 }
 
+import { cacheRosterOffline, getCachedRosterOffline } from "@/lib/utils/attendance-offline-store"
+import { isOfflineError } from "@/lib/utils/fetch-with-timeout"
+
 export async function getStudents(
   headers: any,
   schoolId: string,
@@ -25,20 +28,34 @@ export async function getStudents(
   return queryCache.fetch(
     cacheKey,
     async () => {
-      const params = new URLSearchParams()
-      if (status) params.set("status", status)
-      if (academicYear) params.set("academicYear", academicYear)
-      if (forceRefetch) params.set("_t", String(Date.now()))
-      const queryString = params.toString() ? `?${params.toString()}` : ""
-      const url = `${API_URL}/api/students${queryString}`
-      const result = await apiFetch<{ success: boolean; data: any[] }>(
-        url,
-        { headers, cache: "no-store" }
-      )
-      return (result.data || []).map((s: any) => ({
-        ...s,
-        schoolId: schoolId,
-      }))
+      try {
+        const params = new URLSearchParams()
+        if (status) params.set("status", status)
+        if (academicYear) params.set("academicYear", academicYear)
+        if (forceRefetch) params.set("_t", String(Date.now()))
+        const queryString = params.toString() ? `?${params.toString()}` : ""
+        const url = `${API_URL}/api/students${queryString}`
+        const result = await apiFetch<{ success: boolean; data: any[] }>(
+          url,
+          { headers, cache: "no-store" }
+        )
+        const mappedStudents = (result.data || []).map((s: any) => ({
+          ...s,
+          schoolId: schoolId,
+        }))
+        // Persist to IndexedDB for offline roll-call support
+        cacheRosterOffline(schoolId, mappedStudents).catch(() => {})
+        return mappedStudents
+      } catch (err: any) {
+        if (isOfflineError(err) || (typeof navigator !== "undefined" && !navigator.onLine)) {
+          const cachedRoster = await getCachedRosterOffline(schoolId)
+          if (cachedRoster && cachedRoster.length > 0) {
+            console.log(`[Students] Offline mode: loaded ${cachedRoster.length} students from IndexedDB cache`)
+            return cachedRoster
+          }
+        }
+        throw err
+      }
     },
     { staleTime: 60_000, forceRefetch }
   )

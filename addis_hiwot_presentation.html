@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Addis Hiwot — School Management Platform Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #070b14;
+      --surface: #0d1424;
+      --card: #111827;
+      --border: rgba(255,255,255,0.07);
+      --accent1: #3b82f6;
+      --accent2: #8b5cf6;
+      --accent3: #06b6d4;
+      --accent4: #10b981;
+      --accent5: #f59e0b;
+      --accent6: #ef4444;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --dim: #475569;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ───────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(7,11,20,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-size: 1.1rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent1), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; gap: 0.25rem; }
+    .nav-links a {
+      padding: 0.35rem 0.85rem; border-radius: 6px;
+      font-size: 0.78rem; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: all 0.2s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      background: rgba(59,130,246,0.15); color: var(--accent1);
+    }
+    .slide-counter {
+      font-size: 0.78rem; color: var(--dim); font-variant-numeric: tabular-nums;
+    }
+
+    /* ── SLIDES ───────────────────────────────── */
+    .slide {
+      min-height: 100vh; padding: 80px 0 60px;
+      display: none; flex-direction: column; justify-content: center;
+      animation: fadeIn 0.4s ease;
+    }
+    .slide.active { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; width: 100%; }
+
+    /* ── HERO SLIDE ───────────────────────────── */
+    .hero-slide {
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.18) 0%, transparent 70%),
+                  radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139,92,246,0.12) 0%, transparent 60%),
+                  var(--bg);
+    }
+    .hero-content { text-align: center; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 999px; padding: 0.35rem 1rem; margin-bottom: 2rem;
+      font-size: 0.78rem; font-weight: 500; color: var(--accent1);
+    }
+    .hero-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent1); display: inline-block; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.4)} }
+    .hero-title {
+      font-size: clamp(2.8rem, 6vw, 5rem); font-weight: 900; line-height: 1.05;
+      letter-spacing: -0.03em; margin-bottom: 1.5rem;
+    }
+    .hero-title .grad {
+      background: linear-gradient(135deg, var(--accent1) 0%, var(--accent2) 50%, var(--accent3) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-subtitle {
+      font-size: 1.15rem; color: var(--muted); max-width: 680px; margin: 0 auto 2.5rem; line-height: 1.7;
+    }
+    .hero-chips { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; margin-bottom: 3rem; }
+    .chip {
+      padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
+      border: 1px solid; cursor: default;
+    }
+    .chip-blue  { background:rgba(59,130,246,0.1);  border-color:rgba(59,130,246,0.3);  color:#93c5fd; }
+    .chip-purple{ background:rgba(139,92,246,0.1);  border-color:rgba(139,92,246,0.3);  color:#c4b5fd; }
+    .chip-cyan  { background:rgba(6,182,212,0.1);   border-color:rgba(6,182,212,0.3);   color:#67e8f9; }
+    .chip-green { background:rgba(16,185,129,0.1);  border-color:rgba(16,185,129,0.3);  color:#6ee7b7; }
+    .chip-amber { background:rgba(245,158,11,0.1);  border-color:rgba(245,158,11,0.3);  color:#fcd34d; }
+    .chip-red   { background:rgba(239,68,68,0.1);   border-color:rgba(239,68,68,0.3);   color:#fca5a5; }
+
+    .hero-stats { display: flex; gap: 3rem; justify-content: center; }
+    .stat { text-align: center; }
+    .stat-num { font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, var(--accent1), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-size: 0.75rem; color: var(--dim); margin-top: 0.2rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ── SECTION HEADER ──────────────────────── */
+    .section-header { margin-bottom: 3rem; }
+    .section-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--accent1); margin-bottom: 0.75rem;
+      padding: 0.25rem 0.75rem; background: rgba(59,130,246,0.1); border-radius: 4px;
+    }
+    .section-title { font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 800; line-height: 1.15; margin-bottom: 0.75rem; }
+    .section-desc { font-size: 1rem; color: var(--muted); line-height: 1.7; max-width: 680px; }
+
+    /* ── GRID ────────────────────────────────── */
+    .grid { display: grid; gap: 1.25rem; }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+    /* ── CARD ────────────────────────────────── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.75rem; position: relative; overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-2px); }
+    .card-glow { position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 16px 16px 0 0; }
+    .card-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-bottom: 1rem; }
+    .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .card-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── ARCH DIAGRAM ───────────────────────── */
+    .arch-box {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem; text-align: center;
+    }
+    .arch-layer {
+      padding: 1.25rem 1.5rem; border-radius: 12px; margin: 0.6rem 0;
+      border: 1px solid; position: relative;
+    }
+    .arch-layer-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 0.4rem; }
+    .arch-layer-title { font-size: 1rem; font-weight: 700; }
+    .arch-layer-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
+    .arch-arrow { text-align: center; font-size: 1.2rem; color: var(--dim); margin: -0.2rem 0; }
+    .arch-row { display: flex; gap: 1rem; }
+    .arch-row .arch-layer { flex: 1; }
+
+    .layer-front { background: rgba(59,130,246,0.07); border-color: rgba(59,130,246,0.2); }
+    .layer-back  { background: rgba(139,92,246,0.07); border-color: rgba(139,92,246,0.2); }
+    .layer-db    { background: rgba(6,182,212,0.07);  border-color: rgba(6,182,212,0.2);  }
+    .layer-ext   { background: rgba(16,185,129,0.07); border-color: rgba(16,185,129,0.2); }
+    .layer-mobile{ background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.2); }
+
+    /* ── TABLE ───────────────────────────────── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th {
+      text-align: left; padding: 0.75rem 1rem; font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim);
+      border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02);
+    }
+    .data-table td { padding: 0.85rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--muted); vertical-align: top; }
+    .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .data-table td:first-child { color: var(--text); font-weight: 500; }
+
+    /* ── BADGE ───────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+      font-size: 0.7rem; font-weight: 600; font-family: 'Fira Code', monospace;
+    }
+    .badge-blue   { background: rgba(59,130,246,0.15); color: #93c5fd; }
+    .badge-purple { background: rgba(139,92,246,0.15); color: #c4b5fd; }
+    .badge-green  { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+    .badge-amber  { background: rgba(245,158,11,0.15); color: #fcd34d; }
+    .badge-red    { background: rgba(239,68,68,0.15);  color: #fca5a5; }
+    .badge-cyan   { background: rgba(6,182,212,0.15);  color: #67e8f9; }
+
+    /* ── CODE BLOCK ──────────────────────────── */
+    .code-block {
+      background: #0a0f1e; border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; font-family: 'Fira Code', monospace; font-size: 0.82rem;
+      line-height: 1.7; overflow-x: auto; color: #e2e8f0;
+    }
+    .code-block .kw { color: #c4b5fd; }
+    .code-block .str { color: #6ee7b7; }
+    .code-block .cmt { color: var(--dim); }
+    .code-block .fn { color: #93c5fd; }
+    .code-block .num { color: #fcd34d; }
+
+    /* ── FLOW DIAGRAM ───────────────────────── */
+    .flow { display: flex; align-items: stretch; gap: 0; }
+    .flow-step {
+      flex: 1; background: var(--card); border: 1px solid var(--border);
+      padding: 1.25rem; position: relative; text-align: center;
+    }
+    .flow-step:first-child { border-radius: 12px 0 0 12px; }
+    .flow-step:last-child  { border-radius: 0 12px 12px 0; }
+    .flow-arrow {
+      display: flex; align-items: center; padding: 0 0.25rem;
+      color: var(--dim); font-size: 1.1rem; background: var(--card);
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .flow-step-num { font-size: 0.65rem; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
+    .flow-step-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .flow-step-sub { font-size: 0.72rem; color: var(--muted); }
+
+    /* ── FEATURE LIST ────────────────────────── */
+    .feature-list { list-style: none; }
+    .feature-list li { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.65rem 0; border-bottom: 1px solid var(--border); }
+    .feature-list li:last-child { border-bottom: none; }
+    .feature-list .fi { font-size: 1rem; flex-shrink: 0; margin-top: 0.05rem; }
+    .feature-list .ft { font-size: 0.88rem; font-weight: 600; }
+    .feature-list .fs { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* ── TIMELINE ───────────────────────────── */
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before { content:''; position:absolute; left:8px; top:0; bottom:0; width:2px; background:linear-gradient(to bottom,var(--accent1),var(--accent2),transparent); }
+    .tl-item { position: relative; margin-bottom: 2rem; }
+    .tl-dot { position: absolute; left: -1.65rem; top: 0.3rem; width: 14px; height: 14px; border-radius: 50%; background: var(--accent1); box-shadow: 0 0 12px var(--accent1); }
+    .tl-label { font-size: 0.7rem; color: var(--accent1); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem; }
+    .tl-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .tl-desc { font-size: 0.83rem; color: var(--muted); line-height: 1.6; }
+
+    /* ── SECURITY ────────────────────────────── */
+    .sec-item { display:flex; gap:1rem; align-items:flex-start; padding:0.9rem; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:10px; margin-bottom:0.75rem; }
+    .sec-icon { font-size:1.2rem; flex-shrink:0; }
+    .sec-title { font-size:0.9rem; font-weight:600; }
+    .sec-desc  { font-size:0.8rem; color:var(--muted); margin-top:0.2rem; }
+
+    /* ── PROGRESS ───────────────────────────── */
+    .progress-bar { background:rgba(255,255,255,0.06); border-radius:999px; height:6px; overflow:hidden; margin-top:0.5rem; }
+    .progress-fill { height:100%; border-radius:999px; }
+
+    /* ── ROLE PILLS ──────────────────────────── */
+    .role-pill { display:inline-flex; align-items:center; gap:0.4rem; padding:0.4rem 0.9rem; border-radius:999px; font-size:0.78rem; font-weight:600; margin:0.25rem; }
+
+    /* ── INTEGRATION CARDS ───────────────────── */
+    .integration-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem; display:flex; gap:1rem; align-items:flex-start; }
+    .integration-logo { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content: center; font-size:1.2rem; flex-shrink:0; }
+
+    /* ── FOOTER ──────────────────────────────── */
+    .slide-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(7,11,20,0.9); backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.85rem 2rem;
+    }
+    .nav-btn {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 1.25rem; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 600; border: 1px solid var(--border); background: transparent;
+      color: var(--text); cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .nav-btn:hover { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: var(--accent1); }
+    .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .nav-dots { display: flex; gap: 0.4rem; }
+    .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); cursor: pointer; transition: all 0.2s; }
+    .nav-dot.active { background: var(--accent1); width: 20px; border-radius: 3px; }
+
+    /* ── RESPONSIVE ──────────────────────────── */
+    @media(max-width:768px) {
+      .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr; }
+      .hero-stats { gap:1.5rem; }
+      .flow { flex-direction: column; }
+      .flow-step:first-child { border-radius:12px 12px 0 0; }
+      .flow-step:last-child  { border-radius:0 0 12px 12px; }
+      .flow-arrow { transform: rotate(90deg); }
+      .arch-row { flex-direction: column; }
+    }
+
+    /* ── HIGHLIGHT ───────────────────────────── */
+    .hl-blue  { color: #93c5fd; font-weight: 600; }
+    .hl-green { color: #6ee7b7; font-weight: 600; }
+    .hl-amber { color: #fcd34d; font-weight: 600; }
+    .hl-purple{ color: #c4b5fd; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">🏫 Addis Hiwot</div>
+  <div class="nav-links">
+    <a href="#" onclick="goTo(0)" id="nav-0" class="active">Overview</a>
+    <a href="#" onclick="goTo(1)" id="nav-1">Architecture</a>
+    <a href="#" onclick="goTo(2)" id="nav-2">Features</a>
+    <a href="#" onclick="goTo(3)" id="nav-3">Tech Stack</a>
+    <a href="#" onclick="goTo(4)" id="nav-4">Database</a>
+    <a href="#" onclick="goTo(5)" id="nav-5">Security</a>
+    <a href="#" onclick="goTo(6)" id="nav-6">Mobile</a>
+    <a href="#" onclick="goTo(7)" id="nav-7">Integrations</a>
+    <a href="#" onclick="goTo(8)" id="nav-8">Deployment</a>
+    <a href="#" onclick="goTo(9)" id="nav-9">Summary</a>
+  </div>
+  <div class="slide-counter" id="slide-counter">1 / 10</div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 0 — HERO OVERVIEW
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide hero-slide active" id="slide-0">
+  <div class="container hero-content">
+    <div class="hero-badge"><span></span> v1.4.0 · August 2026</div>
+    <h1 class="hero-title">
+      Addis Hiwot<br/><span class="grad">School Management Platform</span>
+    </h1>
+    <p class="hero-subtitle">
+      A full-stack, multi-tenant school management system built for Ethiopian schools —
+      combining real-time communication, offline-capable attendance, VoIP calling,
+      discipline management, and parent engagement in one unified platform.
+    </p>
+    <div class="hero-chips">
+      <span class="chip chip-blue">Next.js 16</span>
+      <span class="chip chip-purple">React 19</span>
+      <span class="chip chip-cyan">TypeScript</span>
+      <span class="chip chip-green">Supabase PostgreSQL</span>
+      <span class="chip chip-amber">Socket.IO</span>
+      <span class="chip chip-blue">Capacitor 8 (Android)</span>
+      <span class="chip chip-purple">WebRTC VoIP</span>
+      <span class="chip chip-red">Firebase FCM</span>
+      <span class="chip chip-cyan">Upstash Redis</span>
+      <span class="chip chip-green">Prisma ORM</span>
+      <span class="chip chip-amber">Amharic / English i18n</span>
+      <span class="chip chip-blue">Ethiopian Calendar</span>
+    </div>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-num">6</div><div class="stat-label">User Roles</div></div>
+      <div class="stat"><div class="stat-num">15+</div><div class="stat-label">API Modules</div></div>
+      <div class="stat"><div class="stat-num">2</div><div class="stat-label">Platforms</div></div>
+      <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Scalable</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 1 — SYSTEM ARCHITECTURE
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-1">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Architecture</div>
+      <h2 class="section-title">Decoupled Full-Stack Architecture</h2>
+      <p class="section-desc">Two independently deployed services — a Next.js frontend on Vercel and an Express.js API on Render — communicating over HTTPS and WebSockets, backed by Supabase PostgreSQL and Upstash Redis.</p>
+    </div>
+
+    <div class="grid grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
+      <div class="arch-box">
+        <div class="arch-layer layer-mobile" style="margin-bottom:0.5rem;">
+          <div class="arch-layer-label" style="color:#fbbf24;">Clients</div>
+          <div class="arch-layer-title">Web Browser &amp; Android App</div>
+          <div class="arch-layer-sub">Desktop / Mobile browsers + Capacitor APK</div>
+        </div>
+        <div class="arch-arrow">⬇️</div>
+        <div class="arch-layer layer-front">
+          <div class="arch-layer-label" style="color:#60a5fa;">Frontend Layer</div>
+          <div class="arch-layer-title">Next.js 16 — Vercel</div>
+          <div class="arch-layer-sub">App Router · Auth Context · IndexedDB Offline Cache · WebRTC</div>
+        </div>
+        <div class="arch-arrow">⬇️ HTTPS + WSS</div>
+        <div class="arch-layer layer-back">
+          <div class="arch-layer-label" style="color:#a78bfa;">Backend Layer</div>
+          <div class="arch-layer-title">Express.js — Render</div>
+          <div class="arch-layer-sub">REST API · Socket.IO · JWT Auth · Rate Limiting</div>
+        </div>
+        <div class="arch-arrow">⬇️</div>
+        <div class="arch-row">
+          <div class="arch-layer layer-db">
+            <div class="arch-layer-label" style="color:#22d3ee;">Data Layer</div>
+            <div class="arch-layer-title">PostgreSQL</div>
+            <div class="arch-layer-sub">Supabase + PgBouncer</div>
+          </div>
+          <div class="arch-layer layer-ext">
+            <div class="arch-layer-label" style="color:#34d399;">Cache / RT</div>
+            <div class="arch-layer-title">Redis</div>
+            <div class="arch-layer-sub">Upstash Pub/Sub</div>
+          </div>
+        </div>
+        <div class="arch-arrow">⬇️</div>
+        <div class="arch-row">
+          <div class="arch-layer layer-ext" style="flex:1">
+            <div class="arch-layer-title" style="font-size:0.88rem;">🔔 Firebase FCM</div>
+          </div>
+          <div class="arch-layer layer-ext" style="flex:1">
+            <div class="arch-layer-title" style="font-size:0.88rem;">📧 Resend Email</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent1),var(--accent2));"></div>
+          <div class="card-title">🌐 Multi-Tenancy</div>
+          <div class="card-desc">All database queries are scoped by <code style="color:#93c5fd">schoolId</code>. A super-admin role manages school provisioning. Each school operates in complete data isolation.</div>
+        </div>
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent2),var(--accent3));"></div>
+          <div class="card-title">⚡ Real-Time Communication</div>
+          <div class="card-desc">Socket.IO with Upstash Redis adapter enables broadcasting across multiple backend instances. Falls back gracefully to in-memory maps if Redis is offline.</div>
+        </div>
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent3),var(--accent4));"></div>
+          <div class="card-title">📴 Offline-First Design</div>
+          <div class="card-desc">IndexedDB stores attendance records and messages locally. SyncQueue processes pending uploads with exponential backoff when connectivity is restored.</div>
+        </div>
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent4),var(--accent5));"></div>
+          <div class="card-title">📱 Native Android</div>
+          <div class="card-desc">Capacitor 8 wraps the Next.js static export. Custom Java VoIP services (<code style="color:#93c5fd">CallService.java</code>, <code style="color:#93c5fd">IncomingCallActivity.java</code>) handle lock-screen call UI.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 2 — FEATURES
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-2">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Core Features</div>
+      <h2 class="section-title">Everything a School Needs</h2>
+      <p class="section-desc">Six role-based portals, each tailored to specific workflows — from real-time attendance to WebRTC voice/video calls.</p>
+    </div>
+
+    <div class="grid grid-3" style="margin-bottom:1.5rem;">
+      <div class="card">
+        <div class="card-icon" style="background:rgba(59,130,246,0.15);">📋</div>
+        <div class="card-title">Attendance Tracking</div>
+        <div class="card-desc">Teachers record daily / session-based attendance per grade, section, and stream. GPS geofencing validates location. Offline sync flushes data on reconnect. Parents receive instant FCM alerts for absent/late students.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(139,92,246,0.15);">💬</div>
+        <div class="card-title">Real-Time Messaging</div>
+        <div class="card-desc">Full-featured chat center with DMs, group channels, reply threads, message pinning, read receipts, file attachments, and saved messages. Powered by Socket.IO with Redis pub/sub for horizontal scaling.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(6,182,212,0.15);">📞</div>
+        <div class="card-title">VoIP Voice &amp; Video Calls</div>
+        <div class="card-desc">Peer-to-peer WebRTC audio/video calls with ICE/SDP negotiation via Socket.IO signaling. Data-only FCM wakes backgrounded Android devices. Native Java <code style="color:#93c5fd">IncomingCallActivity</code> shows lock-screen call UI.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(16,185,129,0.15);">⚖️</div>
+        <div class="card-title">Discipline Management</div>
+        <div class="card-desc">Full incident lifecycle — severity levels (LOW → CRITICAL), evidence attachments, witness statements, follow-up actions, and parent notification status. Dedicated Discipline Officer portal.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(245,158,11,0.15);">👨‍👩‍👧</div>
+        <div class="card-title">Parent Portal</div>
+        <div class="card-desc">Parents log in via phone + PIN (OTP-style). View attendance history, receive push notifications, read discipline reports, and message school staff through the messaging center.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(239,68,68,0.15);">📊</div>
+        <div class="card-title">Analytics &amp; Reports</div>
+        <div class="card-desc">Admin dashboard with Recharts-powered charts: attendance by grade/section/date range, discipline incident trends, teacher assignment coverage. CSV/PDF export. Academic year management with term/semester tracking.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(59,130,246,0.15);">👩‍🏫</div>
+        <div class="card-title">Teacher Management</div>
+        <div class="card-desc">Assign teachers to grades, sections, and subjects. Manage timetables. Teachers see their class rosters, take attendance, and communicate with parents and admin.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(139,92,246,0.15);">🎓</div>
+        <div class="card-title">Student Management</div>
+        <div class="card-desc">Bulk CSV import with preview, individual student profiles, grade/section/stream enrollment, and parent-student linking. Year-end promotion workflow moves students to next grade.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background:rgba(6,182,212,0.15);">🌍</div>
+        <div class="card-title">Bi-Lingual + Ethiopian Calendar</div>
+        <div class="card-desc">Complete Amharic (አማርኛ) and English translations across all portals via custom i18n engine. Ethiopian Calendar support with timezone-anchored date formatting (<code style="color:#93c5fd">Africa/Addis_Ababa</code>), Amharic month/day names.</div>
+      </div>
+    </div>
+
+    <div style="padding:1rem 1.5rem; background:rgba(59,130,246,0.07); border:1px solid rgba(59,130,246,0.2); border-radius:12px; display:flex; align-items:center; gap:1rem;">
+      <div style="font-size:1.5rem;">👤</div>
+      <div>
+        <div style="font-size:0.85rem; font-weight:600; margin-bottom:0.3rem;">6 Role-Based Portals</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+          <span class="role-pill" style="background:rgba(59,130,246,0.15);color:#93c5fd;">🛡️ Super Admin</span>
+          <span class="role-pill" style="background:rgba(139,92,246,0.15);color:#c4b5fd;">🏫 School Admin</span>
+          <span class="role-pill" style="background:rgba(16,185,129,0.15);color:#6ee7b7;">👩‍🏫 Teacher</span>
+          <span class="role-pill" style="background:rgba(245,158,11,0.15);color:#fcd34d;">⚖️ Discipline Officer</span>
+          <span class="role-pill" style="background:rgba(6,182,212,0.15);color:#67e8f9;">📋 Registrar</span>
+          <span class="role-pill" style="background:rgba(239,68,68,0.15);color:#fca5a5;">👨‍👩‍👧 Parent</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 3 — TECHNOLOGY STACK
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-3">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Technology Stack</div>
+      <h2 class="section-title">Modern, Production-Grade Tools</h2>
+      <p class="section-desc">Carefully chosen technologies that balance developer experience, performance, and long-term maintainability.</p>
+    </div>
+
+    <div class="grid grid-2" style="gap:1.5rem;">
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent1);margin-bottom:1rem;">🌐 Frontend</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+          <table class="data-table" style="margin:0;">
+            <thead><tr><th>Technology</th><th>Version</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>Next.js (App Router)</td><td><span class="badge badge-blue">16.2.6</span></td><td>Framework &amp; routing</td></tr>
+              <tr><td>React</td><td><span class="badge badge-blue">19.2.7</span></td><td>UI runtime</td></tr>
+              <tr><td>TypeScript</td><td><span class="badge badge-cyan">^5.0</span></td><td>Type safety</td></tr>
+              <tr><td>Tailwind CSS v4</td><td><span class="badge badge-cyan">4.1.9</span></td><td>Utility-first styling</td></tr>
+              <tr><td>Radix UI</td><td><span class="badge badge-purple">Various</span></td><td>Accessible primitives</td></tr>
+              <tr><td>Framer Motion</td><td><span class="badge badge-purple">^12.40</span></td><td>Animations</td></tr>
+              <tr><td>Socket.IO Client</td><td><span class="badge badge-amber">^4.8.3</span></td><td>Real-time events</td></tr>
+              <tr><td>Capacitor 8</td><td><span class="badge badge-green">8.4.1</span></td><td>Android wrapper</td></tr>
+              <tr><td>React Hook Form + Zod</td><td><span class="badge badge-green">RHF ^7.79</span></td><td>Form validation</td></tr>
+              <tr><td>Recharts</td><td><span class="badge badge-amber">2.15.4</span></td><td>Charts &amp; analytics</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent2);margin-bottom:1rem;">⚙️ Backend</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+          <table class="data-table" style="margin:0;">
+            <thead><tr><th>Technology</th><th>Version</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>Node.js + Express</td><td><span class="badge badge-green">20 LTS</span></td><td>HTTP server runtime</td></tr>
+              <tr><td>TypeScript</td><td><span class="badge badge-cyan">^5.3</span></td><td>Type safety</td></tr>
+              <tr><td>Prisma ORM</td><td><span class="badge badge-purple">^5.22</span></td><td>Type-safe DB queries</td></tr>
+              <tr><td>PostgreSQL</td><td><span class="badge badge-blue">14+</span></td><td>Primary database</td></tr>
+              <tr><td>Socket.IO Server</td><td><span class="badge badge-amber">^4.8.3</span></td><td>WebSocket gateway</td></tr>
+              <tr><td>Redis Adapter</td><td><span class="badge badge-red">^8.3</span></td><td>Horizontal scaling</td></tr>
+              <tr><td>Firebase Admin SDK</td><td><span class="badge badge-amber">^14.0</span></td><td>Push notifications</td></tr>
+              <tr><td>Resend + Nodemailer</td><td><span class="badge badge-green">Latest</span></td><td>Transactional email</td></tr>
+              <tr><td>bcryptjs + JWT</td><td><span class="badge badge-blue">Salt 10</span></td><td>Auth &amp; security</td></tr>
+              <tr><td>express-rate-limit</td><td><span class="badge badge-red">^8.6</span></td><td>Brute-force protection</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 4 — DATABASE
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-4">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Database</div>
+      <h2 class="section-title">PostgreSQL Data Model</h2>
+      <p class="section-desc">Prisma-managed schema with 15+ models, scoped per school. Dual connection strategy — pooled (PgBouncer) for runtime, direct for migrations.</p>
+    </div>
+
+    <div class="grid grid-2" style="gap:1.5rem;">
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent3);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">Core Models</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+          <table class="data-table">
+            <thead><tr><th>Model</th><th>Key Fields</th></tr></thead>
+            <tbody>
+              <tr><td>🏫 School</td><td>Root entity for all multi-tenant data</td></tr>
+              <tr><td>⚙️ SchoolSettings</td><td>Attendance mode, geofence radius, calendar type</td></tr>
+              <tr><td>👤 User</td><td>Role, password_hash, pushToken, email, phone</td></tr>
+              <tr><td>🎓 Student</td><td>Linked to Grade, Section, Stream</td></tr>
+              <tr><td>📋 Attendance</td><td>Status (PRESENT/ABSENT/LATE/EXCUSED), GPS coords</td></tr>
+              <tr><td>⚖️ StudentDiscipline</td><td>Severity, category, evidence, witnesses</td></tr>
+              <tr><td>💬 Conversation</td><td>DM or Group, school-scoped</td></tr>
+              <tr><td>📨 Message</td><td>Text, files, replies, pins, read receipts</td></tr>
+              <tr><td>📞 CallSession</td><td>VoIP duration, type (VOICE/VIDEO), disconnect reason</td></tr>
+              <tr><td>🔗 ParentStudentLink</td><td>Links parent User to one or more Students</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent3),var(--accent1));"></div>
+          <div class="card-title">🔗 Dual Connection Strategy</div>
+          <div class="card-desc">
+            <div style="margin-bottom:0.5rem;"><span class="badge badge-cyan">DATABASE_URL</span> → PgBouncer :6543 — for all runtime CRUD operations</div>
+            <div><span class="badge badge-blue">DIRECT_URL</span> → PostgreSQL :5432 — for schema migrations only</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent4),var(--accent3));"></div>
+          <div class="card-title">🗃️ Offline Client Cache (IndexedDB)</div>
+          <div class="card-desc">
+            Browser-side persistence using IndexedDB stores:
+            <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.3rem;">
+              <span class="badge badge-green">zetimer_messages</span>
+              <span class="badge badge-green">sync_queue</span>
+              <span class="badge badge-green">attendance_cache</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent1),var(--accent2));"></div>
+          <div class="card-title">📅 Ethiopian Calendar Support</div>
+          <div class="card-desc">Custom Julian Day algorithm with <code style="color:#93c5fd">Africa/Addis_Ababa</code> timezone anchoring. Full Amharic month names, day labels, and period formatting — displayed natively to Ethiopian users.</div>
+        </div>
+        <div class="card">
+          <div class="card-glow" style="background:linear-gradient(90deg,var(--accent5),var(--accent6));"></div>
+          <div class="card-title">🔧 Schema Management</div>
+          <div class="card-desc">
+            <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.3rem;">
+              <div><span class="badge badge-amber">Dev</span> <code style="font-size:0.78rem;color:#93c5fd">npx prisma migrate dev</code></div>
+              <div><span class="badge badge-green">Prod</span> <code style="font-size:0.78rem;color:#6ee7b7">npx prisma migrate deploy</code></div>
+              <div><span class="badge badge-blue">View</span> <code style="font-size:0.78rem;color:#93c5fd">npx prisma studio</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 5 — SECURITY
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-5">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Security</div>
+      <h2 class="section-title">Defense-in-Depth Security Model</h2>
+      <p class="section-desc">Multiple layers of security from password hashing to role-based access control, CORS, rate limiting, and security HTTP headers.</p>
+    </div>
+
+    <div class="grid grid-2" style="gap:1.5rem;">
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent4);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">✅ Implemented Measures</div>
+        <div class="sec-item">
+          <div class="sec-icon">🔐</div>
+          <div><div class="sec-title">Password Hashing</div><div class="sec-desc">bcryptjs with salt rounds 10. Plaintext passwords never stored or logged.</div></div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">🎟️</div>
+          <div><div class="sec-title">JWT Authentication</div><div class="sec-desc">HS256 signed tokens stored in HTTP-only, SameSite=Lax cookies with Secure flag in production.</div></div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">🛡️</div>
+          <div><div class="sec-title">Role-Based Access Control (RBAC)</div><div class="sec-desc">Every API endpoint protected by <code style="color:#93c5fd">authMiddleware</code> + <code style="color:#93c5fd">authorize([roles])</code> middleware chain.</div></div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">⛔</div>
+          <div><div class="sec-title">Rate Limiting</div><div class="sec-desc">Login: 10/min · Password reset: 3/min · OTP: 5/15min — all per IP.</div></div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">🔒</div>
+          <div><div class="sec-title">Security HTTP Headers</div><div class="sec-desc"><code style="color:#93c5fd">X-Content-Type-Options</code>, <code style="color:#93c5fd">X-Frame-Options: DENY</code>, <code style="color:#93c5fd">X-XSS-Protection</code>, <code style="color:#93c5fd">Referrer-Policy</code> set on all responses.</div></div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">✅</div>
+          <div><div class="sec-title">Input Validation</div><div class="sec-desc">Zod schemas validate all critical auth and registration payloads server-side.</div></div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">🏫</div>
+          <div><div class="sec-title">School-Scoped Data Isolation</div><div class="sec-desc">Every service query includes <code style="color:#93c5fd">schoolId</code> filter. Cross-school data leakage is architecturally impossible at the ORM layer.</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent6);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">⚠️ Known Issues (Pre-Handover)</div>
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+          <div style="font-weight:600;margin-bottom:0.3rem;color:#fca5a5;">🔴 Critical — Hardcoded JWT Fallback</div>
+          <div style="font-size:0.82rem;color:var(--muted);"><code style="color:#fca5a5">server/src/utils/jwt.ts</code> contains a predictable fallback secret. Server must crash on startup if <code style="color:#fca5a5">JWT_SECRET</code> is missing.</div>
+        </div>
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+          <div style="font-weight:600;margin-bottom:0.3rem;color:#fca5a5;">🔴 Critical — Keystore Credentials on Disk</div>
+          <div style="font-size:0.82rem;color:var(--muted);"><code style="color:#fca5a5">android/keystore.properties</code> stores raw signing passwords. Must be added to <code>.gitignore</code> and supplied via CI/CD secrets.</div>
+        </div>
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+          <div style="font-weight:600;margin-bottom:0.3rem;color:#fca5a5;">🔴 Critical — Destructive Build Command</div>
+          <div style="font-size:0.82rem;color:var(--muted);"><code style="color:#fca5a5">render.yaml</code> runs <code>prisma db push --accept-data-loss</code> on deploy. Must be changed to <code>prisma migrate deploy</code>.</div>
+        </div>
+        <div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1rem;margin-bottom:0.75rem;">
+          <div style="font-weight:600;margin-bottom:0.3rem;color:#fcd34d;">🟡 High — Hardcoded Test Seed Account</div>
+          <div style="font-size:0.82rem;color:var(--muted);">Seed SQL script contains a known admin account with <code style="color:#fcd34d">password: 123456</code>. Must NOT be run in production.</div>
+        </div>
+        <div style="background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:1rem;">
+          <div style="font-weight:600;margin-bottom:0.5rem;">Recommended Improvements</div>
+          <div style="font-size:0.82rem;color:var(--muted);display:flex;flex-direction:column;gap:0.35rem;">
+            <div>→ Redis-backed JWT blacklist for token revocation on logout</div>
+            <div>→ TOTP two-factor authentication for admin accounts</div>
+            <div>→ Supabase Row Level Security (RLS) policies</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 6 — MOBILE / ANDROID
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-6">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Mobile</div>
+      <h2 class="section-title">Android App — Capacitor + Native VoIP</h2>
+      <p class="section-desc">The Android app is a Capacitor 8 wrapper around the Next.js static export, extended with native Java services for professional-grade VoIP call handling.</p>
+    </div>
+
+    <div class="grid grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent5);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">📱 App Configuration</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+          <table class="data-table">
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Package ID</td><td><span class="badge badge-amber">com.zetime.app</span></td></tr>
+              <tr><td>App Name</td><td>Addis Hiwot</td></tr>
+              <tr><td>Capacitor Version</td><td><span class="badge badge-green">8.4.1</span></td></tr>
+              <tr><td>Compile SDK</td><td>API 36 (Android 15)</td></tr>
+              <tr><td>Min SDK</td><td>API 24 (Android 7.0)</td></tr>
+              <tr><td>Target SDK</td><td>API 36</td></tr>
+              <tr><td>Gradle</td><td>8.14.3</td></tr>
+              <tr><td>AGP</td><td>8.13.0</td></tr>
+              <tr><td>JDK Required</td><td>JDK 17 / 21</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent5);margin-bottom:0rem;text-transform:uppercase;letter-spacing:0.06em;">🔧 Native Java VoIP Architecture</div>
+        <ul class="feature-list">
+          <li>
+            <div class="fi">⚡</div>
+            <div><div class="ft">MyFirebaseMessagingService.java</div><div class="fs">Handles high-priority data-only FCM packets. Wakes device without webview latency — triggers call ringing even when app is killed.</div></div>
+          </li>
+          <li>
+            <div class="fi">📞</div>
+            <div><div class="ft">CallService.java</div><div class="fs">Foreground service (<code style="color:#93c5fd">FOREGROUND_SERVICE_PHONE_CALL</code>) that keeps the audio thread alive during the call lifecycle.</div></div>
+          </li>
+          <li>
+            <div class="fi">📱</div>
+            <div><div class="ft">IncomingCallActivity.java</div><div class="fs">Native full-screen call UI displayed on lock screen via <code style="color:#93c5fd">USE_FULL_SCREEN_INTENT</code>. Shows Answer / Decline buttons.</div></div>
+          </li>
+          <li>
+            <div class="fi">🔌</div>
+            <div><div class="ft">CallPlugin.java</div><div class="fs">Custom Capacitor plugin bridging: speakerphone toggle, audio routing, hardware button hooks, auth token storage in SharedPreferences.</div></div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent5);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">🔑 Android Permissions</div>
+    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem;">
+      <span class="badge badge-blue">INTERNET</span>
+      <span class="badge badge-blue">CAMERA</span>
+      <span class="badge badge-blue">RECORD_AUDIO</span>
+      <span class="badge badge-blue">MODIFY_AUDIO_SETTINGS</span>
+      <span class="badge badge-purple">ACCESS_FINE_LOCATION</span>
+      <span class="badge badge-purple">ACCESS_COARSE_LOCATION</span>
+      <span class="badge badge-amber">POST_NOTIFICATIONS</span>
+      <span class="badge badge-amber">WAKE_LOCK</span>
+      <span class="badge badge-amber">VIBRATE</span>
+      <span class="badge badge-red">USE_FULL_SCREEN_INTENT</span>
+      <span class="badge badge-red">FOREGROUND_SERVICE</span>
+      <span class="badge badge-red">FOREGROUND_SERVICE_PHONE_CALL</span>
+      <span class="badge badge-red">MANAGE_OWN_CALLS</span>
+      <span class="badge badge-green">SYSTEM_ALERT_WINDOW</span>
+      <span class="badge badge-green">DISABLE_KEYGUARD</span>
+      <span class="badge badge-cyan">BLUETOOTH_CONNECT</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 7 — INTEGRATIONS
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-7">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Integrations</div>
+      <h2 class="section-title">Third-Party Service Ecosystem</h2>
+      <p class="section-desc">Five cloud services woven into the platform, each with resilient fallback behavior to ensure uninterrupted operation.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1.5rem;">
+      <div class="integration-card">
+        <div class="integration-logo" style="background:rgba(245,158,11,0.15);">🔔</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;margin-bottom:0.3rem;">Firebase Cloud Messaging (FCM)</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem;">Background push notifications, absence alerts, and lock-screen VoIP ringing. Uses Firebase Admin SDK on the backend with <code style="color:#93c5fd">FIREBASE_SERVICE_ACCOUNT</code> JSON. Client-side registration via <code style="color:#93c5fd">lib/firebase-client.ts</code> and <code style="color:#93c5fd">public/firebase-messaging-sw.js</code>.</div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="badge badge-amber">High-priority data-only FCM</span>
+            <span class="badge badge-amber">Lock-screen VoIP wakeup</span>
+            <span class="badge badge-amber">VAPID Web Push</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:0.75rem;color:var(--muted);min-width:100px;">
+          <div style="color:var(--accent4);font-weight:600;">● Active</div>
+          <div>FCM Admin v14</div>
+        </div>
+      </div>
+
+      <div class="integration-card">
+        <div class="integration-logo" style="background:rgba(59,130,246,0.15);">📧</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;margin-bottom:0.3rem;">Resend (Primary Email)</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem;">Transactional email delivery for password reset links and 6-digit OTP verification codes. Configured via <code style="color:#93c5fd">RESEND_API_KEY</code>. If unavailable, automatically falls back to Nodemailer/SMTP.</div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="badge badge-blue">Password Reset</span>
+            <span class="badge badge-blue">Email OTP</span>
+            <span class="badge badge-blue">SMTP Fallback</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:0.75rem;color:var(--muted);min-width:100px;">
+          <div style="color:var(--accent4);font-weight:600;">● Active</div>
+          <div>Resend SDK Latest</div>
+        </div>
+      </div>
+
+      <div class="integration-card">
+        <div class="integration-logo" style="background:rgba(239,68,68,0.15);">⚡</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;margin-bottom:0.3rem;">Upstash Redis</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem;">Powers Socket.IO Redis Adapter for multi-instance pub/sub broadcasting. Also caches user presence, active call state, and role information. Falls back to in-memory Maps (<code style="color:#93c5fd">memUserSockets</code>, <code style="color:#93c5fd">memActiveCalls</code>) if Redis is offline — no service interruption.</div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="badge badge-red">Socket.IO Adapter</span>
+            <span class="badge badge-red">Presence Cache</span>
+            <span class="badge badge-red">In-Memory Fallback</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:0.75rem;color:var(--muted);min-width:100px;">
+          <div style="color:var(--accent4);font-weight:600;">● Active</div>
+          <div>@socket.io/redis-adapter v8</div>
+        </div>
+      </div>
+
+      <div class="integration-card">
+        <div class="integration-logo" style="background:rgba(16,185,129,0.15);">🗄️</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;margin-bottom:0.3rem;">Supabase (PostgreSQL + Auth)</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem;">Managed PostgreSQL database with PgBouncer connection pooling. Supabase SSR package used for server-side session management in Next.js API routes. Dual connection strategy: pooled (port 6543) for CRUD, direct (port 5432) for migrations.</div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="badge badge-green">PostgreSQL 14+</span>
+            <span class="badge badge-green">PgBouncer Pool</span>
+            <span class="badge badge-green">Supabase SSR</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:0.75rem;color:var(--muted);min-width:100px;">
+          <div style="color:var(--accent4);font-weight:600;">● Active</div>
+          <div>supabase-js 2.89</div>
+        </div>
+      </div>
+
+      <div class="integration-card">
+        <div class="integration-logo" style="background:rgba(6,182,212,0.15);">📊</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;margin-bottom:0.3rem;">Vercel Analytics</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-bottom:0.5rem;">Real-time web analytics embedded in the Next.js frontend via <code style="color:#93c5fd">@vercel/analytics</code> package. Tracks page views, navigation paths, and performance metrics without configuration.</div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <span class="badge badge-cyan">Page Analytics</span>
+            <span class="badge badge-cyan">Core Web Vitals</span>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:0.75rem;color:var(--muted);min-width:100px;">
+          <div style="color:var(--accent4);font-weight:600;">● Active</div>
+          <div>v1.3.1</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 8 — DEPLOYMENT
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-8">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Deployment</div>
+      <h2 class="section-title">Production Deployment Pipeline</h2>
+      <p class="section-desc">Frontend on Vercel with auto-deploy, backend on Render with blueprint provisioning, database on Supabase — all independently scaled.</p>
+    </div>
+
+    <div class="grid grid-3" style="margin-bottom:1.5rem;">
+      <div class="card">
+        <div class="card-glow" style="background:linear-gradient(90deg,#000,var(--accent1));"></div>
+        <div style="font-size:1.5rem;margin-bottom:0.75rem;">▲</div>
+        <div class="card-title">Frontend — Vercel</div>
+        <div class="card-desc" style="margin-bottom:1rem;">Auto-deploys on push to <code style="color:#93c5fd">main</code>. Static export for Android APK via <code style="color:#93c5fd">CAPACITOR_BUILD=1</code>.</div>
+        <div style="display:flex;flex-direction:column;gap:0.3rem;">
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Next.js App Router</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Edge CDN globally distributed</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Environment vars in dashboard</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> PWA + Service Worker</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-glow" style="background:linear-gradient(90deg,var(--accent2),var(--accent3));"></div>
+        <div style="font-size:1.5rem;margin-bottom:0.75rem;">🚀</div>
+        <div class="card-title">Backend — Render</div>
+        <div class="card-desc" style="margin-bottom:1rem;"><code style="color:#93c5fd">render.yaml</code> blueprint provisions the service. Build runs <code style="color:#93c5fd">prisma generate + tsc</code>.</div>
+        <div style="display:flex;flex-direction:column;gap:0.3rem;">
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Auto-deploy from Git</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Health check at <code style="color:#93c5fd">GET /health</code></div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Node.js 20 LTS runtime</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Horizontal scaling via Redis</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-glow" style="background:linear-gradient(90deg,var(--accent4),var(--accent1));"></div>
+        <div style="font-size:1.5rem;margin-bottom:0.75rem;">🗄️</div>
+        <div class="card-title">Database — Supabase</div>
+        <div class="card-desc" style="margin-bottom:1rem;">Managed PostgreSQL with daily automatic backups. PgBouncer pooler handles connection bursts.</div>
+        <div style="display:flex;flex-direction:column;gap:0.3rem;">
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> PostgreSQL 14+</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Automatic daily backups</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> PgBouncer connection pooler</div>
+          <div style="font-size:0.78rem;color:var(--muted);"><span style="color:var(--accent4);">✓</span> Prisma migration deploy</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:0.8rem;font-weight:700;color:var(--accent3);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">🔄 Data Flow — Attendance Recording</div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-step-num">Step 1</div>
+        <div class="flow-step-title">Teacher Records</div>
+        <div class="flow-step-sub">Grade / Section / Student status marked in UI</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">Step 2</div>
+        <div class="flow-step-title">Online Check</div>
+        <div class="flow-step-sub">Network detected via @capacitor/network</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">Step 3a</div>
+        <div class="flow-step-title">POST /api/attendance</div>
+        <div class="flow-step-sub">Direct API call if online</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">Step 3b</div>
+        <div class="flow-step-title">IndexedDB Queue</div>
+        <div class="flow-step-sub">Stored locally if offline; synced on reconnect</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-step-num">Step 4</div>
+        <div class="flow-step-title">FCM Alert</div>
+        <div class="flow-step-sub">Parents of absent/late students notified instantly</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     SLIDE 9 — SUMMARY
+═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" id="slide-9">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-tag">Summary</div>
+      <h2 class="section-title">What Has Been Built</h2>
+      <p class="section-desc">Addis Hiwot is a production-ready, feature-complete school management platform tailored for the Ethiopian education context — combining modern web technologies with native mobile capabilities.</p>
+    </div>
+
+    <div class="grid grid-2" style="gap:1.5rem;margin-bottom:2rem;">
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent4);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">🏆 Strengths</div>
+        <ul class="feature-list">
+          <li><div class="fi">🌍</div><div><div class="ft">Ethiopian-First Design</div><div class="fs">Full Amharic UI, Ethiopian Calendar support, Africa/Addis_Ababa timezone — built for local context.</div></div></li>
+          <li><div class="fi">📴</div><div><div class="ft">Offline-Capable</div><div class="fs">IndexedDB + SyncQueue ensures teachers can take attendance without internet. Data syncs automatically on reconnect.</div></div></li>
+          <li><div class="fi">📞</div><div><div class="ft">True Native VoIP</div><div class="fs">Lock-screen incoming call UI, foreground audio service, and WebRTC — not just browser notifications.</div></div></li>
+          <li><div class="fi">⚡</div><div><div class="ft">Real-Time Everything</div><div class="fs">Socket.IO with Redis adapter for chat, presence, call signaling — horizontally scalable.</div></div></li>
+          <li><div class="fi">🛡️</div><div><div class="ft">Robust Security Model</div><div class="fs">RBAC, JWT cookies, bcrypt, rate limiting, CORS, and school-scoped data isolation at ORM level.</div></div></li>
+          <li><div class="fi">📱</div><div><div class="ft">One Codebase, Two Platforms</div><div class="fs">Shared Next.js/React codebase runs as web app and Android APK via Capacitor.</div></div></li>
+        </ul>
+      </div>
+
+      <div>
+        <div style="font-size:0.8rem;font-weight:700;color:var(--accent5);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.06em;">📦 System Scale</div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span style="font-size:0.82rem;font-weight:600;">Frontend Components</span><span style="font-size:0.78rem;color:var(--muted);">~260+ files</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:90%;background:linear-gradient(90deg,var(--accent1),var(--accent2));"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span style="font-size:0.82rem;font-weight:600;">Backend Services</span><span style="font-size:0.78rem;color:var(--muted);">16 service modules</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:80%;background:linear-gradient(90deg,var(--accent2),var(--accent3));"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span style="font-size:0.82rem;font-weight:600;">Database Models</span><span style="font-size:0.78rem;color:var(--muted);">15+ Prisma models</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:70%;background:linear-gradient(90deg,var(--accent3),var(--accent4));"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span style="font-size:0.82rem;font-weight:600;">API Endpoints</span><span style="font-size:0.78rem;color:var(--muted);">15+ route modules</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:85%;background:linear-gradient(90deg,var(--accent4),var(--accent5));"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span style="font-size:0.82rem;font-weight:600;">i18n Translations</span><span style="font-size:0.78rem;color:var(--muted);">36KB — EN + AM</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:100%;background:linear-gradient(90deg,var(--accent1),var(--accent4));"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span style="font-size:0.82rem;font-weight:600;">Android APK Size</span><span style="font-size:0.78rem;color:var(--muted);">~12.8 MB (release)</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:55%;background:linear-gradient(90deg,var(--accent5),var(--accent4));"></div></div>
+          </div>
+        </div>
+
+        <div style="margin-top:1.5rem;padding:1.25rem;background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:12px;">
+          <div style="font-weight:700;margin-bottom:0.75rem;">🚀 Current Version</div>
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+            <div style="text-align:center;flex:1;min-width:100px;">
+              <div style="font-size:1.6rem;font-weight:800;color:var(--accent1);">v1.4.0</div>
+              <div style="font-size:0.72rem;color:var(--dim);">Web Platform</div>
+            </div>
+            <div style="text-align:center;flex:1;min-width:100px;">
+              <div style="font-size:1.6rem;font-weight:800;color:var(--accent2);">v5</div>
+              <div style="font-size:0.72rem;color:var(--dim);">Android Version Code</div>
+            </div>
+            <div style="text-align:center;flex:1;min-width:100px;">
+              <div style="font-size:1.6rem;font-weight:800;color:var(--accent4);">Aug 2026</div>
+              <div style="font-size:0.72rem;color:var(--dim);">Audit Date</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;padding:2rem;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(139,92,246,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:16px;">
+      <div style="font-size:2rem;margin-bottom:0.75rem;">🏫</div>
+      <div style="font-size:1.3rem;font-weight:700;margin-bottom:0.5rem;">Addis Hiwot School Management Platform</div>
+      <div style="font-size:0.9rem;color:var(--muted);max-width:600px;margin:0 auto;">A complete, production-ready digital infrastructure for Ethiopian school administration — attendance, communication, discipline, analytics, and parent engagement, all in one unified platform available on web and Android.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── SLIDE NAV ─────────────────────────────────────────────── -->
+<div class="slide-nav">
+  <button class="nav-btn" id="prev-btn" onclick="prevSlide()" disabled>← Previous</button>
+  <div class="nav-dots" id="nav-dots"></div>
+  <button class="nav-btn" id="next-btn" onclick="nextSlide()">Next →</button>
+</div>
+
+<script>
+  const TOTAL = 10;
+  let current = 0;
+
+  function init() {
+    const dots = document.getElementById('nav-dots');
+    for (let i = 0; i < TOTAL; i++) {
+      const d = document.createElement('div');
+      d.className = 'nav-dot' + (i === 0 ? ' active' : '');
+      d.onclick = () => goTo(i);
+      dots.appendChild(d);
+    }
+    updateCounter();
+  }
+
+  function goTo(n) {
+    document.querySelectorAll('.slide').forEach((s, i) => {
+      s.classList.toggle('active', i === n);
+    });
+    document.querySelectorAll('.nav-dot').forEach((d, i) => {
+      d.classList.toggle('active', i === n);
+    });
+    document.querySelectorAll('.nav-links a').forEach((a, i) => {
+      a.classList.toggle('active', i === n);
+    });
+    current = n;
+    document.getElementById('prev-btn').disabled = n === 0;
+    document.getElementById('next-btn').disabled = n === TOTAL - 1;
+    updateCounter();
+    window.scrollTo(0, 0);
+    return false;
+  }
+
+  function nextSlide() { if (current < TOTAL - 1) goTo(current + 1); }
+  function prevSlide() { if (current > 0) goTo(current - 1); }
+
+  function updateCounter() {
+    document.getElementById('slide-counter').textContent = (current + 1) + ' / ' + TOTAL;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextSlide();
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevSlide();
+  });
+
+  init();
+</script>
+</body>
+</html>
