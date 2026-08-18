@@ -3,9 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.resolveTeacherId = void 0;
+exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.normalizeDate = exports.resolveTeacherId = void 0;
 exports.calculateDistanceMeters = calculateDistanceMeters;
+exports.validateGeofence = validateGeofence;
 const db_1 = __importDefault(require("../config/db"));
+const academic_year_service_1 = require("./academic-year.service");
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // Earth's radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
@@ -69,16 +71,62 @@ const resolveTeacherId = async (schoolId, rawTeacherId) => {
     return null;
 };
 exports.resolveTeacherId = resolveTeacherId;
+const normalizeDate = (dateInput) => {
+    let dateStr;
+    if (!dateInput) {
+        dateStr = new Date().toISOString().split("T")[0];
+    }
+    else if (typeof dateInput === 'string') {
+        dateStr = dateInput.split("T")[0];
+    }
+    else if (dateInput instanceof Date) {
+        dateStr = dateInput.toISOString().split("T")[0];
+    }
+    else {
+        dateStr = new Date(dateInput).toISOString().split("T")[0];
+    }
+    const startDate = new Date(`${dateStr}T00:00:00.000Z`);
+    const endDate = new Date(`${dateStr}T23:59:59.999Z`);
+    return { dateStr, startDate, endDate };
+};
+exports.normalizeDate = normalizeDate;
 const normalizeSession = (sess) => {
     if (sess === null || sess === undefined)
         return null;
     const s = String(sess).trim().toLowerCase();
-    if (s === '' || s === 'none' || s === 'daily' || s === 'null' || s === 'undefined') {
+    if (s === '' || s === 'none' || s === 'daily' || s === 'null' || s === 'undefined' || s === 'total') {
         return null;
     }
     return s;
 };
 exports.normalizeSession = normalizeSession;
+/**
+ * Shared geofence validation used by both student and staff attendance.
+ * Returns verified flag and computed distance, or throws if strict-mode fails.
+ */
+function validateGeofence(data, settings) {
+    let locVerified = data.locationVerified ?? false;
+    let locDistance = data.locationDistance != null ? Number(data.locationDistance) : null;
+    if (settings?.restrict_location && !settings?.allow_outside_attendance) {
+        if (settings.school_latitude != null && settings.school_longitude != null) {
+            if (data.latitude == null || data.longitude == null) {
+                throw new Error("Location verification failed: Device GPS location is required to submit attendance.");
+            }
+            const dist = calculateDistanceMeters(Number(data.latitude), Number(data.longitude), settings.school_latitude, settings.school_longitude);
+            const allowedRadius = settings.allowed_radius_meters || 200;
+            if (dist > allowedRadius) {
+                throw new Error(`Attendance submission blocked: You are ${dist}m away from school location (Allowed radius: ${allowedRadius}m).`);
+            }
+            locVerified = true;
+            locDistance = dist;
+        }
+    }
+    else if (data.latitude != null && data.longitude != null && settings?.school_latitude != null && settings?.school_longitude != null) {
+        locDistance = calculateDistanceMeters(Number(data.latitude), Number(data.longitude), settings.school_latitude, settings.school_longitude);
+        locVerified = locDistance <= (settings.allowed_radius_meters || 200);
+    }
+    return { locVerified, locDistance };
+}
 const markAttendance = async (data, schoolId) => {
     const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
     const session = (0, exports.normalizeSession)(data.session);
@@ -100,30 +148,9 @@ const markAttendance = async (data, schoolId) => {
     // Fetch school settings for location restriction & edit permission checks
     const settings = await db_1.default.schoolSettings.findUnique({ where: { schoolId } });
     // 1. Geofence & Location Restriction Verification
-    let locVerified = data.locationVerified ?? false;
-    let locDistance = data.locationDistance != null ? Number(data.locationDistance) : null;
-    if (settings?.restrict_location && !settings?.allow_outside_attendance) {
-        if (settings.school_latitude != null && settings.school_longitude != null) {
-            if (data.latitude == null || data.longitude == null) {
-                throw new Error("Location verification failed: Device GPS location is required to submit attendance.");
-            }
-            const dist = calculateDistanceMeters(Number(data.latitude), Number(data.longitude), settings.school_latitude, settings.school_longitude);
-            const allowedRadius = settings.allowed_radius_meters || 200;
-            if (dist > allowedRadius) {
-                throw new Error(`Attendance submission blocked: You are ${dist}m away from school location (Allowed radius: ${allowedRadius}m).`);
-            }
-            locVerified = true;
-            locDistance = dist;
-        }
-    }
-    else if (data.latitude != null && data.longitude != null && settings?.school_latitude != null && settings?.school_longitude != null) {
-        locDistance = calculateDistanceMeters(Number(data.latitude), Number(data.longitude), settings.school_latitude, settings.school_longitude);
-        locVerified = locDistance <= (settings.allowed_radius_meters || 200);
-    }
-    // Parse the day range in UTC
-    const dateStr = typeof date === 'string' ? date.split("T")[0] : new Date(date).toISOString().split("T")[0];
-    const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-    const endDate = new Date(`${dateStr}T23:59:59.999Z`);
+    const { locVerified, locDistance } = validateGeofence(data, settings);
+    // Standardize the day range in UTC
+    const { dateStr, startDate, endDate } = (0, exports.normalizeDate)(date);
     // Find if a record already exists for this student on this day and session.
     const existing = await db_1.default.attendance.findFirst({
         where: {
@@ -135,31 +162,36 @@ const markAttendance = async (data, schoolId) => {
             },
             ...(session
                 ? { session: { equals: session, mode: 'insensitive' } }
-                : { session: null }),
+                : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] }),
         }
     });
     // 2. Attendance Edit Permission Verification
     if (existing && userRole === 'teacher') {
         if (settings && settings.allow_attendance_editing === false) {
-            // Find active approved request
+            const sessionFilter = session
+                ? { session: { equals: session, mode: 'insensitive' } }
+                : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
             const approvedRequest = await db_1.default.attendanceEditRequest.findFirst({
                 where: {
-                    OR: [
-                        ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
-                        ...(teacherId ? [{ teacherId }] : []),
-                        ...(userId ? [{ teacherId: userId }] : [])
-                    ],
+                    schoolId,
+                    status: 'APPROVED',
                     isUsed: false,
                     date: {
                         gte: startDate,
                         lte: endDate,
                     },
+                    ...sessionFilter,
+                    OR: [
+                        ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
+                        ...(teacherId ? [{ teacherId }] : []),
+                        ...(userId ? [{ teacherId: userId }] : [])
+                    ],
                 }
             });
             if (!approvedRequest) {
-                throw new Error("Attendance editing is disabled by School Admin. Please submit an edit request.");
+                const sessionLabel = session ? ` (${session} session)` : '';
+                throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${dateStr}${sessionLabel}.`);
             }
-            // Consume the approved permission
             await db_1.default.attendanceEditRequest.update({
                 where: { id: approvedRequest.id },
                 data: { isUsed: true }
@@ -172,10 +204,21 @@ const markAttendance = async (data, schoolId) => {
                     entity_type: 'ATTENDANCE_EDIT_REQUEST',
                     entity_id: approvedRequest.id,
                     old_values: { status: existing.status, remarks: existing.remarks },
-                    new_values: { newStatus: status, remarks }
+                    new_values: { newStatus: status, session: session || null, remarks }
                 }
             }).catch(err => console.error('[AuditLog] edit permission use log error:', err));
         }
+    }
+    // Resolve active academic year and student's enrollment record
+    const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+    const academicYearId = activeAY?.id || null;
+    let academicYearRecordId = null;
+    if (activeAY) {
+        const enrollmentRecord = await db_1.default.studentAcademicYearRecord.findUnique({
+            where: { studentId_academicYearId: { studentId, academicYearId: activeAY.id } },
+            select: { id: true }
+        });
+        academicYearRecordId = enrollmentRecord?.id || null;
     }
     const result = existing
         ? await db_1.default.attendance.update({
@@ -189,6 +232,8 @@ const markAttendance = async (data, schoolId) => {
                 longitude: data.longitude != null ? Number(data.longitude) : existing.longitude,
                 locationVerified: locVerified,
                 locationDistance: locDistance,
+                ...(academicYearId && !existing.academicYearId ? { academicYearId } : {}),
+                ...(academicYearRecordId && !existing.academicYearRecordId ? { academicYearRecordId } : {}),
             }
         })
         : await db_1.default.attendance.create({
@@ -204,6 +249,8 @@ const markAttendance = async (data, schoolId) => {
                 longitude: data.longitude != null ? Number(data.longitude) : null,
                 locationVerified: locVerified,
                 locationDistance: locDistance,
+                academicYearId,
+                academicYearRecordId,
             }
         });
     // Audit log attendance operation
@@ -232,14 +279,16 @@ const markAttendance = async (data, schoolId) => {
 };
 exports.markAttendance = markAttendance;
 const getAttendance = async (filters, schoolId) => {
-    const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate } = filters;
+    const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate, academicYearId: filterAcademicYearId } = filters;
     const where = { schoolId };
+    // Explicit academicYearId filter if supplied by caller
+    if (filterAcademicYearId) {
+        where.academicYearId = filterAcademicYearId;
+    }
     if (studentId)
         where.studentId = studentId;
     if (date) {
-        const dateStr = typeof date === 'string' ? date.split("T")[0] : date;
-        const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-        const endDate = new Date(`${dateStr}T23:59:59.999Z`);
+        const { startDate, endDate } = (0, exports.normalizeDate)(date);
         where.date = {
             gte: startDate,
             lte: endDate,
@@ -248,21 +297,25 @@ const getAttendance = async (filters, schoolId) => {
     else if (filterStartDate || filterEndDate) {
         where.date = {};
         if (filterStartDate) {
-            const dateStr = typeof filterStartDate === 'string' ? filterStartDate.split("T")[0] : filterStartDate;
-            where.date.gte = new Date(`${dateStr}T00:00:00.000Z`);
+            const { startDate } = (0, exports.normalizeDate)(filterStartDate);
+            where.date.gte = startDate;
         }
         if (filterEndDate) {
-            const dateStr = typeof filterEndDate === 'string' ? filterEndDate.split("T")[0] : filterEndDate;
-            where.date.lte = new Date(`${dateStr}T23:59:59.999Z`);
+            const { endDate } = (0, exports.normalizeDate)(filterEndDate);
+            where.date.lte = endDate;
         }
     }
     if (session !== undefined && session !== null) {
         const cleanSess = String(session).trim().toLowerCase();
         if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
-            where.session = null;
+            where.OR = [{ session: null }, { session: '' }, { session: 'daily' }];
         }
         else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
-            where.session = { not: null };
+            where.AND = [
+                { session: { not: null } },
+                { session: { not: '' } },
+                { session: { not: 'daily' } }
+            ];
         }
         else {
             where.session = { equals: cleanSess, mode: 'insensitive' };
@@ -295,10 +348,14 @@ const getAttendanceByStudent = async (studentId, schoolId, filters = {}) => {
     if (session !== undefined && session !== null) {
         const cleanSess = String(session).trim().toLowerCase();
         if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
-            where.session = null;
+            where.OR = [{ session: null }, { session: '' }, { session: 'daily' }];
         }
         else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
-            where.session = { not: null };
+            where.AND = [
+                { session: { not: null } },
+                { session: { not: '' } },
+                { session: { not: 'daily' } }
+            ];
         }
         else {
             where.session = { equals: cleanSess, mode: 'insensitive' };
@@ -550,8 +607,8 @@ exports.sendAttendanceParentNotification = sendAttendanceParentNotification;
 const bulkMarkAttendance = async (records, schoolId, meta) => {
     if (!Array.isArray(records) || records.length === 0)
         return [];
-    if (records.length > 200) {
-        throw new Error('Maximum 200 attendance records allowed per bulk request');
+    if (records.length > 500) {
+        throw new Error('Maximum 500 attendance records allowed per bulk request');
     }
     const { userRole, userId, teacherId } = meta;
     const resolvedTeacherId = await (0, exports.resolveTeacherId)(schoolId, teacherId || userId);
@@ -574,44 +631,130 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             locDistance = dist;
         }
     }
+    // Deduplicate incoming payload records by (studentId, dateStr, session)
+    // Preserves latest record in payload if duplicate student entries exist in same batch
+    const dedupedMap = new Map();
+    for (const r of records) {
+        if (!r.studentId)
+            continue;
+        const { dateStr } = (0, exports.normalizeDate)(r.date);
+        const recSession = (0, exports.normalizeSession)(r.session) || '__daily__';
+        const payloadKey = `${r.studentId}::${dateStr}::${recSession}`;
+        dedupedMap.set(payloadKey, r);
+    }
+    const cleanRecords = Array.from(dedupedMap.values());
+    if (cleanRecords.length === 0)
+        return [];
     // Batch query active enrolled students only
-    const studentIds = records.map(r => r.studentId).filter(Boolean);
+    const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
     const validStudents = await db_1.default.student.findMany({
         where: { id: { in: studentIds }, schoolId, status: 'ACTIVE' },
         select: { id: true, fullName: true, gender: true }
     });
     const studentMap = new Map(validStudents.map(s => [s.id, s]));
-    // Standardize date and session range
-    const dateSample = records[0]?.date || new Date();
-    const dateStr = typeof dateSample === 'string' ? dateSample.split("T")[0] : new Date(dateSample).toISOString().split("T")[0];
-    const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-    const endDate = new Date(`${dateStr}T23:59:59.999Z`);
-    const sampleSession = (0, exports.normalizeSession)(records[0]?.session);
-    // Batch query existing attendance records for the target students on this date.
-    // Build a composite lookup map keyed by `${studentId}:${normalizeSession(session) || 'daily'}`
+    // Pre-fetch active Academic Year and all Student Academic Year Enrollment Records in bulk
+    const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAYId = activeAY?.id || null;
+    const enrollmentMap = new Map(); // studentId -> studentAcademicYearRecordId
+    if (activeAYId) {
+        const enrollments = await db_1.default.studentAcademicYearRecord.findMany({
+            where: {
+                studentId: { in: studentIds },
+                academicYearId: activeAYId
+            },
+            select: { studentId: true, id: true }
+        });
+        enrollments.forEach(e => enrollmentMap.set(e.studentId, e.id));
+    }
+    // Collect all unique date ranges present in the batch
+    const dateRanges = new Map();
+    cleanRecords.forEach(r => {
+        const { dateStr, startDate, endDate } = (0, exports.normalizeDate)(r.date);
+        if (!dateRanges.has(dateStr)) {
+            dateRanges.set(dateStr, { startDate, endDate });
+        }
+    });
+    const dateConditions = Array.from(dateRanges.values()).map(r => ({
+        date: { gte: r.startDate, lte: r.endDate }
+    }));
+    // Batch query existing attendance records for the target students across all batch dates
     const existingRecords = await db_1.default.attendance.findMany({
         where: {
             schoolId,
             studentId: { in: Array.from(studentMap.keys()) },
-            date: { gte: startDate, lte: endDate },
+            OR: dateConditions.length > 0 ? dateConditions : undefined,
         }
     });
+    // Build composite lookup map: `${studentId}::${dateStr}::${normalizeSession(session) || '__daily__'}`
     const existingMap = new Map();
     existingRecords.forEach(e => {
-        const sKey = (0, exports.normalizeSession)(e.session) || 'daily';
-        existingMap.set(`${e.studentId}:${sKey}`, e);
+        const eDateStr = e.date ? e.date.toISOString().split("T")[0] : 'unknown';
+        const sKey = (0, exports.normalizeSession)(e.session) || '__daily__';
+        existingMap.set(`${e.studentId}::${eDateStr}::${sKey}`, e);
     });
-    // Build atomic transaction queries
+    // Edit Permission Verification for Bulk Updates
+    const hasExistingUpdates = cleanRecords.some(r => {
+        const { dateStr } = (0, exports.normalizeDate)(r.date);
+        const recSession = (0, exports.normalizeSession)(r.session);
+        const mapKey = `${r.studentId}::${dateStr}::${recSession || '__daily__'}`;
+        return existingMap.has(mapKey);
+    });
+    const sampleSession = (0, exports.normalizeSession)(cleanRecords[0]?.session);
+    const sampleDateInfo = (0, exports.normalizeDate)(cleanRecords[0]?.date);
+    if (hasExistingUpdates && userRole === 'teacher' && settings && settings.allow_attendance_editing === false) {
+        const sessionFilter = sampleSession
+            ? { session: { equals: sampleSession, mode: 'insensitive' } }
+            : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
+        const approvedRequest = await db_1.default.attendanceEditRequest.findFirst({
+            where: {
+                schoolId,
+                status: 'APPROVED',
+                isUsed: false,
+                date: {
+                    gte: sampleDateInfo.startDate,
+                    lte: sampleDateInfo.endDate,
+                },
+                ...sessionFilter,
+                OR: [
+                    ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
+                    ...(teacherId ? [{ teacherId }] : []),
+                    ...(userId ? [{ teacherId: userId }] : [])
+                ],
+            }
+        });
+        if (!approvedRequest) {
+            const sessionLabel = sampleSession ? ` (${sampleSession} session)` : '';
+            throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${sampleDateInfo.dateStr}${sessionLabel}.`);
+        }
+        // Consume the approved permission
+        await db_1.default.attendanceEditRequest.update({
+            where: { id: approvedRequest.id },
+            data: { isUsed: true }
+        });
+        await db_1.default.auditLog.create({
+            data: {
+                schoolId,
+                user_id: userId || teacherId || null,
+                action: 'ATTENDANCE_EDIT_PERMITTED',
+                entity_type: 'ATTENDANCE_EDIT_REQUEST',
+                entity_id: approvedRequest.id,
+                new_values: { count: cleanRecords.length, session: sampleSession || null, dateStr: sampleDateInfo.dateStr }
+            }
+        }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
+    }
+    // Build atomic transaction queries — updates existing rows, creates missing rows
     const txOps = [];
-    for (const record of records) {
+    for (const record of cleanRecords) {
         const student = studentMap.get(record.studentId);
         if (!student)
             continue;
+        const { startDate, dateStr } = (0, exports.normalizeDate)(record.date);
         const recSession = (0, exports.normalizeSession)(record.session);
-        const mapKey = `${record.studentId}:${recSession || 'daily'}`;
+        const mapKey = `${record.studentId}::${dateStr}::${recSession || '__daily__'}`;
         const existing = existingMap.get(mapKey);
         const status = record.status;
         const remarks = record.remarks;
+        const ayRecordId = enrollmentMap.get(record.studentId) || null;
         if (existing) {
             txOps.push(db_1.default.attendance.update({
                 where: { id: existing.id },
@@ -622,6 +765,8 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
                     session: recSession,
                     locationVerified: locVerified,
                     locationDistance: locDistance,
+                    ...(activeAYId && !existing.academicYearId ? { academicYearId: activeAYId } : {}),
+                    ...(ayRecordId && !existing.academicYearRecordId ? { academicYearRecordId: ayRecordId } : {}),
                 }
             }));
         }
@@ -637,25 +782,27 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
                     remarks,
                     locationVerified: locVerified,
                     locationDistance: locDistance,
+                    academicYearId: activeAYId,
+                    academicYearRecordId: ayRecordId,
                 }
             }));
         }
     }
-    // Execute all upserts in a single DB round-trip transaction
+    // Execute all upserts in a single DB transaction
     const results = await db_1.default.$transaction(txOps);
     // Build status summary for admin notification
-    const presentCount = records.filter(r => r.status?.toLowerCase() === 'present').length;
-    const lateCount = records.filter(r => r.status?.toLowerCase() === 'late').length;
-    const absentCount = records.filter(r => r.status?.toLowerCase() === 'absent').length;
-    const excusedCount = records.filter(r => r.status?.toLowerCase() === 'excused').length;
+    const presentCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'present').length;
+    const lateCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'late').length;
+    const absentCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'absent').length;
+    const excusedCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'excused').length;
     // Determine grade/section from first valid student record
-    const firstStudent = records.map(r => studentMap.get(r.studentId)).find(Boolean);
+    const firstStudent = cleanRecords.map(r => studentMap.get(r.studentId)).find(Boolean);
     const gradeLabel = firstStudent ? `${firstStudent.fullName.split(' ')[0]}'s class` : 'A class';
     // Fire admin notification in background (does not block response)
     (0, exports.sendAdminAttendanceNotification)({
         schoolId,
         teacherId: resolvedTeacherId,
-        dateStr,
+        dateStr: sampleDateInfo.dateStr,
         session: sampleSession,
         totalCount: results.length,
         presentCount,
@@ -666,10 +813,11 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
         console.error('[BulkAttendance] Admin notification dispatch error:', err);
     });
     // Asynchronously send parent notifications for absent, late, or excused students
-    for (const record of records) {
+    for (const record of cleanRecords) {
         const student = studentMap.get(record.studentId);
         if (student) {
-            (0, exports.sendAttendanceParentNotification)(student, record.status, dateStr, schoolId).catch(err => {
+            const recDateStr = (0, exports.normalizeDate)(record.date).dateStr;
+            (0, exports.sendAttendanceParentNotification)(student, record.status, recDateStr, schoolId).catch(err => {
                 console.error(`[BulkAttendance] Parent notification dispatch error for student ${student.id}:`, err);
             });
         }
@@ -681,7 +829,7 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             user_id: userId || teacherId || null,
             action: 'BULK_ATTENDANCE_MARKED',
             entity_type: 'ATTENDANCE',
-            new_values: { count: results.length, dateStr, session: sampleSession }
+            new_values: { count: results.length, dateStr: sampleDateInfo.dateStr, session: sampleSession }
         }
     }).catch(() => { });
     return results;

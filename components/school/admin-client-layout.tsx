@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, User, CheckSquare, BarChart2, BookOpen,
   Settings, LogOut, MessageSquare, Phone, TrendingUp, Calendar,
-  X, ChevronRight, Megaphone, MessageCircle, ShieldAlert, ShieldCheck
+  X, ChevronRight, Megaphone, MessageCircle, ShieldAlert, ShieldCheck, UserCheck
 } from 'lucide-react'
 import { cn } from "@/lib/utils/utils"
 
@@ -97,6 +97,7 @@ export default function SchoolAdminClientLayout({
     { href: '/school/admin/users-and-roles', icon: <ShieldCheck className="w-5 h-5" />, label: 'Users & Roles', show: true },
     { href: '/school/admin/teacher-assignments', icon: <BookOpen className="w-5 h-5" />, label: 'Assignments', show: true },
     { href: '/school/admin/attendance', icon: <CheckSquare className="w-5 h-5" />, label: 'Attendance', show: true },
+    { href: '/school/admin/staff-attendance', icon: <UserCheck className="w-5 h-5" />, label: 'Staff Attendance', show: true },
     { href: '/school/admin/attendance-by-grade', icon: <BarChart2 className="w-5 h-5" />, label: 'Analytics', show: true },
     { href: '/school/admin/reports', icon: <BookOpen className="w-5 h-5" />, label: 'Reports', show: true },
     { href: '/school/admin/discipline', icon: <ShieldAlert className="w-5 h-5" />, label: 'Discipline', show: true },

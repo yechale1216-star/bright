@@ -16,7 +16,8 @@ import {
   Scale,
   Sparkles,
   ShieldAlert,
-  PieChart
+  PieChart,
+  UserCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { useAuth } from '@/lib/context/auth-context'
@@ -48,8 +49,9 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    group: 'ACCOUNT',
+    group: 'STAFF & ATTENDANCE',
     items: [
+      { href: '/school/discipline-officer/staff-attendance', icon: UserCheck, label: 'My Attendance' },
       { href: '/school/discipline-officer/profile', icon: User, label: 'My Profile' },
     ],
   },

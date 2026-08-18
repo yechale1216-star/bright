@@ -40,7 +40,10 @@ export const getUserById = async (id: string, schoolId?: string) => {
 export const getUsers = async (schoolId: string) => {
   if (!schoolId) throw new Error('School ID is required');
   return await prisma.user.findMany({ 
-    where: { schoolId },
+    where: { 
+      schoolId,
+      role: { notIn: ['parent', 'student'] }
+    },
     select: {
       id: true,
       email: true,
@@ -57,7 +60,13 @@ export const getUsers = async (schoolId: string) => {
       subject: true,
       profile_photo: true,
       address: true,
-      lastActive: true
+      lastActive: true,
+      faceEnrollment: {
+        select: {
+          id: true,
+          enrolledAt: true,
+        }
+      }
     },
     orderBy: { full_name: 'asc' }
   });

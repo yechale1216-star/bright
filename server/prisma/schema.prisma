@@ -52,6 +52,8 @@ model School {
   timetablePeriods     TimetablePeriod[]
   timetableSlots       TimetableSlot[]
   attendanceEditRequests AttendanceEditRequest[]
+  staffAttendance      StaffAttendance[]
+  staffFaceEnrollments StaffFaceEnrollment[]
 }
 
 model User {
@@ -94,6 +96,9 @@ model User {
   savedBookmarks             SavedBookmark[]
   blockedUsers               UserBlock[]          @relation("Blocker")
   blockedBy                  UserBlock[]          @relation("Blocked")
+  staffAttendance            StaffAttendance[]
+  faceEnrollment             StaffFaceEnrollment? @relation("FaceEnrollmentUser")
+  enrolledFaces              StaffFaceEnrollment[] @relation("FaceEnrollmentAdmin")
 
   @@index([email])
   @@index([schoolId])
@@ -167,6 +172,12 @@ model SchoolSettings {
   allowed_radius_meters     Int      @default(200)
   allow_outside_attendance  Boolean  @default(true)
   calendar_type        String   @default("ETHIOPIAN")
+  // Staff Attendance Settings
+  staff_checkin_start   String?          // earliest allowed check-in e.g. "06:00"
+  staff_checkin_late    String?          // after this time = LATE   e.g. "08:30"
+  staff_checkout_early  String?          // before this = EARLY_DEPARTURE e.g. "16:00"
+  staff_face_required   Boolean  @default(true)   // require face verification
+  staff_geo_required    Boolean  @default(true)   // require geofence for staff
   createdAt                DateTime @default(now())
   updatedAt            DateTime @updatedAt
   school_logo          String?
@@ -1099,7 +1110,57 @@ model TimetableSlot {
   @@map("timetable_slots")
 }
 
+// ─── Staff Attendance ────────────────────────────────────────────────────────
 
+model StaffFaceEnrollment {
+  id             String   @id @default(uuid())
+  schoolId       String
+  userId         String   @unique
+  descriptor     Json     // 128-d Float32Array serialised as number[]
+  enrolledBy     String   // admin userId who enrolled
+  enrolledAt     DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user           User     @relation("FaceEnrollmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  enrolledByUser User     @relation("FaceEnrollmentAdmin", fields: [enrolledBy], references: [id])
 
+  @@index([schoolId])
+  @@map("staff_face_enrollments")
+}
 
+model StaffAttendance {
+  id                String    @id @default(uuid())
+  schoolId          String
+  userId            String
+  date              DateTime  // UTC midnight of the attendance date
+  status            String    // PRESENT | LATE | ABSENT | EARLY_DEPARTURE | LEAVE | PERMISSION
+  checkInTime       DateTime?
+  checkOutTime      DateTime?
+  checkInLatitude   Float?
+  checkInLongitude  Float?
+  checkOutLatitude  Float?
+  checkOutLongitude Float?
+  geofenceVerified  Boolean   @default(false)
+  geofenceDistance  Float?
+  faceVerified      Boolean   @default(false)
+  faceConfidence    Float?    // 0.0..1.0  (1 - euclidean distance)
+  remarks           String?
+  markedAbsentBy    String?   // userId of admin if manually set absent
+  correctedBy       String?   // userId of admin who manually corrected
+  correctedAt       DateTime? // timestamp of last correction
+  previousStatus    String?   // original status before correction
+  previousCheckIn   DateTime? // original check-in before correction
+  correctionReason  String?   // mandatory reason text for manual changes
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, userId, date])
+  @@index([schoolId, date])
+  @@index([userId, date])
+  @@index([schoolId, status])
+  @@index([schoolId, userId])
+  @@map("staff_attendance")
+}
 

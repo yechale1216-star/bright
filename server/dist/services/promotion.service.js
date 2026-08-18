@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.promotionService = exports.PromotionService = void 0;
 const db_1 = __importDefault(require("../config/db"));
+const academic_year_service_1 = require("./academic-year.service");
 class PromotionService {
     /**
      * Get total student count grouped by grade, section, and stream for the preview
@@ -82,6 +83,16 @@ class PromotionService {
      */
     async promoteStudents(data, schoolId, promotedByUserId) {
         let { studentIds, gradeId, sectionId, streamId, toGradeId, toSectionId, toSectionName, toStreamId, academicYear, notes } = data;
+        // Resolve the target AcademicYear DB record from the name
+        let targetAcademicYearRecord = await db_1.default.academicYear.findUnique({
+            where: { schoolId_name: { schoolId, name: academicYear } }
+        });
+        // If not found by exact name, fall back to the current active year
+        if (!targetAcademicYearRecord) {
+            targetAcademicYearRecord = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+        }
+        // Also resolve the source (current active) AY for marking source records
+        const sourceAcademicYearRecord = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
         // 1. If criteria provided, fetch student IDs
         if (!studentIds && (gradeId || sectionId || streamId)) {
             const students = await db_1.default.student.findMany({
@@ -205,6 +216,39 @@ class PromotionService {
                             status: 'ACTIVE',
                         },
                     });
+                    // Mark source academic year record as PROMOTED
+                    if (sourceAcademicYearRecord) {
+                        await tx.studentAcademicYearRecord.updateMany({
+                            where: { studentId: student.id, academicYearId: sourceAcademicYearRecord.id },
+                            data: { status: 'PROMOTED' }
+                        }).catch(() => { });
+                    }
+                    // Create StudentAcademicYearRecord for target academic year (prevent duplicates via upsert)
+                    if (targetAcademicYearRecord) {
+                        await tx.studentAcademicYearRecord.upsert({
+                            where: {
+                                studentId_academicYearId: {
+                                    studentId: student.id,
+                                    academicYearId: targetAcademicYearRecord.id
+                                }
+                            },
+                            create: {
+                                schoolId,
+                                studentId: student.id,
+                                academicYearId: targetAcademicYearRecord.id,
+                                gradeId: toGradeId,
+                                sectionId: effectiveTargetSectionId || student.sectionId,
+                                streamId: effectiveTargetStreamId || null,
+                                status: 'ACTIVE',
+                            },
+                            update: {
+                                gradeId: toGradeId,
+                                sectionId: effectiveTargetSectionId || student.sectionId,
+                                streamId: effectiveTargetStreamId || null,
+                                status: 'ACTIVE',
+                            }
+                        });
+                    }
                     // Create parent notification
                     const streamInfo = targetStreamObj ? ` (${targetStreamObj.name})` : '';
                     const sectionName = toSectionName || student.section?.name || '';
@@ -228,6 +272,13 @@ class PromotionService {
                             status: 'GRADUATED',
                         },
                     });
+                    // Mark source academic year record as GRADUATED
+                    if (sourceAcademicYearRecord) {
+                        await tx.studentAcademicYearRecord.updateMany({
+                            where: { studentId: student.id, academicYearId: sourceAcademicYearRecord.id },
+                            data: { status: 'GRADUATED' }
+                        }).catch(() => { });
+                    }
                     await tx.parentNotification.create({
                         data: {
                             schoolId,

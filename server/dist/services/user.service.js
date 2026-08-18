@@ -47,7 +47,10 @@ const getUsers = async (schoolId) => {
     if (!schoolId)
         throw new Error('School ID is required');
     return await db_1.default.user.findMany({
-        where: { schoolId },
+        where: {
+            schoolId,
+            role: { notIn: ['parent', 'student'] }
+        },
         select: {
             id: true,
             email: true,
@@ -64,7 +67,13 @@ const getUsers = async (schoolId) => {
             subject: true,
             profile_photo: true,
             address: true,
-            lastActive: true
+            lastActive: true,
+            faceEnrollment: {
+                select: {
+                    id: true,
+                    enrolledAt: true,
+                }
+            }
         },
         orderBy: { full_name: 'asc' }
     });

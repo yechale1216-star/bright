@@ -70,6 +70,8 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
         requestedRole = 'parent';
       } else if (url.startsWith('/api/teachers') || url.includes('/attendance-sessions')) {
         requestedRole = 'teacher';
+      } else if (url.startsWith('/api/staff') || url.startsWith('/school/staff')) {
+        requestedRole = 'staff';
       } else if (url.startsWith('/api/school/') || url.startsWith('/api/schools/') || url.startsWith('/api/settings')) {
         requestedRole = 'school_admin';
       }

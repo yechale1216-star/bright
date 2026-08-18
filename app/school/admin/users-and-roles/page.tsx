@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Search, Plus, Shield, User, Filter, CheckCircle2, XCircle, Mail, Phone, Lock,
-  Edit, Trash2, Power, Loader2, ArrowLeft, MoreHorizontal, ShieldCheck, Sparkles, Users, Activity, X
+  Edit, Trash2, Power, Loader2, ArrowLeft, MoreHorizontal, ShieldCheck, Sparkles, Users, Activity, X,
+  Camera, ShieldAlert, ScanFace, Tag, Check, AlertTriangle, Layers, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { apiFetch } from '@/lib/utils/fetch-with-timeout'
@@ -14,6 +15,13 @@ import { notifications } from '@/lib/utils/notifications'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { queryCache } from '@/lib/utils/query-cache'
 import { motion, AnimatePresence } from 'framer-motion'
+import dynamic from 'next/dynamic'
+
+// Lazily load the face enroll modal (heavy — loads face-api.js models)
+const StaffFaceEnrollModal = dynamic(
+  () => import('@/components/school/staff-face-enroll').then(m => m.StaffFaceEnrollModal),
+  { ssr: false }
+)
 
 function notifyUserDataChanged() {
   queryCache.invalidate(/^users_/)
@@ -23,39 +31,6 @@ function notifyUserDataChanged() {
     window.dispatchEvent(new CustomEvent('userDataChanged'))
     window.dispatchEvent(new CustomEvent('teacherDataChanged'))
   }
-}
-
-const ROLE_BADGES: Record<string, { label: string; color: string; dotColor: string }> = {
-  admin: { 
-    label: 'School Admin', 
-    color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 shadow-sm shadow-rose-500/10',
-    dotColor: 'bg-rose-500'
-  },
-  school_admin: { 
-    label: 'School Admin', 
-    color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 shadow-sm shadow-rose-500/10',
-    dotColor: 'bg-rose-500'
-  },
-  teacher: { 
-    label: 'Teacher', 
-    color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm shadow-blue-500/10',
-    dotColor: 'bg-blue-500'
-  },
-  registrar: { 
-    label: 'Registrar', 
-    color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 shadow-sm shadow-indigo-500/10',
-    dotColor: 'bg-indigo-500'
-  },
-  discipline_officer: { 
-    label: 'Discipline Officer', 
-    color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 shadow-sm shadow-amber-500/10',
-    dotColor: 'bg-amber-500'
-  },
-  staff: { 
-    label: 'Staff', 
-    color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shadow-sm shadow-emerald-500/10',
-    dotColor: 'bg-emerald-500'
-  },
 }
 
 export default function UsersAndRolesPage() {
@@ -73,7 +48,7 @@ export default function UsersAndRolesPage() {
     email: '',
     phone: '',
     password: '',
-    role: 'registrar',
+    role: 'staff',
   })
 
   // Edit User Modal State
@@ -87,6 +62,28 @@ export default function UsersAndRolesPage() {
     password: '',
     is_active: true,
   })
+
+  // Centralized Role Types Management Modals
+  const [showManageRolesModal, setShowManageRolesModal] = useState(false)
+  const [showCreateRoleModal, setShowCreateRoleModal] = useState(false)
+  const [editingRole, setEditingRole] = useState<any | null>(null)
+  const [isSavingRole, setIsSavingRole] = useState(false)
+  const [roleActionLoadingId, setRoleActionLoadingId] = useState<string | null>(null)
+  const [roleForm, setRoleForm] = useState({
+    name: '',
+    key: '',
+    description: '',
+    color: '#6366f1',
+    isActive: true,
+  })
+
+  // Biometric enrollment modal state
+  const [enrollTarget, setEnrollTarget] = useState<any | null>(null)
+  const [showEnrollModal, setShowEnrollModal] = useState(false)
+
+  // Post-create enroll prompt state
+  const [newlyCreatedUser, setNewlyCreatedUser] = useState<any | null>(null)
+  const [showPostCreateEnroll, setShowPostCreateEnroll] = useState(false)
 
   // Action Loading states
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
@@ -105,7 +102,7 @@ export default function UsersAndRolesPage() {
     try {
       const [usersRes, rolesRes] = await Promise.all([
         apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/users`, { headers: getHeaders() }),
-        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/roles`, { headers: getHeaders() }).catch(() => ({ success: true, data: [] }))
+        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/roles?includeInactive=true`, { headers: getHeaders() }).catch(() => ({ success: true, data: [] }))
       ])
       setUsers(usersRes.data ?? [])
       setRoles(rolesRes.data ?? [])
@@ -127,16 +124,49 @@ export default function UsersAndRolesPage() {
     return () => window.removeEventListener("userDataChanged", handleUserChanged)
   }, [])
 
+  // Active roles available for registration dropdown (excluding non-staff roles)
+  const activeStaffRoles = useMemo(() => {
+    return roles.filter(r => r.isActive !== false && !['teacher', 'admin', 'school_admin', 'parent', 'student'].includes(r.key))
+  }, [roles])
+
+  // Get dynamic role badge info
+  const getRoleBadge = (roleKey: string) => {
+    const found = roles.find(r => r.key === roleKey)
+    if (found) {
+      return {
+        label: found.name,
+        color: found.color || '#6366f1',
+        isSystem: found.isSystem,
+        isActive: found.isActive !== false,
+      }
+    }
+    const defaultLabels: Record<string, string> = {
+      admin: 'School Admin',
+      school_admin: 'School Admin',
+      teacher: 'Teacher',
+      registrar: 'Registrar',
+      discipline_officer: 'Discipline Officer',
+      staff: 'Staff',
+    }
+    return {
+      label: defaultLabels[roleKey] || roleKey.replace(/_/g, ' '),
+      color: '#64748b',
+      isSystem: false,
+      isActive: true,
+    }
+  }
+
+  // Handle Staff Creation
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!createForm.full_name || !createForm.email || !createForm.password) {
+    if (!createForm.full_name || !createForm.email || !createForm.password || !createForm.role) {
       notifications.error('Validation Error', 'Please fill in all required fields.')
       return
     }
 
     setCreating(true)
     try {
-      await apiFetch(`${API_URL}/api/users`, {
+      const res = await apiFetch<{ success: boolean; data: any }>(`${API_URL}/api/users`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
@@ -145,11 +175,19 @@ export default function UsersAndRolesPage() {
         }),
       })
 
-      notifications.success('User Created', `Added ${createForm.full_name} as ${ROLE_BADGES[createForm.role]?.label || createForm.role}`)
+      const createdUser = res.data
+      const badge = getRoleBadge(createForm.role)
+      notifications.success('User Created', `Added ${createForm.full_name} as ${badge.label}`)
       setShowCreateModal(false)
-      setCreateForm({ full_name: '', email: '', phone: '', password: '', role: 'registrar' })
+      setCreateForm({ full_name: '', email: '', phone: '', password: '', role: activeStaffRoles[0]?.key || 'staff' })
       notifyUserDataChanged()
-      fetchData()
+      await fetchData()
+
+      // Prompt admin to enroll biometrics for the new user
+      if (createdUser?.id) {
+        setNewlyCreatedUser({ id: createdUser.id, full_name: createForm.full_name, role: createForm.role })
+        setShowPostCreateEnroll(true)
+      }
     } catch (err: any) {
       notifications.error('Creation Failed', err.message || 'Could not create user.')
     } finally {
@@ -243,26 +281,151 @@ export default function UsersAndRolesPage() {
     }
   }
 
-  const filteredUsers = users.filter(u => {
-    const matchesSearch =
-      !search ||
-      u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      u.email?.toLowerCase().includes(search.toLowerCase()) ||
-      u.phone?.includes(search)
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter
-    return matchesSearch && matchesRole
-  })
+  // ─── ROLE TYPES MANAGEMENT HANDLERS ───
+  const openCreateRoleModal = () => {
+    setRoleForm({
+      name: '',
+      key: '',
+      description: '',
+      color: '#6366f1',
+      isActive: true,
+    })
+    setShowCreateRoleModal(true)
+  }
 
-  // Dynamic available role choices (combines standard staff roles, excluding teacher and admin)
-  const allRoleChoices = [
-    { key: 'registrar', label: 'Student Registration Officer (Registrar)' },
-    { key: 'discipline_officer', label: 'Discipline & Conduct Officer' },
-    { key: 'staff', label: 'General Staff' },
-    ...roles.filter(r => !['school_admin', 'admin', 'teacher', 'registrar', 'discipline_officer', 'staff', 'call_center', 'call_officer', 'school_call_officer', 'caller'].includes(r.key)).map(r => ({
-      key: r.key,
-      label: r.name
-    }))
-  ]
+  const openEditRoleModal = (role: any) => {
+    setEditingRole(role)
+    setRoleForm({
+      name: role.name || '',
+      key: role.key || '',
+      description: role.description || '',
+      color: role.color || '#6366f1',
+      isActive: role.isActive !== false,
+    })
+  }
+
+  const handleSaveRole = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!roleForm.name.trim()) {
+      notifications.error('Validation Error', 'Role name is required.')
+      return
+    }
+
+    setIsSavingRole(true)
+    try {
+      if (editingRole) {
+        // Update existing role
+        await apiFetch(`${API_URL}/api/roles/${editingRole.id}`, {
+          method: 'PUT',
+          headers: getHeaders(),
+          body: JSON.stringify({
+            name: roleForm.name,
+            description: roleForm.description,
+            color: roleForm.color,
+            isActive: roleForm.isActive,
+          }),
+        })
+        notifications.success('Role Updated', `Updated role type '${roleForm.name}'.`)
+        setEditingRole(null)
+      } else {
+        // Create new role
+        await apiFetch(`${API_URL}/api/roles`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({
+            name: roleForm.name,
+            key: roleForm.key.trim() || undefined,
+            description: roleForm.description,
+            color: roleForm.color,
+          }),
+        })
+        notifications.success('Role Created', `Created role type '${roleForm.name}'.`)
+        setShowCreateRoleModal(false)
+      }
+
+      await fetchData()
+    } catch (err: any) {
+      notifications.error('Role Operation Failed', err.message || 'Could not save role type.')
+    } finally {
+      setIsSavingRole(false)
+    }
+  }
+
+  const handleToggleRoleActive = async (role: any) => {
+    setRoleActionLoadingId(role.id)
+    try {
+      const newStatus = !role.isActive
+      await apiFetch(`${API_URL}/api/roles/${role.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ isActive: newStatus }),
+      })
+      notifications.success(
+        'Role Status Changed',
+        `Role '${role.name}' is now ${newStatus ? 'Active' : 'Inactive'}.`
+      )
+      await fetchData()
+    } catch (err: any) {
+      notifications.error('Failed to change role status', err.message || 'Could not toggle role status.')
+    } finally {
+      setRoleActionLoadingId(null)
+    }
+  }
+
+  const handleDeleteRole = async (role: any) => {
+    if (role.userCount > 0) {
+      notifications.error(
+        'Cannot Delete Role',
+        `Cannot delete '${role.name}' because ${role.userCount} staff member(s) are assigned to it. Deactivate the role instead.`
+      )
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete custom role '${role.name}'? This cannot be undone.`)) return
+
+    setRoleActionLoadingId(role.id)
+    try {
+      await apiFetch(`${API_URL}/api/roles/${role.id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      })
+      notifications.success('Role Deleted', `Removed role '${role.name}'.`)
+      await fetchData()
+    } catch (err: any) {
+      notifications.error('Delete Role Failed', err.message || 'Could not delete role.')
+    } finally {
+      setRoleActionLoadingId(null)
+    }
+  }
+
+  const openEnrollModal = (u: any) => {
+    setEnrollTarget(u)
+    setShowEnrollModal(true)
+  }
+
+  const handleEnrollmentDone = () => {
+    setShowEnrollModal(false)
+    setEnrollTarget(null)
+    fetchData()
+  }
+
+  const staffUsers = useMemo(() => {
+    return users.filter(u => u.role !== 'parent' && u.role !== 'student')
+  }, [users])
+
+  const filteredUsers = useMemo(() => {
+    return staffUsers.filter(u => {
+      const matchesSearch =
+        !search ||
+        u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+        u.email?.toLowerCase().includes(search.toLowerCase()) ||
+        u.phone?.includes(search)
+      const matchesRole = roleFilter === 'all' || u.role === roleFilter
+      return matchesSearch && matchesRole
+    })
+  }, [staffUsers, search, roleFilter])
+
+  const enrolledCount = staffUsers.filter(u => !!u.faceEnrollment?.id).length
 
   return (
     <div className="relative min-h-full p-4 md:p-8 pb-24 space-y-8 max-w-7xl mx-auto w-full">
@@ -290,14 +453,37 @@ export default function UsersAndRolesPage() {
             </h1>
           </div>
           <p className="text-xs md:text-sm font-medium text-slate-500 dark:text-slate-400">
-            Configure school accounts, role permissions, and active operational status
+            Configure school staff accounts, centralized role types, biometric enrollment, and permissions
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto z-10">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto z-10">
           <Button
-            onClick={() => setShowCreateModal(true)}
-            className="h-11 px-5 rounded-2xl gap-2 w-full sm:w-auto bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/95 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/25 active:scale-95 transition-all border border-white/20"
+            onClick={() => setShowManageRolesModal(true)}
+            variant="outline"
+            className="h-11 px-4 rounded-2xl gap-2 font-bold text-xs border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10"
+          >
+            <Layers className="w-4 h-4" />
+            Manage Role Types ({roles.length})
+          </Button>
+
+          <Button
+            onClick={openCreateRoleModal}
+            variant="outline"
+            className="h-11 px-4 rounded-2xl gap-2 font-bold text-xs border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Tag className="w-4 h-4" />
+            Add Role Type
+          </Button>
+
+          <Button
+            onClick={() => {
+              if (activeStaffRoles.length > 0 && !createForm.role) {
+                setCreateForm(prev => ({ ...prev, role: activeStaffRoles[0].key }))
+              }
+              setShowCreateModal(true)
+            }}
+            className="h-11 px-5 rounded-2xl gap-2 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/95 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/25 active:scale-95 transition-all border border-white/20"
           >
             <Plus className="w-4 h-4" />
             Add Staff Member
@@ -321,7 +507,7 @@ export default function UsersAndRolesPage() {
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Accounts</span>
           </div>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : users.length}
+            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : staffUsers.length}
           </p>
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Total Registered Staff</p>
         </motion.div>
@@ -331,18 +517,21 @@ export default function UsersAndRolesPage() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.25, delay: 0.1 }}
-          className="group rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-xl shadow-slate-900/5 hover:-translate-y-1 hover:border-violet-500/30 transition-all duration-300"
+          className="group rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-xl shadow-slate-900/5 hover:-translate-y-1 hover:border-violet-500/30 transition-all duration-300 cursor-pointer"
+          onClick={() => setShowManageRolesModal(true)}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="w-11 h-11 rounded-2xl bg-violet-500/10 dark:bg-violet-500/20 border border-violet-500/20 flex items-center justify-center text-violet-600 dark:text-violet-400 group-hover:scale-105 transition-transform">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Positions</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Role Types</span>
           </div>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : allRoleChoices.length}
+            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : roles.length}
           </p>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Active Staff Role Types</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+            {roles.filter(r => r.isActive !== false).length} Active Types (Click to manage)
+          </p>
         </motion.div>
 
         {/* Active Accounts */}
@@ -359,49 +548,58 @@ export default function UsersAndRolesPage() {
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Active</span>
           </div>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : users.filter(u => u.is_active).length}
+            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : staffUsers.filter(u => u.is_active).length}
           </p>
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Enabled & Authorized</p>
         </motion.div>
 
-        {/* Inactive Accounts */}
+        {/* Biometric Enrolled */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.25, delay: 0.2 }}
-          className="group rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-xl shadow-slate-900/5 hover:-translate-y-1 hover:border-rose-500/30 transition-all duration-300"
+          className="group rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-xl shadow-slate-900/5 hover:-translate-y-1 hover:border-cyan-500/30 transition-all duration-300"
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-11 h-11 rounded-2xl bg-rose-500/10 dark:bg-rose-500/20 border border-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:scale-105 transition-transform">
-              <XCircle className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 dark:bg-cyan-500/20 border border-cyan-500/20 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:scale-105 transition-transform">
+              <ScanFace className="w-5 h-5" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Suspended</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">Biometric</span>
           </div>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : users.filter(u => !u.is_active).length}
+            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : enrolledCount}
           </p>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Inactive Staff Accounts</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Face Templates Enrolled</p>
         </motion.div>
       </div>
 
       {/* ── Glass Role Breakdown Chips ── */}
       <div className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg shadow-slate-900/5">
         <span className="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-[11px] flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5 text-primary" /> Active Distribution:
+          <Activity className="w-3.5 h-3.5 text-primary" /> Role Distribution:
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="px-3.5 py-1.5 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold backdrop-blur-md flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-indigo-500" />
-            Registrars: {users.filter(u => u.role === 'registrar').length}
-          </span>
-          <span className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 text-amber-700 dark:text-amber-300 font-bold backdrop-blur-md flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            Discipline Officers: {users.filter(u => u.role === 'discipline_officer').length}
-          </span>
-          <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold backdrop-blur-md flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            General Staff: {users.filter(u => u.role === 'staff').length}
-          </span>
+          {roles.slice(0, 5).map(r => {
+            const count = users.filter(u => u.role === r.key).length
+            return (
+              <span
+                key={r.id || r.key}
+                style={{ borderColor: `${r.color || '#6366f1'}40`, backgroundColor: `${r.color || '#6366f1'}15`, color: r.color || '#6366f1' }}
+                className="px-3.5 py-1.5 rounded-xl border font-bold backdrop-blur-md flex items-center gap-1.5"
+              >
+                <span style={{ backgroundColor: r.color || '#6366f1' }} className="w-2 h-2 rounded-full" />
+                {r.name}: {count}
+              </span>
+            )
+          })}
+          {roles.length > 5 && (
+            <button
+              onClick={() => setShowManageRolesModal(true)}
+              className="text-xs font-bold text-primary hover:underline pl-1"
+            >
+              +{roles.length - 5} more...
+            </button>
+          )}
         </div>
       </div>
 
@@ -423,8 +621,10 @@ export default function UsersAndRolesPage() {
             onChange={e => setRoleFilter(e.target.value)}
           >
             <option value="all">All Role Categories</option>
-            {allRoleChoices.map(r => (
-              <option key={r.key} value={r.key}>{r.label}</option>
+            {roles.map(r => (
+              <option key={r.key} value={r.key}>
+                {r.name} {!r.isActive ? '(Inactive)' : ''}
+              </option>
             ))}
           </select>
         </div>
@@ -450,24 +650,22 @@ export default function UsersAndRolesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[680px]">
+            <table className="w-full text-sm min-w-[860px]">
               <thead>
                 <tr className="border-b border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold backdrop-blur-sm">
                   <th className="px-6 py-4">Staff Member</th>
                   <th className="px-6 py-4">Assigned Role</th>
                   <th className="px-6 py-4 hidden sm:table-cell">Contact Phone</th>
+                  <th className="px-6 py-4">Biometric Status</th>
                   <th className="px-6 py-4">Account Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/30 dark:divide-white/5">
                 {filteredUsers.map(u => {
-                  const badge = ROLE_BADGES[u.role] || { 
-                    label: u.role, 
-                    color: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20',
-                    dotColor: 'bg-slate-400'
-                  }
+                  const badge = getRoleBadge(u.role)
                   const isBusy = actionLoadingId === u.id
+                  const isEnrolled = !!u.faceEnrollment?.id
                   return (
                     <tr key={u.id} className="hover:bg-white/40 dark:hover:bg-slate-800/30 transition-colors group">
                       <td className="px-6 py-4">
@@ -482,8 +680,15 @@ export default function UsersAndRolesPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold backdrop-blur-md', badge.color)}>
-                          <span className={cn('w-1.5 h-1.5 rounded-full', badge.dotColor)} />
+                        <span
+                          style={{
+                            backgroundColor: `${badge.color}18`,
+                            borderColor: `${badge.color}35`,
+                            color: badge.color,
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border backdrop-blur-md"
+                        >
+                          <span style={{ backgroundColor: badge.color }} className="w-1.5 h-1.5 rounded-full" />
                           {badge.label}
                         </span>
                       </td>
@@ -492,6 +697,27 @@ export default function UsersAndRolesPage() {
                           <span className="font-mono text-[13px]">{u.phone}</span>
                         ) : (
                           <span className="text-slate-400 italic">No phone added</span>
+                        )}
+                      </td>
+                      {/* ── Biometric Status Column ── */}
+                      <td className="px-6 py-4">
+                        {isEnrolled ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border bg-cyan-500/10 border-cyan-500/20 text-cyan-700 dark:text-cyan-300 backdrop-blur-md w-fit">
+                              <ShieldCheck className="w-3 h-3" />
+                              Enrolled ✓
+                            </span>
+                            {u.faceEnrollment?.enrolledAt && (
+                              <span className="text-[10px] text-slate-400 pl-0.5">
+                                {new Date(u.faceEnrollment.enrolledAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300 backdrop-blur-md">
+                            <ShieldAlert className="w-3 h-3" />
+                            Not Enrolled
+                          </span>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -507,6 +733,20 @@ export default function UsersAndRolesPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Enroll / Re-enroll Biometrics */}
+                          <button
+                            onClick={() => openEnrollModal(u)}
+                            disabled={isBusy}
+                            title={isEnrolled ? 'Re-enroll Face Biometrics' : 'Enroll Face Biometrics'}
+                            className={cn(
+                              'p-2.5 rounded-xl border border-transparent transition-all active:scale-95 shadow-sm',
+                              isEnrolled
+                                ? 'hover:bg-cyan-500/10 hover:border-cyan-500/20 text-cyan-600 hover:text-cyan-700'
+                                : 'hover:bg-amber-500/10 hover:border-amber-500/20 text-slate-400 hover:text-amber-600'
+                            )}
+                          >
+                            <Camera className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => openEditModal(u)}
                             disabled={isBusy}
@@ -547,7 +787,7 @@ export default function UsersAndRolesPage() {
         )}
       </div>
 
-      {/* ── Glassmorphic Create Staff Member Modal ── */}
+      {/* ─── MODAL 1: CREATE STAFF MEMBER MODAL (DYNAMIC ROLES) ─── */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -564,7 +804,7 @@ export default function UsersAndRolesPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-black text-slate-900 dark:text-white">Add Staff Member</h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Create a staff profile with system access</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Create a staff profile with centralized role assignment</p>
                   </div>
                 </div>
                 <button
@@ -622,17 +862,53 @@ export default function UsersAndRolesPage() {
                   />
                 </div>
 
+                {/* ── Dynamic Database-Backed Role Selection Dropdown ── */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Assigned Staff Role *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Assigned Role Type *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateModal(false)
+                        openCreateRoleModal()
+                      }}
+                      className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> New Role Type
+                    </button>
+                  </div>
                   <select
-                    className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    required
+                    className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                     value={createForm.role}
                     onChange={e => setCreateForm({ ...createForm, role: e.target.value })}
                   >
-                    {allRoleChoices.map(r => (
-                      <option key={r.key} value={r.key}>{r.label}</option>
+                    {activeStaffRoles.map(r => (
+                      <option key={r.key} value={r.key}>
+                        {r.name}
+                      </option>
                     ))}
                   </select>
+                  {/* Show selected role description */}
+                  {(() => {
+                    const selectedRoleObj = activeStaffRoles.find(r => r.key === createForm.role)
+                    if (selectedRoleObj?.description) {
+                      return (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 pl-1 italic">
+                          {selectedRoleObj.description}
+                        </p>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
+
+                {/* Biometric note */}
+                <div className="flex items-start gap-2.5 rounded-xl bg-cyan-500/8 border border-cyan-500/20 p-3">
+                  <ScanFace className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                    After creating this account, you can immediately register the staff member's biometric face template.
+                  </p>
                 </div>
               </form>
 
@@ -658,7 +934,7 @@ export default function UsersAndRolesPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Glassmorphic Edit Staff Member Modal ── */}
+      {/* ─── MODAL 2: EDIT STAFF MEMBER MODAL ─── */}
       <AnimatePresence>
         {editingUser && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -720,14 +996,16 @@ export default function UsersAndRolesPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Assigned Staff Role *</label>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Assigned Role Type *</label>
                   <select
-                    className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
                     value={editForm.role}
                     onChange={e => setEditForm({ ...editForm, role: e.target.value })}
                   >
-                    {allRoleChoices.map(r => (
-                      <option key={r.key} value={r.key}>{r.label}</option>
+                    {roles.map(r => (
+                      <option key={r.key} value={r.key}>
+                        {r.name} {!r.isActive ? '(Inactive)' : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -755,6 +1033,49 @@ export default function UsersAndRolesPage() {
                     Account is Active & Enabled
                   </label>
                 </div>
+
+                {/* Biometric Face Data Section in Edit Modal */}
+                <div className="rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-800/30 backdrop-blur-sm p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <ScanFace className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Biometric Face Data</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      {editingUser?.faceEnrollment?.id ? (
+                        <div>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border bg-cyan-500/10 border-cyan-500/20 text-cyan-700 dark:text-cyan-300">
+                            <ShieldCheck className="w-3 h-3" />
+                            Enrolled ✓
+                          </span>
+                          {editingUser.faceEnrollment.enrolledAt && (
+                            <p className="text-[10px] text-slate-400 mt-1 pl-0.5">
+                              Last enrolled: {new Date(editingUser.faceEnrollment.enrolledAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300">
+                          <ShieldAlert className="w-3 h-3" />
+                          Not Enrolled
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs font-bold rounded-xl border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/10"
+                      onClick={() => {
+                        setEditingUser(null)
+                        openEnrollModal(editingUser)
+                      }}
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      {editingUser?.faceEnrollment?.id ? 'Re-enroll Face' : 'Enroll Face'}
+                    </Button>
+                  </div>
+                </div>
               </form>
 
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/60 shrink-0">
@@ -778,6 +1099,349 @@ export default function UsersAndRolesPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ─── MODAL 3: MANAGE ROLE TYPES MODAL (CENTRALIZED) ─── */}
+      <AnimatePresence>
+        {showManageRolesModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl backdrop-blur-2xl my-auto"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/60 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Centralized Role Types</h2>
+                    <p className="text-xs text-slate-500">Manage, activate/deactivate, and create school staff roles</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={openCreateRoleModal}
+                    className="gap-1.5 text-xs font-bold rounded-xl bg-primary text-white"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Role Type
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowManageRolesModal(false)}
+                    className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Roles List Table */}
+              <div className="flex-1 overflow-y-auto my-3 border rounded-2xl min-h-0">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50/80 dark:bg-slate-950/80 sticky top-0 backdrop-blur-sm z-10 border-b">
+                    <tr className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                      <th className="px-4 py-3">Role Name & Key</th>
+                      <th className="px-3 py-3">Description</th>
+                      <th className="px-3 py-3 text-center">Staff Count</th>
+                      <th className="px-3 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {roles.map(r => {
+                      const isActionBusy = roleActionLoadingId === r.id
+                      return (
+                        <tr key={r.id || r.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span style={{ backgroundColor: r.color || '#6366f1' }} className="w-3 h-3 rounded-full shrink-0 shadow-sm" />
+                              <div>
+                                <p className="font-bold text-slate-900 dark:text-white leading-tight">{r.name}</p>
+                                <p className="font-mono text-[10px] text-slate-400 mt-0.5">{r.key}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3.5 text-slate-500 max-w-[200px] truncate" title={r.description}>
+                            {r.description || '—'}
+                          </td>
+                          <td className="px-3 py-3.5 text-center font-bold text-slate-700 dark:text-slate-300">
+                            {r.userCount ?? 0}
+                          </td>
+                          <td className="px-3 py-3.5 text-center">
+                            <button
+                              onClick={() => handleToggleRoleActive(r)}
+                              disabled={isActionBusy}
+                              title={r.isActive !== false ? 'Click to deactivate' : 'Click to activate'}
+                              className={cn(
+                                'px-2 py-0.5 rounded-lg font-bold text-[10px] border transition-all',
+                                r.isActive !== false
+                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                  : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
+                              )}
+                            >
+                              {r.isActive !== false ? 'Active' : 'Inactive'}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openEditRoleModal(r)}
+                                disabled={isActionBusy}
+                                title="Edit Role"
+                                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-primary transition-colors"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              {!r.isSystem && (
+                                <button
+                                  onClick={() => handleDeleteRole(r)}
+                                  disabled={isActionBusy || r.userCount > 0}
+                                  title={
+                                    r.userCount > 0
+                                      ? `Cannot delete: ${r.userCount} staff members are assigned`
+                                      : 'Delete Role'
+                                  }
+                                  className={cn(
+                                    'p-1.5 rounded-lg transition-colors',
+                                    r.userCount > 0
+                                      ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                                      : 'hover:bg-rose-500/10 text-slate-400 hover:text-rose-600'
+                                  )}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between shrink-0 text-xs">
+                <p className="text-[11px] text-slate-400">
+                  Default system roles cannot be deleted, but can be deactivated if not needed.
+                </p>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowManageRolesModal(false)}
+                  className="rounded-xl h-10 px-4 text-xs font-bold"
+                >
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MODAL 4: CREATE / EDIT ROLE TYPE MODAL ─── */}
+      <AnimatePresence>
+        {(showCreateRoleModal || editingRole) && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-md w-full shadow-2xl backdrop-blur-2xl my-auto"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/60 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                    <Tag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                      {editingRole ? 'Edit Role Type' : 'Add Role Type'}
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      {editingRole ? 'Update role properties' : 'Create a new staff role in the central registry'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateRoleModal(false)
+                    setEditingRole(null)
+                  }}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRole} className="space-y-4 py-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Role Name *</label>
+                  <Input
+                    required
+                    placeholder="e.g. Lab Technician, Accountant, Librarian"
+                    value={roleForm.name}
+                    onChange={e => {
+                      const nameVal = e.target.value
+                      setRoleForm(prev => ({
+                        ...prev,
+                        name: nameVal,
+                        // Auto-generate key if creating new role
+                        ...(!editingRole ? { key: nameVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') } : {})
+                      }))
+                    }}
+                    className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10"
+                  />
+                </div>
+
+                {!editingRole && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Unique Role Key / Code</label>
+                    <Input
+                      placeholder="e.g. lab_technician"
+                      value={roleForm.key}
+                      onChange={e => setRoleForm({ ...roleForm, key: e.target.value })}
+                      className="mt-1 h-10 font-mono text-xs rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5">Lowercase alphanumeric with underscores only.</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Description</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Describe duties, responsibilities or purpose of this staff role..."
+                    value={roleForm.description}
+                    onChange={e => setRoleForm({ ...roleForm, description: e.target.value })}
+                    className="w-full mt-1 p-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-medium focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Badge Color</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="color"
+                      value={roleForm.color}
+                      onChange={e => setRoleForm({ ...roleForm, color: e.target.value })}
+                      className="w-10 h-10 rounded-xl cursor-pointer border border-white/40 bg-transparent p-0.5"
+                    />
+                    <Input
+                      value={roleForm.color}
+                      onChange={e => setRoleForm({ ...roleForm, color: e.target.value })}
+                      className="h-10 font-mono text-xs rounded-xl bg-white/70 dark:bg-slate-950/70"
+                    />
+                  </div>
+                </div>
+
+                {editingRole && (
+                  <div className="flex items-center gap-2.5 pt-1">
+                    <input
+                      type="checkbox"
+                      id="role_is_active"
+                      checked={roleForm.isActive}
+                      onChange={e => setRoleForm({ ...roleForm, isActive: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <label htmlFor="role_is_active" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      Role is Active & Available in Registration Dropdowns
+                    </label>
+                  </div>
+                )}
+              </form>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-end gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowCreateRoleModal(false)
+                    setEditingRole(null)
+                  }}
+                  className="rounded-xl h-10 px-4 text-xs font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveRole}
+                  disabled={isSavingRole}
+                  className="h-10 px-5 rounded-xl bg-gradient-to-r from-primary to-indigo-600 text-white text-xs font-bold shadow-lg shadow-primary/25"
+                >
+                  {isSavingRole ? 'Saving...' : editingRole ? 'Save Changes' : 'Create Role Type'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MODAL 5: POST-CREATE ENROLL PROMPT ─── */}
+      <AnimatePresence>
+        {showPostCreateEnroll && newlyCreatedUser && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 rounded-[28px] p-6 md:p-8 max-w-sm w-full shadow-2xl backdrop-blur-2xl"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
+                  <ScanFace className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Enroll Biometrics Now?</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{newlyCreatedUser.full_name}</span> has been registered.
+                    Would you like to capture their face template for attendance verification?
+                  </p>
+                </div>
+                <div className="flex gap-3 w-full">
+                  <Button
+                    variant="ghost"
+                    className="flex-1 rounded-xl h-11 text-xs font-bold"
+                    onClick={() => {
+                      setShowPostCreateEnroll(false)
+                      setNewlyCreatedUser(null)
+                    }}
+                  >
+                    Skip
+                  </Button>
+                  <Button
+                    className="flex-1 h-11 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-500/25 gap-2"
+                    onClick={() => {
+                      setShowPostCreateEnroll(false)
+                      setEnrollTarget(newlyCreatedUser)
+                      setShowEnrollModal(true)
+                      setNewlyCreatedUser(null)
+                    }}
+                  >
+                    <Camera className="w-4 h-4" />
+                    Enroll Face
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MODAL 6: BIOMETRIC ENROLLMENT MODAL ─── */}
+      {showEnrollModal && enrollTarget && (
+        <StaffFaceEnrollModal
+          open={showEnrollModal}
+          onOpenChange={(open) => {
+            if (!open) handleEnrollmentDone()
+          }}
+          onEnrolled={handleEnrollmentDone}
+          preselectedUserId={enrollTarget.id}
+          preselectedUserName={enrollTarget.full_name}
+        />
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDrillDownStats = exports.getAttendanceTrends = exports.getGradeStats = exports.getAttendanceSummary = void 0;
 const db_1 = __importDefault(require("../config/db"));
+const academic_year_service_1 = require("./academic-year.service");
 // Helpers for the rules
 const isP = (s) => s?.toLowerCase() === 'present';
 const isL = (s) => s?.toLowerCase() === 'late';
@@ -16,6 +17,19 @@ const getAttendanceSummary = async (schoolId, filters) => {
     const isFullDay = !session || session === 'total';
     const isSessionMode = mode === 'session_based';
     const where = { schoolId };
+    // Scope to active academic year unless academicYear filter is 'all'
+    if (!academicYear || academicYear === 'current' || academicYear === 'active') {
+        const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+        if (activeAY)
+            where.academicYearId = activeAY.id;
+    }
+    else if (academicYear && academicYear !== 'all') {
+        const targetAY = await db_1.default.academicYear.findUnique({
+            where: { schoolId_name: { schoolId, name: academicYear } }
+        });
+        if (targetAY)
+            where.academicYearId = targetAY.id;
+    }
     if (startDate || endDate) {
         where.date = {};
         if (startDate)
@@ -113,7 +127,7 @@ const getAttendanceSummary = async (schoolId, filters) => {
         };
     }
     else {
-        // Single session view
+        // Single session view — fetch records and deduplicate by studentId + date to guarantee unique counts
         const stats = {
             totalStudents,
             present: 0,
@@ -122,21 +136,28 @@ const getAttendanceSummary = async (schoolId, filters) => {
             excused: 0,
             attendanceRate: 0
         };
-        const attendanceCounts = await db_1.default.attendance.groupBy({
-            by: ['status'],
+        const allRecords = await db_1.default.attendance.findMany({
             where,
-            _count: { _all: true }
+            select: { studentId: true, date: true, status: true },
+            orderBy: { updatedAt: 'desc' }
         });
-        attendanceCounts.forEach((group) => {
-            const s = group.status.toLowerCase();
+        const uniqueStudentDate = new Map(); // `${studentId}||${dateStr}` -> status
+        allRecords.forEach(rec => {
+            const dateStr = rec.date.toISOString().split('T')[0];
+            const key = `${rec.studentId}||${dateStr}`;
+            if (!uniqueStudentDate.has(key)) {
+                uniqueStudentDate.set(key, rec.status.toLowerCase());
+            }
+        });
+        uniqueStudentDate.forEach(s => {
             if (s === 'present')
-                stats.present = group._count._all;
+                stats.present++;
             else if (s === 'absent')
-                stats.absent = group._count._all;
+                stats.absent++;
             else if (s === 'late')
-                stats.late = group._count._all;
+                stats.late++;
             else if (s === 'excused')
-                stats.excused = group._count._all;
+                stats.excused++;
         });
         const totalRecorded = stats.present + stats.absent + stats.late + stats.excused;
         stats.attendanceRate = totalRecorded > 0
@@ -262,8 +283,14 @@ const getGradeStats = async (schoolId, filters) => {
             });
         }
         else {
+            const byDate = {};
             records.forEach(rec => {
-                const s = rec.status?.toLowerCase();
+                const dateStr = rec.date.toISOString().split('T')[0];
+                if (!byDate[dateStr]) {
+                    byDate[dateStr] = rec.status?.toLowerCase();
+                }
+            });
+            Object.values(byDate).forEach(s => {
                 if (s === 'present')
                     groups[key].present++;
                 else if (s === 'late')

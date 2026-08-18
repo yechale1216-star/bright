@@ -646,6 +646,218 @@ class Database extends BaseDatabase {
   async getCallHistoryApi(): Promise<any[]> {
     return calls.getCallHistoryApi(this.getApiHeaders())
   }
+
+  // ─── STAFF ATTENDANCE & FACE RECOGNITION ───────────────────────────────────
+  async staffCheckIn(payload: {
+    date?: string
+    faceVerified?: boolean
+    faceConfidence?: number | null
+    remarks?: string
+  }, locationData?: any): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/check-in`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify({
+          ...payload,
+          latitude: locationData?.latitude,
+          longitude: locationData?.longitude,
+          locationVerified: locationData?.locationVerified,
+          locationDistance: locationData?.locationDistance,
+        }),
+      }
+    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+    return result.data
+  }
+
+  async staffCheckOut(payload: {
+    date?: string
+    faceVerified?: boolean
+    faceConfidence?: number | null
+    remarks?: string
+  }, locationData?: any): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/check-out`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify({
+          ...payload,
+          latitude: locationData?.latitude,
+          longitude: locationData?.longitude,
+          locationVerified: locationData?.locationVerified,
+          locationDistance: locationData?.locationDistance,
+        }),
+      }
+    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+    return result.data
+  }
+
+  async getMyStaffAttendance(filters: { date?: string; startDate?: string; endDate?: string } = {}): Promise<any[]> {
+    const params = new URLSearchParams()
+    if (filters.date) params.append("date", filters.date)
+    if (filters.startDate) params.append("startDate", filters.startDate)
+    if (filters.endDate) params.append("endDate", filters.endDate)
+    params.append("_t", Date.now().toString())
+
+    const result = await apiFetch<{ success: boolean; data: any[] }>(
+      `${API_URL}/api/staff-attendance/my?${params.toString()}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data || []
+  }
+
+  async getStaffAttendance(filters: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    role?: string;
+    status?: string;
+    userId?: string;
+    search?: string;
+    geofenceVerified?: boolean | string;
+    faceVerified?: boolean | string;
+  } = {}): Promise<any[]> {
+    const params = new URLSearchParams()
+    if (filters.date) params.append("date", filters.date)
+    if (filters.startDate) params.append("startDate", filters.startDate)
+    if (filters.endDate) params.append("endDate", filters.endDate)
+    if (filters.role) params.append("role", filters.role)
+    if (filters.status) params.append("status", filters.status)
+    if (filters.userId) params.append("userId", filters.userId)
+    if (filters.search) params.append("search", filters.search)
+    if (filters.geofenceVerified !== undefined) params.append("geofenceVerified", String(filters.geofenceVerified))
+    if (filters.faceVerified !== undefined) params.append("faceVerified", String(filters.faceVerified))
+    params.append("_t", Date.now().toString())
+
+    const result = await apiFetch<{ success: boolean; data: any[] }>(
+      `${API_URL}/api/staff-attendance?${params.toString()}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data || []
+  }
+
+  async getStaffAttendanceStats(date?: string): Promise<any> {
+    const params = new URLSearchParams()
+    if (date) params.append("date", date)
+    params.append("_t", Date.now().toString())
+
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/stats?${params.toString()}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data || null
+  }
+
+  async getStaffAttendanceReport(filters: {
+    startDate: string;
+    endDate: string;
+    role?: string;
+    userId?: string;
+  }): Promise<any> {
+    const params = new URLSearchParams()
+    params.append("startDate", filters.startDate)
+    params.append("endDate", filters.endDate)
+    if (filters.role) params.append("role", filters.role)
+    if (filters.userId) params.append("userId", filters.userId)
+    params.append("_t", Date.now().toString())
+
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/report?${params.toString()}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data || null
+  }
+
+  async correctStaffAttendance(
+    id: string,
+    data: {
+      status?: string;
+      checkInTime?: string | null;
+      checkOutTime?: string | null;
+      remarks?: string;
+      reason: string;
+    }
+  ): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/${id}`,
+      {
+        method: "PATCH",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+    return result.data
+  }
+
+  async setStaffLeave(
+    userId: string,
+    date: string,
+    status: "LEAVE" | "PERMISSION",
+    reason: string
+  ): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/leave`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify({ userId, date, status, reason }),
+      }
+    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+    return result.data
+  }
+
+  async enrollStaffFace(userId: string, descriptor: number[]): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/face-enroll`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify({ userId, descriptor }),
+      }
+    )
+    return result.data
+  }
+
+  async getStaffFaceDescriptor(userId?: string): Promise<{ id: string; descriptor: number[] } | null> {
+    const url = userId 
+      ? `${API_URL}/api/staff-attendance/face-descriptor/${userId}`
+      : `${API_URL}/api/staff-attendance/face-descriptor`
+    
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      url,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data || null
+  }
+
+  async markAbsentStaff(userIds: string[], date: string, remarks?: string): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/mark-absent`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify({ userIds, date, remarks }),
+      }
+    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+    return result.data
+  }
 }
 
 export const db = new Database()

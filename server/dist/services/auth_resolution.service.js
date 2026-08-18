@@ -98,15 +98,21 @@ const resolveRoleInSchool = async (userId, schoolId, requestedRole) => {
             if (user)
                 return user.role;
         }
-        // Staff / generic non-teacher school roles
-        const staffRoles = ['staff', 'registrar', 'discipline_officer'];
+        // Staff / custom school roles (e.g. registrar, discipline_officer, staff, or any custom role)
+        const staffRoles = ['staff', 'staff_member', 'registrar', 'discipline_officer'];
         if (staffRoles.includes(requestedRole)) {
             const user = await db_1.default.user.findFirst({
-                where: { id: userId, role: requestedRole }
+                where: { id: userId, role: { in: requestedRole === 'staff' ? ['staff', 'staff_member'] : [requestedRole] } }
             });
             if (user)
-                return requestedRole;
+                return user.role;
         }
+        // Check if user has this requested role directly in their school profile
+        const customUser = await db_1.default.user.findFirst({
+            where: { id: userId, role: requestedRole, is_active: true }
+        });
+        if (customUser)
+            return customUser.role;
     }
     // 2. Fallback: Determine highest available role in priority order
     const user = await db_1.default.user.findUnique({

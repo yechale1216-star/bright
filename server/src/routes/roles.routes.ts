@@ -4,11 +4,12 @@ import * as rolesService from '../services/roles.service';
 
 const router = Router();
 
-// GET /api/roles — list all active system roles available to the authenticated school
+// GET /api/roles — list all system roles available to the authenticated school
 router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const schoolId = req.user?.schoolId;
-    const roles = await rolesService.getSystemRoles(schoolId);
+    const includeInactive = req.query.includeInactive === 'true' || req.query.includeInactive === '1';
+    const roles = await rolesService.getSystemRoles(schoolId, includeInactive);
     res.status(200).json({ success: true, data: roles });
   } catch (error) {
     next(error);

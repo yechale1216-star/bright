@@ -95,32 +95,14 @@ export const normalizeSession = (sess?: any): string | null => {
   return s;
 };
 
-export const markAttendance = async (data: any, schoolId: string) => {
-  const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
-  const session = normalizeSession(data.session);
-
-  if (!studentId || !date) {
-    throw new Error("Student ID and Date are required");
-  }
-
-  // Resolve valid teacherId foreign key (or null if marked by admin/non-teacher)
-  const resolvedTeacherId = await resolveTeacherId(schoolId, teacherId || userId);
-
-  // Ensure student belongs to this school and is actively enrolled
-  const student = await prisma.student.findFirst({
-    where: { id: studentId, schoolId }
-  });
-  if (!student) {
-    throw new Error("Student not found in this school");
-  }
-  if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
-    throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
-  }
-
-  // Fetch school settings for location restriction & edit permission checks
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
-
-  // 1. Geofence & Location Restriction Verification
+/**
+ * Shared geofence validation used by both student and staff attendance.
+ * Returns verified flag and computed distance, or throws if strict-mode fails.
+ */
+export function validateGeofence(
+  data: { latitude?: number | null; longitude?: number | null; locationVerified?: boolean; locationDistance?: number | null },
+  settings: { restrict_location?: boolean | null; allow_outside_attendance?: boolean | null; school_latitude?: number | null; school_longitude?: number | null; allowed_radius_meters?: number | null } | null
+): { locVerified: boolean; locDistance: number | null } {
   let locVerified = data.locationVerified ?? false;
   let locDistance: number | null = data.locationDistance != null ? Number(data.locationDistance) : null;
 
@@ -151,6 +133,37 @@ export const markAttendance = async (data: any, schoolId: string) => {
     );
     locVerified = locDistance <= (settings.allowed_radius_meters || 200);
   }
+
+  return { locVerified, locDistance };
+}
+
+export const markAttendance = async (data: any, schoolId: string) => {
+  const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
+  const session = normalizeSession(data.session);
+
+  if (!studentId || !date) {
+    throw new Error("Student ID and Date are required");
+  }
+
+  // Resolve valid teacherId foreign key (or null if marked by admin/non-teacher)
+  const resolvedTeacherId = await resolveTeacherId(schoolId, teacherId || userId);
+
+  // Ensure student belongs to this school and is actively enrolled
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, schoolId }
+  });
+  if (!student) {
+    throw new Error("Student not found in this school");
+  }
+  if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
+    throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
+  }
+
+  // Fetch school settings for location restriction & edit permission checks
+  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+
+  // 1. Geofence & Location Restriction Verification
+  const { locVerified, locDistance } = validateGeofence(data, settings);
 
   // Standardize the day range in UTC
   const { dateStr, startDate, endDate } = normalizeDate(date);

@@ -40,6 +40,7 @@ import savedMessagesRoutes from './routes/saved-messages.routes';
 import disciplineRoutes from './routes/discipline.routes';
 import rolesRoutes from './routes/roles.routes';
 import academicYearRoutes from './routes/academic-year.routes';
+import staffAttendanceRoutes from './routes/staff-attendance.routes';
 
 import { authMiddleware } from './middleware/auth.middleware';
 import { maintenanceMiddleware } from './middleware/maintenance.middleware';
@@ -244,6 +245,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/saved-messages', savedMessagesRoutes);
 app.use('/api/discipline', disciplineRoutes);
 app.use('/api/roles', rolesRoutes);
+app.use('/api/staff-attendance', staffAttendanceRoutes);
 
 
 // Error handling middleware

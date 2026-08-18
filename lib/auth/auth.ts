@@ -399,6 +399,12 @@ class AuthService {
         headers["x-requested-role"] = 'parent';
       } else if (pathname.startsWith('/school/teacher')) {
         headers["x-requested-role"] = 'teacher';
+      } else if (pathname.startsWith('/school/staff')) {
+        headers["x-requested-role"] = 'staff';
+      } else if (pathname.startsWith('/school/registrar')) {
+        headers["x-requested-role"] = 'registrar';
+      } else if (pathname.startsWith('/school/discipline-officer')) {
+        headers["x-requested-role"] = 'discipline_officer';
       } else if (pathname.startsWith('/school/admin')) {
         headers["x-requested-role"] = 'school_admin';
       }

@@ -56,103 +56,115 @@ const getAllStudents = async (schoolId, search, status, gradeId, sectionId, stre
     if (!schoolId)
         throw new Error('School ID is required');
     // 1. Resolve active/target academic year
-    let targetAcademicYearName = academicYear?.trim();
     const currentAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
-    const activeAYName = currentAY?.name || (await db_1.default.schoolSettings.findUnique({ where: { schoolId }, select: { academic_year: true } }))?.academic_year || '';
+    let targetAcademicYearName = academicYear?.trim();
     if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
-        targetAcademicYearName = activeAYName;
+        targetAcademicYearName = currentAY?.name || '';
     }
-    // 2. Identify future academic year names (academic years with startDate > active academic year's startDate)
-    const allAYs = await db_1.default.academicYear.findMany({
-        where: { schoolId },
-        orderBy: { startDate: 'asc' }
-    });
-    const activeAYRecord = allAYs.find(ay => ay.name === targetAcademicYearName || ay.isCurrent);
-    const futureAYNames = activeAYRecord
-        ? allAYs.filter(ay => ay.startDate > activeAYRecord.startDate).map(ay => ay.name)
-        : [];
+    // 2. Try to find the AcademicYear record by name
+    const targetAY = await db_1.default.academicYear.findUnique({
+        where: { schoolId_name: { schoolId, name: targetAcademicYearName } }
+    }) || currentAY;
+    // 3. If we have an AcademicYear with StudentAcademicYearRecords, query through enrollments
+    if (targetAY) {
+        const enrollmentWhere = {
+            schoolId,
+            academicYearId: targetAY.id,
+        };
+        // Status filter on the enrollment record
+        if (status && status.trim()) {
+            const s = status.trim().toUpperCase();
+            if (s !== 'ALL') {
+                enrollmentWhere.status = s;
+            }
+        }
+        else {
+            enrollmentWhere.status = 'ACTIVE';
+        }
+        // Grade filter
+        if (gradeId && gradeId.trim() && gradeId.trim() !== 'all' && gradeId.trim() !== 'All Grades') {
+            const gTerm = gradeId.trim();
+            const gNum = gTerm.replace(/[^\d]/g, '');
+            enrollmentWhere.grade = {
+                OR: [
+                    { id: gTerm },
+                    { name: { equals: gTerm, mode: 'insensitive' } },
+                    ...(gNum ? [{ name: { contains: gNum, mode: 'insensitive' } }] : [])
+                ]
+            };
+        }
+        // Section filter
+        if (sectionId && sectionId.trim() && sectionId.trim() !== 'all' && sectionId.trim() !== 'All Sections') {
+            const secTerm = sectionId.trim();
+            enrollmentWhere.section = {
+                OR: [
+                    { id: secTerm },
+                    { name: { equals: secTerm, mode: 'insensitive' } }
+                ]
+            };
+        }
+        // Stream filter
+        if (streamId && streamId.trim() && streamId.trim() !== 'all' && streamId.trim() !== 'All Streams' && streamId.trim() !== 'none') {
+            const strTerm = streamId.trim();
+            enrollmentWhere.stream = {
+                OR: [
+                    { id: strTerm },
+                    { name: { equals: strTerm, mode: 'insensitive' } }
+                ]
+            };
+        }
+        // Search filter via student relation
+        if (search && search.trim()) {
+            const term = search.trim();
+            enrollmentWhere.student = {
+                OR: [
+                    { fullName: { contains: term, mode: 'insensitive' } },
+                    { student_id: { contains: term, mode: 'insensitive' } }
+                ]
+            };
+        }
+        const enrollments = await db_1.default.studentAcademicYearRecord.findMany({
+            where: enrollmentWhere,
+            include: {
+                student: true,
+                grade: true,
+                section: true,
+                stream: true,
+            },
+            orderBy: { student: { fullName: 'asc' } }
+        });
+        // Map to the flat frontend format, using enrollment grade/section/stream
+        return enrollments.map((enr) => ({
+            ...enr.student,
+            name: enr.student.fullName,
+            grade: enr.grade?.name || '',
+            section: enr.section?.name || '',
+            stream: enr.stream?.name || null,
+            gradeId: enr.gradeId,
+            sectionId: enr.sectionId,
+            streamId: enr.streamId,
+            enrollmentStatus: enr.status,
+            academicYearRecordId: enr.id,
+        }));
+    }
+    // 4. Fallback: no academic year records found — query students directly (legacy path)
     const where = { schoolId };
-    // 3. Status Filter: Must be strictly 'ACTIVE' unless 'ALL' is explicitly requested
     if (status && status.trim()) {
         const s = status.trim().toUpperCase();
-        if (s !== 'ALL') {
+        if (s !== 'ALL')
             where.status = { equals: s, mode: 'insensitive' };
-        }
     }
     else {
         where.status = 'ACTIVE';
     }
-    // 4. Future Academic Year Guard: Exclude any student promoted into a future academic year
-    if (futureAYNames.length > 0 && where.status !== 'ALL') {
-        where.AND = where.AND || [];
-        where.AND.push({
-            promotions: {
-                none: {
-                    academicYear: { in: futureAYNames }
-                }
-            }
-        });
-    }
-    // 5. Search Filter (name or student_id)
     if (search && search.trim()) {
         const term = search.trim();
         where.AND = where.AND || [];
-        where.AND.push({
-            OR: [
-                { fullName: { contains: term, mode: 'insensitive' } },
-                { student_id: { contains: term, mode: 'insensitive' } },
-            ]
-        });
-    }
-    // 6. Grade Filter
-    if (gradeId && gradeId.trim() && gradeId.trim() !== 'all' && gradeId.trim() !== 'All Grades') {
-        const gTerm = gradeId.trim();
-        const gNum = gTerm.replace(/[^\d]/g, '');
-        where.AND = where.AND || [];
-        where.AND.push({
-            OR: [
-                { gradeId: gTerm },
-                { grade: { id: gTerm } },
-                { grade: { name: { equals: gTerm, mode: 'insensitive' } } },
-                ...(gNum ? [{ grade: { name: { contains: gNum, mode: 'insensitive' } } }] : [])
-            ]
-        });
-    }
-    // 7. Section Filter
-    if (sectionId && sectionId.trim() && sectionId.trim() !== 'all' && sectionId.trim() !== 'All Sections') {
-        const secTerm = sectionId.trim();
-        where.AND = where.AND || [];
-        where.AND.push({
-            OR: [
-                { sectionId: secTerm },
-                { section: { id: secTerm } },
-                { section: { name: { equals: secTerm, mode: 'insensitive' } } }
-            ]
-        });
-    }
-    // 8. Stream Filter
-    if (streamId && streamId.trim() && streamId.trim() !== 'all' && streamId.trim() !== 'All Streams' && streamId.trim() !== 'none') {
-        const strTerm = streamId.trim();
-        where.AND = where.AND || [];
-        where.AND.push({
-            OR: [
-                { streamId: strTerm },
-                { stream: { id: strTerm } },
-                { stream: { name: { equals: strTerm, mode: 'insensitive' } } }
-            ]
-        });
+        where.AND.push({ OR: [{ fullName: { contains: term, mode: 'insensitive' } }, { student_id: { contains: term, mode: 'insensitive' } }] });
     }
     const students = await db_1.default.student.findMany({
         where,
-        include: {
-            grade: true,
-            section: true,
-            stream: true,
-            promotions: {
-                orderBy: { promotedAt: 'desc' },
-                take: 1
-            }
-        },
+        include: { grade: true, section: true, stream: true, promotions: { orderBy: { promotedAt: 'desc' }, take: 1 } },
         orderBy: { fullName: 'asc' }
     });
     return students.map(mapStudentToFlat);
@@ -236,6 +248,33 @@ const createStudent = async (data, schoolId) => {
             stream: true
         }
     });
+    // Create StudentAcademicYearRecord for the active academic year
+    try {
+        const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+        if (activeAY) {
+            await db_1.default.studentAcademicYearRecord.upsert({
+                where: { studentId_academicYearId: { studentId: newStudent.id, academicYearId: activeAY.id } },
+                create: {
+                    schoolId,
+                    studentId: newStudent.id,
+                    academicYearId: activeAY.id,
+                    gradeId: newStudent.gradeId,
+                    sectionId: newStudent.sectionId,
+                    streamId: newStudent.streamId,
+                    status: 'ACTIVE',
+                },
+                update: {
+                    gradeId: newStudent.gradeId,
+                    sectionId: newStudent.sectionId,
+                    streamId: newStudent.streamId,
+                    status: 'ACTIVE',
+                }
+            });
+        }
+    }
+    catch (err) {
+        console.error('[StudentService] Failed to create StudentAcademicYearRecord:', err);
+    }
     // Handle Parent User Account creation or linking
     const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
         name: data.parent_name,
@@ -399,6 +438,33 @@ const bulkUpsertStudents = async (students, schoolId) => {
                 results.created++;
                 createdCountInThisBatch++;
             }
+            // 2b. Upsert StudentAcademicYearRecord for active year
+            try {
+                const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+                if (activeAY) {
+                    await db_1.default.studentAcademicYearRecord.upsert({
+                        where: { studentId_academicYearId: { studentId: student.id, academicYearId: activeAY.id } },
+                        create: {
+                            schoolId,
+                            studentId: student.id,
+                            academicYearId: activeAY.id,
+                            gradeId: grade.id,
+                            sectionId: section.id,
+                            streamId: streamId || null,
+                            status: 'ACTIVE',
+                        },
+                        update: {
+                            gradeId: grade.id,
+                            sectionId: section.id,
+                            streamId: streamId || null,
+                            status: 'ACTIVE',
+                        }
+                    });
+                }
+            }
+            catch (err) {
+                console.error(`[StudentService] Failed to upsert StudentAcademicYearRecord for student ${student.id}:`, err);
+            }
             // 3. Handle Parent Linking
             if (data.parent_phone) {
                 const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
@@ -533,6 +599,34 @@ const updateStudent = async (id, data, schoolId) => {
             stream: true
         }
     });
+    // Sync StudentAcademicYearRecord for the active year if grade/section/stream changed
+    if (data.grade || data.section || 'stream' in data) {
+        try {
+            const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+            if (activeAY) {
+                await db_1.default.studentAcademicYearRecord.upsert({
+                    where: { studentId_academicYearId: { studentId: id, academicYearId: activeAY.id } },
+                    create: {
+                        schoolId,
+                        studentId: id,
+                        academicYearId: activeAY.id,
+                        gradeId: updatedStudent.gradeId,
+                        sectionId: updatedStudent.sectionId,
+                        streamId: updatedStudent.streamId,
+                        status: 'ACTIVE',
+                    },
+                    update: {
+                        gradeId: updatedStudent.gradeId,
+                        sectionId: updatedStudent.sectionId,
+                        streamId: updatedStudent.streamId,
+                    }
+                });
+            }
+        }
+        catch (err) {
+            console.error('[StudentService] Failed to sync StudentAcademicYearRecord on update:', err);
+        }
+    }
     return mapStudentToFlat(updatedStudent);
 };
 exports.updateStudent = updateStudent;

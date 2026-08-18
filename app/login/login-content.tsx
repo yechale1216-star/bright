@@ -28,10 +28,16 @@ function LoginContent() {
         router.push('/school/admin')
       } else if (role === 'teacher') {
         router.push('/school/teacher')
+      } else if (role === 'staff' || role === 'staff_member') {
+        router.push('/school/staff')
+      } else if (role === 'registrar') {
+        router.push('/school/registrar')
+      } else if (role === 'discipline_officer') {
+        router.push('/school/discipline-officer')
       } else if (role === 'parent') {
         router.push('/parent/dashboard')
       } else {
-        router.push('/school/admin')
+        router.push('/school/staff')
       }
     }, 50)
   }
