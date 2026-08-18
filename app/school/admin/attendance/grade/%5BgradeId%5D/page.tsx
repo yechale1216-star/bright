@@ -44,7 +44,7 @@ function GradeDrillDownContent() {
         setGradeName(gradeId)
       }
     } catch (error) {
-      notifications.error("Error", "Failed to load detailed grade analytics")
+      console.error("Failed to load detailed grade analytics:", error)
     } finally {
       setIsLoading(false)
     }

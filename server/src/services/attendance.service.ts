@@ -70,10 +70,26 @@ export const resolveTeacherId = async (schoolId: string, rawTeacherId?: string |
   return null;
 };
 
+export const normalizeDate = (dateInput?: any): { dateStr: string; startDate: Date; endDate: Date } => {
+  let dateStr: string;
+  if (!dateInput) {
+    dateStr = new Date().toISOString().split("T")[0];
+  } else if (typeof dateInput === 'string') {
+    dateStr = dateInput.split("T")[0];
+  } else if (dateInput instanceof Date) {
+    dateStr = dateInput.toISOString().split("T")[0];
+  } else {
+    dateStr = new Date(dateInput).toISOString().split("T")[0];
+  }
+  const startDate = new Date(`${dateStr}T00:00:00.000Z`);
+  const endDate = new Date(`${dateStr}T23:59:59.999Z`);
+  return { dateStr, startDate, endDate };
+};
+
 export const normalizeSession = (sess?: any): string | null => {
   if (sess === null || sess === undefined) return null;
   const s = String(sess).trim().toLowerCase();
-  if (s === '' || s === 'none' || s === 'daily' || s === 'null' || s === 'undefined') {
+  if (s === '' || s === 'none' || s === 'daily' || s === 'null' || s === 'undefined' || s === 'total') {
     return null;
   }
   return s;
@@ -136,10 +152,8 @@ export const markAttendance = async (data: any, schoolId: string) => {
     locVerified = locDistance <= (settings.allowed_radius_meters || 200);
   }
 
-  // Parse the day range in UTC
-  const dateStr = typeof date === 'string' ? date.split("T")[0] : new Date(date).toISOString().split("T")[0];
-  const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-  const endDate = new Date(`${dateStr}T23:59:59.999Z`);
+  // Standardize the day range in UTC
+  const { dateStr, startDate, endDate } = normalizeDate(date);
 
   // Find if a record already exists for this student on this day and session.
   const existing = await prisma.attendance.findFirst({
@@ -152,7 +166,7 @@ export const markAttendance = async (data: any, schoolId: string) => {
       },
       ...(session
         ? { session: { equals: session, mode: 'insensitive' } }
-        : { session: null }
+        : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] }
       ),
     }
   });
@@ -160,27 +174,20 @@ export const markAttendance = async (data: any, schoolId: string) => {
   // 2. Attendance Edit Permission Verification
   if (existing && userRole === 'teacher') {
     if (settings && settings.allow_attendance_editing === false) {
-      // Build session-aware matching:
-      // - If editing a session-based record (session = 'morning'/'afternoon'), the approved
-      //   permission must match that exact session.
-      // - If editing a daily record (session = null), the approved permission must also
-      //   have session = null (no cross-mode permission bleeding).
       const sessionFilter: any = session
         ? { session: { equals: session, mode: 'insensitive' } }
-        : { session: null };
+        : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
 
-      // Find an APPROVED, unused permission scoped to this teacher + date + session.
-      // Critically: status must be 'APPROVED' — PENDING/REJECTED records must not pass.
       const approvedRequest = await prisma.attendanceEditRequest.findFirst({
         where: {
-          schoolId,   // scope to this school — prevents cross-school data leaks
-          status: 'APPROVED',   // BUG FIX: was missing — PENDING requests were passing
+          schoolId,
+          status: 'APPROVED',
           isUsed: false,
           date: {
             gte: startDate,
             lte: endDate,
           },
-          ...sessionFilter,   // BUG FIX: was missing — Morning permission was satisfying Afternoon edits
+          ...sessionFilter,
           OR: [
             ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
             ...(teacherId ? [{ teacherId }] : []),
@@ -194,7 +201,6 @@ export const markAttendance = async (data: any, schoolId: string) => {
         throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${dateStr}${sessionLabel}.`);
       }
 
-      // Consume the approved permission — mark as used so it cannot be reused
       await prisma.attendanceEditRequest.update({
         where: { id: approvedRequest.id },
         data: { isUsed: true }
@@ -238,6 +244,8 @@ export const markAttendance = async (data: any, schoolId: string) => {
           longitude: data.longitude != null ? Number(data.longitude) : existing.longitude,
           locationVerified: locVerified,
           locationDistance: locDistance,
+          ...(academicYearId && !existing.academicYearId ? { academicYearId } : {}),
+          ...(academicYearRecordId && !existing.academicYearRecordId ? { academicYearRecordId } : {}),
         }
       })
     : await prisma.attendance.create({
@@ -289,22 +297,14 @@ export const getAttendance = async (filters: any, schoolId: string) => {
   const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate, academicYearId: filterAcademicYearId } = filters;
   const where: any = { schoolId };
 
-  // Scope to active academic year by default (can be overridden by explicit academicYearId filter)
+  // Explicit academicYearId filter if supplied by caller
   if (filterAcademicYearId) {
     where.academicYearId = filterAcademicYearId;
-  } else {
-    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
-    if (activeAY) {
-      where.academicYearId = activeAY.id;
-    }
   }
 
   if (studentId) where.studentId = studentId;
   if (date) {
-    const dateStr = typeof date === 'string' ? date.split("T")[0] : date;
-    const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-    const endDate = new Date(`${dateStr}T23:59:59.999Z`);
-    
+    const { startDate, endDate } = normalizeDate(date);
     where.date = {
       gte: startDate,
       lte: endDate,
@@ -312,21 +312,25 @@ export const getAttendance = async (filters: any, schoolId: string) => {
   } else if (filterStartDate || filterEndDate) {
     where.date = {};
     if (filterStartDate) {
-      const dateStr = typeof filterStartDate === 'string' ? filterStartDate.split("T")[0] : filterStartDate;
-      where.date.gte = new Date(`${dateStr}T00:00:00.000Z`);
+      const { startDate } = normalizeDate(filterStartDate);
+      where.date.gte = startDate;
     }
     if (filterEndDate) {
-      const dateStr = typeof filterEndDate === 'string' ? filterEndDate.split("T")[0] : filterEndDate;
-      where.date.lte = new Date(`${dateStr}T23:59:59.999Z`);
+      const { endDate } = normalizeDate(filterEndDate);
+      where.date.lte = endDate;
     }
   }
 
   if (session !== undefined && session !== null) {
     const cleanSess = String(session).trim().toLowerCase();
     if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
-      where.session = null;
+      where.OR = [{ session: null }, { session: '' }, { session: 'daily' }];
     } else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
-      where.session = { not: null };
+      where.AND = [
+        { session: { not: null } },
+        { session: { not: '' } },
+        { session: { not: 'daily' } }
+      ];
     } else {
       where.session = { equals: cleanSess, mode: 'insensitive' };
     }
@@ -359,9 +363,13 @@ export const getAttendanceByStudent = async (studentId: string, schoolId: string
   if (session !== undefined && session !== null) {
     const cleanSess = String(session).trim().toLowerCase();
     if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
-      where.session = null;
+      where.OR = [{ session: null }, { session: '' }, { session: 'daily' }];
     } else if (cleanSess === 'session' || cleanSess === 'session_based' || cleanSess === 'any_session') {
-      where.session = { not: null };
+      where.AND = [
+        { session: { not: null } },
+        { session: { not: '' } },
+        { session: { not: 'daily' } }
+      ];
     } else {
       where.session = { equals: cleanSess, mode: 'insensitive' };
     }
@@ -658,8 +666,8 @@ export const bulkMarkAttendance = async (
   }
 ) => {
   if (!Array.isArray(records) || records.length === 0) return [];
-  if (records.length > 200) {
-    throw new Error('Maximum 200 attendance records allowed per bulk request');
+  if (records.length > 500) {
+    throw new Error('Maximum 500 attendance records allowed per bulk request');
   }
 
   const { userRole, userId, teacherId } = meta;
@@ -692,47 +700,87 @@ export const bulkMarkAttendance = async (
     }
   }
 
+  // Deduplicate incoming payload records by (studentId, dateStr, session)
+  // Preserves latest record in payload if duplicate student entries exist in same batch
+  const dedupedMap = new Map<string, any>();
+  for (const r of records) {
+    if (!r.studentId) continue;
+    const { dateStr } = normalizeDate(r.date);
+    const recSession = normalizeSession(r.session) || '__daily__';
+    const payloadKey = `${r.studentId}::${dateStr}::${recSession}`;
+    dedupedMap.set(payloadKey, r);
+  }
+  const cleanRecords = Array.from(dedupedMap.values());
+  if (cleanRecords.length === 0) return [];
+
   // Batch query active enrolled students only
-  const studentIds = records.map(r => r.studentId).filter(Boolean);
+  const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
   const validStudents = await prisma.student.findMany({
     where: { id: { in: studentIds }, schoolId, status: 'ACTIVE' },
     select: { id: true, fullName: true, gender: true }
   });
   const studentMap = new Map(validStudents.map(s => [s.id, s]));
 
-  // Standardize date and session range
-  const dateSample = records[0]?.date || new Date();
-  const dateStr = typeof dateSample === 'string' ? dateSample.split("T")[0] : new Date(dateSample).toISOString().split("T")[0];
-  const startDate = new Date(`${dateStr}T00:00:00.000Z`);
-  const endDate = new Date(`${dateStr}T23:59:59.999Z`);
-  const sampleSession = normalizeSession(records[0]?.session);
+  // Pre-fetch active Academic Year and all Student Academic Year Enrollment Records in bulk
+  const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+  const activeAYId = activeAY?.id || null;
+  const enrollmentMap = new Map<string, string>(); // studentId -> studentAcademicYearRecordId
+  if (activeAYId) {
+    const enrollments = await prisma.studentAcademicYearRecord.findMany({
+      where: {
+        studentId: { in: studentIds },
+        academicYearId: activeAYId
+      },
+      select: { studentId: true, id: true }
+    });
+    enrollments.forEach(e => enrollmentMap.set(e.studentId, e.id));
+  }
 
-  // Batch query existing attendance records for the target students on this date.
-  // Build a composite lookup map keyed by `${studentId}:${normalizeSession(session) || 'daily'}`
+  // Collect all unique date ranges present in the batch
+  const dateRanges = new Map<string, { startDate: Date; endDate: Date }>();
+  cleanRecords.forEach(r => {
+    const { dateStr, startDate, endDate } = normalizeDate(r.date);
+    if (!dateRanges.has(dateStr)) {
+      dateRanges.set(dateStr, { startDate, endDate });
+    }
+  });
+
+  const dateConditions = Array.from(dateRanges.values()).map(r => ({
+    date: { gte: r.startDate, lte: r.endDate }
+  }));
+
+  // Batch query existing attendance records for the target students across all batch dates
   const existingRecords = await prisma.attendance.findMany({
     where: {
       schoolId,
       studentId: { in: Array.from(studentMap.keys()) },
-      date: { gte: startDate, lte: endDate },
+      OR: dateConditions.length > 0 ? dateConditions : undefined,
     }
   });
+
+  // Build composite lookup map: `${studentId}::${dateStr}::${normalizeSession(session) || '__daily__'}`
   const existingMap = new Map<string, any>();
   existingRecords.forEach(e => {
-    const sKey = normalizeSession(e.session) || 'daily';
-    existingMap.set(`${e.studentId}:${sKey}`, e);
+    const eDateStr = e.date ? e.date.toISOString().split("T")[0] : 'unknown';
+    const sKey = normalizeSession(e.session) || '__daily__';
+    existingMap.set(`${e.studentId}::${eDateStr}::${sKey}`, e);
   });
 
   // Edit Permission Verification for Bulk Updates
-  const hasExistingUpdates = records.some(r => {
+  const hasExistingUpdates = cleanRecords.some(r => {
+    const { dateStr } = normalizeDate(r.date);
     const recSession = normalizeSession(r.session);
-    const mapKey = `${r.studentId}:${recSession || 'daily'}`;
+    const mapKey = `${r.studentId}::${dateStr}::${recSession || '__daily__'}`;
     return existingMap.has(mapKey);
   });
+
+  const sampleSession = normalizeSession(cleanRecords[0]?.session);
+  const sampleDateInfo = normalizeDate(cleanRecords[0]?.date);
 
   if (hasExistingUpdates && userRole === 'teacher' && settings && settings.allow_attendance_editing === false) {
     const sessionFilter: any = sampleSession
       ? { session: { equals: sampleSession, mode: 'insensitive' } }
-      : { session: null };
+      : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
 
     const approvedRequest = await prisma.attendanceEditRequest.findFirst({
       where: {
@@ -740,8 +788,8 @@ export const bulkMarkAttendance = async (
         status: 'APPROVED',
         isUsed: false,
         date: {
-          gte: startDate,
-          lte: endDate,
+          gte: sampleDateInfo.startDate,
+          lte: sampleDateInfo.endDate,
         },
         ...sessionFilter,
         OR: [
@@ -754,7 +802,7 @@ export const bulkMarkAttendance = async (
 
     if (!approvedRequest) {
       const sessionLabel = sampleSession ? ` (${sampleSession} session)` : '';
-      throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${dateStr}${sessionLabel}.`);
+      throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${sampleDateInfo.dateStr}${sessionLabel}.`);
     }
 
     // Consume the approved permission
@@ -770,23 +818,25 @@ export const bulkMarkAttendance = async (
         action: 'ATTENDANCE_EDIT_PERMITTED',
         entity_type: 'ATTENDANCE_EDIT_REQUEST',
         entity_id: approvedRequest.id,
-        new_values: { count: records.length, session: sampleSession || null, dateStr }
+        new_values: { count: cleanRecords.length, session: sampleSession || null, dateStr: sampleDateInfo.dateStr }
       }
     }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
   }
 
-  // Build atomic transaction queries
+  // Build atomic transaction queries — updates existing rows, creates missing rows
   const txOps: any[] = [];
 
-  for (const record of records) {
+  for (const record of cleanRecords) {
     const student = studentMap.get(record.studentId);
     if (!student) continue;
 
+    const { startDate, dateStr } = normalizeDate(record.date);
     const recSession = normalizeSession(record.session);
-    const mapKey = `${record.studentId}:${recSession || 'daily'}`;
+    const mapKey = `${record.studentId}::${dateStr}::${recSession || '__daily__'}`;
     const existing = existingMap.get(mapKey);
     const status = record.status;
     const remarks = record.remarks;
+    const ayRecordId = enrollmentMap.get(record.studentId) || null;
 
     if (existing) {
       txOps.push(
@@ -799,24 +849,12 @@ export const bulkMarkAttendance = async (
             session: recSession,
             locationVerified: locVerified,
             locationDistance: locDistance,
+            ...(activeAYId && !existing.academicYearId ? { academicYearId: activeAYId } : {}),
+            ...(ayRecordId && !existing.academicYearRecordId ? { academicYearRecordId: ayRecordId } : {}),
           }
         })
       );
     } else {
-      // Resolve AY record ids for new creates (batch lookup)
-      let bulkAcademicYearId: string | null = null;
-      let bulkAcademicYearRecordId: string | null = null;
-      if (!bulkAcademicYearId) {
-        const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
-        bulkAcademicYearId = activeAY?.id || null;
-        if (activeAY) {
-          const enrRec = await prisma.studentAcademicYearRecord.findUnique({
-            where: { studentId_academicYearId: { studentId: record.studentId, academicYearId: activeAY.id } },
-            select: { id: true }
-          });
-          bulkAcademicYearRecordId = enrRec?.id || null;
-        }
-      }
       txOps.push(
         prisma.attendance.create({
           data: {
@@ -829,32 +867,32 @@ export const bulkMarkAttendance = async (
             remarks,
             locationVerified: locVerified,
             locationDistance: locDistance,
-            academicYearId: bulkAcademicYearId,
-            academicYearRecordId: bulkAcademicYearRecordId,
+            academicYearId: activeAYId,
+            academicYearRecordId: ayRecordId,
           }
         })
       );
     }
   }
 
-  // Execute all upserts in a single DB round-trip transaction
+  // Execute all upserts in a single DB transaction
   const results = await prisma.$transaction(txOps);
 
   // Build status summary for admin notification
-  const presentCount  = records.filter(r => r.status?.toLowerCase() === 'present').length;
-  const lateCount     = records.filter(r => r.status?.toLowerCase() === 'late').length;
-  const absentCount   = records.filter(r => r.status?.toLowerCase() === 'absent').length;
-  const excusedCount  = records.filter(r => r.status?.toLowerCase() === 'excused').length;
+  const presentCount  = cleanRecords.filter(r => r.status?.toLowerCase() === 'present').length;
+  const lateCount     = cleanRecords.filter(r => r.status?.toLowerCase() === 'late').length;
+  const absentCount   = cleanRecords.filter(r => r.status?.toLowerCase() === 'absent').length;
+  const excusedCount  = cleanRecords.filter(r => r.status?.toLowerCase() === 'excused').length;
 
   // Determine grade/section from first valid student record
-  const firstStudent = records.map(r => studentMap.get(r.studentId)).find(Boolean);
+  const firstStudent = cleanRecords.map(r => studentMap.get(r.studentId)).find(Boolean);
   const gradeLabel   = firstStudent ? `${firstStudent.fullName.split(' ')[0]}'s class` : 'A class';
 
   // Fire admin notification in background (does not block response)
   sendAdminAttendanceNotification({
     schoolId,
     teacherId: resolvedTeacherId,
-    dateStr,
+    dateStr: sampleDateInfo.dateStr,
     session: sampleSession,
     totalCount: results.length,
     presentCount,
@@ -866,10 +904,11 @@ export const bulkMarkAttendance = async (
   });
 
   // Asynchronously send parent notifications for absent, late, or excused students
-  for (const record of records) {
+  for (const record of cleanRecords) {
     const student = studentMap.get(record.studentId);
     if (student) {
-      sendAttendanceParentNotification(student, record.status, dateStr, schoolId).catch(err => {
+      const recDateStr = normalizeDate(record.date).dateStr;
+      sendAttendanceParentNotification(student, record.status, recDateStr, schoolId).catch(err => {
         console.error(`[BulkAttendance] Parent notification dispatch error for student ${student.id}:`, err);
       });
     }
@@ -882,7 +921,7 @@ export const bulkMarkAttendance = async (
       user_id: userId || teacherId || null,
       action: 'BULK_ATTENDANCE_MARKED',
       entity_type: 'ATTENDANCE',
-      new_values: { count: results.length, dateStr, session: sampleSession }
+      new_values: { count: results.length, dateStr: sampleDateInfo.dateStr, session: sampleSession }
     }
   }).catch(() => {});
 

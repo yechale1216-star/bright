@@ -137,9 +137,6 @@ export default function AdminAnnouncementsPage() {
       setLastUpdated(new Date())
     } catch (error) {
       console.error("Failed to fetch announcements:", error)
-      if (!isBackground) {
-        notifications.error("Error", "Failed to load announcements")
-      }
     } finally {
       setIsLoading(false)
     }

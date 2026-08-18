@@ -8,7 +8,6 @@ import { db } from "@/lib/db/database"
 import { AttendanceFilters } from "./attendance-filters"
 import { GradeAttendanceTable } from "./grade-attendance-table"
 import { AttendanceAnalyticsCharts } from "./attendance-analytics-charts"
-import { useToast } from "@/hooks/use-toast"
 import { notifications } from "@/lib/utils/notifications"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
@@ -31,7 +30,6 @@ export function AttendanceByGrade() {
     endDate: new Date().toISOString().split('T')[0],
     session: "total"
   })
-  const { toast } = useToast()
 
   useEffect(() => {
     if (!settingsLoading) {
@@ -64,7 +62,7 @@ export function AttendanceByGrade() {
 
       setRawData({ attendance: attendanceRecords, students: studentsData })
     } catch (error) {
-      notifications.error("Error", "Failed to load raw attendance data")
+      console.error("Failed to load raw attendance data:", error)
     } finally {
       setIsLoading(false)
     }
@@ -155,11 +153,18 @@ export function AttendanceByGrade() {
         else if (status === 'absent')  absent++
       })
     } else {
+      const byStudentDate = new Map<string, string>()
       records.forEach(r => {
-        if (isP(r.status))      present++
-        else if (isL(r.status)) late++
-        else if (isE(r.status)) excused++
-        else if (isA(r.status)) absent++
+        const key = `${r.student_id}||${r.attendance_date}`
+        if (!byStudentDate.has(key)) {
+          byStudentDate.set(key, r.status)
+        }
+      })
+      byStudentDate.forEach(status => {
+        if (isP(status))      present++
+        else if (isL(status)) late++
+        else if (isE(status)) excused++
+        else if (isA(status)) absent++
       })
     }
 
@@ -216,13 +221,20 @@ export function AttendanceByGrade() {
         else if (status === 'absent')  gradeMap[gradeKey].absent++
       })
     } else {
+      const byStudentGradeDate = new Map<string, { key: string; status: string }>()
       records.forEach(r => {
         const key = studentKeyMap[r.student_id]
         if (!key || !gradeMap[key]) return
-        if (isP(r.status))      gradeMap[key].present++
-        else if (isL(r.status)) gradeMap[key].late++
-        else if (isE(r.status)) gradeMap[key].excused++
-        else if (isA(r.status)) gradeMap[key].absent++
+        const dayKey = `${r.student_id}||${r.attendance_date}`
+        if (!byStudentGradeDate.has(dayKey)) {
+          byStudentGradeDate.set(dayKey, { key, status: r.status })
+        }
+      })
+      byStudentGradeDate.forEach(({ key, status }) => {
+        if (isP(status))      gradeMap[key].present++
+        else if (isL(status)) gradeMap[key].late++
+        else if (isE(status)) gradeMap[key].excused++
+        else if (isA(status)) gradeMap[key].absent++
       })
     }
 

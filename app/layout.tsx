@@ -167,7 +167,7 @@ export default function RootLayout({
                         </UnreadProvider>
                       </SocketProvider>
                       <Toaster />
-                      <SonnerToaster position="top-right" richColors />
+                      <SonnerToaster position="top-right" richColors visibleToasts={2} />
                       <PWAClientWrapper />
                     </AcademicYearProvider>
                   </SchoolProvider>

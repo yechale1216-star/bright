@@ -52,7 +52,7 @@ export default function ParentDisciplinePage() {
       const res = await DisciplineApi.getIncidents({ limit: 50 });
       setIncidents(res.items);
     } catch (err: any) {
-      toast.error(err.message || t('failed_to_load_discipline'));
+      console.error("Failed to load discipline records:", err);
     } finally {
       setIsLoading(false);
     }

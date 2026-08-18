@@ -91,7 +91,6 @@ export function TeacherManagement() {
       setTeachers(teachersData)
     } catch (error) {
       console.error("Error loading teachers:", error)
-      notifications.error("Teachers", "Failed to load teachers")
     } finally {
       setIsLoading(false)
       setIsSyncing(false)
@@ -130,7 +129,6 @@ export function TeacherManagement() {
           setAssignments(data)
         } catch (error) {
           console.error("Error loading assignments:", error)
-          notifications.error("Error Loading Assignments", "Could not fetch teacher class assignments.")
         } finally {
           setIsLoadingAssignments(false)
         }

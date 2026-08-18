@@ -253,9 +253,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       setTotal(res.total);
       setTotalPages(res.totalPages);
     } catch (err: any) {
-      if (!isSilent) {
-        toast.error(err.message || 'Failed to load discipline records');
-      }
+      console.error('Failed to load discipline records:', err);
     } finally {
       if (!isSilent) {
         setIsLoading(false);
@@ -319,7 +317,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       const data = await DisciplineApi.getStudentProfile(studentId, { page: pPage, limit: 10 });
       setStudentProfile(data);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to load student discipline profile');
+      console.error('Failed to load student discipline profile:', err);
     } finally {
       setIsLoadingProfile(false);
     }
@@ -363,7 +361,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       setStudents(filtered);
     } catch (err) {
       console.error('Error loading students:', err);
-    } fontFinally: {
+    } finally {
       setIsLoadingStudents(false);
     }
   };
@@ -392,7 +390,6 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
             evidence: [...prev.evidence, ...newAttachments]
           }));
           setIsUploading(false);
-          toast.success(`${files.length} file(s) attached as evidence`);
         }
       };
       reader.readAsDataURL(file);

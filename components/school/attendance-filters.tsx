@@ -119,11 +119,6 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
           <Select 
             value={filters.stream} 
             onValueChange={(val) => handleFilterChange("stream", val)}
-            onOpenChange={(open) => {
-              if (open && filters.grade === 'all') {
-                notifications.info("Information", "Please select a grade first")
-              }
-            }}
           >
             <SelectTrigger className={`w-[140px] h-10 border-slate-200 dark:border-slate-700 rounded-xl ${filters.grade === 'all' ? 'opacity-70 bg-slate-50 dark:bg-slate-800/50' : 'bg-white/95 dark:bg-slate-800/90'}`}>
               <SelectValue placeholder="Stream" />
@@ -138,11 +133,6 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
         <Select 
           value={filters.section} 
           onValueChange={(val) => handleFilterChange("section", val)}
-          onOpenChange={(open) => {
-            if (open && filters.grade === 'all') {
-              notifications.info("Information", "Please select a grade first")
-            }
-          }}
         >
           <SelectTrigger className={`w-[140px] h-10 border-slate-200 dark:border-slate-700 rounded-xl ${filters.grade === 'all' ? 'opacity-70 bg-slate-50 dark:bg-slate-800/50' : 'bg-white/95 dark:bg-slate-800/90'}`}>
             <SelectValue placeholder="Section" />

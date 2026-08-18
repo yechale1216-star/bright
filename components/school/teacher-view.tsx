@@ -131,11 +131,6 @@ export function TeacherView() {
       console.log("Loaded students for assigned classes:", filteredStudents.length)
     } catch (error) {
       console.error("Error loading teacher data:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load your assignments and students",
-        variant: "destructive",
-      })
     } finally {
       setIsLoading(false)
     }

@@ -97,7 +97,6 @@ export function TeacherAssignmentManagement() {
         await loadAllData(user.schoolId)
       } catch (error) {
         console.error("Error initializing teacher assignment:", error)
-        notifications.error("Error", "Failed to initialize. Please refresh the page.")
         setIsLoading(false)
       }
     }
@@ -142,7 +141,6 @@ export function TeacherAssignmentManagement() {
       setAvailableStreams(streamsData)
     } catch (error) {
       console.error("Error loading data:", error)
-      notifications.error("Error", "Failed to load data")
     } finally {
       setIsLoading(false)
     }

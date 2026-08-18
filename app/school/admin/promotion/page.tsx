@@ -296,7 +296,6 @@ export default function StudentPromotionPage() {
       }
     } catch (error) {
       console.error("Failed to load promotion data:", error)
-      notifications.error("Error", "Could not load promotion data")
     } finally {
       setIsLoading(false)
     }
@@ -334,7 +333,6 @@ export default function StudentPromotionPage() {
       }
     } catch (error) {
       console.error("Failed to load students:", error)
-      notifications.error("Error", "Could not load student list")
     } finally {
       setLoadingStudents(false)
     }

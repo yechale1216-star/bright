@@ -345,6 +345,7 @@ model Attendance {
   academicYear     AcademicYear? @relation(fields: [academicYearId], references: [id])
   academicYearRecord StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
 
+  @@unique([studentId, date, session])
   @@index([studentId])
   @@index([schoolId])
   @@index([academicYearId])

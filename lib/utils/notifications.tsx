@@ -5,8 +5,30 @@ import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { formatEthiopianDateDMY } from "@/lib/utils/ethiopian-calendar"
 
 export class NotificationService {
+  private recentToasts: Map<string, number> = new Map()
+
+  private shouldThrottle(key: string, cooldownMs = 3000): boolean {
+    const now = Date.now()
+    const last = this.recentToasts.get(key)
+    if (last && now - last < cooldownMs) {
+      return true
+    }
+    this.recentToasts.set(key, now)
+    // Cleanup old keys periodically
+    if (this.recentToasts.size > 50) {
+      for (const [k, time] of this.recentToasts.entries()) {
+        if (now - time > 10000) this.recentToasts.delete(k)
+      }
+    }
+    return false
+  }
+
   async success(title: string, message: string, duration?: number): Promise<void> {
+    const key = `success:${title}:${message}`
+    if (this.shouldThrottle(key)) return
+
     toast.success(`${title}: ${message}`, {
+      id: key,
       duration: duration || 4000,
       style: {
         backgroundColor: "#dcfce7",
@@ -46,8 +68,12 @@ export class NotificationService {
       displayMessage = "Your school account is suspended. Write actions are disabled, but historical records remain fully visible. Please contact support.";
     }
 
+    const key = `error:${displayTitle}:${displayMessage}`
+    if (this.shouldThrottle(key)) return
+
     toast.error(`${displayTitle}: ${displayMessage}`, {
-      duration: 6000,
+      id: key,
+      duration: 5000,
       style: {
         backgroundColor: "#fff7ed",
         color: "#c2410c",
@@ -58,7 +84,11 @@ export class NotificationService {
   }
 
   async warning(title: string, message: string): Promise<void> {
+    const key = `warning:${title}:${message}`
+    if (this.shouldThrottle(key)) return
+
     toast.warning(`${title}: ${message}`, {
+      id: key,
       duration: 4000,
       style: {
         backgroundColor: "#fef3c7",
@@ -70,7 +100,11 @@ export class NotificationService {
   }
 
   async info(title: string, message: string, duration?: number): Promise<void> {
+    const key = `info:${title}:${message}`
+    if (this.shouldThrottle(key)) return
+
     toast.info(`${title}: ${message}`, {
+      id: key,
       duration: duration || 3000,
       style: {
         backgroundColor: "#dbeafe",

@@ -46,7 +46,6 @@ export function Settings() {
       notifications.error("Geolocation Unsupported", "Your browser does not support GPS location detection.")
       return
     }
-    notifications.info("Detecting Location", "Fetching device GPS coordinates...")
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = parseFloat(pos.coords.latitude.toFixed(6))
@@ -122,8 +121,7 @@ export function Settings() {
       const currentSettings = await db.getSettings()
       setSettings(currentSettings)
     } catch (error) {
-      notifications.error("Error", "Failed to load settings")
-
+      console.error("Failed to load settings:", error)
     } finally {
       setIsLoading(false)
     }

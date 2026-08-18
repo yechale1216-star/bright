@@ -51,21 +51,25 @@ export async function markAttendance(
   if (!schoolId) throw new Error("School ID not found")
   
   const formattedRecords = records.map(record => {
-    const recDate = record.attendance_date || record.date
-    const rawSess = record.session ? record.session.toString().toLowerCase() : null
-    const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
+    const rawDate = record.attendance_date || record.date
+    const dateStr = rawDate ? (typeof rawDate === 'string' ? rawDate.split("T")[0] : new Date(rawDate).toISOString().split("T")[0]) : new Date().toISOString().split("T")[0]
+    const rawSess = record.session ? record.session.toString().toLowerCase().trim() : null
+    const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily" && rawSess !== "total") ? rawSess : null
     return {
       studentId: record.student_id,
       status: record.status,
       session: normSess,
       remarks: record.remarks || record.note || "",
-      date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
+      date: `${dateStr}T00:00:00.000Z`,
       latitude: record.latitude ?? locationData?.latitude ?? null,
       longitude: record.longitude ?? locationData?.longitude ?? null,
       locationVerified: record.locationVerified ?? locationData?.locationVerified ?? false,
       locationDistance: record.locationDistance ?? locationData?.locationDistance ?? null,
     }
   })
+
+  const primaryDate = formattedRecords[0]?.date ? formattedRecords[0].date.split("T")[0] : new Date().toISOString().split("T")[0]
+  const primarySession = formattedRecords[0]?.session || null
 
   try {
     await apiFetch(
@@ -89,8 +93,8 @@ export async function markAttendance(
         schoolId,
         formattedRecords as any,
         locationData,
-        records[0]?.attendance_date || records[0]?.date,
-        records[0]?.session
+        primaryDate,
+        primarySession
       )
       notifyAttendanceDataChanged()
       return
@@ -108,16 +112,17 @@ export async function markSingleAttendance(
   locationData?: { latitude?: number | null; longitude?: number | null; locationVerified?: boolean; locationDistance?: number | null }
 ): Promise<any> {
   if (!schoolId) throw new Error("School ID not found")
-  const recDate = record.date || new Date().toISOString()
-  const rawSess = record.session ? record.session.toString().toLowerCase() : null
-  const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
+  const rawDate = record.date || new Date().toISOString()
+  const dateStr = typeof rawDate === 'string' ? rawDate.split("T")[0] : new Date(rawDate).toISOString().split("T")[0]
+  const rawSess = record.session ? record.session.toString().toLowerCase().trim() : null
+  const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily" && rawSess !== "total") ? rawSess : null
 
   const payload = {
     studentId: record.studentId,
     status: record.status,
     session: normSess,
     remarks: record.remarks || record.note || "",
-    date: recDate ? new Date(recDate).toISOString() : new Date().toISOString(),
+    date: `${dateStr}T00:00:00.000Z`,
     latitude: locationData?.latitude ?? null,
     longitude: locationData?.longitude ?? null,
     locationVerified: locationData?.locationVerified ?? false,
@@ -143,7 +148,7 @@ export async function markSingleAttendance(
         schoolId,
         [payload],
         locationData,
-        record.date,
+        dateStr,
         normSess
       )
       notifyAttendanceDataChanged()

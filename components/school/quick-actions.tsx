@@ -24,46 +24,14 @@ export function QuickActions({ onNavigate }: QuickActionsProps) {
   const handleQuickAttendance = async () => {
     setIsLoading(true)
     try {
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
-      const existingAttendance = await db.getAttendanceByDate(today)
-
-      if (existingAttendance.length > 0) {
-        notifications.info("Attendance Already Taken", `Attendance for ${today} has already been recorded.`)
-
-        onNavigate("attendance")
-      } else {
-        notifications.info("Quick Action", "Navigating to attendance tracking...")
-
-        onNavigate("attendance")
-      }
-    } catch (error) {
-      notifications.error("Error", "Failed to check attendance status")
-
+      onNavigate("attendance")
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleGenerateReport = async () => {
-    setIsLoading(true)
-    try {
-      const endDate = new Date()
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - 7) // Last 7 days
-
-      notifications.info("Generating Report", "Creating weekly attendance report...")
-
-      setTimeout(() => {
-        onNavigate("reports")
-        notifications.success("Report Ready", "Weekly attendance report is ready to view.")
-
-      }, 1000)
-    } catch (error) {
-      notifications.error("Error", "Failed to generate report")
-
-    } finally {
-      setIsLoading(false)
-    }
+    onNavigate("reports")
   }
 
   const teacherActions = [

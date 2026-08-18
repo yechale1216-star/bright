@@ -162,7 +162,6 @@ export function Reports() {
       }
     } catch (error) {
       console.error("Error loading students for report:", error)
-      notifications.error("Error", "Failed to load students for report")
     } finally {
       // Always mark students as loaded so the report generation effect can proceed.
       // This fires regardless of success or failure — the report will simply show
@@ -452,7 +451,6 @@ export function Reports() {
   const printReport = () => {
     try {
       window.print()
-      notifications.info("Print", "Print dialog opened")
     } catch (error) {
       notifications.error("Print Failed", "Failed to open print dialog")
     }

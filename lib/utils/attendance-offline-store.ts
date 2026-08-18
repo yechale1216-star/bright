@@ -74,7 +74,9 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 /**
- * Add an attendance batch to the offline IndexedDB outbox
+ * Add or merge an attendance batch to the offline IndexedDB outbox.
+ * If an unsynced batch already exists for the same (schoolId, date, session),
+ * it merges/updates the records instead of accumulating duplicate batches.
  */
 export async function queueOfflineAttendance(
   schoolId: string,
@@ -83,36 +85,93 @@ export async function queueOfflineAttendance(
   date?: string,
   session?: string | null
 ): Promise<string> {
-  const batchId = `offline_att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  const batch: OfflineAttendanceBatch = {
-    id: batchId,
-    schoolId,
-    records,
-    locationData,
-    timestamp: Date.now(),
-    date: date || new Date().toISOString().split("T")[0],
-    session: session || null,
-  }
+  const normDate = date ? date.split("T")[0] : new Date().toISOString().split("T")[0]
+  const normSess = session ? session.trim().toLowerCase() : null
+  const cleanSess = (normSess && normSess !== 'none' && normSess !== 'daily') ? normSess : null
 
   try {
     const db = await openDB()
     const tx = db.transaction(STORE_QUEUE, "readwrite")
     const store = tx.objectStore(STORE_QUEUE)
+
+    const existingBatches: OfflineAttendanceBatch[] = await new Promise((resolve, reject) => {
+      const req = store.getAll()
+      req.onsuccess = () => resolve(req.result || [])
+      req.onerror = () => reject(req.error)
+    })
+
+    // Find if an unsynced batch for the same context exists
+    const match = existingBatches.find(
+      b => b.schoolId === schoolId &&
+           b.date === normDate &&
+           (b.session ? b.session.trim().toLowerCase() : null) === cleanSess
+    )
+
+    let finalBatch: OfflineAttendanceBatch
+
+    if (match) {
+      // Merge records: new records overwrite matching studentId records
+      const recordMap = new Map<string, OfflineAttendanceRecord>()
+      match.records.forEach(r => recordMap.set(r.studentId, r))
+      records.forEach(r => recordMap.set(r.studentId, r))
+
+      finalBatch = {
+        ...match,
+        records: Array.from(recordMap.values()),
+        locationData: locationData || match.locationData,
+        timestamp: Date.now(),
+      }
+    } else {
+      const batchId = `offline_att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      finalBatch = {
+        id: batchId,
+        schoolId,
+        records,
+        locationData,
+        timestamp: Date.now(),
+        date: normDate,
+        session: cleanSess,
+      }
+    }
+
     await new Promise<void>((resolve, reject) => {
-      const req = store.put(batch)
+      const req = store.put(finalBatch)
       req.onsuccess = () => resolve()
       req.onerror = () => reject(req.error)
     })
-    console.log(`[OfflineAttendanceStore] Queued ${records.length} records in batch ${batchId}`)
-    return batchId
+
+    console.log(`[OfflineAttendanceStore] Queued/updated ${finalBatch.records.length} records in batch ${finalBatch.id}`)
+    return finalBatch.id
   } catch (err) {
     console.error("[OfflineAttendanceStore] Failed to queue attendance:", err)
+    const batchId = `offline_att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const batch: OfflineAttendanceBatch = {
+      id: batchId,
+      schoolId,
+      records,
+      locationData,
+      timestamp: Date.now(),
+      date: normDate,
+      session: cleanSess,
+    }
     // Fallback to localStorage
     try {
       if (typeof window !== "undefined") {
         const raw = localStorage.getItem("zetimer_offline_att_queue") || "[]"
-        const list = JSON.parse(raw)
-        list.push(batch)
+        const list = JSON.parse(raw) as OfflineAttendanceBatch[]
+        const matchIdx = list.findIndex(
+          b => b.schoolId === schoolId && b.date === normDate && (b.session ? b.session.trim().toLowerCase() : null) === cleanSess
+        )
+        if (matchIdx >= 0) {
+          const recordMap = new Map<string, OfflineAttendanceRecord>()
+          list[matchIdx].records.forEach(r => recordMap.set(r.studentId, r))
+          records.forEach(r => recordMap.set(r.studentId, r))
+          list[matchIdx].records = Array.from(recordMap.values())
+          list[matchIdx].timestamp = Date.now()
+          if (locationData) list[matchIdx].locationData = locationData
+        } else {
+          list.push(batch)
+        }
         localStorage.setItem("zetimer_offline_att_queue", JSON.stringify(list))
       }
     } catch (lsErr) {

@@ -103,15 +103,6 @@ export function PWAInstall() {
       */
     }
 
-    // Show a one-time reminder notification on mount if not installed
-    if (!isInstalled && !window.location.hostname.includes("localhost")) {
-      const hasReminded = localStorage.getItem("pwa_reminded")
-      if (!hasReminded) {
-        notifications.info("Tip", "You can install Addis Hiwot as an app for a better experience!")
-        localStorage.setItem("pwa_reminded", "true")
-      }
-    }
-
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
       window.removeEventListener("appinstalled", handleAppInstalled)

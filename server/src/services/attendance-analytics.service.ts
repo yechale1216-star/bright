@@ -113,7 +113,7 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
       attendanceRate
     };
   } else {
-    // Single session view
+    // Single session view — fetch records and deduplicate by studentId + date to guarantee unique counts
     const stats = {
       totalStudents,
       present: 0,
@@ -123,18 +123,26 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
       attendanceRate: 0
     };
 
-    const attendanceCounts = await prisma.attendance.groupBy({
-      by: ['status'],
+    const allRecords = await prisma.attendance.findMany({
       where,
-      _count: { _all: true }
+      select: { studentId: true, date: true, status: true },
+      orderBy: { updatedAt: 'desc' }
     });
 
-    attendanceCounts.forEach((group: any) => {
-      const s = group.status.toLowerCase();
-      if (s === 'present') stats.present = group._count._all;
-      else if (s === 'absent') stats.absent = group._count._all;
-      else if (s === 'late') stats.late = group._count._all;
-      else if (s === 'excused') stats.excused = group._count._all;
+    const uniqueStudentDate = new Map<string, string>(); // `${studentId}||${dateStr}` -> status
+    allRecords.forEach(rec => {
+      const dateStr = rec.date.toISOString().split('T')[0];
+      const key = `${rec.studentId}||${dateStr}`;
+      if (!uniqueStudentDate.has(key)) {
+        uniqueStudentDate.set(key, rec.status.toLowerCase());
+      }
+    });
+
+    uniqueStudentDate.forEach(s => {
+      if (s === 'present') stats.present++;
+      else if (s === 'absent') stats.absent++;
+      else if (s === 'late') stats.late++;
+      else if (s === 'excused') stats.excused++;
     });
 
     const totalRecorded = stats.present + stats.absent + stats.late + stats.excused;
@@ -250,8 +258,14 @@ export const getGradeStats = async (schoolId: string, filters: any) => {
         }
       });
     } else {
+      const byDate: Record<string, string> = {};
       records.forEach(rec => {
-        const s = rec.status?.toLowerCase();
+        const dateStr = rec.date.toISOString().split('T')[0];
+        if (!byDate[dateStr]) {
+          byDate[dateStr] = rec.status?.toLowerCase();
+        }
+      });
+      Object.values(byDate).forEach(s => {
         if (s === 'present') groups[key].present++;
         else if (s === 'late') groups[key].late++;
         else if (s === 'excused') groups[key].excused++;

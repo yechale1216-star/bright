@@ -109,17 +109,9 @@ export function AcademicYearManagementTab() {
       if (res.ok && contentType.includes('application/json')) {
         const result = await res.json()
         setAcademicYears(result.data || [])
-      } else {
-        let errorMsg = "Failed to load academic years"
-        if (contentType.includes('application/json')) {
-          const err = await res.json()
-          errorMsg = err.message || err.error || errorMsg
-        }
-        notifications.error("Error", errorMsg)
       }
     } catch (error: any) {
       console.error("Failed to fetch academic years:", error)
-      notifications.error("Error", "Could not connect to server")
     } finally {
       setIsLoading(false)
     }

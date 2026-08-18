@@ -377,7 +377,6 @@ export function AttendanceTracking() {
       }
     } catch (error: any) {
       console.error("Error loading students for teacher:", error)
-      notifications.error("Error", error.message || "Failed to load students")
     } finally {
       setIsLoading(false)
     }
@@ -404,7 +403,7 @@ export function AttendanceTracking() {
             (r: any) => r.session?.toLowerCase() === currentSession.toLowerCase()
           )
         : attendanceRecords.filter(
-            (r: any) => r.session === null || r.session === undefined || r.session === ""
+            (r: any) => r.session === null || r.session === undefined || r.session === "" || r.session?.toLowerCase() === "daily"
           )
 
       const serverState: AttendanceState = {}
@@ -463,7 +462,7 @@ export function AttendanceTracking() {
         return newEditable
       })
     } catch (error: any) {
-      notifications.error("Error", error.message || "Failed to load attendance records")
+      console.error("Failed to load attendance records:", error)
     }
   }, [settings?.attendanceMode])
 
@@ -689,8 +688,6 @@ export function AttendanceTracking() {
           throw new Error("Location permission required")
         }
       }
-
-      notifications.info("Verifying Location", "Fetching GPS location to verify school proximity...")
 
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {

@@ -223,7 +223,6 @@ export function StudentManagement() {
     } catch (err: any) {
       console.error("Error loading students:", err)
       setError(err.message || "Failed to load students")
-      notifications.error("Error", "Failed to load students")
     } finally {
       setIsLoading(false)
     }
