@@ -94,8 +94,9 @@ export function useFaceRecognition() {
         const faceapi = faceApiRef.current
 
         // Detect all faces with landmarks and descriptors
+        // minConfidence 0.45 catches faces faster on lower-end devices
         const detections = await faceapi
-          .detectAllFaces(videoElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+          .detectAllFaces(videoElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 }))
           .withFaceLandmarks()
           .withFaceDescriptors()
 
@@ -125,20 +126,21 @@ export function useFaceRecognition() {
         const landmarks = primaryDetection.landmarks
 
         // Basic liveness / anti-spoof checks:
-        // 1. Adequate detector score (>= 0.55)
-        // 2. Minimum face resolution (box width/height >= 70px)
+        // 1. Adequate detector score (>= 0.50 — permissive for speed on low-end devices)
+        // 2. Minimum face resolution (box width/height >= 60px)
         // 3. Complete 68-point 3D facial landmark mesh
         const hasLandmarks = landmarks && landmarks.positions && landmarks.positions.length === 68
-        const isAdequateSize = box.width >= 70 && box.height >= 70
-        const isLive = score >= 0.55 && hasLandmarks && isAdequateSize
+        const isAdequateSize = box.width >= 60 && box.height >= 60
+        const isLive = score >= 0.50 && hasLandmarks && isAdequateSize
 
         // Check if face is properly centered within the video frame
         const videoWidth = videoElement.videoWidth || 640
         const videoHeight = videoElement.videoHeight || 480
         const faceCenterX = box.x + box.width / 2
         const faceCenterY = box.y + box.height / 2
-        const isCenteredX = faceCenterX > videoWidth * 0.20 && faceCenterX < videoWidth * 0.80
-        const isCenteredY = faceCenterY > videoHeight * 0.15 && faceCenterY < videoHeight * 0.85
+        // Slightly wider acceptance zone — avoids false "not positioned" on mobile
+        const isCenteredX = faceCenterX > videoWidth * 0.12 && faceCenterX < videoWidth * 0.88
+        const isCenteredY = faceCenterY > videoHeight * 0.10 && faceCenterY < videoHeight * 0.90
         const isProperlyPositioned = isCenteredX && isCenteredY && isAdequateSize
 
         return {

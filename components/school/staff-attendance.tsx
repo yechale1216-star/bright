@@ -898,50 +898,53 @@ export function StaffAttendance() {
 
       {/* ─── COMBINED VERIFICATION MODAL ─── */}
       <Dialog open={isVerificationModalOpen} onOpenChange={setIsVerificationModalOpen}>
-        <DialogContent className="max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              {actionType === "checkin" ? <LogIn className="w-5 h-5 text-emerald-500" /> : <LogOut className="w-5 h-5 text-primary" />}
-              {actionType === "checkin" ? "Staff Check-In Verification" : "Staff Check-Out Verification"}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Complete the security checks below to authenticate your attendance.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className={verificationStep === "face_verification" ? "max-w-sm p-3" : "max-w-md p-6"}>
+          {/* Show header only when NOT in camera step */}
+          {verificationStep !== "face_verification" && (
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                {actionType === "checkin" ? <LogIn className="w-5 h-5 text-emerald-500" /> : <LogOut className="w-5 h-5 text-primary" />}
+                {actionType === "checkin" ? "Staff Check-In Verification" : "Staff Check-Out Verification"}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Complete the security checks below to authenticate your attendance.
+              </DialogDescription>
+            </DialogHeader>
+          )}
 
-          <div className="py-3 space-y-4">
-            {/* Step Indicators */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div
-                className={`p-2.5 rounded-lg border flex items-center gap-2 ${
-                  capturedLocation?.locationVerified
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
-                    : verificationStep === "getting_location"
-                    ? "bg-amber-500/10 border-amber-500/30 text-amber-700 animate-pulse font-semibold"
-                    : "bg-muted/40 text-muted-foreground border-border/40"
-                }`}
-              >
-                <MapPin className="w-4 h-4 shrink-0" />
-                <span>1. Geofence Location</span>
-                {capturedLocation?.locationVerified && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
+          <div className={verificationStep === "face_verification" ? "space-y-0" : "py-3 space-y-4"}>
+            {/* Step Indicators — hide during active camera scan */}
+            {verificationStep !== "face_verification" && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div
+                  className={`p-2.5 rounded-lg border flex items-center gap-2 ${
+                    capturedLocation?.locationVerified
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      : verificationStep === "getting_location"
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-700 animate-pulse font-semibold"
+                      : "bg-muted/40 text-muted-foreground border-border/40"
+                  }`}
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  <span>1. Geofence Location</span>
+                  {capturedLocation?.locationVerified && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
+                </div>
+
+                <div
+                  className={`p-2.5 rounded-lg border flex items-center gap-2 ${
+                    verificationStep === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      : "bg-muted/40 text-muted-foreground border-border/40"
+                  }`}
+                >
+                  <Camera className="w-4 h-4 shrink-0" />
+                  <span>2. Face Biometric</span>
+                  {verificationStep === "success" && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
+                </div>
               </div>
+            )}
 
-              <div
-                className={`p-2.5 rounded-lg border flex items-center gap-2 ${
-                  verificationStep === "face_verification"
-                    ? "bg-primary/10 border-primary/30 text-primary font-semibold animate-pulse"
-                    : verificationStep === "success"
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
-                    : "bg-muted/40 text-muted-foreground border-border/40"
-                }`}
-              >
-                <Camera className="w-4 h-4 shrink-0" />
-                <span>2. Face Biometric</span>
-                {verificationStep === "success" && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
-              </div>
-            </div>
-
-            {/* Step 1: Location in progress / error */}
+            {/* Step 1: Location in progress */}
             {verificationStep === "getting_location" && (
               <div className="text-center py-8 space-y-3">
                 <RefreshCw className="w-8 h-8 animate-spin text-primary mx-auto" />
@@ -949,7 +952,7 @@ export function StaffAttendance() {
               </div>
             )}
 
-            {/* Step 2: Face Verification Camera View */}
+            {/* Step 2: Biometric Scanner — no wrapper padding, fills dialog */}
             {verificationStep === "face_verification" && (
               <FaceVerificationCamera
                 mode="verify"
@@ -963,18 +966,22 @@ export function StaffAttendance() {
               />
             )}
 
-            {/* Step 3: Saving / Success / Error */}
+            {/* Step 3: Saving */}
             {verificationStep === "saving" && (
               <div className="text-center py-8 space-y-3">
-                <RefreshCw className="w-8 h-8 animate-spin text-primary mx-auto" />
+                <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin mx-auto" />
                 <p className="text-sm font-medium text-foreground">{stepMessage}</p>
               </div>
             )}
 
+            {/* Step 4: Success */}
             {verificationStep === "success" && (
-              <div className="text-center py-8 space-y-3 animate-in zoom-in-95 duration-200">
-                <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.35)]">
-                  <CheckCircle2 className="w-8 h-8" />
+              <div className="text-center py-8 space-y-4 animate-in zoom-in-95 duration-200">
+                <div className="relative mx-auto w-16 h-16">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center shadow-[0_0_28px_rgba(16,185,129,0.4)]">
+                    <CheckCircle2 className="w-9 h-9 text-emerald-500" />
+                  </div>
+                  <div className="absolute inset-0 rounded-full border-2 border-emerald-400/50 animate-ping" />
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
@@ -987,6 +994,7 @@ export function StaffAttendance() {
               </div>
             )}
 
+            {/* Error state */}
             {verificationStep === "error" && (
               <div className="text-center py-6 space-y-3">
                 <XCircle className="w-12 h-12 text-rose-500 mx-auto" />
