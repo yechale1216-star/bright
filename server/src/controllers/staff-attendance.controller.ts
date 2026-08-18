@@ -145,12 +145,12 @@ export const markAbsent = async (req: AuthenticatedRequest, res: Response, next:
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { userIds, date, remarks } = req.body;
+    const { userIds, date, remarks, session } = req.body;
     if (!Array.isArray(userIds) || userIds.length === 0 || !date) {
       return res.status(400).json({ success: false, message: 'userIds array and date are required' });
     }
 
-    const result = await staffAttendanceService.markAbsentStaff(adminUserId, schoolId, userIds, date, remarks);
+    const result = await staffAttendanceService.markAbsentStaff(adminUserId, schoolId, userIds, date, remarks, session);
     res.status(200).json({ success: true, data: result, message: `Marked ${result.length} staff as absent` });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to mark absent' });
@@ -164,8 +164,8 @@ export const getStats = async (req: AuthenticatedRequest, res: Response, next: N
       return res.status(401).json({ success: false, message: 'School context required' });
     }
 
-    const { date } = req.query;
-    const result = await staffAttendanceService.getStaffAttendanceStats(schoolId, date as string);
+    const { date, session } = req.query;
+    const result = await staffAttendanceService.getStaffAttendanceStats(schoolId, date as string, session as string);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     next(error);
@@ -224,12 +224,12 @@ export const setLeave = async (req: AuthenticatedRequest, res: Response, next: N
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { userId, date, status, reason } = req.body;
+    const { userId, date, status, reason, session } = req.body;
     if (!userId || !date || !status || !reason) {
       return res.status(400).json({ success: false, message: 'userId, date, status (LEAVE | PERMISSION), and reason are required' });
     }
 
-    const result = await staffAttendanceService.setLeaveOrPermission(adminUserId, userId, schoolId, { date, status, reason });
+    const result = await staffAttendanceService.setLeaveOrPermission(adminUserId, userId, schoolId, { date, status, reason, session });
     res.status(200).json({ success: true, data: result, message: `Staff marked as ${status}` });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to set leave/permission' });

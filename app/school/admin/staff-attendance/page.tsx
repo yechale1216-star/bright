@@ -49,6 +49,7 @@ import { useCalendar } from "@/lib/context/calendar-context"
 import { notifications } from "@/lib/utils/notifications"
 import { cn } from "@/lib/utils/utils"
 import dynamic from "next/dynamic"
+import { useSchoolSettings } from "@/hooks/use-school-settings"
 import {
   getOfflineStaffQueue,
   flushOfflineStaffQueue,
@@ -128,6 +129,25 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: st
 
 export default function AdminStaffAttendanceDashboard() {
   const { formatDate } = useCalendar()
+  const { settings } = useSchoolSettings()
+
+  const isSessionMode = settings?.staffAttendanceMode === "session_based"
+  const staffSessions = useMemo(() => {
+    if (!settings?.staffSessions) {
+      return [
+        { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30" },
+        { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00" },
+      ]
+    }
+    try {
+      const arr = typeof settings.staffSessions === "string" ? JSON.parse(settings.staffSessions) : settings.staffSessions
+      if (Array.isArray(arr) && arr.length > 0) return arr.filter((s: any) => s.isActive !== false)
+    } catch (_) {}
+    return [
+      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30" },
+      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00" },
+    ]
+  }, [settings?.staffSessions])
 
   // Active view tab: 'roster' | 'reports'
   const [activeTab, setActiveTab] = useState<"roster" | "reports">("roster")
@@ -150,6 +170,7 @@ export default function AdminStaffAttendanceDashboard() {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const [sessionFilter, setSessionFilter] = useState("all")
   const [geoFilter, setGeoFilter] = useState<string>("all")
   const [faceFilter, setFaceFilter] = useState<string>("all")
 
@@ -208,14 +229,15 @@ export default function AdminStaffAttendanceDashboard() {
   const fetchStats = useCallback(async () => {
     setStatsLoading(true)
     try {
-      const s = await db.getStaffAttendanceStats(selectedDate)
+      const sess = sessionFilter !== "all" ? sessionFilter : undefined
+      const s = await db.getStaffAttendanceStats(selectedDate, sess)
       setStats(s)
     } catch (err) {
       console.error("Failed to fetch staff stats:", err)
     } finally {
       setStatsLoading(false)
     }
-  }, [selectedDate])
+  }, [selectedDate, sessionFilter])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -223,6 +245,7 @@ export default function AdminStaffAttendanceDashboard() {
       const filterPayload: any = {
         role: roleFilter !== "all" ? roleFilter : undefined,
         status: statusFilter !== "ALL" ? statusFilter : undefined,
+        session: sessionFilter !== "all" ? sessionFilter : undefined,
         search: search.trim() || undefined,
         geofenceVerified: geoFilter === "verified" ? true : geoFilter === "unverified" ? false : undefined,
         faceVerified: faceFilter === "verified" ? true : faceFilter === "unverified" ? false : undefined,
@@ -243,7 +266,7 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, search, geoFilter, faceFilter])
+  }, [isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter, faceFilter])
 
   const fetchReport = useCallback(async () => {
     setReportLoading(true)
@@ -835,8 +858,8 @@ export default function AdminStaffAttendanceDashboard() {
               </div>
             </div>
 
-            {/* Sub-Filters: Role, Status, Geofence, Face */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+            {/* Sub-Filters: Role, Status, Session, Geofence, Face */}
+            <div className={`grid grid-cols-2 ${isSessionMode ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800/60`}>
               {/* Role */}
               <select
                 value={roleFilter}
@@ -865,6 +888,22 @@ export default function AdminStaffAttendanceDashboard() {
                 <option value="LEAVE">On Leave</option>
                 <option value="PERMISSION">Permission</option>
               </select>
+
+              {/* Session Filter (visible in Session-Based mode) */}
+              {isSessionMode && (
+                <select
+                  value={sessionFilter}
+                  onChange={(e) => setSessionFilter(e.target.value)}
+                  className="h-9 px-3 rounded-xl border border-primary/30 bg-primary/5 text-primary text-xs font-bold focus:outline-none"
+                >
+                  <option value="all">All Sessions</option>
+                  {staffSessions.map((sess: any) => (
+                    <option key={sess.id} value={sess.id}>
+                      {sess.name} ({sess.startTime} - {sess.endTime})
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* Geofence */}
               <select
@@ -916,6 +955,7 @@ export default function AdminStaffAttendanceDashboard() {
                       <th className="px-6 py-4">Staff Member</th>
                       <th className="px-5 py-4">Role</th>
                       <th className="px-5 py-4">Date</th>
+                      {isSessionMode && <th className="px-5 py-4">Session</th>}
                       <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4">Check-In</th>
                       <th className="px-5 py-4">Check-Out</th>
@@ -968,6 +1008,15 @@ export default function AdminStaffAttendanceDashboard() {
                           <td className="px-5 py-4 text-xs font-medium text-slate-700 dark:text-slate-300">
                             {formatDate(rec.date?.split("T")[0])}
                           </td>
+
+                          {/* Session Badge in Session-Based Mode */}
+                          {isSessionMode && (
+                            <td className="px-5 py-4">
+                              <Badge variant="outline" className="text-[10px] font-bold uppercase border-primary/30 text-primary">
+                                {rec.session || "daily"}
+                              </Badge>
+                            </td>
+                          )}
 
                           {/* Status */}
                           <td className="px-5 py-4">

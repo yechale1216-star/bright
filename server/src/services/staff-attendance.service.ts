@@ -79,11 +79,79 @@ export function computeWorkingScheduleThresholds(settings?: any): {
   };
 }
 
+// ─── Session Helpers ──────────────────────────────────────────────────────────
+
+export interface StaffSession {
+  id: string;
+  name: string;
+  startTime: string;   // HH:MM
+  endTime: string;     // HH:MM
+  lateGraceMinutes: number;
+  earlyDepartureToleranceMinutes: number;
+  isActive: boolean;
+}
+
+const DEFAULT_STAFF_SESSIONS: StaffSession[] = [
+  { id: 'morning', name: 'Morning', startTime: '08:00', endTime: '12:30', lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+  { id: 'afternoon', name: 'Afternoon', startTime: '13:30', endTime: '17:00', lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+];
+
+/**
+ * Parse sessions from settings JSON or return defaults.
+ */
+export function getConfiguredSessions(settings?: any): StaffSession[] {
+  try {
+    const raw = settings?.staff_sessions;
+    if (raw) {
+      const parsed: StaffSession[] = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((s) => s.isActive !== false);
+      }
+    }
+  } catch (_) {}
+  return DEFAULT_STAFF_SESSIONS;
+}
+
+/**
+ * Find the session config by id/name (case-insensitive).
+ */
+export function findSession(sessions: StaffSession[], sessionId: string): StaffSession | undefined {
+  const key = sessionId.toLowerCase().trim();
+  return sessions.find((s) => s.id.toLowerCase() === key || s.name.toLowerCase() === key);
+}
+
+/**
+ * Compute schedule thresholds for a specific session.
+ */
+export function computeSessionThresholds(session: StaffSession): {
+  expectedStartTime: string;
+  lateCutoffTime: string;
+  expectedEndTime: string;
+  earlyDepartureCutoffTime: string;
+} {
+  return {
+    expectedStartTime: session.startTime,
+    lateCutoffTime: addMinutesToTime(session.startTime, session.lateGraceMinutes),
+    expectedEndTime: session.endTime,
+    earlyDepartureCutoffTime: addMinutesToTime(session.endTime, -session.earlyDepartureToleranceMinutes),
+  };
+}
+
+/**
+ * Normalise session key: lowercase + trimmed, default to 'daily'.
+ */
+export function normaliseSessionKey(raw?: string | null): string {
+  if (!raw || raw.trim() === '') return 'daily';
+  return raw.toLowerCase().trim();
+}
+
 /**
  * Check-in for a staff member (self or admin-assisted)
+ * Supports both daily and session-based modes.
  */
 export async function checkIn(userId: string, schoolId: string, data: {
   date?: string;
+  session?: string;   // optional – 'daily' for daily mode, or session id for session mode
   latitude?: number | null;
   longitude?: number | null;
   locationVerified?: boolean;
@@ -100,7 +168,8 @@ export async function checkIn(userId: string, schoolId: string, data: {
   }
 
   const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
-  
+  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+
   // 1. Geofence Verification (using shared validator)
   let locVerified = false;
   let locDistance: number | null = null;
@@ -120,7 +189,6 @@ export async function checkIn(userId: string, schoolId: string, data: {
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
-  const schedule = computeWorkingScheduleThresholds(settings);
   const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
 
   const now = new Date();
@@ -131,9 +199,31 @@ export async function checkIn(userId: string, schoolId: string, data: {
     minute: '2-digit' 
   });
 
-  // Earliest check-in check
-  if (schedule.earliestCheckIn && isTimeBefore(currentTimeHHMM, schedule.earliestCheckIn)) {
-    throw new Error(`Check-in is not allowed before ${schedule.earliestCheckIn}. Current time: ${currentTimeHHMM}`);
+  // ── Resolve session key and thresholds based on mode ──
+  let sessionKey: string;
+  let lateCutoffTime: string;
+  let earliestCheckIn: string;
+
+  if (attendanceMode === 'session_based') {
+    if (!data.session) throw new Error('Session is required when staff attendance mode is session-based.');
+    const sessions = getConfiguredSessions(settings);
+    const sess = findSession(sessions, data.session);
+    if (!sess) throw new Error(`Session "${data.session}" is not configured or is inactive.`);
+    sessionKey = sess.id.toLowerCase();
+    const thresholds = computeSessionThresholds(sess);
+    lateCutoffTime = thresholds.lateCutoffTime;
+    earliestCheckIn = sess.startTime; // can check in from session start time
+  } else {
+    // Daily mode
+    sessionKey = 'daily';
+    const schedule = computeWorkingScheduleThresholds(settings);
+    lateCutoffTime = schedule.lateCutoffTime;
+    earliestCheckIn = schedule.earliestCheckIn;
+  }
+
+  // Earliest check-in guard
+  if (earliestCheckIn && isTimeBefore(currentTimeHHMM, earliestCheckIn)) {
+    throw new Error(`Check-in is not allowed before ${earliestCheckIn}. Current time: ${currentTimeHHMM}`);
   }
 
   // Determine status & remarks based on working day calendar rules
@@ -141,7 +231,7 @@ export async function checkIn(userId: string, schoolId: string, data: {
   let remarks = data.remarks || null;
 
   if (workingDayInfo.isWorkingDay) {
-    if (isTimeAfter(currentTimeHHMM, schedule.lateCutoffTime)) {
+    if (isTimeAfter(currentTimeHHMM, lateCutoffTime)) {
       status = 'LATE';
     }
   } else {
@@ -153,20 +243,19 @@ export async function checkIn(userId: string, schoolId: string, data: {
     remarks = remarks ? `${remarks} | ${nonWorkNote}` : nonWorkNote;
   }
 
-  // Check existing attendance for today
+  // Check existing attendance for today+session
   const existing = await prisma.staffAttendance.findFirst({
     where: {
       schoolId,
       userId,
-      date: {
-        gte: startDate,
-        lte: endDate,
-      }
+      date: { gte: startDate, lte: endDate },
+      session: sessionKey,
     }
   });
 
   if (existing && existing.checkInTime) {
-    throw new Error(`Staff is already checked in for ${dateStr} at ${existing.checkInTime.toISOString()}`);
+    const sessLabel = attendanceMode === 'session_based' ? ` (${sessionKey} session)` : '';
+    throw new Error(`Staff is already checked in for ${dateStr}${sessLabel} at ${existing.checkInTime.toISOString()}`);
   }
 
   if (existing) {
@@ -191,6 +280,7 @@ export async function checkIn(userId: string, schoolId: string, data: {
       schoolId,
       userId,
       date: startDate,
+      session: sessionKey,
       status,
       checkInTime: now,
       checkInLatitude: data.latitude ?? null,
@@ -205,10 +295,11 @@ export async function checkIn(userId: string, schoolId: string, data: {
 }
 
 /**
- * Check-out for a staff member
+ * Check-out for a staff member. Supports daily and session-based modes.
  */
 export async function checkOut(userId: string, schoolId: string, data: {
   date?: string;
+  session?: string;   // optional – required in session mode
   latitude?: number | null;
   longitude?: number | null;
   locationVerified?: boolean;
@@ -218,7 +309,8 @@ export async function checkOut(userId: string, schoolId: string, data: {
   remarks?: string;
 }) {
   const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
-  
+  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+
   // Geofence
   let locVerified = false;
   let locDistance: number | null = null;
@@ -238,7 +330,6 @@ export async function checkOut(userId: string, schoolId: string, data: {
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
-  const schedule = computeWorkingScheduleThresholds(settings);
   const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
 
   const now = new Date();
@@ -249,30 +340,46 @@ export async function checkOut(userId: string, schoolId: string, data: {
     minute: '2-digit' 
   });
 
+  // ── Resolve session key and early departure threshold ──
+  let sessionKey: string;
+  let earlyDepartureCutoffTime: string;
+
+  if (attendanceMode === 'session_based') {
+    if (!data.session) throw new Error('Session is required when staff attendance mode is session-based.');
+    const sessions = getConfiguredSessions(settings);
+    const sess = findSession(sessions, data.session);
+    if (!sess) throw new Error(`Session "${data.session}" is not configured or is inactive.`);
+    sessionKey = sess.id.toLowerCase();
+    earlyDepartureCutoffTime = computeSessionThresholds(sess).earlyDepartureCutoffTime;
+  } else {
+    sessionKey = 'daily';
+    earlyDepartureCutoffTime = computeWorkingScheduleThresholds(settings).earlyDepartureCutoffTime;
+  }
+
   const existing = await prisma.staffAttendance.findFirst({
     where: {
       schoolId,
       userId,
-      date: {
-        gte: startDate,
-        lte: endDate,
-      }
+      date: { gte: startDate, lte: endDate },
+      session: sessionKey,
     }
   });
 
   if (!existing || !existing.checkInTime) {
-    throw new Error(`Cannot check out without checking in first on ${dateStr}`);
+    const sessLabel = attendanceMode === 'session_based' ? ` (${sessionKey} session)` : '';
+    throw new Error(`Cannot check out without checking in first on ${dateStr}${sessLabel}`);
   }
 
   if (existing.checkOutTime) {
-    throw new Error(`Staff is already checked out for ${dateStr} at ${existing.checkOutTime.toISOString()}`);
+    const sessLabel = attendanceMode === 'session_based' ? ` (${sessionKey} session)` : '';
+    throw new Error(`Staff is already checked out for ${dateStr}${sessLabel} at ${existing.checkOutTime.toISOString()}`);
   }
 
   // Check early departure only if it is a scheduled working day
   let status = existing.status;
   if (workingDayInfo.isWorkingDay) {
-    if (isTimeBefore(currentTimeHHMM, schedule.earlyDepartureCutoffTime)) {
-      if (status === 'PRESENT') {
+    if (isTimeBefore(currentTimeHHMM, earlyDepartureCutoffTime)) {
+      if (status === 'PRESENT' || status === 'LATE') {
         status = 'EARLY_DEPARTURE';
       }
     }
@@ -350,6 +457,7 @@ export async function getStaffAttendance(schoolId: string, filters: {
   role?: string;
   userId?: string;
   status?: string;
+  session?: string;   // filter by session ('daily', 'morning', 'afternoon', 'all')
   search?: string;
   geofenceVerified?: string | boolean;
   faceVerified?: string | boolean;
@@ -399,6 +507,11 @@ export async function getStaffAttendance(schoolId: string, filters: {
     where.faceVerified = filters.faceVerified === true || filters.faceVerified === 'true';
   }
 
+  // Session filter
+  if (filters.session && filters.session !== 'all' && filters.session !== 'ALL') {
+    where.session = normaliseSessionKey(filters.session);
+  }
+
   return await prisma.staffAttendance.findMany({
     where,
     include: {
@@ -416,19 +529,21 @@ export async function getStaffAttendance(schoolId: string, filters: {
         }
       }
     },
-    orderBy: { date: 'desc' }
+    orderBy: [{ date: 'desc' }, { session: 'asc' }]
   });
 }
 
 /**
- * Get comprehensive daily or range summary stats for staff attendance
+ * Get comprehensive daily or range summary stats for staff attendance.
+ * In session-based mode, returns per-session breakdown.
  */
-export async function getStaffAttendanceStats(schoolId: string, date?: string) {
+export async function getStaffAttendanceStats(schoolId: string, date?: string, session?: string) {
   const { dateStr, startDate, endDate } = normalizeStaffDate(date);
 
   // Fetch settings once, pass cache to both helpers
   const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
   const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
 
   // Total active staff (all non-parent/student users registered in this school)
   const totalStaffCount = await prisma.user.count({
@@ -439,11 +554,11 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string) {
     }
   });
 
+  const recordWhere: any = { schoolId, date: { gte: startDate, lte: endDate } };
+  if (session && session !== 'all') recordWhere.session = normaliseSessionKey(session);
+
   const records = await prisma.staffAttendance.findMany({
-    where: {
-      schoolId,
-      date: { gte: startDate, lte: endDate }
-    },
+    where: recordWhere,
     include: {
       user: {
         select: { id: true, full_name: true, role: true, profile_photo: true }
@@ -474,10 +589,33 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string) {
     if (r.geofenceVerified) geoVerifiedCount++;
   }
 
-  const notCheckedIn = Math.max(0, totalStaffCount - records.length);
+  // Unique staff who have any record for this date (avoid double-counting in session mode)
+  const uniqueStaffIds = new Set(records.map((r: any) => r.userId));
+  const notCheckedIn = Math.max(0, totalStaffCount - uniqueStaffIds.size);
+
+  // Session-breakdown for session_based mode
+  let sessionBreakdown: Record<string, any> | undefined;
+  if (attendanceMode === 'session_based') {
+    const bySession: Record<string, any> = {};
+    for (const r of records) {
+      const sk = (r as any).session || 'unknown';
+      if (!bySession[sk]) {
+        bySession[sk] = { session: sk, present: 0, late: 0, absent: 0, earlyDeparture: 0, onLeave: 0, checkedIn: 0, total: 0 };
+      }
+      bySession[sk].total++;
+      if ((r as any).checkInTime) bySession[sk].checkedIn++;
+      if (r.status === 'PRESENT') bySession[sk].present++;
+      else if (r.status === 'LATE') bySession[sk].late++;
+      else if (r.status === 'ABSENT') bySession[sk].absent++;
+      else if (r.status === 'EARLY_DEPARTURE') bySession[sk].earlyDeparture++;
+      else if (r.status === 'LEAVE' || r.status === 'PERMISSION') bySession[sk].onLeave++;
+    }
+    sessionBreakdown = bySession;
+  }
 
   return {
     date: dateStr,
+    attendanceMode,
     isWorkingDay: workingDayInfo.isWorkingDay,
     isHoliday: workingDayInfo.isHoliday,
     isWeekend: workingDayInfo.isWeekend,
@@ -496,7 +634,8 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string) {
     notCheckedIn,
     faceVerifiedCount,
     geoVerifiedCount,
-    attendanceRate: totalStaffCount > 0 ? Math.round(((present + late + earlyDeparture) / totalStaffCount) * 100) : 0
+    attendanceRate: totalStaffCount > 0 ? Math.round(((present + late + earlyDeparture) / totalStaffCount) * 100) : 0,
+    sessionBreakdown,
   };
 }
 
@@ -660,10 +799,18 @@ export async function bulkSyncStaffAttendance(records: Array<{
 }
 
 /**
- * Admin manual marking of absent staff for a given date
+ * Admin manual marking of absent staff for a given date (and optional session).
  */
-export async function markAbsentStaff(adminUserId: string, schoolId: string, userIds: string[], date: string, remarks?: string) {
+export async function markAbsentStaff(
+  adminUserId: string,
+  schoolId: string,
+  userIds: string[],
+  date: string,
+  remarks?: string,
+  session?: string
+) {
   const { startDate, endDate } = normalizeStaffDate(date);
+  const sessionKey = normaliseSessionKey(session);
   const results: any[] = [];
 
   for (const userId of userIds) {
@@ -671,7 +818,8 @@ export async function markAbsentStaff(adminUserId: string, schoolId: string, use
       where: {
         schoolId,
         userId,
-        date: { gte: startDate, lte: endDate }
+        date: { gte: startDate, lte: endDate },
+        session: sessionKey,
       }
     });
 
@@ -691,6 +839,7 @@ export async function markAbsentStaff(adminUserId: string, schoolId: string, use
           schoolId,
           userId,
           date: startDate,
+          session: sessionKey,
           status: 'ABSENT',
           markedAbsentBy: adminUserId,
           remarks: remarks ?? null,
@@ -774,7 +923,7 @@ export async function correctAttendance(
 }
 
 /**
- * Set Leave or Permission for a staff member
+ * Set Leave or Permission for a staff member (supports session).
  */
 export async function setLeaveOrPermission(
   adminUserId: string,
@@ -784,15 +933,18 @@ export async function setLeaveOrPermission(
     date: string;
     status: 'LEAVE' | 'PERMISSION';
     reason: string;
+    session?: string;
   }
 ) {
   const { startDate, endDate } = normalizeStaffDate(data.date);
+  const sessionKey = normaliseSessionKey(data.session);
 
   const existing = await prisma.staffAttendance.findFirst({
     where: {
       schoolId,
       userId,
-      date: { gte: startDate, lte: endDate }
+      date: { gte: startDate, lte: endDate },
+      session: sessionKey,
     }
   });
 
@@ -815,6 +967,7 @@ export async function setLeaveOrPermission(
       schoolId,
       userId,
       date: startDate,
+      session: sessionKey,
       status: data.status,
       remarks: data.reason,
       markedAbsentBy: adminUserId,

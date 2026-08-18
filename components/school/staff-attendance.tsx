@@ -75,6 +75,27 @@ export function StaffAttendance() {
     workingDaysList: string[]
   } | null>(null)
 
+  // Session-based mode config
+  const isSessionMode = settings?.staffAttendanceMode === "session_based"
+  const staffSessions = useMemo(() => {
+    if (!settings?.staffSessions) {
+      return [
+        { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+        { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+      ]
+    }
+    try {
+      const arr = typeof settings.staffSessions === "string" ? JSON.parse(settings.staffSessions) : settings.staffSessions
+      if (Array.isArray(arr) && arr.length > 0) return arr.filter((s: any) => s.isActive !== false)
+    } catch (_) {}
+    return [
+      { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+    ]
+  }, [settings?.staffSessions])
+
+  const [selectedSession, setSelectedSession] = useState<string>("morning")
+
   // Current user's attendance status today
   const [todayRecord, setTodayRecord] = useState<any>(null)
   const [myHistory, setMyHistory] = useState<any[]>([])
@@ -98,6 +119,22 @@ export function StaffAttendance() {
   // Offline queue state
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0)
   const [isSyncingOffline, setIsSyncingOffline] = useState(false)
+
+  // Sync todayRecord whenever myHistory, selectedDate, or selectedSession changes
+  useEffect(() => {
+    if (!myHistory.length) {
+      setTodayRecord(null)
+      return
+    }
+    const todayRecs = myHistory.filter((r) => r.date?.split("T")[0] === selectedDate)
+    if (isSessionMode) {
+      const sessRec = todayRecs.find((r) => (r.session || "morning").toLowerCase() === selectedSession.toLowerCase())
+      setTodayRecord(sessRec || null)
+    } else {
+      const dailyRec = todayRecs.find((r) => !r.session || r.session === "daily") || todayRecs[0]
+      setTodayRecord(dailyRec || null)
+    }
+  }, [myHistory, selectedDate, selectedSession, isSessionMode])
 
   // 1. Initial user & data load
   useEffect(() => {
@@ -166,8 +203,6 @@ export function StaffAttendance() {
       if (activeUser?.id) {
         const history = await db.getMyStaffAttendance()
         setMyHistory(history)
-        const todayRec = history.find((r) => r.date?.split("T")[0] === selectedDate)
-        setTodayRecord(todayRec || null)
 
         // Fetch enrolled face descriptor
         const descriptorData = await db.getStaffFaceDescriptor()
@@ -276,10 +311,12 @@ export function StaffAttendance() {
 
     // Online submission
     try {
+      const sessPayload = isSessionMode ? selectedSession : "daily"
       if (type === "checkin") {
         await db.staffCheckIn(
           {
             date: selectedDate,
+            session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
           },
@@ -290,6 +327,7 @@ export function StaffAttendance() {
         await db.staffCheckOut(
           {
             date: selectedDate,
+            session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
           },
@@ -460,27 +498,81 @@ export function StaffAttendance() {
           <Card className="md:col-span-1 border-border/60 shadow-lg bg-card/95 backdrop-blur-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" /> Today's Check-In
+                <Clock className="w-5 h-5 text-primary" />
+                {isSessionMode ? "Session Attendance" : "Today's Check-In"}
               </CardTitle>
               <CardDescription>
                 {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Session Selector — visible when in Session-Based mode */}
+              {isSessionMode && (
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Select Session</span>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-muted/60 rounded-xl border border-border/40">
+                    {staffSessions.map((sess: any) => {
+                      const isSelected = selectedSession.toLowerCase() === sess.id.toLowerCase()
+                      const sessRec = myHistory.find((r) => r.date?.split("T")[0] === selectedDate && (r.session || "morning").toLowerCase() === sess.id.toLowerCase())
+                      return (
+                        <button
+                          key={sess.id}
+                          type="button"
+                          onClick={() => setSelectedSession(sess.id)}
+                          className={`py-2 px-2.5 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <span>{sess.name}</span>
+                          <span className="text-[10px] opacity-80 font-mono font-normal">
+                            {sess.startTime} - {sess.endTime}
+                          </span>
+                          {sessRec?.status && (
+                            <span className="text-[9px] font-bold uppercase mt-0.5 px-1 rounded bg-black/20 text-white">
+                              {sessRec.status}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Working Hours Info Box */}
               <div className="text-[11px] text-muted-foreground bg-muted/30 p-2.5 rounded-xl border flex items-center justify-between">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {settings?.staffWorkStartTime || "08:00"} - {settings?.staffWorkEndTime || "17:00"}
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  Grace: +{settings?.staffLateGraceMinutes ?? 15}m
-                </span>
+                {isSessionMode ? (
+                  (() => {
+                    const currentSess = staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+                    return (
+                      <>
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-primary" /> {currentSess?.name}: {currentSess?.startTime} - {currentSess?.endTime}
+                        </span>
+                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          Grace: +{currentSess?.lateGraceMinutes ?? 15}m
+                        </span>
+                      </>
+                    )
+                  })()
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {settings?.staffWorkStartTime || "08:00"} - {settings?.staffWorkEndTime || "17:00"}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      Grace: +{settings?.staffLateGraceMinutes ?? 15}m
+                    </span>
+                  </>
+                )}
               </div>
 
               {/* Status Display */}
               <div className="p-4 rounded-xl bg-muted/40 border border-border/60 flex flex-col items-center justify-center text-center gap-1.5">
                 <span className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                  Today's Status
+                  {isSessionMode ? `${staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase())?.name || selectedSession} Status` : "Today's Status"}
                 </span>
                 {todayRecord?.status ? (
                   <Badge
@@ -496,7 +588,7 @@ export function StaffAttendance() {
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-muted-foreground text-sm font-semibold">
-                    Not Checked In
+                    Not Recorded
                   </Badge>
                 )}
 
@@ -529,7 +621,11 @@ export function StaffAttendance() {
                   className="w-full h-12 text-base font-bold gap-2 shadow-md bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <LogIn className="w-5 h-5" />
-                  {todayRecord?.checkInTime ? "Checked In ✓" : "Staff Check-In"}
+                  {todayRecord?.checkInTime
+                    ? `Checked In ✓`
+                    : isSessionMode
+                    ? `Record ${staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase())?.name || "Session"}`
+                    : "Staff Check-In"}
                 </Button>
 
                 <Button
@@ -539,7 +635,11 @@ export function StaffAttendance() {
                   className="w-full h-12 text-base font-bold gap-2 border-primary/40 hover:bg-primary/5"
                 >
                   <LogOut className="w-5 h-5" />
-                  {todayRecord?.checkOutTime ? "Checked Out ✓" : "Staff Check-Out"}
+                  {todayRecord?.checkOutTime
+                    ? "Checked Out ✓"
+                    : isSessionMode
+                    ? `Session Departure`
+                    : "Staff Check-Out"}
                 </Button>
               </div>
 
@@ -571,6 +671,7 @@ export function StaffAttendance() {
                   <TableHeader className="bg-muted/40 sticky top-0 backdrop-blur-sm">
                     <TableRow>
                       <TableHead>Date</TableHead>
+                      {isSessionMode && <TableHead>Session</TableHead>}
                       <TableHead>Status</TableHead>
                       <TableHead>Check-In</TableHead>
                       <TableHead>Check-Out</TableHead>
@@ -580,7 +681,7 @@ export function StaffAttendance() {
                   <TableBody>
                     {myHistory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={isSessionMode ? 6 : 5} className="text-center py-8 text-muted-foreground">
                           No attendance history found.
                         </TableCell>
                       </TableRow>
@@ -590,6 +691,13 @@ export function StaffAttendance() {
                           <TableCell className="font-medium text-xs">
                             {formatDate(rec.date?.split("T")[0])}
                           </TableCell>
+                          {isSessionMode && (
+                            <TableCell>
+                              <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                                {rec.session || "daily"}
+                              </Badge>
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Badge
                               variant="outline"

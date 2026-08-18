@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +67,27 @@ export function StaffDashboard() {
   // Offline queue
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0)
 
+  const isSessionMode = settings?.staffAttendanceMode === "session_based"
+  const staffSessions = useMemo(() => {
+    if (!settings?.staffSessions) {
+      return [
+        { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+        { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+      ]
+    }
+    try {
+      const arr = typeof settings.staffSessions === "string" ? JSON.parse(settings.staffSessions) : settings.staffSessions
+      if (Array.isArray(arr) && arr.length > 0) return arr.filter((s: any) => s.isActive !== false)
+    } catch (_) {}
+    return [
+      { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+    ]
+  }, [settings?.staffSessions])
+
+  const [selectedSession, setSelectedSession] = useState<string>("morning")
+  const [allAttendance, setAllAttendance] = useState<any[]>([])
+
   const checkOffline = useCallback(async () => {
     try {
       const q = await getOfflineStaffQueue()
@@ -87,10 +108,9 @@ export function StaffDashboard() {
         console.warn("Could not fetch calendar status:", calErr)
       }
 
-      // 1. Fetch staff's today attendance record
+      // 1. Fetch staff's attendance records
       const myAtt = await db.getMyStaffAttendance()
-      const todayRec = myAtt.find((r: any) => r.date?.split("T")[0] === todayStr)
-      setTodayRecord(todayRec || null)
+      setAllAttendance(myAtt)
 
       // 2. Fetch biometric enrollment descriptor
       const descriptorData = await db.getStaffFaceDescriptor()
@@ -139,6 +159,21 @@ export function StaffDashboard() {
       setIsLoading(false)
     }
   }, [todayStr, user?.schoolId])
+
+  useEffect(() => {
+    if (!allAttendance.length) {
+      setTodayRecord(null)
+      return
+    }
+    const todayRecs = allAttendance.filter((r) => r.date?.split("T")[0] === todayStr)
+    if (isSessionMode) {
+      const sessRec = todayRecs.find((r) => (r.session || "morning").toLowerCase() === selectedSession.toLowerCase())
+      setTodayRecord(sessRec || null)
+    } else {
+      const dailyRec = todayRecs.find((r) => !r.session || r.session === "daily") || todayRecs[0]
+      setTodayRecord(dailyRec || null)
+    }
+  }, [allAttendance, todayStr, selectedSession, isSessionMode])
 
   useEffect(() => {
     loadData()
@@ -234,10 +269,12 @@ export function StaffDashboard() {
     }
 
     try {
+      const sessPayload = isSessionMode ? selectedSession : "daily"
       if (type === "checkin") {
         await db.staffCheckIn(
           {
             date: todayStr,
+            session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
           },
@@ -248,6 +285,7 @@ export function StaffDashboard() {
         await db.staffCheckOut(
           {
             date: todayStr,
+            session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
           },
@@ -378,14 +416,20 @@ export function StaffDashboard() {
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" /> Today's Attendance
+                <Clock className="w-5 h-5 text-primary" />
+                {isSessionMode ? "Session Attendance" : "Today's Attendance"}
               </CardTitle>
               <CardDescription>{formatDate(todayStr)}</CardDescription>
             </div>
 
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
-                Shift: {settings?.staffWorkStartTime || "08:00"} - {settings?.staffWorkEndTime || "17:00"}
+                {isSessionMode
+                  ? (() => {
+                      const s = staffSessions.find((x: any) => x.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+                      return `${s?.name}: ${s?.startTime} - ${s?.endTime}`
+                    })()
+                  : `Shift: ${settings?.staffWorkStartTime || "08:00"} - ${settings?.staffWorkEndTime || "17:00"}`}
               </Badge>
               {todayRecord?.status ? (
                 <Badge
@@ -408,6 +452,41 @@ export function StaffDashboard() {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {/* Session Selector Pills in Session-Based mode */}
+            {isSessionMode && (
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Session Selection</span>
+                <div className="flex gap-2 p-1 bg-muted/60 rounded-xl border border-border/40 overflow-x-auto">
+                  {staffSessions.map((sess: any) => {
+                    const isSelected = selectedSession.toLowerCase() === sess.id.toLowerCase()
+                    const sessRec = allAttendance.find((r) => r.date?.split("T")[0] === todayStr && (r.session || "morning").toLowerCase() === sess.id.toLowerCase())
+                    return (
+                      <button
+                        key={sess.id}
+                        type="button"
+                        onClick={() => setSelectedSession(sess.id)}
+                        className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-between gap-2 ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        <span className="truncate">{sess.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-mono opacity-80">{sess.startTime}</span>
+                          {sessRec?.status && (
+                            <span className="text-[9px] font-bold uppercase px-1 rounded bg-black/20 text-white">
+                              {sessRec.status}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Status overview metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3 rounded-xl bg-muted/40 border border-border/40 text-center">
@@ -418,7 +497,6 @@ export function StaffDashboard() {
                     : "—"}
                 </span>
               </div>
-
               <div className="p-3 rounded-xl bg-muted/40 border border-border/40 text-center">
                 <span className="text-[11px] text-muted-foreground uppercase font-semibold block">Check-Out</span>
                 <span className="text-base font-bold text-foreground">
@@ -427,43 +505,59 @@ export function StaffDashboard() {
                     : "—"}
                 </span>
               </div>
-
               <div className="p-3 rounded-xl bg-muted/40 border border-border/40 text-center">
-                <span className="text-[11px] text-muted-foreground uppercase font-semibold block">Geofence</span>
-                <span className="text-sm font-semibold text-foreground flex items-center justify-center gap-1 mt-0.5">
-                  <MapPin className="w-3.5 h-3.5 text-primary" />
-                  {todayRecord?.geofenceVerified ? "Verified ✓" : "Campus Area"}
+                <span className="text-[11px] text-muted-foreground uppercase font-semibold block">Biometrics</span>
+                <span className="text-xs font-bold flex items-center justify-center gap-1 mt-1">
+                  {todayRecord?.faceVerified ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Verified
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </span>
               </div>
-
               <div className="p-3 rounded-xl bg-muted/40 border border-border/40 text-center">
-                <span className="text-[11px] text-muted-foreground uppercase font-semibold block">Face Biometric</span>
-                <span className="text-sm font-semibold text-foreground flex items-center justify-center gap-1 mt-0.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  {todayRecord?.faceVerified ? "Matched ✓" : "Active"}
+                <span className="text-[11px] text-muted-foreground uppercase font-semibold block">Campus GPS</span>
+                <span className="text-xs font-bold flex items-center justify-center gap-1 mt-1">
+                  {todayRecord?.geofenceVerified ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" /> Verified
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </span>
               </div>
             </div>
 
-            {/* Quick Action Buttons */}
+            {/* Attendance action buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <Button
                 onClick={() => startAttendanceWorkflow("checkin")}
                 disabled={!!todayRecord?.checkInTime || verificationStep !== "idle"}
-                className="h-11 font-bold gap-2 shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-12 text-sm font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
               >
                 <LogIn className="w-4 h-4" />
-                {todayRecord?.checkInTime ? "Checked In for Today ✓" : "Staff Check-In"}
+                {todayRecord?.checkInTime
+                  ? `Checked In ✓`
+                  : isSessionMode
+                  ? `Record ${staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase())?.name || "Session"}`
+                  : "Check-In (Arrival)"}
               </Button>
 
               <Button
                 onClick={() => startAttendanceWorkflow("checkout")}
                 disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle"}
                 variant="outline"
-                className="h-11 font-bold gap-2 border-primary/40 hover:bg-primary/5"
+                className="h-12 text-sm font-bold gap-2 border-primary/40 hover:bg-primary/5"
               >
                 <LogOut className="w-4 h-4" />
-                {todayRecord?.checkOutTime ? "Checked Out for Today ✓" : "Staff Check-Out"}
+                {todayRecord?.checkOutTime
+                  ? "Checked Out ✓"
+                  : isSessionMode
+                  ? "Session Departure"
+                  : "Check-Out (Departure)"}
               </Button>
             </div>
           </CardContent>

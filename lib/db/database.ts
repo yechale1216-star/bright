@@ -267,6 +267,8 @@ class Database extends BaseDatabase {
           school_longitude: settingsData.schoolLongitude != null && settingsData.schoolLongitude !== "" ? Number(settingsData.schoolLongitude) : null,
           allowed_radius_meters: settingsData.allowedRadiusMeters != null && settingsData.allowedRadiusMeters !== "" ? Number(settingsData.allowedRadiusMeters) : 200,
           allow_outside_attendance: settingsData.allowOutsideAttendance,
+          staff_attendance_mode: settingsData.staffAttendanceMode || "daily",
+          staff_sessions: settingsData.staffSessions ?? null,
           staff_working_days: settingsData.staffWorkingDays,
           staff_work_start_time: settingsData.staffWorkStartTime,
           staff_work_end_time: settingsData.staffWorkEndTime,
@@ -302,6 +304,8 @@ class Database extends BaseDatabase {
       schoolLongitude: s ? (s.school_longitude ?? settingsData.school_longitude) : settingsData.schoolLongitude,
       allowedRadiusMeters: s ? (s.allowed_radius_meters ?? settingsData.allowedRadiusMeters) : settingsData.allowedRadiusMeters,
       allowOutsideAttendance: s ? (s.allow_outside_attendance ?? settingsData.allowOutsideAttendance) : settingsData.allowOutsideAttendance,
+      staffAttendanceMode: (s?.staff_attendance_mode) || settingsData.staffAttendanceMode || "daily",
+      staffSessions: (s?.staff_sessions !== undefined ? s.staff_sessions : settingsData.staffSessions) ?? null,
       staffWorkingDays: (s?.staff_working_days) || settingsData.staffWorkingDays || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
       staffWorkStartTime: (s?.staff_work_start_time) || settingsData.staffWorkStartTime || "08:00",
       staffWorkEndTime: (s?.staff_work_end_time) || settingsData.staffWorkEndTime || "17:00",
@@ -709,6 +713,7 @@ class Database extends BaseDatabase {
   // ─── STAFF ATTENDANCE & FACE RECOGNITION ───────────────────────────────────
   async staffCheckIn(payload: {
     date?: string
+    session?: string        // 'daily' in daily mode; session id in session_based mode
     faceVerified?: boolean
     faceConfidence?: number | null
     remarks?: string
@@ -735,6 +740,7 @@ class Database extends BaseDatabase {
 
   async staffCheckOut(payload: {
     date?: string
+    session?: string        // 'daily' in daily mode; session id in session_based mode
     faceVerified?: boolean
     faceConfidence?: number | null
     remarks?: string
@@ -779,6 +785,7 @@ class Database extends BaseDatabase {
     endDate?: string;
     role?: string;
     status?: string;
+    session?: string;      // 'all' | 'daily' | 'morning' | 'afternoon' | custom
     userId?: string;
     search?: string;
     geofenceVerified?: boolean | string;
@@ -790,6 +797,7 @@ class Database extends BaseDatabase {
     if (filters.endDate) params.append("endDate", filters.endDate)
     if (filters.role) params.append("role", filters.role)
     if (filters.status) params.append("status", filters.status)
+    if (filters.session) params.append("session", filters.session)
     if (filters.userId) params.append("userId", filters.userId)
     if (filters.search) params.append("search", filters.search)
     if (filters.geofenceVerified !== undefined) params.append("geofenceVerified", String(filters.geofenceVerified))
@@ -803,9 +811,10 @@ class Database extends BaseDatabase {
     return result.data || []
   }
 
-  async getStaffAttendanceStats(date?: string): Promise<any> {
+  async getStaffAttendanceStats(date?: string, session?: string): Promise<any> {
     const params = new URLSearchParams()
     if (date) params.append("date", date)
+    if (session) params.append("session", session)
     params.append("_t", Date.now().toString())
 
     const result = await apiFetch<{ success: boolean; data: any }>(

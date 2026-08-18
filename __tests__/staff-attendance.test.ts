@@ -267,5 +267,140 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(canMarkAbsent("2026-08-19")).toBe(true)
     })
   })
+
+  describe("6. Staff Attendance Dual Modes (Daily vs Session-Based)", () => {
+    interface StaffRecord {
+      userId: string
+      date: string
+      session: string // "daily" | "morning" | "afternoon" | etc.
+      status: string
+      checkInTime?: string
+      checkOutTime?: string
+    }
+
+    interface SessionConfig {
+      id: string
+      name: string
+      startTime: string
+      endTime: string
+      lateGraceMinutes: number
+      earlyDepartureToleranceMinutes: number
+      isActive: boolean
+    }
+
+    const mockSessions: SessionConfig[] = [
+      { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+    ]
+
+    function addMinutesToTime(timeHHMM: string, minutes: number): string {
+      const [h, m] = timeHHMM.split(':').map(Number)
+      let totalMin = h * 60 + m + minutes
+      if (totalMin < 0) totalMin = 0
+      if (totalMin >= 24 * 60) totalMin = 24 * 60 - 1
+      const newH = Math.floor(totalMin / 60)
+      const newM = totalMin % 60
+      return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`
+    }
+
+    function isTimeAfter(currentHHMM: string, targetHHMM: string): boolean {
+      const [cH, cM] = currentHHMM.split(':').map(Number)
+      const [tH, tM] = targetHHMM.split(':').map(Number)
+      if (cH > tH) return true
+      if (cH === tH && cM > tM) return true
+      return false
+    }
+
+    test("Daily Mode: exactly 1 record per staff per day with session='daily'", () => {
+      const records: StaffRecord[] = []
+      function checkInDaily(userId: string, date: string, time: string): StaffRecord {
+        const existing = records.find(r => r.userId === userId && r.date === date && r.session === "daily")
+        if (existing?.checkInTime) throw new Error("Staff is already checked in for today")
+        const record: StaffRecord = { userId, date, session: "daily", status: "PRESENT", checkInTime: time }
+        records.push(record)
+        return record
+      }
+
+      const rec = checkInDaily("staff_01", "2026-08-19", "07:55")
+      expect(rec.session).toBe("daily")
+      expect(records.length).toBe(1)
+
+      // Attempting second check-in for the same date must fail
+      expect(() => checkInDaily("staff_01", "2026-08-19", "08:10")).toThrow("Staff is already checked in for today")
+    })
+
+    test("Session-Based Mode: permits separate records for morning and afternoon on the same date", () => {
+      const records: StaffRecord[] = []
+      function checkInSession(userId: string, date: string, session: string, time: string): StaffRecord {
+        const sess = mockSessions.find(s => s.id === session && s.isActive)
+        if (!sess) throw new Error("Invalid or inactive session")
+        const existing = records.find(r => r.userId === userId && r.date === date && r.session === session)
+        if (existing?.checkInTime) throw new Error(`Staff is already checked in for ${session}`)
+
+        const lateCutoff = addMinutesToTime(sess.startTime, sess.lateGraceMinutes)
+        const status = isTimeAfter(time, lateCutoff) ? "LATE" : "PRESENT"
+        const record: StaffRecord = { userId, date, session, status, checkInTime: time }
+        records.push(record)
+        return record
+      }
+
+      // Check-in morning on time (08:10 <= 08:15) -> PRESENT
+      const morningRec = checkInSession("staff_01", "2026-08-19", "morning", "08:10")
+      expect(morningRec.status).toBe("PRESENT")
+      expect(morningRec.session).toBe("morning")
+
+      // Check-in afternoon late (13:45 > 13:40) -> LATE
+      const afternoonRec = checkInSession("staff_01", "2026-08-19", "afternoon", "13:45")
+      expect(afternoonRec.status).toBe("LATE")
+      expect(afternoonRec.session).toBe("afternoon")
+
+      // Total records for this staff member on this date is 2
+      expect(records.filter(r => r.userId === "staff_01" && r.date === "2026-08-19").length).toBe(2)
+
+      // Duplicate check-in for the same session must fail
+      expect(() => checkInSession("staff_01", "2026-08-19", "morning", "08:20")).toThrow("Staff is already checked in for morning")
+    })
+
+    test("Session-Based Mode: session thresholds correctly calculate late cutoff and early departure", () => {
+      const morningSess = mockSessions[0] // 08:00 - 12:30, grace: 15m, tol: 10m
+      const lateCutoff = addMinutesToTime(morningSess.startTime, morningSess.lateGraceMinutes)
+      const earlyCutoff = addMinutesToTime(morningSess.endTime, -morningSess.earlyDepartureToleranceMinutes)
+
+      expect(lateCutoff).toBe("08:15")
+      expect(earlyCutoff).toBe("12:20")
+
+      const afternoonSess = mockSessions[1] // 13:30 - 17:00, grace: 10m, tol: 10m
+      const aftLateCutoff = addMinutesToTime(afternoonSess.startTime, afternoonSess.lateGraceMinutes)
+      const aftEarlyCutoff = addMinutesToTime(afternoonSess.endTime, -afternoonSess.earlyDepartureToleranceMinutes)
+
+      expect(aftLateCutoff).toBe("13:40")
+      expect(aftEarlyCutoff).toBe("16:50")
+    })
+
+    test("Session-Based Stats: aggregates metrics per session and preserves unique staff counts", () => {
+      const records: StaffRecord[] = [
+        { userId: "staff_01", date: "2026-08-19", session: "morning", status: "PRESENT", checkInTime: "08:00" },
+        { userId: "staff_01", date: "2026-08-19", session: "afternoon", status: "PRESENT", checkInTime: "13:30" },
+        { userId: "staff_02", date: "2026-08-19", session: "morning", status: "LATE", checkInTime: "08:20" },
+        { userId: "staff_02", date: "2026-08-19", session: "afternoon", status: "ABSENT" },
+      ]
+
+      const totalActiveStaff = 3 // staff_01, staff_02, staff_03
+      const uniqueAttendedStaff = new Set(records.map(r => r.userId))
+      const notCheckedIn = Math.max(0, totalActiveStaff - uniqueAttendedStaff.size)
+
+      expect(uniqueAttendedStaff.size).toBe(2)
+      expect(notCheckedIn).toBe(1) // staff_03 did not check in at all
+
+      // Morning stats breakdown
+      const morningRecords = records.filter(r => r.session === "morning")
+      const morningPresent = morningRecords.filter(r => r.status === "PRESENT").length
+      const morningLate = morningRecords.filter(r => r.status === "LATE").length
+
+      expect(morningPresent).toBe(1)
+      expect(morningLate).toBe(1)
+    })
+  })
 })
+
 

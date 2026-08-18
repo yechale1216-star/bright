@@ -22,6 +22,9 @@ export function defaultSettings() {
     schoolLongitude: null,
     allowedRadiusMeters: 200,
     allowOutsideAttendance: true,
+    // Staff working schedule
+    staffAttendanceMode: "daily" as "daily" | "session_based",
+    staffSessions: null as any,
     staffWorkingDays: "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
     staffWorkStartTime: "08:00",
     staffWorkEndTime: "17:00",
@@ -64,6 +67,8 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
       schoolLongitude: s.school_longitude ?? null,
       allowedRadiusMeters: s.allowed_radius_meters ?? 200,
       allowOutsideAttendance: s.allow_outside_attendance ?? true,
+      staffAttendanceMode: (s.staff_attendance_mode || "daily") as "daily" | "session_based",
+      staffSessions: s.staff_sessions ?? null,
       staffWorkingDays: s.staff_working_days || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
       staffWorkStartTime: s.staff_work_start_time || "08:00",
       staffWorkEndTime: s.staff_work_end_time || "17:00",

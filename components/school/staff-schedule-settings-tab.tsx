@@ -36,8 +36,36 @@ import {
   CalendarOff,
   Sun,
   Moon,
-  Info
+  Info,
+  LayoutList,
+  Layers,
+  GripVertical,
 } from "lucide-react"
+
+// ── Session type (mirrors backend StaffSession interface) ──
+interface StaffSession {
+  id: string
+  name: string
+  startTime: string
+  endTime: string
+  lateGraceMinutes: number
+  earlyDepartureToleranceMinutes: number
+  isActive: boolean
+}
+
+const DEFAULT_SESSIONS: StaffSession[] = [
+  { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+  { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+]
+
+function parseSessionsFromSettings(raw: any): StaffSession[] {
+  if (!raw) return DEFAULT_SESSIONS
+  try {
+    const arr: StaffSession[] = typeof raw === "string" ? JSON.parse(raw) : raw
+    if (Array.isArray(arr) && arr.length > 0) return arr
+  } catch (_) {}
+  return DEFAULT_SESSIONS
+}
 
 const ALL_WEEKDAYS = [
   { key: "MONDAY", label: "Monday", short: "Mon" },
@@ -74,6 +102,64 @@ export function StaffScheduleSettingsTab({
   const [editingHoliday, setEditingHoliday] = useState<any | null>(null)
   const [isSubmittingHoliday, setIsSubmittingHoliday] = useState(false)
 
+  // ── Session management state ──
+  const [sessions, setSessions] = useState<StaffSession[]>(() => parseSessionsFromSettings(settings?.staffSessions))
+  const [sessionModalOpen, setSessionModalOpen] = useState(false)
+  const [editingSession, setEditingSession] = useState<StaffSession | null>(null)
+  const [sessionForm, setSessionForm] = useState<Omit<StaffSession, "id">>({
+    name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true
+  })
+
+  // Sync sessions state when settings change
+  useEffect(() => {
+    setSessions(parseSessionsFromSettings(settings?.staffSessions))
+  }, [settings?.staffSessions])
+
+  const persistSessions = (updated: StaffSession[]) => {
+    setSessions(updated)
+    setSettings((prev: any) => ({ ...prev, staffSessions: updated }))
+  }
+
+  const handleOpenAddSession = () => {
+    setEditingSession(null)
+    setSessionForm({ name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true })
+    setSessionModalOpen(true)
+  }
+
+  const handleOpenEditSession = (s: StaffSession) => {
+    setEditingSession(s)
+    setSessionForm({ name: s.name, startTime: s.startTime, endTime: s.endTime, lateGraceMinutes: s.lateGraceMinutes, earlyDepartureToleranceMinutes: s.earlyDepartureToleranceMinutes, isActive: s.isActive })
+    setSessionModalOpen(true)
+  }
+
+  const handleSaveSession = () => {
+    if (!sessionForm.name.trim()) { notifications.error("Session", "Session name is required."); return }
+    if (sessionForm.startTime >= sessionForm.endTime) { notifications.error("Session", "End time must be after start time."); return }
+    if (editingSession) {
+      const updated = sessions.map(s => s.id === editingSession.id ? { ...editingSession, ...sessionForm, name: sessionForm.name.trim() } : s)
+      persistSessions(updated)
+      notifications.success("Updated", `Session "${sessionForm.name}" updated.`)
+    } else {
+      const id = sessionForm.name.toLowerCase().trim().replace(/\s+/g, "-")
+      if (sessions.find(s => s.id === id)) { notifications.error("Session", "A session with this name already exists."); return }
+      persistSessions([...sessions, { id, ...sessionForm, name: sessionForm.name.trim() }])
+      notifications.success("Added", `Session "${sessionForm.name}" added.`)
+    }
+    setSessionModalOpen(false)
+  }
+
+  const handleDeleteSession = (id: string) => {
+    if (sessions.length <= 1) { notifications.error("Session", "At least one session must remain."); return }
+    persistSessions(sessions.filter(s => s.id !== id))
+  }
+
+  useEffect(() => {
+    loadHolidays()
+    const handler = () => loadHolidays()
+    window.addEventListener("holidaysDataChanged", handler)
+    return () => window.removeEventListener("holidaysDataChanged", handler)
+  }, [])
+
   // Form state for holiday dialog
   const [holidayForm, setHolidayForm] = useState({
     name: "",
@@ -84,13 +170,6 @@ export function StaffScheduleSettingsTab({
     description: "",
     isActive: true,
   })
-
-  useEffect(() => {
-    loadHolidays()
-    const handler = () => loadHolidays()
-    window.addEventListener("holidaysDataChanged", handler)
-    return () => window.removeEventListener("holidaysDataChanged", handler)
-  }, [])
 
   const loadHolidays = async () => {
     try {
@@ -256,6 +335,152 @@ export function StaffScheduleSettingsTab({
 
   return (
     <div className="space-y-8">
+      {/* ─── SECTION 0: STAFF ATTENDANCE MODE ──────────────────────────── */}
+      <Card className="border-border shadow-sm">
+        <CardHeader>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Layers className="w-5 h-5 text-primary" />
+                Staff Attendance Mode
+              </CardTitle>
+              <CardDescription>
+                Choose between single daily check-in/out or multiple session-based attendance per day.
+              </CardDescription>
+            </div>
+            <Button
+              onClick={onSaveSettings}
+              disabled={isSaving}
+              className="bg-primary text-white font-bold text-xs uppercase tracking-wider h-10 px-6 rounded-xl shadow-sm"
+            >
+              {isSaving ? "Saving..." : "Save Mode"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Daily Mode */}
+            <button
+              type="button"
+              onClick={() => setSettings((prev: any) => ({ ...prev, staffAttendanceMode: "daily" }))}
+              className={`flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all ${
+                (settings.staffAttendanceMode || "daily") === "daily"
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-border hover:border-primary/40 bg-card"
+              }`}
+            >
+              <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                (settings.staffAttendanceMode || "daily") === "daily" ? "border-primary" : "border-muted-foreground"
+              }`}>
+                {(settings.staffAttendanceMode || "daily") === "daily" && (
+                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <LayoutList className="w-4 h-4 text-primary" />
+                  Daily Attendance
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Staff check-in once per day and check-out once per day. Lateness and early departure calculated against daily working hours.
+                </p>
+              </div>
+            </button>
+
+            {/* Session-Based Mode */}
+            <button
+              type="button"
+              onClick={() => setSettings((prev: any) => ({ ...prev, staffAttendanceMode: "session_based" }))}
+              className={`flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all ${
+                settings.staffAttendanceMode === "session_based"
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-border hover:border-primary/40 bg-card"
+              }`}
+            >
+              <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                settings.staffAttendanceMode === "session_based" ? "border-primary" : "border-muted-foreground"
+              }`}>
+                {settings.staffAttendanceMode === "session_based" && (
+                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <Layers className="w-4 h-4 text-primary" />
+                  Session-Based Attendance
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Staff mark attendance separately for each defined session (e.g., Morning and Afternoon). Each session has its own time thresholds.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Session Configuration — visible only in session mode */}
+          {settings.staffAttendanceMode === "session_based" && (
+            <div className="pt-2">
+              <Separator className="mb-5" />
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <Label className="text-sm font-semibold">Configured Sessions</Label>
+                  <p className="text-xs text-muted-foreground">Add and configure the sessions for the school day. Staff will mark attendance once per session.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={handleOpenAddSession} className="gap-1.5 text-xs">
+                  <Plus className="w-3.5 h-3.5" /> Add Session
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {sessions.map((s) => {
+                  const lateAfter = (() => {
+                    const [h, m] = s.startTime.split(":").map(Number)
+                    const t = h * 60 + m + s.lateGraceMinutes
+                    return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`
+                  })()
+                  const earlyBefore = (() => {
+                    const [h, m] = s.endTime.split(":").map(Number)
+                    const t = Math.max(0, h * 60 + m - s.earlyDepartureToleranceMinutes)
+                    return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`
+                  })()
+                  return (
+                    <div key={s.id} className={`flex items-center gap-3 p-4 rounded-xl border ${s.isActive ? "border-border bg-card" : "border-border/40 bg-muted/30 opacity-60"}` }>
+                      <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm">{s.name}</span>
+                          {!s.isActive && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
+                          <span className="text-xs text-muted-foreground font-mono">{s.startTime} – {s.endTime}</span>
+                        </div>
+                        <div className="flex gap-3 text-[11px] text-muted-foreground mt-0.5">
+                          <span className="text-amber-600">Late after {lateAfter}</span>
+                          <span className="text-orange-600">Early before {earlyBefore}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Switch
+                          checked={s.isActive}
+                          onCheckedChange={(v) => persistSessions(sessions.map(x => x.id === s.id ? { ...x, isActive: v } : x))}
+                          className="scale-75"
+                        />
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleOpenEditSession(s)}>
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteSession(s.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                <Info className="w-3 h-3 inline mr-1" />
+                After editing sessions, click <strong>Save Mode</strong> above to persist changes.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ─── SECTION 1: WORKING SCHEDULE & HOURS ────────────────────────── */}
       <Card className="border-border shadow-sm">
         <CardHeader>
@@ -705,6 +930,66 @@ export function StaffScheduleSettingsTab({
             </Button>
             <Button onClick={handleSaveHoliday} disabled={isSubmittingHoliday} className="bg-primary text-white">
               {isSubmittingHoliday ? "Saving..." : editingHoliday ? "Update Holiday" : "Create Holiday"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── SESSION ADD / EDIT DIALOG ──────────────────────────────────── */}
+      <Dialog open={sessionModalOpen} onOpenChange={setSessionModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingSession ? "Edit Session" : "Add Session"}</DialogTitle>
+            <DialogDescription>
+              Configure the session name, time window, and thresholds.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="sessionName" className="text-xs font-semibold">Session Name *</Label>
+              <Input
+                id="sessionName"
+                placeholder="e.g. Morning, Afternoon, Evening"
+                value={sessionForm.name}
+                onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="sessionStart" className="text-xs font-semibold">Start Time *</Label>
+                <Input id="sessionStart" type="time" value={sessionForm.startTime} onChange={(e) => setSessionForm({ ...sessionForm, startTime: e.target.value })} className="mt-1 font-mono" />
+              </div>
+              <div>
+                <Label htmlFor="sessionEnd" className="text-xs font-semibold">End Time *</Label>
+                <Input id="sessionEnd" type="time" value={sessionForm.endTime} onChange={(e) => setSessionForm({ ...sessionForm, endTime: e.target.value })} className="mt-1 font-mono" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="sessionLateGrace" className="text-xs font-semibold">Late Grace (min)</Label>
+                <Input id="sessionLateGrace" type="number" min={0} max={60} value={sessionForm.lateGraceMinutes} onChange={(e) => setSessionForm({ ...sessionForm, lateGraceMinutes: parseInt(e.target.value) || 0 })} className="mt-1 font-mono" />
+                <p className="text-[11px] text-amber-600 mt-1">
+                  Late after {(() => { const [h,m] = sessionForm.startTime.split(":").map(Number); const t = h*60+m+sessionForm.lateGraceMinutes; return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="sessionEarlyTol" className="text-xs font-semibold">Early Departure (min)</Label>
+                <Input id="sessionEarlyTol" type="number" min={0} max={60} value={sessionForm.earlyDepartureToleranceMinutes} onChange={(e) => setSessionForm({ ...sessionForm, earlyDepartureToleranceMinutes: parseInt(e.target.value) || 0 })} className="mt-1 font-mono" />
+                <p className="text-[11px] text-orange-600 mt-1">
+                  Early before {(() => { const [h,m] = sessionForm.endTime.split(":").map(Number); const t = Math.max(0, h*60+m-sessionForm.earlyDepartureToleranceMinutes); return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <Label htmlFor="sessionActive" className="text-xs font-semibold">Active</Label>
+              <Switch id="sessionActive" checked={sessionForm.isActive} onCheckedChange={(v) => setSessionForm({ ...sessionForm, isActive: v })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSessionModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveSession} className="bg-primary text-white">
+              {editingSession ? "Update Session" : "Add Session"}
             </Button>
           </DialogFooter>
         </DialogContent>

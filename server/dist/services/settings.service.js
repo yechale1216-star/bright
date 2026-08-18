@@ -25,6 +25,8 @@ const DEFAULT_SETTINGS = {
     school_longitude: null,
     allowed_radius_meters: 200,
     allow_outside_attendance: true,
+    // Staff Attendance Mode & Session Configuration
+    staff_attendance_mode: 'daily',
     // Staff Working Hours & Calendar Defaults
     staff_working_days: 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY',
     staff_work_start_time: '08:00',
