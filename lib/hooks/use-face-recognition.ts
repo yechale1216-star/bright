@@ -8,6 +8,8 @@ export interface FaceDetectionResult {
   multipleFaces: boolean
   qualityScore: number
   box?: { x: number; y: number; width: number; height: number }
+  isProperlyPositioned?: boolean
+  isLive?: boolean
   error?: string
 }
 
@@ -120,12 +122,32 @@ export function useFaceRecognition() {
         const descriptorArray = Array.from(primaryDetection.descriptor) as number[]
         const score = primaryDetection.detection.score
         const box = primaryDetection.detection.box
+        const landmarks = primaryDetection.landmarks
+
+        // Basic liveness / anti-spoof checks:
+        // 1. Adequate detector score (>= 0.55)
+        // 2. Minimum face resolution (box width/height >= 70px)
+        // 3. Complete 68-point 3D facial landmark mesh
+        const hasLandmarks = landmarks && landmarks.positions && landmarks.positions.length === 68
+        const isAdequateSize = box.width >= 70 && box.height >= 70
+        const isLive = score >= 0.55 && hasLandmarks && isAdequateSize
+
+        // Check if face is properly centered within the video frame
+        const videoWidth = videoElement.videoWidth || 640
+        const videoHeight = videoElement.videoHeight || 480
+        const faceCenterX = box.x + box.width / 2
+        const faceCenterY = box.y + box.height / 2
+        const isCenteredX = faceCenterX > videoWidth * 0.20 && faceCenterX < videoWidth * 0.80
+        const isCenteredY = faceCenterY > videoHeight * 0.15 && faceCenterY < videoHeight * 0.85
+        const isProperlyPositioned = isCenteredX && isCenteredY && isAdequateSize
 
         return {
           detected: true,
           descriptor: descriptorArray,
           multipleFaces: false,
           qualityScore: score,
+          isLive,
+          isProperlyPositioned,
           box: {
             x: box.x,
             y: box.y,

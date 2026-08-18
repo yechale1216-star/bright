@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -187,12 +187,16 @@ export function StaffDashboard() {
     return () => window.removeEventListener("staffAttendanceDataChanged", handleChanged)
   }, [loadData, checkOffline])
 
-  // Start combined geofence + face verification workflow
+  const isSubmittingAttendanceRef = useRef(false)
+
+  // ─── 4. Check-In & Check-Out Workflow Handlers ───
   const startAttendanceWorkflow = async (type: "checkin" | "checkout") => {
     setActionType(type)
-    setVerificationStep("getting_location")
-    setStepMessage("Acquiring GPS location & checking campus boundary...")
     setIsVerificationModalOpen(true)
+    setVerificationStep("getting_location")
+    setStepMessage("Verifying campus location...")
+    setCapturedLocation(null)
+    isSubmittingAttendanceRef.current = false
 
     try {
       const location = await resolveLocationData(
@@ -210,20 +214,23 @@ export function StaffDashboard() {
 
       if (settings?.staff_face_required !== false) {
         setVerificationStep("face_verification")
-        setStepMessage("Geofence verified! Please look at the camera to verify your face.")
+        setStepMessage("Geofence verified! Initializing automatic biometric scanner...")
       } else {
         await commitAttendance(type, location, { faceVerified: true, confidence: 1.0 })
       }
     } catch (geoErr: any) {
       console.error("Geofence check failed:", geoErr)
       setVerificationStep("error")
-      setStepMessage(geoErr.message || "Location verification failed.")
+      setStepMessage(geoErr.message || "Location verification failed. You must be on school grounds.")
     }
   }
 
   const handleFaceVerified = async (faceResult: { descriptor: number[]; confidence?: number }) => {
+    if (isSubmittingAttendanceRef.current) return
+    isSubmittingAttendanceRef.current = true
+
     setVerificationStep("saving")
-    setStepMessage("Recording your attendance...")
+    setStepMessage("Recording verified attendance...")
 
     await commitAttendance(actionType, capturedLocation, {
       faceVerified: true,
@@ -254,16 +261,22 @@ export function StaffDashboard() {
         })
 
         setVerificationStep("success")
-        setStepMessage(`Offline: ${type === "checkin" ? "Check-in" : "Check-out"} saved locally.`)
+        setStepMessage(
+          type === "checkin"
+            ? "✓ Check-In Verified\nAttendance recorded offline (auto-syncs on reconnect)"
+            : "✓ Check-Out Verified\nAttendance recorded offline (auto-syncs on reconnect)"
+        )
         await checkOffline()
         setTimeout(() => {
           setIsVerificationModalOpen(false)
           setVerificationStep("idle")
+          isSubmittingAttendanceRef.current = false
         }, 1800)
         return
       } catch (offlineErr: any) {
         setVerificationStep("error")
         setStepMessage("Failed to save offline attendance.")
+        isSubmittingAttendanceRef.current = false
         return
       }
     }
@@ -280,7 +293,6 @@ export function StaffDashboard() {
           },
           location
         )
-        notifications.success("Check-In Successful", "Your attendance has been recorded.")
       } else {
         await db.staffCheckOut(
           {
@@ -291,20 +303,25 @@ export function StaffDashboard() {
           },
           location
         )
-        notifications.success("Check-Out Successful", "Your check-out has been recorded.")
       }
 
       setVerificationStep("success")
-      setStepMessage(`${type === "checkin" ? "Check-In" : "Check-Out"} successfully recorded!`)
+      setStepMessage(
+        type === "checkin"
+          ? "✓ Check-In Verified\nAttendance recorded successfully"
+          : "✓ Check-Out Verified\nAttendance recorded successfully"
+      )
       await loadData()
 
       setTimeout(() => {
         setIsVerificationModalOpen(false)
         setVerificationStep("idle")
+        isSubmittingAttendanceRef.current = false
       }, 1500)
     } catch (err: any) {
       setVerificationStep("error")
       setStepMessage(err.message || "Failed to submit attendance.")
+      isSubmittingAttendanceRef.current = false
     }
   }
 
@@ -784,8 +801,17 @@ export function StaffDashboard() {
 
             {verificationStep === "success" && (
               <div className="text-center py-8 space-y-3 animate-in zoom-in-95 duration-200">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
-                <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{stepMessage}</p>
+                <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.35)]">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                    {actionType === "checkin" ? "✓ Check-In Verified" : "✓ Check-Out Verified"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Attendance recorded successfully
+                  </p>
+                </div>
               </div>
             )}
 

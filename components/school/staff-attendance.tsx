@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -109,6 +109,7 @@ export function StaffAttendance() {
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
   const [capturedLocation, setCapturedLocation] = useState<GeofenceLocationData | null>(null)
+  const isSubmittingAttendanceRef = useRef(false)
 
   // Admin view filters & modals
   const [activeTab, setActiveTab] = useState<"self" | "admin_overview">("self")
@@ -226,12 +227,14 @@ export function StaffAttendance() {
   // 2. Start Check-In / Check-Out Workflow
   const startAttendanceWorkflow = async (type: "checkin" | "checkout") => {
     setActionType(type)
-    setVerificationStep("getting_location")
-    setStepMessage("Acquiring GPS location...")
     setIsVerificationModalOpen(true)
+    setVerificationStep("getting_location")
+    setStepMessage("Verifying campus location...")
+    setCapturedLocation(null)
+    isSubmittingAttendanceRef.current = false
 
-    // Step 1: Geofencing Check
     try {
+      // Step 1: Geofence Location Verification
       const location = await resolveLocationData(
         {
           restrictLocation: settings?.restrictLocation,
@@ -248,7 +251,7 @@ export function StaffAttendance() {
       // Step 2: Face Verification Check
       if (settings?.staff_face_required !== false) {
         setVerificationStep("face_verification")
-        setStepMessage("Geofence verified! Opening camera for face verification...")
+        setStepMessage("Geofence verified! Initializing automatic biometric scanner...")
       } else {
         // Face not required -> proceed directly to commit
         await commitAttendance(type, location, { faceVerified: true, confidence: 1.0 })
@@ -256,14 +259,17 @@ export function StaffAttendance() {
     } catch (geoErr: any) {
       console.error("Geofence verification failed:", geoErr)
       setVerificationStep("error")
-      setStepMessage(geoErr.message || "Location verification failed.")
+      setStepMessage(geoErr.message || "Location verification failed. You must be on school grounds.")
     }
   }
 
   // Step 3: Face Verified Callback -> Commit Attendance Record
   const handleFaceVerified = async (faceResult: { descriptor: number[]; confidence?: number }) => {
+    if (isSubmittingAttendanceRef.current) return
+    isSubmittingAttendanceRef.current = true
+
     setVerificationStep("saving")
-    setStepMessage("Recording attendance...")
+    setStepMessage("Recording verified attendance...")
 
     await commitAttendance(actionType, capturedLocation, {
       faceVerified: true,
@@ -295,16 +301,22 @@ export function StaffAttendance() {
         })
 
         setVerificationStep("success")
-        setStepMessage(`Offline: ${type === "checkin" ? "Check-in" : "Check-out"} saved locally. Will sync automatically when online.`)
+        setStepMessage(
+          type === "checkin"
+            ? "✓ Check-In Verified\nAttendance recorded offline (auto-syncs on reconnect)"
+            : "✓ Check-Out Verified\nAttendance recorded offline (auto-syncs on reconnect)"
+        )
         await checkOfflineQueue()
         setTimeout(() => {
           setIsVerificationModalOpen(false)
           setVerificationStep("idle")
-        }, 2000)
+          isSubmittingAttendanceRef.current = false
+        }, 1800)
         return
       } catch (offlineErr: any) {
         setVerificationStep("error")
         setStepMessage("Failed to save offline attendance.")
+        isSubmittingAttendanceRef.current = false
         return
       }
     }
@@ -322,7 +334,6 @@ export function StaffAttendance() {
           },
           location
         )
-        notifications.success("Check-In Successful", `Your check-in has been recorded.`)
       } else {
         await db.staffCheckOut(
           {
@@ -333,21 +344,26 @@ export function StaffAttendance() {
           },
           location
         )
-        notifications.success("Check-Out Successful", `Your check-out has been recorded.`)
       }
 
       setVerificationStep("success")
-      setStepMessage(`Attendance ${type === "checkin" ? "Check-In" : "Check-Out"} successfully verified and recorded!`)
+      setStepMessage(
+        type === "checkin"
+          ? "✓ Check-In Verified\nAttendance recorded successfully"
+          : "✓ Check-Out Verified\nAttendance recorded successfully"
+      )
       await loadInitialData()
 
       setTimeout(() => {
         setIsVerificationModalOpen(false)
         setVerificationStep("idle")
+        isSubmittingAttendanceRef.current = false
       }, 1500)
     } catch (err: any) {
       console.error("Attendance submission error:", err)
       setVerificationStep("error")
       setStepMessage(err.message || "Failed to submit attendance.")
+      isSubmittingAttendanceRef.current = false
     }
   }
 
@@ -957,8 +973,17 @@ export function StaffAttendance() {
 
             {verificationStep === "success" && (
               <div className="text-center py-8 space-y-3 animate-in zoom-in-95 duration-200">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
-                <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{stepMessage}</p>
+                <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center mx-auto text-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.35)]">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                    {actionType === "checkin" ? "✓ Check-In Verified" : "✓ Check-Out Verified"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Attendance recorded successfully
+                  </p>
+                </div>
               </div>
             )}
 
