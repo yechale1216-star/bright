@@ -267,6 +267,15 @@ class Database extends BaseDatabase {
           school_longitude: settingsData.schoolLongitude != null && settingsData.schoolLongitude !== "" ? Number(settingsData.schoolLongitude) : null,
           allowed_radius_meters: settingsData.allowedRadiusMeters != null && settingsData.allowedRadiusMeters !== "" ? Number(settingsData.allowedRadiusMeters) : 200,
           allow_outside_attendance: settingsData.allowOutsideAttendance,
+          staff_working_days: settingsData.staffWorkingDays,
+          staff_work_start_time: settingsData.staffWorkStartTime,
+          staff_work_end_time: settingsData.staffWorkEndTime,
+          staff_late_grace_minutes: settingsData.staffLateGraceMinutes != null ? Number(settingsData.staffLateGraceMinutes) : 15,
+          staff_early_checkout_tolerance_minutes: settingsData.staffEarlyCheckoutToleranceMinutes != null ? Number(settingsData.staffEarlyCheckoutToleranceMinutes) : 15,
+          staff_earliest_checkin_time: settingsData.staffEarliestCheckinTime,
+          staff_latest_checkout_time: settingsData.staffLatestCheckoutTime,
+          staff_face_required: settingsData.staffFaceRequired,
+          staff_geo_required: settingsData.staffGeoRequired,
         }),
       }
     )
@@ -293,6 +302,15 @@ class Database extends BaseDatabase {
       schoolLongitude: s ? (s.school_longitude ?? settingsData.school_longitude) : settingsData.schoolLongitude,
       allowedRadiusMeters: s ? (s.allowed_radius_meters ?? settingsData.allowedRadiusMeters) : settingsData.allowedRadiusMeters,
       allowOutsideAttendance: s ? (s.allow_outside_attendance ?? settingsData.allowOutsideAttendance) : settingsData.allowOutsideAttendance,
+      staffWorkingDays: (s?.staff_working_days) || settingsData.staffWorkingDays || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
+      staffWorkStartTime: (s?.staff_work_start_time) || settingsData.staffWorkStartTime || "08:00",
+      staffWorkEndTime: (s?.staff_work_end_time) || settingsData.staffWorkEndTime || "17:00",
+      staffLateGraceMinutes: s ? (s.staff_late_grace_minutes ?? settingsData.staffLateGraceMinutes) : (settingsData.staffLateGraceMinutes ?? 15),
+      staffEarlyCheckoutToleranceMinutes: s ? (s.staff_early_checkout_tolerance_minutes ?? settingsData.staffEarlyCheckoutToleranceMinutes) : (settingsData.staffEarlyCheckoutToleranceMinutes ?? 15),
+      staffEarliestCheckinTime: (s?.staff_earliest_checkin_time) || settingsData.staffEarliestCheckinTime || "06:00",
+      staffLatestCheckoutTime: (s?.staff_latest_checkout_time) || settingsData.staffLatestCheckoutTime || "20:00",
+      staffFaceRequired: s ? (s.staff_face_required ?? settingsData.staffFaceRequired) : (settingsData.staffFaceRequired ?? true),
+      staffGeoRequired: s ? (s.staff_geo_required ?? settingsData.staffGeoRequired) : (settingsData.staffGeoRequired ?? true),
     }
 
     // 1. Update SWR memory+localStorage cache (serves subsequent getSettings() calls)
@@ -316,6 +334,47 @@ class Database extends BaseDatabase {
     // Return the canonical mapped object so callers can use it directly
     // without an additional getSettings() round-trip.
     return updatedMapped
+  }
+
+  // ─── HOLIDAYS & WORKING CALENDAR ──────────────────────────────────────────
+  async getHolidays(params?: { startDate?: string; endDate?: string; includeInactive?: boolean }): Promise<any[]> {
+    return settings.getHolidays(this.getApiHeaders(), params)
+  }
+
+  async addHoliday(data: { name: string; description?: string; startDate: string; endDate: string; type?: string; isActive?: boolean }): Promise<any> {
+    const result = await settings.addHoliday(this.getApiHeaders(), data)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("holidaysDataChanged"))
+    }
+    return result
+  }
+
+  async updateHoliday(id: string, data: any): Promise<any> {
+    const result = await settings.updateHoliday(this.getApiHeaders(), id, data)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("holidaysDataChanged"))
+    }
+    return result
+  }
+
+  async deleteHoliday(id: string): Promise<void> {
+    await settings.deleteHoliday(this.getApiHeaders(), id)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("holidaysDataChanged"))
+    }
+  }
+
+  async isDateWorkingDay(date: string): Promise<{
+    isWorkingDay: boolean;
+    isHoliday: boolean;
+    isWeekend: boolean;
+    dayOfWeek: string;
+    holidayName?: string;
+    holidayType?: string;
+    reason?: string;
+    workingDaysList: string[];
+  }> {
+    return settings.isDateWorkingDay(this.getApiHeaders(), date)
   }
 
   async resetSettings(): Promise<void> {

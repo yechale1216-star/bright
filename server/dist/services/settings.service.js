@@ -25,6 +25,16 @@ const DEFAULT_SETTINGS = {
     school_longitude: null,
     allowed_radius_meters: 200,
     allow_outside_attendance: true,
+    // Staff Working Hours & Calendar Defaults
+    staff_working_days: 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY',
+    staff_work_start_time: '08:00',
+    staff_work_end_time: '17:00',
+    staff_late_grace_minutes: 15,
+    staff_early_checkout_tolerance_minutes: 15,
+    staff_earliest_checkin_time: '06:00',
+    staff_latest_checkout_time: '20:00',
+    staff_face_required: true,
+    staff_geo_required: true,
 };
 const getSettings = async (schoolId) => {
     let settings = await db_1.default.schoolSettings.findUnique({ where: { schoolId: schoolId } });

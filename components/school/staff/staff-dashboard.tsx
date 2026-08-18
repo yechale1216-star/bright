@@ -10,6 +10,7 @@ import {
   Clock,
   UserCheck,
   Calendar,
+  CalendarOff,
   LogIn,
   LogOut,
   Bell,
@@ -48,6 +49,7 @@ export function StaffDashboard() {
   const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
 
   const [todayRecord, setTodayRecord] = useState<any>(null)
+  const [calendarStatus, setCalendarStatus] = useState<any>(null)
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [recentNotifications, setRecentNotifications] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -77,6 +79,14 @@ export function StaffDashboard() {
   const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
+      // 0. Check today's working calendar status
+      try {
+        const cal = await db.isDateWorkingDay(todayStr)
+        setCalendarStatus(cal)
+      } catch (calErr) {
+        console.warn("Could not fetch calendar status:", calErr)
+      }
+
       // 1. Fetch staff's today attendance record
       const myAtt = await db.getMyStaffAttendance()
       const todayRec = myAtt.find((r: any) => r.date?.split("T")[0] === todayStr)
@@ -318,6 +328,49 @@ export function StaffDashboard() {
         </div>
       </div>
 
+      {/* Holiday / Non-Working Day Alert Banner */}
+      {calendarStatus && !calendarStatus.isWorkingDay && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center gap-3.5 shadow-sm ${
+            calendarStatus.isHoliday
+              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
+          }`}
+        >
+          <div
+            className={`p-2.5 rounded-xl ${
+              calendarStatus.isHoliday
+                ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {calendarStatus.isHoliday ? <CalendarOff className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm">
+                {calendarStatus.isHoliday
+                  ? `School Holiday: ${calendarStatus.holidayName}`
+                  : calendarStatus.reason || "Scheduled Non-Working Day"}
+              </span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] uppercase font-bold ${
+                  calendarStatus.isHoliday
+                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300"
+                    : "border-amber-500/40 text-amber-600 dark:text-amber-300"
+                }`}
+              >
+                {calendarStatus.isHoliday ? "Holiday" : "Non-Working Day"}
+              </Badge>
+            </div>
+            <p className="text-xs opacity-80 mt-0.5">
+              Attendance is optional today. Absences are not tracked or penalized.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ─── 2. Key Action Grid: Attendance & Quick Access ─── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Attendance Action Card */}
@@ -330,23 +383,28 @@ export function StaffDashboard() {
               <CardDescription>{formatDate(todayStr)}</CardDescription>
             </div>
 
-            {todayRecord?.status ? (
-              <Badge
-                className={`text-xs font-bold px-3 py-1 uppercase ${
-                  todayRecord.status === "PRESENT"
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                    : todayRecord.status === "LATE"
-                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                    : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                }`}
-              >
-                {todayRecord.status}
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
+                Shift: {settings?.staffWorkStartTime || "08:00"} - {settings?.staffWorkEndTime || "17:00"}
               </Badge>
-            ) : (
-              <Badge variant="outline" className="text-muted-foreground text-xs font-semibold">
-                Not Marked
-              </Badge>
-            )}
+              {todayRecord?.status ? (
+                <Badge
+                  className={`text-xs font-bold px-3 py-1 uppercase ${
+                    todayRecord.status === "PRESENT"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                      : todayRecord.status === "LATE"
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                  }`}
+                >
+                  {todayRecord.status}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground text-xs font-semibold">
+                  Not Marked
+                </Badge>
+              )}
+            </div>
           </CardHeader>
 
           <CardContent className="space-y-4">

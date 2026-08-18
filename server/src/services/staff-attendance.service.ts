@@ -1,5 +1,6 @@
 import prisma from '../config/db';
 import { validateGeofence } from './attendance.service';
+import { isDateWorkingDay, addMinutesToTime } from './holiday.service';
 
 /**
  * Normalizes date to UTC midnight for Africa/Addis_Ababa or standard date string
@@ -23,7 +24,7 @@ export const normalizeStaffDate = (dateInput?: any): { dateStr: string; startDat
 /**
  * Helper to check if a time (HH:MM) is after another time (HH:MM)
  */
-function isTimeAfter(currentHHMM: string, targetHHMM: string): boolean {
+export function isTimeAfter(currentHHMM: string, targetHHMM: string): boolean {
   const [cH, cM] = currentHHMM.split(':').map(Number);
   const [tH, tM] = targetHHMM.split(':').map(Number);
   if (cH > tH) return true;
@@ -34,12 +35,48 @@ function isTimeAfter(currentHHMM: string, targetHHMM: string): boolean {
 /**
  * Helper to check if a time (HH:MM) is before another time (HH:MM)
  */
-function isTimeBefore(currentHHMM: string, targetHHMM: string): boolean {
+export function isTimeBefore(currentHHMM: string, targetHHMM: string): boolean {
   const [cH, cM] = currentHHMM.split(':').map(Number);
   const [tH, tM] = targetHHMM.split(':').map(Number);
   if (cH < tH) return true;
   if (cH === tH && cM < tM) return true;
   return false;
+}
+
+/**
+ * Dynamically computes staff working schedule cutoffs from school settings
+ */
+export function computeWorkingScheduleThresholds(settings?: any): {
+  earliestCheckIn: string;
+  expectedStartTime: string;
+  lateCutoffTime: string;
+  expectedEndTime: string;
+  earlyDepartureCutoffTime: string;
+  latestCheckOut: string;
+  workingDays: string[];
+} {
+  const earliestCheckIn = settings?.staff_earliest_checkin_time || settings?.staff_checkin_start || '06:00';
+  const expectedStartTime = settings?.staff_work_start_time || '08:00';
+  const lateGrace = settings?.staff_late_grace_minutes ?? 15;
+  const lateCutoffTime = settings?.staff_checkin_late || addMinutesToTime(expectedStartTime, lateGrace);
+
+  const expectedEndTime = settings?.staff_work_end_time || '17:00';
+  const earlyTolerance = settings?.staff_early_checkout_tolerance_minutes ?? 15;
+  const earlyDepartureCutoffTime = settings?.staff_checkout_early || addMinutesToTime(expectedEndTime, -earlyTolerance);
+  const latestCheckOut = settings?.staff_latest_checkout_time || '20:00';
+
+  const workingDaysStr = settings?.staff_working_days || 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY';
+  const workingDays = workingDaysStr.split(',').map((d: string) => d.trim().toUpperCase()).filter(Boolean);
+
+  return {
+    earliestCheckIn,
+    expectedStartTime,
+    lateCutoffTime,
+    expectedEndTime,
+    earlyDepartureCutoffTime,
+    latestCheckOut,
+    workingDays,
+  };
 }
 
 /**
@@ -83,6 +120,9 @@ export async function checkIn(userId: string, schoolId: string, data: {
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
+  const schedule = computeWorkingScheduleThresholds(settings);
+  const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
     timeZone: 'Africa/Addis_Ababa', 
@@ -92,14 +132,25 @@ export async function checkIn(userId: string, schoolId: string, data: {
   });
 
   // Earliest check-in check
-  if (settings?.staff_checkin_start && isTimeBefore(currentTimeHHMM, settings.staff_checkin_start)) {
-    throw new Error(`Check-in is not allowed before ${settings.staff_checkin_start}. Current time: ${currentTimeHHMM}`);
+  if (schedule.earliestCheckIn && isTimeBefore(currentTimeHHMM, schedule.earliestCheckIn)) {
+    throw new Error(`Check-in is not allowed before ${schedule.earliestCheckIn}. Current time: ${currentTimeHHMM}`);
   }
 
-  // Check if check-in is LATE
+  // Determine status & remarks based on working day calendar rules
   let status = 'PRESENT';
-  if (settings?.staff_checkin_late && isTimeAfter(currentTimeHHMM, settings.staff_checkin_late)) {
-    status = 'LATE';
+  let remarks = data.remarks || null;
+
+  if (workingDayInfo.isWorkingDay) {
+    if (isTimeAfter(currentTimeHHMM, schedule.lateCutoffTime)) {
+      status = 'LATE';
+    }
+  } else {
+    // Non-working day or holiday check-in (optional work / special shift)
+    status = 'PRESENT';
+    const nonWorkNote = workingDayInfo.isHoliday
+      ? `Holiday Attendance (${workingDayInfo.holidayName})`
+      : `Weekend/Non-Working Day Attendance (${workingDayInfo.dayOfWeek})`;
+    remarks = remarks ? `${remarks} | ${nonWorkNote}` : nonWorkNote;
   }
 
   // Check existing attendance for today
@@ -130,7 +181,7 @@ export async function checkIn(userId: string, schoolId: string, data: {
         geofenceDistance: locDistance,
         faceVerified: data.faceVerified ?? false,
         faceConfidence: data.faceConfidence ?? null,
-        remarks: data.remarks ?? existing.remarks,
+        remarks: remarks ?? existing.remarks,
       }
     });
   }
@@ -148,7 +199,7 @@ export async function checkIn(userId: string, schoolId: string, data: {
       geofenceDistance: locDistance,
       faceVerified: data.faceVerified ?? false,
       faceConfidence: data.faceConfidence ?? null,
-      remarks: data.remarks ?? null,
+      remarks: remarks ?? null,
     }
   });
 }
@@ -187,6 +238,9 @@ export async function checkOut(userId: string, schoolId: string, data: {
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
+  const schedule = computeWorkingScheduleThresholds(settings);
+  const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
     timeZone: 'Africa/Addis_Ababa', 
@@ -214,11 +268,13 @@ export async function checkOut(userId: string, schoolId: string, data: {
     throw new Error(`Staff is already checked out for ${dateStr} at ${existing.checkOutTime.toISOString()}`);
   }
 
-  // Check early departure
+  // Check early departure only if it is a scheduled working day
   let status = existing.status;
-  if (settings?.staff_checkout_early && isTimeBefore(currentTimeHHMM, settings.staff_checkout_early)) {
-    if (status === 'PRESENT') {
-      status = 'EARLY_DEPARTURE';
+  if (workingDayInfo.isWorkingDay) {
+    if (isTimeBefore(currentTimeHHMM, schedule.earlyDepartureCutoffTime)) {
+      if (status === 'PRESENT') {
+        status = 'EARLY_DEPARTURE';
+      }
     }
   }
 
@@ -370,7 +426,11 @@ export async function getStaffAttendance(schoolId: string, filters: {
 export async function getStaffAttendanceStats(schoolId: string, date?: string) {
   const { dateStr, startDate, endDate } = normalizeStaffDate(date);
 
-  // Total active staff (all non-parent users registered in this school)
+  // Fetch settings once, pass cache to both helpers
+  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+
+  // Total active staff (all non-parent/student users registered in this school)
   const totalStaffCount = await prisma.user.count({
     where: {
       schoolId,
@@ -414,11 +474,16 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string) {
     if (r.geofenceVerified) geoVerifiedCount++;
   }
 
-  const recordedUserIds = new Set(records.map(r => r.userId));
   const notCheckedIn = Math.max(0, totalStaffCount - records.length);
 
   return {
     date: dateStr,
+    isWorkingDay: workingDayInfo.isWorkingDay,
+    isHoliday: workingDayInfo.isHoliday,
+    isWeekend: workingDayInfo.isWeekend,
+    holidayName: workingDayInfo.holidayName,
+    dayOfWeek: workingDayInfo.dayOfWeek,
+    calendarNote: workingDayInfo.reason,
     totalStaff: totalStaffCount,
     present,
     late,
@@ -480,10 +545,11 @@ export async function bulkSyncStaffAttendance(records: Array<{
   const errors: string[] = [];
 
   const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const schedule = computeWorkingScheduleThresholds(settings);
 
   for (const item of records) {
     try {
-      const { startDate, endDate } = normalizeStaffDate(item.date);
+      const { dateStr, startDate, endDate } = normalizeStaffDate(item.date);
       const recordTime = item.timestamp ? new Date(item.timestamp) : new Date();
       const timeHHMM = recordTime.toLocaleTimeString('en-US', {
         timeZone: 'Africa/Addis_Ababa',
@@ -491,6 +557,9 @@ export async function bulkSyncStaffAttendance(records: Array<{
         hour: '2-digit',
         minute: '2-digit'
       });
+
+      // Determine if this is a working day (reuse settings cache)
+      const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
 
       const existing = await prisma.staffAttendance.findFirst({
         where: {
@@ -502,12 +571,21 @@ export async function bulkSyncStaffAttendance(records: Array<{
 
       if (item.type === 'checkin') {
         let status = 'PRESENT';
-        if (settings?.staff_checkin_late && isTimeAfter(timeHHMM, settings.staff_checkin_late)) {
-          status = 'LATE';
+        let remarks = item.remarks || null;
+
+        if (workingDayInfo.isWorkingDay) {
+          if (isTimeAfter(timeHHMM, schedule.lateCutoffTime)) {
+            status = 'LATE';
+          }
+        } else {
+          // Non-working day offline check-in — mark present but annotate
+          const nonWorkNote = workingDayInfo.isHoliday
+            ? `Holiday Attendance (${workingDayInfo.holidayName})`
+            : `Weekend/Non-Working Day Attendance (${workingDayInfo.dayOfWeek})`;
+          remarks = remarks ? `${remarks} | ${nonWorkNote}` : nonWorkNote;
         }
 
         if (existing) {
-          // Idempotent update: if not checked in yet or updating metadata
           if (!existing.checkInTime) {
             const updated = await prisma.staffAttendance.update({
               where: { id: existing.id },
@@ -520,12 +598,11 @@ export async function bulkSyncStaffAttendance(records: Array<{
                 geofenceDistance: item.locationDistance ?? existing.geofenceDistance,
                 faceVerified: item.faceVerified ?? existing.faceVerified,
                 faceConfidence: item.faceConfidence ?? existing.faceConfidence,
-                remarks: item.remarks ?? existing.remarks,
+                remarks: remarks ?? existing.remarks,
               }
             });
             results.push(updated);
           } else {
-            // Already synced/checked-in: idempotent return
             results.push(existing);
           }
         } else {
@@ -542,7 +619,7 @@ export async function bulkSyncStaffAttendance(records: Array<{
               geofenceDistance: item.locationDistance ?? null,
               faceVerified: item.faceVerified ?? false,
               faceConfidence: item.faceConfidence ?? null,
-              remarks: item.remarks ?? null,
+              remarks: remarks ?? null,
             }
           });
           results.push(created);
@@ -550,8 +627,11 @@ export async function bulkSyncStaffAttendance(records: Array<{
       } else if (item.type === 'checkout') {
         if (existing) {
           let status = existing.status;
-          if (settings?.staff_checkout_early && isTimeBefore(timeHHMM, settings.staff_checkout_early)) {
-            if (status === 'PRESENT') status = 'EARLY_DEPARTURE';
+          // Apply early departure check only on scheduled working days
+          if (workingDayInfo.isWorkingDay) {
+            if (isTimeBefore(timeHHMM, schedule.earlyDepartureCutoffTime)) {
+              if (status === 'PRESENT') status = 'EARLY_DEPARTURE';
+            }
           }
 
           if (!existing.checkOutTime) {

@@ -54,6 +54,7 @@ model School {
   attendanceEditRequests AttendanceEditRequest[]
   staffAttendance      StaffAttendance[]
   staffFaceEnrollments StaffFaceEnrollment[]
+  holidays             SchoolHoliday[]
 }
 
 model User {
@@ -171,17 +172,43 @@ model SchoolSettings {
   school_longitude          Float?
   allowed_radius_meters     Int      @default(200)
   allow_outside_attendance  Boolean  @default(true)
-  calendar_type        String   @default("ETHIOPIAN")
-  // Staff Attendance Settings
+  calendar_type             String   @default("ETHIOPIAN")
+  // Staff Attendance & Working Schedule Settings
+  staff_working_days                    String   @default("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY")
+  staff_work_start_time                 String?  @default("08:00") // Expected start time (HH:MM)
+  staff_work_end_time                   String?  @default("17:00") // Expected end time (HH:MM)
+  staff_late_grace_minutes              Int      @default(15)      // Late grace period in minutes
+  staff_early_checkout_tolerance_minutes Int     @default(15)      // Early departure tolerance in minutes
+  staff_earliest_checkin_time           String?  @default("06:00") // Earliest allowed check-in
+  staff_latest_checkout_time            String?  @default("20:00") // Latest allowed check-out
   staff_checkin_start   String?          // earliest allowed check-in e.g. "06:00"
-  staff_checkin_late    String?          // after this time = LATE   e.g. "08:30"
-  staff_checkout_early  String?          // before this = EARLY_DEPARTURE e.g. "16:00"
+  staff_checkin_late    String?          // legacy fallback
+  staff_checkout_early  String?          // legacy fallback
   staff_face_required   Boolean  @default(true)   // require face verification
   staff_geo_required    Boolean  @default(true)   // require geofence for staff
-  createdAt                DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  school_logo          String?
-  school               School?  @relation(fields: [schoolId], references: [id])
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  school_logo           String?
+  school                School?  @relation(fields: [schoolId], references: [id])
+}
+
+model SchoolHoliday {
+  id          String   @id @default(uuid())
+  schoolId    String
+  name        String
+  description String?
+  startDate   DateTime // UTC midnight
+  endDate     DateTime // UTC midnight
+  type        String   @default("PUBLIC_HOLIDAY") // PUBLIC_HOLIDAY | RELIGIOUS_HOLIDAY | SCHOOL_HOLIDAY | SPECIAL_CLOSURE | OTHER
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId])
+  @@index([schoolId, startDate, endDate])
+  @@index([schoolId, isActive])
+  @@map("school_holidays")
 }
 
 model Grade {

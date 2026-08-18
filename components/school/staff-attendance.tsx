@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   RefreshCw,
   Calendar as CalendarIcon,
+  CalendarOff,
   LogOut,
   LogIn,
   Search,
@@ -61,6 +62,18 @@ export function StaffAttendance() {
   const [selectedDate, setSelectedDate] = useState(
     new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
   )
+
+  // Working calendar status for the selected date
+  const [calendarStatus, setCalendarStatus] = useState<{
+    isWorkingDay: boolean
+    isHoliday: boolean
+    isWeekend: boolean
+    dayOfWeek: string
+    holidayName?: string
+    holidayType?: string
+    reason?: string
+    workingDaysList: string[]
+  } | null>(null)
 
   // Current user's attendance status today
   const [todayRecord, setTodayRecord] = useState<any>(null)
@@ -141,6 +154,14 @@ export function StaffAttendance() {
     setIsLoading(true)
     const activeUser = user || currentUser
     try {
+      // 0. Load working calendar status for selected date
+      try {
+        const calStatus = await db.isDateWorkingDay(selectedDate)
+        setCalendarStatus(calStatus)
+      } catch (calErr) {
+        console.warn("Could not check working day status:", calErr)
+      }
+
       // 1. Load my history
       if (activeUser?.id) {
         const history = await db.getMyStaffAttendance()
@@ -363,6 +384,49 @@ export function StaffAttendance() {
         </div>
       </div>
 
+      {/* Holiday / Non-Working Day Alert Banner */}
+      {calendarStatus && !calendarStatus.isWorkingDay && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center gap-3.5 shadow-sm ${
+            calendarStatus.isHoliday
+              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
+          }`}
+        >
+          <div
+            className={`p-2.5 rounded-xl ${
+              calendarStatus.isHoliday
+                ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {calendarStatus.isHoliday ? <CalendarOff className="w-5 h-5" /> : <CalendarIcon className="w-5 h-5" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm">
+                {calendarStatus.isHoliday
+                  ? `School Holiday: ${calendarStatus.holidayName}`
+                  : calendarStatus.reason || "Scheduled Non-Working Day"}
+              </span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] uppercase font-bold ${
+                  calendarStatus.isHoliday
+                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300"
+                    : "border-amber-500/40 text-amber-600 dark:text-amber-300"
+                }`}
+              >
+                {calendarStatus.isHoliday ? "Holiday" : "Non-Working Day"}
+              </Badge>
+            </div>
+            <p className="text-xs opacity-80 mt-0.5">
+              Staff attendance is optional today. Absences are not tracked or penalized on this date.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Tabs for Admin / Staff */}
       {isAdmin && (
         <div className="flex border-b border-border/60 gap-4">
@@ -403,6 +467,16 @@ export function StaffAttendance() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Working Hours Info Box */}
+              <div className="text-[11px] text-muted-foreground bg-muted/30 p-2.5 rounded-xl border flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {settings?.staffWorkStartTime || "08:00"} - {settings?.staffWorkEndTime || "17:00"}
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  Grace: +{settings?.staffLateGraceMinutes ?? 15}m
+                </span>
+              </div>
+
               {/* Status Display */}
               <div className="p-4 rounded-xl bg-muted/40 border border-border/60 flex flex-col items-center justify-center text-center gap-1.5">
                 <span className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">

@@ -531,6 +531,51 @@ export default function AdminStaffAttendanceDashboard() {
         </div>
       </motion.div>
 
+      {/* Holiday / Non-Working Day Banner */}
+      {!isRangeMode && stats && !stats.isWorkingDay && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-4 rounded-2xl border flex items-center gap-3.5 shadow-sm ${
+            stats.isHoliday
+              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
+          }`}
+        >
+          <div
+            className={`p-2.5 rounded-xl ${
+              stats.isHoliday
+                ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            <CalendarClock className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm">
+                {stats.isHoliday
+                  ? `School Holiday: ${stats.holidayName}`
+                  : stats.calendarNote || `${stats.dayOfWeek} (Scheduled Non-Working Day)`}
+              </span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] uppercase font-bold ${
+                  stats.isHoliday
+                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300"
+                    : "border-amber-500/40 text-amber-600 dark:text-amber-300"
+                }`}
+              >
+                {stats.isHoliday ? "Official Holiday" : "Non-Working Day"}
+              </Badge>
+            </div>
+            <p className="text-xs opacity-80 mt-0.5">
+              Attendance is not required on this date. Staff are not marked absent or penalized.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* ── Glass Metric Cards Overview ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
         {/* Total Active Staff */}
