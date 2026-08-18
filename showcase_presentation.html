@@ -935,6 +935,10 @@
           <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
           <span data-i18n="f_tab_1">All Modules</span>
         </button>
+        <button class="sub-tab-btn" onclick="switchSubTab('feat-staff', 'feat', this)">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          <span data-i18n="f_tab_staff">Staff Biometrics &amp; Schedule</span>
+        </button>
         <button class="sub-tab-btn" onclick="switchSubTab('feat-analytics', 'feat', this)">
           <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           <span data-i18n="f_tab_analytics">Grade Analytics</span>
@@ -968,6 +972,24 @@
       <!-- VIEW: ALL FEATURES GRID -->
       <div class="sub-view active" id="feat-all">
         <div class="grid-3">
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-icon-box icon-cyan">
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </div>
+            <div class="card-title" data-i18n="f_card_staff_t">AI Staff Face Biometrics &amp; Geofence</div>
+            <div class="card-text" data-i18n="f_card_staff_d">Neural 128-d Euclidean face verification combined with campus GPS geofencing. Enforces authentic on-premise check-in for all staff roles with total biometric privacy.</div>
+          </div>
+
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-icon-box icon-gold">
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            </div>
+            <div class="card-title" data-i18n="f_card_sched_t">Staff Schedule &amp; Dual Modes</div>
+            <div class="card-text" data-i18n="f_card_sched_d">Daily vs Session-Based attendance modes (Morning/Afternoon shifts), dynamic late grace periods, early departures, and custom holiday calendar rules.</div>
+          </div>
+
           <div class="card">
             <div class="card-accent-top"></div>
             <div class="card-icon-box icon-blue">
@@ -1029,6 +1051,42 @@
             </div>
             <div class="card-title" data-i18n="f_card_6_t">Admissions &amp; Batch Promotions</div>
             <div class="card-text" data-i18n="f_card_6_d">Smart phone parent auto-linker (sibling matching), bulk CSV/Excel ingestion, auto-generated student IDs, and annual cohort grade advancement.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: STAFF BIOMETRICS & DUAL MODES (NEW) -->
+      <div class="sub-view" id="feat-staff">
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="f_stf_1_t">AI Neural Face Verification</div>
+            <div class="card-text" data-i18n="f_stf_1_d">Uses TensorFlow.js MobileNet to extract 128-dimensional facial vector tensors. Sub-second Euclidean matching (threshold &le; 0.50) authenticates staff with zero raw photo retention.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="f_stf_2_t">Dual Attendance Modes</div>
+            <div class="card-text" data-i18n="f_stf_2_d">Supports both Daily Attendance (single check-in/out per day) and Session-Based Attendance (Morning, Afternoon, Custom shifts) with independent threshold rules.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="f_stf_3_t">Working Calendar &amp; Holidays</div>
+            <div class="card-text" data-i18n="f_stf_3_d">Centralized working days configuration (Mon–Fri, Mon–Sat) plus public, religious, and school closure holiday ranges to prevent false absenteeism penalties.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="f_stf_4_t">Campus GPS Geofence Enforced</div>
+            <div class="card-text" data-i18n="f_stf_4_d">Hardware GPS perimeter verification validates staff presence on school grounds before allowing biometric check-in/out, preventing remote proxy marking.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="f_stf_5_t">Unified Staff Inclusivity</div>
+            <div class="card-text" data-i18n="f_stf_5_d">Homeroom Teachers, Registrars, Discipline Officers, Accountants, Librarians, and General Staff all have personal attendance tracking in their respective portals.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="f_stf_6_t">Executive Staff Analytics &amp; Audits</div>
+            <div class="card-text" data-i18n="f_stf_6_d">Real-time administrator roster with session filters, lateness metrics, early departure alerts, approved leave tracking, and immutable correction logs.</div>
           </div>
         </div>
       </div>
@@ -1216,8 +1274,8 @@
             </div>
             <div class="role-desc" data-i18n="r1_desc">Executive governance, policies &amp; live analytics.</div>
             <ul class="role-perks">
-              <li data-i18n="r1_p1">14-day attendance rate trend area charts</li>
-              <li data-i18n="r1_p2">Teacher assignment &amp; subject mapping</li>
+              <li data-i18n="r1_p1">14-day student &amp; staff attendance trend charts</li>
+              <li data-i18n="r1_p2">Staff working schedule, sessions &amp; holidays config</li>
               <li data-i18n="r1_p3">GPS campus geofence perimeter control</li>
               <li data-i18n="r1_p4">Attendance change request audit &amp; approval</li>
             </ul>
@@ -1233,7 +1291,7 @@
             <div class="role-desc" data-i18n="r2_desc">Admissions &amp; student lifecycle.</div>
             <ul class="role-perks">
               <li data-i18n="r2_p1">Smart phone parent lookup (sibling auto-link)</li>
-              <li data-i18n="r2_p2">Bulk CSV/Excel roster import with preview</li>
+              <li data-i18n="r2_p2">Face biometric self check-in from own portal</li>
               <li data-i18n="r2_p3">Auto-generated sequential student IDs</li>
               <li data-i18n="r2_p4">Cohort-based batch annual promotions</li>
             </ul>
@@ -1249,7 +1307,7 @@
             <div class="role-desc" data-i18n="r3_desc">Touch-friendly classroom workflow.</div>
             <ul class="role-perks">
               <li data-i18n="r3_p1">1-tap "Mark All Present" (&lt; 30s roll-call)</li>
-              <li data-i18n="r3_p2">Mobile Card &amp; Desktop Matrix views</li>
+              <li data-i18n="r3_p2">Face biometric self check-in with GPS enforcement</li>
               <li data-i18n="r3_p3">Offline IndexedDB attendance buffer</li>
               <li data-i18n="r3_p4">Direct parent in-app chat &amp; VoIP calling</li>
             </ul>
@@ -1265,7 +1323,7 @@
             <div class="role-desc" data-i18n="r4_desc">Incident tracking &amp; hearings.</div>
             <ul class="role-perks">
               <li data-i18n="r4_p1">Severity tiering (`Low` to `Critical`)</li>
-              <li data-i18n="r4_p2">Multi-file digital photo &amp; witness evidence</li>
+              <li data-i18n="r4_p2">Face biometric self check-in from own portal</li>
               <li data-i18n="r4_p3">Structured corrective action assignments</li>
               <li data-i18n="r4_p4">Parent review &amp; digital acknowledgment</li>
             </ul>
@@ -1337,6 +1395,16 @@
             <div class="card-accent-top"></div>
             <div class="card-title" data-i18n="u_adm_6_t">GPS Geofencing Perimeter</div>
             <div class="card-text" data-i18n="u_adm_6_d">Configure campus latitude/longitude and radius meters to guarantee that attendance can only be submitted physically on school grounds.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="u_adm_7_t">Staff Attendance Settings &amp; Holidays</div>
+            <div class="card-text" data-i18n="u_adm_7_d">Configure staff attendance mode (Daily vs Session-Based), define working sessions with custom timings and grace periods, and manage the public/religious/school holiday calendar.</div>
+          </div>
+          <div class="card">
+            <div class="card-accent-top"></div>
+            <div class="card-title" data-i18n="u_adm_8_t">Staff Biometric Roster &amp; Analytics</div>
+            <div class="card-text" data-i18n="u_adm_8_d">Real-time staff check-in roster with session filter, late/early-departure counters, and exportable staff punctuality reports across all role types.</div>
           </div>
         </div>
       </div>
@@ -1487,6 +1555,16 @@
         <div class="card step-card">
           <div class="card-accent-top"></div>
           <div class="step-num-badge">2</div>
+          <div class="card-icon-box icon-cyan">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </div>
+          <div class="card-title" data-i18n="s4_step_0_t">Staff Biometric Check-In</div>
+          <div class="card-text" data-i18n="s4_step_0_d">Teacher opens portal, GPS confirms campus presence, then TensorFlow.js face scan matches enrolled descriptor within 0.5s — Morning session logged On Time.</div>
+        </div>
+
+        <div class="card step-card">
+          <div class="card-accent-top"></div>
+          <div class="step-num-badge">3</div>
           <div class="card-icon-box icon-purple">
             <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           </div>
@@ -1496,7 +1574,7 @@
 
         <div class="card step-card">
           <div class="card-accent-top"></div>
-          <div class="step-num-badge">3</div>
+          <div class="step-num-badge">4</div>
           <div class="card-icon-box icon-gold">
             <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
           </div>
@@ -1506,7 +1584,7 @@
 
         <div class="card step-card">
           <div class="card-accent-top"></div>
-          <div class="step-num-badge">4</div>
+          <div class="step-num-badge">5</div>
           <div class="card-icon-box icon-green">
             <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
           </div>
@@ -1767,8 +1845,10 @@
         s2_badge: "Comprehensive Platform Capabilities",
         s2_title: "Complete System Features & Modules",
         s2_desc: "An all-in-one educational operating system built with 9 core functional pillars. Explore feature categories below:",
-        f_tab_1: "All Modules", f_tab_analytics: "Grade Analytics", f_tab_2: "Attendance & GPS", f_tab_3: "Messaging & VoIP", f_tab_4: "Discipline Registry", f_tab_5: "Parent Engagement", f_tab_6: "Admissions & Promotion", f_tab_7: "Ethiopian Engine",
+        f_tab_1: "All Modules", f_tab_staff: "Staff Biometrics & Schedule", f_tab_analytics: "Grade Analytics", f_tab_2: "Attendance & GPS", f_tab_3: "Messaging & VoIP", f_tab_4: "Discipline Registry", f_tab_5: "Parent Engagement", f_tab_6: "Admissions & Promotion", f_tab_7: "Ethiopian Engine",
         f_card_1_t: "1-Tap Verified Attendance", f_card_1_d: "Touchscreen roll-call in < 30s. Includes Mobile Cards, Desktop Matrix, Morning/Afternoon session split, and hardware GPS campus geofencing.",
+        f_card_staff_t: "AI Staff Face Biometrics & Geofence", f_card_staff_d: "Neural 128-d Euclidean face verification combined with campus GPS geofencing. Enforces authentic on-premise check-in for all staff roles with total biometric privacy.",
+        f_card_sched_t: "Staff Schedule & Dual Modes", f_card_sched_d: "Daily vs Session-Based attendance modes (Morning/Afternoon shifts), dynamic late grace periods, early departures, and custom holiday calendar rules.",
         f_card_7_t: "Grade-Based Analytics & Heatmaps", f_card_7_d: "Cohort attendance trends, section truancy heatmaps, punctuality curves, and multi-term cross-grade behavioral correlations.",
         f_card_2_t: "Real-Time Messaging Center", f_card_2_d: "Direct 1-on-1 chats (DMs), grade-level channels, school-wide broadcast circulars, read receipts, file attachments, and message pinning.",
         f_card_3_t: "Free VoIP Voice & Video Calls", f_card_3_d: "Crystal-clear WebRTC audio & video calling without airtime fees. Native Android lock-screen ringing using foreground call services.",
@@ -1799,15 +1879,23 @@
         f_eth_2_t: "ሙሉ የአማርኛ ቋንቋ (Amharic i18n)", f_eth_2_d: "Complete bi-lingual engine. Every dashboard, button, form, and alert toggles seamlessly between <strong>English</strong> and <strong>አማርኛ (Amharic)</strong>.",
         f_eth_3_t: "Offline-First IndexedDB Shield", f_eth_3_d: "Zero dependence on continuous internet. Attendance marks save to client IndexedDB and flush automatically upon reconnection.",
 
+        // Staff Biometrics & Schedule Sub-view
+        f_stf_1_t: "AI Neural Face Verification", f_stf_1_d: "Uses TensorFlow.js MobileNet to extract 128-dimensional facial vector tensors. Sub-second Euclidean matching (threshold ≤ 0.50) authenticates staff with zero raw photo retention.",
+        f_stf_2_t: "Dual Attendance Modes", f_stf_2_d: "Supports both Daily Attendance (single check-in/out per day) and Session-Based Attendance (Morning, Afternoon, Custom shifts) with independent threshold rules.",
+        f_stf_3_t: "Working Calendar & Holidays", f_stf_3_d: "Centralized working days configuration (Mon–Fri, Mon–Sat) plus public, religious, and school closure holiday ranges to prevent false absenteeism penalties.",
+        f_stf_4_t: "Campus GPS Geofence Enforced", f_stf_4_d: "Hardware GPS perimeter verification validates staff presence on school grounds before allowing biometric check-in/out, preventing remote proxy marking.",
+        f_stf_5_t: "Unified Staff Inclusivity", f_stf_5_d: "Homeroom Teachers, Registrars, Discipline Officers, Accountants, Librarians, and General Staff all have personal attendance tracking in their respective portals.",
+        f_stf_6_t: "Executive Staff Analytics & Audits", f_stf_6_d: "Real-time administrator roster with session filters, lateness metrics, early departure alerts, approved leave tracking, and immutable correction logs.",
+
         // Slide 3: Users & Roles
         s3_badge: "Section 2 · Users & Stakeholder Portals",
         s3_title: "Unified User Roles & Specialized Workspaces",
         s3_desc: "Every school stakeholder has a tailored workspace engineered for their daily responsibilities. Explore each role below:",
         u_tab_1: "All Roles Overview", u_tab_2: "School Admin", u_tab_3: "Registrator", u_tab_4: "Teacher", u_tab_5: "Discipline", u_tab_6: "Parent Portal",
-        r1_name: "School Admin", r1_desc: "Executive governance, policies & live analytics.", r1_p1: "14-day attendance rate trend area charts", r1_p2: "Teacher assignment & subject mapping", r1_p3: "GPS campus geofence perimeter control", r1_p4: "Attendance change request audit & approval",
-        r2_name: "Registrator", r2_desc: "Admissions & student lifecycle.", r2_p1: "Smart phone parent lookup (sibling auto-link)", r2_p2: "Bulk CSV/Excel roster import with preview", r2_p3: "Auto-generated sequential student IDs", r2_p4: "Cohort-based batch annual promotions",
-        r3_name: "Homeroom Teacher", r3_desc: "Touch-friendly classroom workflow.", r3_p1: "1-tap 'Mark All Present' (< 30s roll-call)", r3_p2: "Mobile Card & Desktop Matrix views", r3_p3: "Offline IndexedDB attendance buffer", r3_p4: "Direct parent in-app chat & VoIP calling",
-        r4_name: "Discipline Officer", r4_desc: "Incident tracking & hearings.", r4_p1: "Severity tiering (`Low` to `Critical`)", r4_p2: "Multi-file digital photo & witness evidence", r4_p3: "Structured corrective action assignments", r4_p4: "Parent review & digital acknowledgment",
+        r1_name: "School Admin", r1_desc: "Executive governance, policies & live analytics.", r1_p1: "14-day student & staff attendance trend charts", r1_p2: "Staff working schedule, sessions & holidays config", r1_p3: "GPS campus geofence perimeter control", r1_p4: "Attendance change request audit & approval",
+        r2_name: "Registrator", r2_desc: "Admissions & student lifecycle.", r2_p1: "Smart phone parent lookup (sibling auto-link)", r2_p2: "Face biometric self check-in from own portal", r2_p3: "Auto-generated sequential student IDs", r2_p4: "Cohort-based batch annual promotions",
+        r3_name: "Homeroom Teacher", r3_desc: "Touch-friendly classroom workflow.", r3_p1: "1-tap 'Mark All Present' (< 30s roll-call)", r3_p2: "Face biometric self check-in with GPS enforcement", r3_p3: "Offline IndexedDB attendance buffer", r3_p4: "Direct parent in-app chat & VoIP calling",
+        r4_name: "Discipline Officer", r4_desc: "Incident tracking & hearings.", r4_p1: "Severity tiering (`Low` to `Critical`)", r4_p2: "Face biometric self check-in from own portal", r4_p3: "Structured corrective action assignments", r4_p4: "Parent review & digital acknowledgment",
         r5_name: "Parent Portal", r5_desc: "Guardian transparency & engagement.", r5_p1: "Multi-child switcher without re-logging in", r5_p2: "Instant high-priority FCM push alerts", r5_p3: "Free in-app WebRTC voice & video calls", r5_p4: "Direct discipline case review & replies",
         r6_name: "System Administrator", r6_desc: "Infrastructure & operational security.", r6_p1: "Safe Prisma database migrations", r6_p2: "Redis multi-instance socket clustering", r6_p3: "Audit logs & role permission overrides", r6_p4: "Automated PostgreSQL cloud backups",
 
@@ -1818,6 +1906,8 @@
         u_adm_4_t: "Attendance Governance", u_adm_4_d: "Inspect school-wide attendance matrix. Review and approve/reject post-deadline attendance amendment requests submitted by teachers.",
         u_adm_5_t: "PDF / Excel Export Engine", u_adm_5_d: "Filter by Daily, Weekly, Monthly, or custom date ranges using dual Ethiopian/Gregorian calendar selectors to export structured reports.",
         u_adm_6_t: "GPS Geofencing Perimeter", u_adm_6_d: "Configure campus latitude/longitude and radius meters to guarantee that attendance can only be submitted physically on school grounds.",
+        u_adm_7_t: "Staff Attendance Settings & Holidays", u_adm_7_d: "Configure staff attendance mode (Daily vs Session-Based), define working sessions with custom timings and grace periods, and manage the public/religious/school holiday calendar.",
+        u_adm_8_t: "Staff Biometric Roster & Analytics", u_adm_8_d: "Real-time staff check-in roster with session filter, late/early-departure counters, and exportable staff punctuality reports across all role types.",
         
         u_reg_1_t: "Smart Parent Auto-Linker", u_reg_1_d: "As the registrar enters a guardian's phone number (+251 9...), a debounced lookup checks existing records. If found, it links the new student as a sibling without creating duplicate parent accounts.",
         u_reg_2_t: "Bulk Spreadsheet Ingestion", u_reg_2_d: "Upload CSV/Excel class lists with hundreds of records. A pre-validation preview screen verifies grade identifiers, detects duplicate student IDs, and imports the entire cohort in a single transaction.",
@@ -1846,8 +1936,9 @@
         // Slide 4: Simulation
         s4_badge: "Section 3 · Live Workflow Simulation",
         s4_title: "End-to-End Real-World Scenario",
-        s4_desc: "Watch how a single student event flows across Registrar, Teacher, Parent, Discipline Officer, and School Admin in real-time.",
+        s4_desc: "Watch how a full school day flows: Staff biometric check-in, student roll-call, parent alerts, chat clarification, and admin approval — all in real-time.",
         s4_step_1_t: "Admissions", s4_step_1_d: "Registrar enrolls student 'Dawit' into Grade 8A. Auto-linker matches mother's phone and provisions parent account.",
+        s4_step_0_t: "Staff Biometric Check-In", s4_step_0_d: "Teacher opens portal, GPS confirms campus presence, then TensorFlow.js face scan matches enrolled descriptor within 0.5s — Morning session logged On Time.",
         s4_step_2_t: "Morning Roll-Call", s4_step_2_d: "Teacher opens 8A roster at 08:20 AM, marks Dawit 'Absent'. High-priority FCM push alert sounds on mother's phone.",
         s4_step_3_t: "Chat Clarification", s4_step_3_d: "Mother opens in-app chat: 'Dawit is at clinic.' Teacher submits an attendance amendment request.",
         s4_step_4_t: "Admin Approval", s4_step_4_d: "Admin reviews and approves change to 'Excused'. Analytics update in real time with an immutable audit log entry.",
@@ -1958,8 +2049,10 @@
         s2_badge: "አጠቃላይ የሲስተሙ አገልግሎቶች",
         s2_title: "የአዲስ ሕይወት ሙሉ አገልግሎቶችና ክፍሎች",
         s2_desc: "የትምህርት ቤትን አጠቃላይ ስራ በአንድ የሚያስተባብሩ 9 ዋና ዋና ክፍሎች፡",
-        f_tab_1: "ሁሉም ክፍሎች", f_tab_analytics: "የክፍል ደረጃ ትንተና", f_tab_2: "አቴንዳንስና ጂፒኤስ", f_tab_3: "መልዕክትና ጥሪ", f_tab_4: "ዲሲፕሊን", f_tab_5: "የወላጅ በር", f_tab_6: "ምዝገባና እድገት", f_tab_7: "የኢትዮጵያ ባህሪያት",
+        f_tab_1: "ሁሉም ክፍሎች", f_tab_staff: "የሠራተኛ ፊታ ምልክት & ፕሮግራም", f_tab_analytics: "የክፍል ደረጃ ትንተና", f_tab_2: "አቴንዳንስና ጂፒኤስ", f_tab_3: "መልዕክትና ጥሪ", f_tab_4: "ዲሲፕሊን", f_tab_5: "የወላጅ በር", f_tab_6: "ምዝገባና እድገት", f_tab_7: "የኢትዮጵያ ባህሪያት",
         f_card_1_t: "ፈጣን የተረጋገጠ አቴንዳንስ", f_card_1_d: "ከ30 ሰከንድ በታች በሞባይልና በኮምፒውተር የሚመዘገብ፣ የጠዋትና ከሰዓት ክፍለ-ጊዜዎችን የያዘ።",
+        f_card_staff_t: "የሠራተኛ AI ፊታ ምልክት & ጂፒኤስ", f_card_staff_d: "128 ዳይሜንሽን የፊታ ብጥ ምልክት ከጂፒኤስ ጋር ተደምሮ ሁሉም ሠራተኞች ትምህርት ቤት ቅጥር ግቢ ውስጥ ሆነው መመዝገቢያ።",
+        f_card_sched_t: "የሠራተኛ ፕሮግራምና ድርብ ሁነቶች", f_card_sched_d: "የዕለት አቴንዳንስ እና የክፍለ-ጊዜ አቴንዳንስ (ጠዋት/ከሰዓት) ድርብ አሰራሮችን፣ ዘፈቀደ ጊዜ ምዝገባ እና የእረፍት ቀናት ቁጥጥርን ይደግፋል።",
         f_card_7_t: "የክፍል ደረጃ አቴንዳንስና ስነ-ምግባር ትንተና", f_card_7_d: "የየክፍሉ አቴንዳንስ ንጽጽር፣ የተማሪዎች መቅረት ካርታ፣ የሰዓት አክባሪነት ግራፍና የዲሲፕሊን አዝማሚያዎች።",
         f_card_2_t: "የቀጥታ መልዕክት መለዋወጫ", f_card_2_d: "በመምህራንና በወላጆች መካከል የሚደረግ የጽሑፍ ውይይት፣ የክፍል ግሩፖችና አጠቃላይ ማስታወቂያዎች።",
         f_card_3_t: "ነፃ የድምፅና ቪዲዮ ጥሪ", f_card_3_d: "የስልክ ካርድ ወጪ ሳያስፈልግ በሲስተሙ ውስጥ የሚደረግ ከፍተኛ ጥራት ያለው የድምፅና ቪዲዮ ጥሪ።",
@@ -1990,6 +2083,14 @@
         f_eth_2_t: "ሙሉ የአማርኛ ቋንቋ", f_eth_2_d: "እያንዳንዱ ጽሑፍ፣ ቁልፍ፣ ፎርምና ማሳወቂያ ሙሉ በሙሉ ወደ አማርኛ ቋንቋ ይቀየራል።",
         f_eth_3_t: "ያለ ኢንተርኔት የሚሰራበት ከለላ", f_eth_3_d: "ኢንተርኔት ቢቋረጥም መረጃው በስልኩ ላይ ተቀምጦ መስመር ሲገኝ በራሱ ይላካል።",
 
+        // የሰራተኛ ብዮሜትሪክስ & ፕሮግራም ክፍል
+        f_stf_1_t: "AI የፊታ ምልክት ድምጽ", f_stf_1_d: "TensorFlow.js MobileNet ሞዴልን በመጠቀም 128 ዳይሜንሽን የፊታ ምልክት ያወጣና ዩክሊዲያን ርቀት ን.0.50 ወሰን ጠብቆ ሰራተኛን ያረጋግጣል።",
+        f_stf_2_t: "ድርብ አቴንዳንስ አሰራሮች", f_stf_2_d: "የዕለት አቴንዳንስ (በቀን አንድ ምዝገባ) እና የክፍለ-ጊዜ አቴንዳንስ (ጠዋት፣ ከሰዓት፣ ሌሎች) ድርብ አሰራሮችን ይደግፋል።",
+        f_stf_3_t: "የሥራ ቀን ቀን መቁጠሪያ & እረፍቶች", f_stf_3_d: "የሥራ ቀናት (ሰኞ-ዓርብ፣ ሰኞ-ቅዳሜ) አቀማመጥ፣ ሕዝባዊ፣ ሃይማኖታዊ እና የት/ቤት እረፍት ቀናትን ያስተዳድራል።",
+        f_stf_4_t: "የግቢ GPS ወሰን ቁጥጥር", f_stf_4_d: "ሰራተኛ ትምህርት ቤቱ ውስጥ መገኘቱን GPS አጥሮ አረጋግጦ ብዮሜትሪያዊ ምዝገባን ይፈቅዳል።",
+        f_stf_5_t: "ለሁሉም ሠራተኞች ተደራሽ", f_stf_5_d: "የክፍል ኃላፊ መምህራን፣ ሬጅስትራሮች፣ ዲሲፕሊን ኃላፊዎች፣ አካውንታንቶች፣ ሌሎችም ሁሉ የራሳቸው የፊታ ምዝገባ አቴንዳንስ ያላቸው ናቸው።",
+        f_stf_6_t: "የሠራተኛ ትንተና & ሪፖርት", f_stf_6_d: "የሠራተኛ ምዝገባ ዝርዝር፣ አርፋጅ ቁጥር፣ ቀደም ብሎ ጠፊ ቁጥር እና ዝርዝር ሪፖርቶችን ለሁሉም ሰራተኞች ያቀርባል።",
+
         // Slide 3: Users & Roles
         s3_badge: "ክፍል 2 · የተጠቃሚ በሮችና ኃላፊነቶች",
         s3_title: "ለእያንዳንዱ የትምህርት ቤት ማህበረሰብ የተዘጋጁ በሮች",
@@ -2009,6 +2110,8 @@
         u_adm_4_t: "የአቴንዳንስ ቁጥጥርና ማፅደቂያ", u_adm_4_d: "የትምህርት ቤቱን አጠቃላይ አቴንዳንስ መቆጣጠርና ከመምህራን የሚመጡ የማስተካከያ ጥያቄዎችን መርምሮ ማፅደቅ።",
         u_adm_5_t: "የፒዲኤፍ እና ኤክሴል ሪፖርት ማውጫ", u_adm_5_d: "የቀን፣ የሳምንት፣ የወር ወይም የተወሰነ ጊዜ ሪፖርቶችን በኢትዮጵያና በፈረንጅ የቀን መቁጠሪያ ማውጣት።",
         u_adm_6_t: "የግቢ ጂፒኤስ ወሰን መቆጣጠሪያ", u_adm_6_d: "መምህራን አቴንዳንስ የሚመዘግቡት በትምህርት ቤቱ ቅጥር ግቢ ውስጥ ብቻ እንዲሆን ወሰን መወሰኛ።",
+        u_adm_7_t: "የሠራተኛ አቴንዳንስ ቅንብር & እረፍቶች", u_adm_7_d: "የሠራተኛ አቴንዳንስ አሰራር (ዕለታዊ ወይም ክፍለ-ጊዜ)፣ የሥራ ሰዓቶችን፣ ዘፈቀደ ጊዜዎችን እና የሕዝብ/ሃይማኖት/ት/ቤት እረፍት ቀናትን ለማስተዳደር።",
+        u_adm_8_t: "የሠራተኛ ፊታ ምዝገባ ዝርዝርና ትንተና", u_adm_8_d: "ሁሉም ሠራተኞች የምዝገባ ሁኔታ፣ አርፋጅ ቁጥሮች፣ ቀደም ብሎ ጠፊ ቁጥሮች እና ሪፖርቶችን ያሳያል።",
         
         u_reg_1_t: "የወላጅ ስልክ አውቶማቲክ አገናኝ", u_reg_1_d: "የወላጅ ስልክ ቁጥር ሲገባ ቀደም ሲል የተመዘገቡ ወንድሞችንና እህቶችን አግኝቶ ያለምንም ድጋሚ ምዝገባ ያገናኛል።",
         u_reg_2_t: "የተማሪዎች በጅምላ ማስገቢያ", u_reg_2_d: "በመቶዎች የሚቆጠሩ ተማሪዎችን በኤክሴል ሰነድ አስገብቶ ስህተቶችን አስቀድሞ በማረም በአንድ ጊዜ መመዝገብ።",
@@ -2037,11 +2140,12 @@
         // Slide 4: Simulation
         s4_badge: "ክፍል 3 · የቀጥታ የሥራ ሂደት ማሳያ",
         s4_title: "የአንድ ተማሪ ጉዳይ እንዴት እንደሚያልፍ",
-        s4_desc: "አንድ የተማሪ ክስተት በሬጅስትራር፣ በመምህር፣ በወላጅ፣ በዲሲፕሊንና በት/ቤት አመራር መካከል በቅጽበት እንዴት እንደሚተላለፍ፡",
+        s4_desc: "ሙሉ የት/ቤት ቀን ሂደት፡ የሠራተኛ ፊታ ምዝገባ፣ የተማሪ አቴንዳንስ፣ የወላጅ ማሳወቂያ፣ ምብራሪያ እና አፅደቃ — ሁሉም በቅጽበት።",
         s4_step_1_t: "1. ምዝገባ", s4_step_1_d: "ሬጅስትራሩ ዳዊት የተባለ ተማሪን በ8ኛ ክፍል ይመዘግባል፤ የወላጅ ስልክ ተገናኝቶ አካውንት ይዘጋጃል።",
-        s4_step_2_t: "2. የጠዋት አቴንዳንስ", s4_step_2_d: "መምህሩ ጠዋት 8:20 ላይ ዳዊትን 'ቀርቷል' ሲል ወላጁ ስልክ ላይ ወዲያው የማንቂያ መልዕክት ይጮኻል።",
-        s4_step_3_t: "3. የወላጅ ማብራሪያ", s4_step_3_d: "እናት በቻት 'ዳዊት የጥርስ ህክምና ሄዷል' ትላለች፤ መምህሩ የማስተካከያ ጥያቄ ለአመራሩ ያቀርባል።",
-        s4_step_4_t: "4. የአመራሩ ማፅደቅ", s4_step_4_d: "አመራሩ አይቶ ወደ 'በፈቃድ' ይቀይረዋል፤ ሪፖርቶችና ዳታቤዙ ወዲያውኑ ይስተካከላሉ።",
+        s4_step_0_t: "2. የሠራተኛ ፊታ ምዝገባ", s4_step_0_d: "መምህሩ ፖርታሉን ይከፍታል፣ GPS ግቢ ውስጥ ማረጋጊያ ካለፈ በኋላ TensorFlow.js 0.5 ሰ. ውስጥ ፊቱን አውቆ — የጠዋት ክፍለ-ጊዜ 'ሰዓቱ ጠብቆ' ሆኖ ተመዘገበ።",
+        s4_step_2_t: "3. የጠዋት አቴንዳንስ", s4_step_2_d: "መምህሩ ጠዋት 8:20 ላይ ዳዊትን 'ቀርቷል' ሲል ወላጁ ስልክ ላይ ወዲያው የማንቂያ መልዕክት ይጮኻል።",
+        s4_step_3_t: "4. የወላጅ ማብራሪያ", s4_step_3_d: "እናት በቻት 'ዳዊት የጥርስ ህክምና ሄዷል' ትላለች፤ መምህሩ የማስተካከያ ጥያቄ ለአመራሩ ያቀርባል።",
+        s4_step_4_t: "5. የአመራሩ ማፅደቅ", s4_step_4_d: "አመራሩ አይቶ ወደ 'በፈቃድ' ይቀይረዋል፤ ሪፖርቶችና ዳታቤዙ ወዲያውኑ ይስተካከላሉ።",
 
         // Slide 5: Android
         s5_badge: "ክፍል 4 · የአንድሮይድ ቴክኖሎጂ",
