@@ -682,7 +682,73 @@ export function StaffAttendance() {
               <CardDescription>Your check-in and check-out records for the past 30 days.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="max-h-[380px] overflow-y-auto">
+              {/* Mobile Card List View (< sm screens) */}
+              <div className="sm:hidden divide-y divide-border/50 max-h-[380px] overflow-y-auto">
+                {myHistory.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    No attendance history found.
+                  </div>
+                ) : (
+                  myHistory.map((rec) => (
+                    <div key={rec.id} className="p-3.5 space-y-2 hover:bg-muted/20 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-foreground">
+                          {formatDate(rec.date?.split("T")[0])}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isSessionMode && (
+                            <Badge variant="outline" className="text-[10px] font-bold uppercase py-0 px-1.5">
+                              {rec.session || "daily"}
+                            </Badge>
+                          )}
+                          <Badge
+                            className={`text-[10px] font-bold py-0 px-2 uppercase ${
+                              rec.status === "PRESENT"
+                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                : rec.status === "LATE"
+                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                            }`}
+                          >
+                            {rec.status}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-muted/40">
+                          <span className="text-[10px] text-muted-foreground block font-medium">Check-In</span>
+                          <span className="font-semibold text-foreground">
+                            {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-muted/40">
+                          <span className="text-[10px] text-muted-foreground block font-medium">Check-Out</span>
+                          <span className="font-semibold text-foreground">
+                            {rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-0.5">
+                        {rec.faceVerified && (
+                          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Face Verified
+                          </span>
+                        )}
+                        {rec.geofenceVerified && (
+                          <span className="flex items-center gap-1 text-primary">
+                            <MapPin className="w-3.5 h-3.5" /> GPS Verified
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table View (>= sm screens) */}
+              <div className="hidden sm:block max-h-[380px] overflow-y-auto">
                 <Table>
                   <TableHeader className="bg-muted/40 sticky top-0 backdrop-blur-sm">
                     <TableRow>
@@ -767,7 +833,7 @@ export function StaffAttendance() {
 
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-48 sm:w-64">
+                <div className="relative w-full sm:w-64">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Filter staff..."
@@ -803,7 +869,82 @@ export function StaffAttendance() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            {/* Mobile Card View for Roster (< md screens) */}
+            <div className="md:hidden divide-y divide-border/50 max-h-[500px] overflow-y-auto">
+              {isLoading ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                  Loading staff records...
+                </div>
+              ) : filteredAllStaff.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-xs">
+                  No staff attendance records for this date.
+                </div>
+              ) : (
+                filteredAllStaff.map((rec) => (
+                  <div key={rec.id} className="p-3.5 space-y-2.5 hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="w-8 h-8 border shrink-0">
+                          <AvatarImage src={rec.user?.profile_photo || ""} />
+                          <AvatarFallback className="text-[11px] font-bold bg-primary/10 text-primary">
+                            {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-xs text-foreground truncate">{rec.user?.full_name || "Unknown Staff"}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{rec.user?.role?.replace("_", " ") || "Staff"}</p>
+                        </div>
+                      </div>
+                      <Badge
+                        className={`text-[10px] font-bold py-0 px-2 uppercase shrink-0 ${
+                          rec.status === "PRESENT"
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : rec.status === "LATE"
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                            : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                        }`}
+                      >
+                        {rec.status}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2 rounded-lg bg-muted/40">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Check-In</span>
+                        <span className="font-semibold text-foreground">
+                          {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-muted/40">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Check-Out</span>
+                        <span className="font-semibold text-foreground">
+                          {rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-0.5">
+                      {rec.faceVerified ? (
+                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px]">No Face ID</span>
+                      )}
+                      {rec.geofenceVerified && (
+                        <span className="flex items-center gap-1 text-primary">
+                          <MapPin className="w-3.5 h-3.5" /> GPS Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table View (>= md screens) */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>

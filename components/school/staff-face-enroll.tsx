@@ -178,7 +178,7 @@ export function StaffFaceEnrollModal({
                     Enroll Face: {selectedStaff.full_name}
                   </DialogTitle>
                   <DialogDescription className="text-xs">
-                    Look directly at the camera to register biometric face landmarks. No photo is stored.
+                    Select front or back camera and tap Start. Biometric landmarks are captured automatically once aligned.
                   </DialogDescription>
                 </div>
               </div>
