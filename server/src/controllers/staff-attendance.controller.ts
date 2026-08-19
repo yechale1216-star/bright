@@ -236,3 +236,24 @@ export const setLeave = async (req: AuthenticatedRequest, res: Response, next: N
   }
 };
 
+export const processAbsences = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) {
+      return res.status(401).json({ success: false, message: 'School context required' });
+    }
+
+    const { date, session, force } = req.body || {};
+    const result = await staffAttendanceService.processAutomaticStaffAbsences({
+      schoolId,
+      date,
+      session,
+      force: !!force,
+    });
+    res.status(200).json({ success: true, data: result, message: 'Staff automatic absence evaluation completed.' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to process automatic absences' });
+  }
+};
+
+

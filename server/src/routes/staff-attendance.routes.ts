@@ -36,7 +36,9 @@ router.get('/report', authorize(['admin', 'school_admin']), staffAttendanceContr
 router.get('/', authorize(['admin', 'school_admin']), staffAttendanceController.getStaffAttendance);
 router.post('/face-enroll', authorize(['admin', 'school_admin']), staffAttendanceController.enrollFace);
 router.post('/mark-absent', authorize(['admin', 'school_admin']), staffAttendanceController.markAbsent);
+router.post('/process-absences', authorize(['admin', 'school_admin']), staffAttendanceController.processAbsences);
 router.post('/leave', authorize(['admin', 'school_admin']), staffAttendanceController.setLeave);
 router.patch('/:id', authorize(['admin', 'school_admin']), staffAttendanceController.correctRecord);
 
 export default router;
+

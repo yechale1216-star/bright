@@ -50,12 +50,14 @@ interface StaffSession {
   endTime: string
   lateGraceMinutes: number
   earlyDepartureToleranceMinutes: number
+  absenceCutoffMinutes?: number
+  absenceCutoffTime?: string
   isActive: boolean
 }
 
 const DEFAULT_SESSIONS: StaffSession[] = [
-  { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
-  { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+  { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true },
+  { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true },
 ]
 
 function parseSessionsFromSettings(raw: any): StaffSession[] {
@@ -107,7 +109,7 @@ export function StaffScheduleSettingsTab({
   const [sessionModalOpen, setSessionModalOpen] = useState(false)
   const [editingSession, setEditingSession] = useState<StaffSession | null>(null)
   const [sessionForm, setSessionForm] = useState<Omit<StaffSession, "id">>({
-    name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true
+    name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true
   })
 
   // Sync sessions state when settings change
@@ -122,13 +124,13 @@ export function StaffScheduleSettingsTab({
 
   const handleOpenAddSession = () => {
     setEditingSession(null)
-    setSessionForm({ name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true })
+    setSessionForm({ name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true })
     setSessionModalOpen(true)
   }
 
   const handleOpenEditSession = (s: StaffSession) => {
     setEditingSession(s)
-    setSessionForm({ name: s.name, startTime: s.startTime, endTime: s.endTime, lateGraceMinutes: s.lateGraceMinutes, earlyDepartureToleranceMinutes: s.earlyDepartureToleranceMinutes, isActive: s.isActive })
+    setSessionForm({ name: s.name, startTime: s.startTime, endTime: s.endTime, lateGraceMinutes: s.lateGraceMinutes, earlyDepartureToleranceMinutes: s.earlyDepartureToleranceMinutes, absenceCutoffMinutes: s.absenceCutoffMinutes ?? 90, absenceCutoffTime: s.absenceCutoffTime, isActive: s.isActive })
     setSessionModalOpen(true)
   }
 
@@ -237,6 +239,17 @@ export function StaffScheduleSettingsTab({
     let total = h * 60 + m - tol
     if (total < 0) total = 0
     const newH = Math.floor(total / 60)
+    const newM = total % 60
+    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
+  }
+
+  const computeAbsenceCutoff = () => {
+    if (settings.staffAbsenceCutoffTime) return settings.staffAbsenceCutoffTime
+    const start = settings.staffWorkStartTime || "08:00"
+    const mins = parseInt(settings.staffAbsenceCutoffMinutes ?? "120", 10) || 120
+    const [h, m] = start.split(":").map(Number)
+    let total = h * 60 + m + mins
+    const newH = Math.floor(total / 60) % 24
     const newM = total % 60
     return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
   }
@@ -618,7 +631,39 @@ export function StaffScheduleSettingsTab({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+            <div>
+              <Label htmlFor="staffAbsenceCutoffTime" className="text-xs font-semibold">
+                Absence Cutoff Time
+              </Label>
+              <Input
+                id="staffAbsenceCutoffTime"
+                type="time"
+                value={settings.staffAbsenceCutoffTime || "10:00"}
+                onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffTime: e.target.value })}
+                className="mt-1 font-mono"
+              />
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
+                Auto-marked Absent after {computeAbsenceCutoff()}
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="staffAbsenceCutoffMinutes" className="text-xs font-semibold">
+                Absence Cutoff (Minutes from Start)
+              </Label>
+              <Input
+                id="staffAbsenceCutoffMinutes"
+                type="number"
+                min="30"
+                max="360"
+                value={settings.staffAbsenceCutoffMinutes ?? 120}
+                onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffMinutes: e.target.value })}
+                className="mt-1 font-mono"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+            </div>
+
             <div>
               <Label htmlFor="staffEarliestCheckinTime" className="text-xs font-semibold">
                 Earliest Allowed Check-in
@@ -646,6 +691,35 @@ export function StaffScheduleSettingsTab({
               />
               <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
             </div>
+          </div>
+
+          {/* Attendance Lifecycle Explanation Banner */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/5 via-sky-500/5 to-emerald-500/5 border border-indigo-500/20 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+              <Clock className="w-4 h-4 text-indigo-500" />
+              <span>Daily Attendance Automatic Lifecycle Timeline:</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+              <div className="p-2 rounded-xl bg-slate-500/10 border border-slate-500/20">
+                <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
+                <span className="opacity-80">Before {settings.staffWorkStartTime || "08:00"}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
+                <span className="opacity-80">{settings.staffWorkStartTime || "08:00"} – {computeLateCutoff()}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                <span className="opacity-80">{computeLateCutoff()} – {computeAbsenceCutoff()}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
+                <span className="opacity-80">After {computeAbsenceCutoff()} (Unrecorded)</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">
+              * Staff with approved Leave or Permission are never automatically marked Absent. Holidays & non-working days are strictly excluded.
+            </p>
           </div>
 
           <Separator />
@@ -980,6 +1054,21 @@ export function StaffScheduleSettingsTab({
                   Early before {(() => { const [h,m] = sessionForm.endTime.split(":").map(Number); const t = Math.max(0, h*60+m-sessionForm.earlyDepartureToleranceMinutes); return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
                 </p>
               </div>
+            </div>
+            <div>
+              <Label htmlFor="sessionAbsenceCutoff" className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
+              <Input
+                id="sessionAbsenceCutoff"
+                type="number"
+                min={15}
+                max={240}
+                value={sessionForm.absenceCutoffMinutes ?? 90}
+                onChange={(e) => setSessionForm({ ...sessionForm, absenceCutoffMinutes: parseInt(e.target.value) || 90 })}
+                className="mt-1 font-mono"
+              />
+              <p className="text-[11px] text-rose-600 mt-1">
+                Auto-marked Absent after {(() => { const [h,m] = sessionForm.startTime.split(":").map(Number); const t = h*60+m+(sessionForm.absenceCutoffMinutes ?? 90); return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
+              </p>
             </div>
             <div className="flex items-center justify-between pt-1">
               <Label htmlFor="sessionActive" className="text-xs font-semibold">Active</Label>

@@ -451,6 +451,31 @@ export default function AdminStaffAttendanceDashboard() {
     }
   }
 
+  const [isProcessingAbsences, setIsProcessingAbsences] = useState(false)
+
+  const handleProcessAbsencesNow = async () => {
+    setIsProcessingAbsences(true)
+    try {
+      const sess = sessionFilter !== "all" ? sessionFilter : undefined
+      const res = await db.processStaffAbsences({
+        date: selectedDate,
+        session: sess,
+        force: false,
+      })
+      if (res.markedAbsent > 0) {
+        notifications.success("Absences Processed", `Marked ${res.markedAbsent} staff members as Absent.`)
+      } else {
+        notifications.info("Absence Evaluation", `No new absences to mark. (Evaluated ${res.totalEligibleStaff || 0} staff)`)
+      }
+      fetchData()
+      fetchStats()
+    } catch (err: any) {
+      notifications.error("Processing Failed", err.message || "Failed to process automatic absences.")
+    } finally {
+      setIsProcessingAbsences(false)
+    }
+  }
+
   // Export to CSV
   const handleExportCSV = () => {
     if (!records.length) {
@@ -466,6 +491,7 @@ export default function AdminStaffAttendanceDashboard() {
       "Session",
       "Check-In Time",
       "Check-In Status",
+      "Lateness (Minutes)",
       "Check-Out Time",
       "Check-Out Status",
       "Geofence Verified",
@@ -491,6 +517,7 @@ export default function AdminStaffAttendanceDashboard() {
         `"${r.session || "daily"}"`,
         `"${display.checkIn.timeStr !== "—" ? display.checkIn.timeStr : ""}"`,
         `"${display.checkIn.titleLabel}"`,
+        display.latenessMinutes ? display.latenessMinutes : "",
         `"${display.checkOut.timeStr !== "—" ? display.checkOut.timeStr : ""}"`,
         `"${display.checkOut.titleLabel}"`,
         r.geofenceVerified ? "YES" : "NO",
@@ -559,6 +586,16 @@ export default function AdminStaffAttendanceDashboard() {
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncingOffline ? "animate-spin" : ""}`} />
             </Button>
           )}
+
+          <Button
+            onClick={handleProcessAbsencesNow}
+            disabled={isProcessingAbsences}
+            variant="outline"
+            className="h-10 px-4 rounded-xl gap-2 text-xs font-bold border-rose-500/30 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10"
+          >
+            <Clock className={`w-4 h-4 ${isProcessingAbsences ? "animate-spin" : ""}`} />
+            {isProcessingAbsences ? "Evaluating..." : "Process Absences"}
+          </Button>
 
           <Button
             onClick={() => setIsLeaveModalOpen(true)}
@@ -743,7 +780,7 @@ export default function AdminStaffAttendanceDashboard() {
           <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Approved Leave</p>
         </motion.div>
 
-        {/* Unchecked Staff */}
+        {/* Unchecked / Pending Staff */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -751,15 +788,17 @@ export default function AdminStaffAttendanceDashboard() {
           className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-4 shadow-lg shadow-slate-900/5"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="p-1.5 rounded-lg bg-slate-500/10 text-slate-600 dark:text-slate-400">
+            <span className="p-1.5 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
               <Clock className="w-4 h-4" />
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pending</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">Pending</span>
           </div>
           <p className="text-2xl font-black text-slate-700 dark:text-slate-300 tracking-tight">
-            {statsLoading ? "..." : stats?.notCheckedIn ?? 0}
+            {statsLoading ? "..." : (stats?.pendingCheckIn || stats?.notStarted || stats?.notCheckedIn || 0)}
           </p>
-          <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Not Checked In</p>
+          <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+            {stats?.notStarted ? "Not Started" : stats?.absenceCutoffTime ? `Cutoff: ${stats.absenceCutoffTime}` : "Pending Check-In"}
+          </p>
         </motion.div>
       </div>
 

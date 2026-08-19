@@ -36,10 +36,25 @@ async function start() {
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
   });
+
+  // 5. Periodic Automatic Absence Processing (Every 5 minutes)
+  const ABSENCE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      const { processAutomaticStaffAbsences } = await import('./services/staff-attendance.service');
+      const result = await processAutomaticStaffAbsences();
+      if (result.markedAbsent > 0) {
+        console.log(`[AutoAbsenceWorker] Processed absences: marked ${result.markedAbsent} staff as absent.`);
+      }
+    } catch (err) {
+      console.warn('[AutoAbsenceWorker] Error in background absence processing:', err);
+    }
+  }, ABSENCE_CHECK_INTERVAL_MS);
 }
 
 start().catch((err) => {
   console.error('[startup] Fatal error:', err);
   process.exit(1);
 });
+
 

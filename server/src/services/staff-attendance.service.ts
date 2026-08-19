@@ -53,6 +53,7 @@ export function computeWorkingScheduleThresholds(settings?: any): {
   expectedEndTime: string;
   earlyDepartureCutoffTime: string;
   latestCheckOut: string;
+  absenceCutoffTime: string;
   workingDays: string[];
 } {
   const earliestCheckIn = settings?.staff_earliest_checkin_time || settings?.staff_checkin_start || '06:00';
@@ -65,6 +66,10 @@ export function computeWorkingScheduleThresholds(settings?: any): {
   const earlyDepartureCutoffTime = settings?.staff_checkout_early || addMinutesToTime(expectedEndTime, -earlyTolerance);
   const latestCheckOut = settings?.staff_latest_checkout_time || '20:00';
 
+  // Absence cutoff: configured time, or start time + cutoff minutes (default 120 mins)
+  const absenceCutoffMinutes = settings?.staff_absence_cutoff_minutes ?? settings?.staffAbsenceCutoffMinutes ?? 120;
+  const absenceCutoffTime = settings?.staff_absence_cutoff_time || settings?.staffAbsenceCutoffTime || addMinutesToTime(expectedStartTime, absenceCutoffMinutes);
+
   const workingDaysStr = settings?.staff_working_days || 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY';
   const workingDays = workingDaysStr.split(',').map((d: string) => d.trim().toUpperCase()).filter(Boolean);
 
@@ -75,6 +80,7 @@ export function computeWorkingScheduleThresholds(settings?: any): {
     expectedEndTime,
     earlyDepartureCutoffTime,
     latestCheckOut,
+    absenceCutoffTime,
     workingDays,
   };
 }
@@ -88,12 +94,14 @@ export interface StaffSession {
   endTime: string;     // HH:MM
   lateGraceMinutes: number;
   earlyDepartureToleranceMinutes: number;
+  absenceCutoffMinutes?: number;
+  absenceCutoffTime?: string;
   isActive: boolean;
 }
 
 const DEFAULT_STAFF_SESSIONS: StaffSession[] = [
-  { id: 'morning', name: 'Morning', startTime: '08:00', endTime: '12:30', lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
-  { id: 'afternoon', name: 'Afternoon', startTime: '13:30', endTime: '17:00', lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+  { id: 'morning', name: 'Morning', startTime: '08:00', endTime: '12:30', lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true },
+  { id: 'afternoon', name: 'Afternoon', startTime: '13:30', endTime: '17:00', lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true },
 ];
 
 /**
@@ -128,12 +136,18 @@ export function computeSessionThresholds(session: StaffSession): {
   lateCutoffTime: string;
   expectedEndTime: string;
   earlyDepartureCutoffTime: string;
+  absenceCutoffTime: string;
 } {
+  const lateCutoffTime = addMinutesToTime(session.startTime, session.lateGraceMinutes ?? 15);
+  const absenceMinutes = session.absenceCutoffMinutes ?? ((session.lateGraceMinutes ?? 15) + 60);
+  const absenceCutoffTime = session.absenceCutoffTime || addMinutesToTime(session.startTime, absenceMinutes);
+
   return {
     expectedStartTime: session.startTime,
-    lateCutoffTime: addMinutesToTime(session.startTime, session.lateGraceMinutes),
+    lateCutoffTime,
     expectedEndTime: session.endTime,
-    earlyDepartureCutoffTime: addMinutesToTime(session.endTime, -session.earlyDepartureToleranceMinutes),
+    earlyDepartureCutoffTime: addMinutesToTime(session.endTime, -(session.earlyDepartureToleranceMinutes ?? 10)),
+    absenceCutoffTime,
   };
 }
 
@@ -462,6 +476,19 @@ export async function getStaffAttendance(schoolId: string, filters: {
   geofenceVerified?: string | boolean;
   faceVerified?: string | boolean;
 }) {
+  // If querying for a specific date (or today), evaluate any elapsed absence cutoffs first
+  if (filters.date) {
+    try {
+      await processAutomaticStaffAbsences({
+        schoolId,
+        date: filters.date,
+        session: filters.session,
+      });
+    } catch (autoErr) {
+      console.warn('[StaffAttendance] Auto absence check failed during getStaffAttendance:', autoErr);
+    }
+  }
+
   const where: any = { schoolId };
 
   if (filters.userId) {
@@ -540,6 +567,17 @@ export async function getStaffAttendance(schoolId: string, filters: {
 export async function getStaffAttendanceStats(schoolId: string, date?: string, session?: string) {
   const { dateStr, startDate, endDate } = normalizeStaffDate(date);
 
+  // If querying for a specific date (or today), evaluate any elapsed absence cutoffs first
+  try {
+    await processAutomaticStaffAbsences({
+      schoolId,
+      date: dateStr,
+      session,
+    });
+  } catch (autoErr) {
+    console.warn('[StaffAttendance] Auto absence check failed during getStaffAttendanceStats:', autoErr);
+  }
+
   // Fetch settings once, pass cache to both helpers
   const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
   const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
@@ -589,9 +627,50 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
     if (r.geofenceVerified) geoVerifiedCount++;
   }
 
+  // Current time in Africa/Addis_Ababa
+  const now = new Date();
+  const currentTimeHHMM = now.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Addis_Ababa',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const isToday = dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' });
+
+  // Compute cutoff threshold for stats overview
+  const scheduleThresholds = computeWorkingScheduleThresholds(settings);
+  let activeAbsenceCutoff = scheduleThresholds.absenceCutoffTime;
+  let activeStartTime = scheduleThresholds.expectedStartTime;
+
+  if (attendanceMode === 'session_based') {
+    const sessions = getConfiguredSessions(settings);
+    const targetSession = session && session !== 'all' ? findSession(sessions, session) : sessions[0];
+    if (targetSession) {
+      const sessThresholds = computeSessionThresholds(targetSession);
+      activeAbsenceCutoff = sessThresholds.absenceCutoffTime;
+      activeStartTime = sessThresholds.expectedStartTime;
+    }
+  }
+
   // Unique staff who have any record for this date (avoid double-counting in session mode)
   const uniqueStaffIds = new Set(records.map((r: any) => r.userId));
   const notCheckedIn = Math.max(0, totalStaffCount - uniqueStaffIds.size);
+
+  // Lifecycle breakdown for unrecorded staff:
+  let notStarted = 0;
+  let pendingCheckIn = 0;
+
+  if (workingDayInfo.isWorkingDay) {
+    if (isToday) {
+      if (isTimeBefore(currentTimeHHMM, activeStartTime)) {
+        notStarted = notCheckedIn;
+      } else if (isTimeBefore(currentTimeHHMM, activeAbsenceCutoff)) {
+        pendingCheckIn = notCheckedIn;
+      } else {
+        // Cutoff passed -> unrecorded are marked absent by processAutomaticStaffAbsences
+      }
+    }
+  }
 
   // Session-breakdown for session_based mode
   let sessionBreakdown: Record<string, any> | undefined;
@@ -632,6 +711,11 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
     permissionCount: permission,
     checkedIn: checkedInCount,
     notCheckedIn,
+    notStarted,
+    pendingCheckIn,
+    absenceCutoffTime: activeAbsenceCutoff,
+    expectedStartTime: activeStartTime,
+    isCutoffPassed: !isToday || isTimeAfter(currentTimeHHMM, activeAbsenceCutoff),
     faceVerifiedCount,
     geoVerifiedCount,
     attendanceRate: totalStaffCount > 0 ? Math.round(((present + late + earlyDeparture) / totalStaffCount) * 100) : 0,
@@ -1074,5 +1158,195 @@ export async function getStaffAttendanceReport(
     staffSummary: Array.from(staffMap.values()),
     dailyBreakdown: Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date))
   };
+}
+
+/**
+ * Automatically evaluates and marks unrecorded staff as ABSENT after the configured absence cutoff time.
+ * Strictly respects:
+ * 1. Working days, weekends, and holidays (never marks absent on non-working days/holidays)
+ * 2. Approved leaves, permissions, and manual corrections (never overwrites approved leave/permission)
+ * 3. Session independence (morning/afternoon sessions evaluated separately)
+ * 4. Cutoff time lifecycle (before cutoff -> pending, only after cutoff -> absent)
+ * 5. Active staff eligibility (only active non-parent/student staff in school)
+ * 6. Idempotency (safe to run repeatedly, will not duplicate or corrupt records)
+ */
+export async function processAutomaticStaffAbsences(options?: {
+  schoolId?: string;
+  date?: string;
+  session?: string;
+  force?: boolean;
+}) {
+  const { dateStr, startDate, endDate } = normalizeStaffDate(options?.date);
+
+  const schoolQuery = options?.schoolId ? { id: options.schoolId } : {};
+  const schools = await prisma.school.findMany({
+    where: schoolQuery,
+    select: { id: true, name: true }
+  });
+
+  const now = new Date();
+  const currentTimeHHMM = now.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Addis_Ababa',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const isToday = dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' });
+
+  const summary = {
+    date: dateStr,
+    currentTime: currentTimeHHMM,
+    schoolsEvaluated: schools.length,
+    totalEligibleStaff: 0,
+    alreadyRecorded: 0,
+    markedAbsent: 0,
+    skippedNonWorking: 0,
+    skippedBeforeCutoff: 0,
+    details: [] as any[],
+  };
+
+  for (const school of schools) {
+    const settings = await prisma.schoolSettings.findUnique({ where: { schoolId: school.id } });
+    const workingDayInfo = await isDateWorkingDay(school.id, dateStr, settings);
+
+    // Rule: Never mark absences on non-working days or holidays
+    if (!workingDayInfo.isWorkingDay) {
+      summary.skippedNonWorking++;
+      summary.details.push({
+        schoolId: school.id,
+        schoolName: school.name,
+        status: 'SKIPPED_NON_WORKING_DAY',
+        reason: workingDayInfo.reason || (workingDayInfo.isHoliday ? `Holiday: ${workingDayInfo.holidayName}` : 'Non-working day')
+      });
+      continue;
+    }
+
+    const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+    const eligibleStaff = await prisma.user.findMany({
+      where: {
+        schoolId: school.id,
+        is_active: true,
+        role: { notIn: ['parent', 'student'] }
+      },
+      select: { id: true, full_name: true, role: true, email: true }
+    });
+
+    summary.totalEligibleStaff += eligibleStaff.length;
+    if (eligibleStaff.length === 0) continue;
+
+    // Determine sessions to process
+    let sessionsToProcess: Array<{ id: string; name: string; absenceCutoffTime: string; expectedStartTime: string }>;
+    if (attendanceMode === 'session_based') {
+      const allSessions = getConfiguredSessions(settings);
+      const filtered = options?.session && options.session !== 'all' && options.session !== 'ALL'
+        ? allSessions.filter(s => s.id.toLowerCase() === options.session!.toLowerCase())
+        : allSessions;
+
+      sessionsToProcess = filtered.map(s => {
+        const thresholds = computeSessionThresholds(s);
+        return {
+          id: s.id.toLowerCase(),
+          name: s.name,
+          absenceCutoffTime: thresholds.absenceCutoffTime,
+          expectedStartTime: thresholds.expectedStartTime,
+        };
+      });
+    } else {
+      const schedule = computeWorkingScheduleThresholds(settings);
+      sessionsToProcess = [{
+        id: 'daily',
+        name: 'Daily',
+        absenceCutoffTime: schedule.absenceCutoffTime,
+        expectedStartTime: schedule.expectedStartTime,
+      }];
+    }
+
+    for (const sessionConfig of sessionsToProcess) {
+      // Check if absence cutoff has passed (if date is today, check time; if date is in the past, cutoff has definitely passed)
+      const cutoffPassed = !isToday || isTimeAfter(currentTimeHHMM, sessionConfig.absenceCutoffTime) || currentTimeHHMM === sessionConfig.absenceCutoffTime;
+
+      if (!cutoffPassed && !options?.force) {
+        summary.skippedBeforeCutoff++;
+        summary.details.push({
+          schoolId: school.id,
+          session: sessionConfig.id,
+          status: 'PENDING_CUTOFF',
+          currentTime: currentTimeHHMM,
+          absenceCutoffTime: sessionConfig.absenceCutoffTime,
+          message: `Absence cutoff ${sessionConfig.absenceCutoffTime} has not elapsed yet.`
+        });
+        continue;
+      }
+
+      // Fetch existing records for this school, date, and session
+      const existingRecords = await prisma.staffAttendance.findMany({
+        where: {
+          schoolId: school.id,
+          date: { gte: startDate, lte: endDate },
+          session: sessionConfig.id,
+        }
+      });
+
+      const existingRecordMap = new Map<string, any>();
+      for (const rec of existingRecords) {
+        existingRecordMap.set(rec.userId, rec);
+      }
+
+      let schoolSessionMarked = 0;
+
+      for (const staff of eligibleStaff) {
+        const existing = existingRecordMap.get(staff.id);
+
+        if (existing) {
+          // If staff has checked in, or has approved leave/permission, or already absent -> preserve
+          if (existing.checkInTime || existing.status === 'LEAVE' || existing.status === 'PERMISSION' || existing.status === 'PRESENT' || existing.status === 'LATE' || existing.status === 'EARLY_DEPARTURE') {
+            summary.alreadyRecorded++;
+            continue;
+          }
+          if (existing.status === 'ABSENT') {
+            summary.alreadyRecorded++;
+            continue;
+          }
+
+          // Unrecorded placeholder -> update to ABSENT
+          await prisma.staffAttendance.update({
+            where: { id: existing.id },
+            data: {
+              status: 'ABSENT',
+              markedAbsentBy: 'SYSTEM_AUTO_CUTOFF',
+              remarks: existing.remarks ? `${existing.remarks} | Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})` : `Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})`
+            }
+          });
+          schoolSessionMarked++;
+          summary.markedAbsent++;
+        } else {
+          // No record exists -> create ABSENT record
+          await prisma.staffAttendance.create({
+            data: {
+              schoolId: school.id,
+              userId: staff.id,
+              date: startDate,
+              session: sessionConfig.id,
+              status: 'ABSENT',
+              markedAbsentBy: 'SYSTEM_AUTO_CUTOFF',
+              remarks: `Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})`
+            }
+          });
+          schoolSessionMarked++;
+          summary.markedAbsent++;
+        }
+      }
+
+      summary.details.push({
+        schoolId: school.id,
+        schoolName: school.name,
+        session: sessionConfig.id,
+        markedAbsent: schoolSessionMarked,
+        absenceCutoffTime: sessionConfig.absenceCutoffTime,
+      });
+    }
+  }
+
+  return summary;
 }
 

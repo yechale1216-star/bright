@@ -274,6 +274,8 @@ class Database extends BaseDatabase {
           staff_work_end_time: settingsData.staffWorkEndTime,
           staff_late_grace_minutes: settingsData.staffLateGraceMinutes != null ? Number(settingsData.staffLateGraceMinutes) : 15,
           staff_early_checkout_tolerance_minutes: settingsData.staffEarlyCheckoutToleranceMinutes != null ? Number(settingsData.staffEarlyCheckoutToleranceMinutes) : 15,
+          staff_absence_cutoff_minutes: settingsData.staffAbsenceCutoffMinutes != null ? Number(settingsData.staffAbsenceCutoffMinutes) : 120,
+          staff_absence_cutoff_time: settingsData.staffAbsenceCutoffTime,
           staff_earliest_checkin_time: settingsData.staffEarliestCheckinTime,
           staff_latest_checkout_time: settingsData.staffLatestCheckoutTime,
           staff_face_required: settingsData.staffFaceRequired,
@@ -311,6 +313,8 @@ class Database extends BaseDatabase {
       staffWorkEndTime: (s?.staff_work_end_time) || settingsData.staffWorkEndTime || "17:00",
       staffLateGraceMinutes: s ? (s.staff_late_grace_minutes ?? settingsData.staffLateGraceMinutes) : (settingsData.staffLateGraceMinutes ?? 15),
       staffEarlyCheckoutToleranceMinutes: s ? (s.staff_early_checkout_tolerance_minutes ?? settingsData.staffEarlyCheckoutToleranceMinutes) : (settingsData.staffEarlyCheckoutToleranceMinutes ?? 15),
+      staffAbsenceCutoffMinutes: s ? (s.staff_absence_cutoff_minutes ?? settingsData.staffAbsenceCutoffMinutes) : (settingsData.staffAbsenceCutoffMinutes ?? 120),
+      staffAbsenceCutoffTime: (s?.staff_absence_cutoff_time) || settingsData.staffAbsenceCutoffTime || "10:00",
       staffEarliestCheckinTime: (s?.staff_earliest_checkin_time) || settingsData.staffEarliestCheckinTime || "06:00",
       staffLatestCheckoutTime: (s?.staff_latest_checkout_time) || settingsData.staffLatestCheckoutTime || "20:00",
       staffFaceRequired: s ? (s.staff_face_required ?? settingsData.staffFaceRequired) : (settingsData.staffFaceRequired ?? true),
@@ -919,6 +923,21 @@ class Database extends BaseDatabase {
         method: "POST",
         headers: this.getApiHeaders(),
         body: JSON.stringify({ userIds, date, remarks }),
+      }
+    )
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+    return result.data
+  }
+
+  async processStaffAbsences(options?: { date?: string; session?: string; force?: boolean }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/process-absences`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(options || {}),
       }
     )
     if (typeof window !== "undefined") {

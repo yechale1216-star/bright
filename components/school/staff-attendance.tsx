@@ -46,6 +46,7 @@ import {
   getStaffAttendanceDisplay,
   getStaffCheckInStatus,
   getStaffCheckOutStatus,
+  addMinutesToHHMM,
 } from "@/lib/utils/staff-attendance-status"
 
 type VerificationStep =
@@ -563,30 +564,47 @@ export function StaffAttendance() {
               )}
 
               {/* Working Hours Info Box */}
-              <div className="text-[11px] text-muted-foreground bg-muted/30 p-2.5 rounded-xl border flex items-center justify-between">
+              <div className="text-[11px] text-muted-foreground bg-muted/30 p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                 {isSessionMode ? (
                   (() => {
                     const currentSess = staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+                    const cutoff = currentSess?.absenceCutoffTime || (currentSess ? addMinutesToHHMM(currentSess.startTime, currentSess.absenceCutoffMinutes ?? 90) : "09:30")
                     return (
                       <>
                         <span className="flex items-center gap-1.5 font-medium">
                           <Clock className="w-3.5 h-3.5 text-primary" /> {currentSess?.name}: {currentSess?.startTime} - {currentSess?.endTime}
                         </span>
-                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          Grace: +{currentSess?.lateGraceMinutes ?? 15}m
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Grace: +{currentSess?.lateGraceMinutes ?? 15}m
+                          </span>
+                          <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                            Cutoff: {cutoff}
+                          </span>
+                        </div>
                       </>
                     )
                   })()
                 ) : (
-                  <>
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {settings?.staffWorkStartTime || "08:00"} - {settings?.staffWorkEndTime || "17:00"}
-                    </span>
-                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                      Grace: +{settings?.staffLateGraceMinutes ?? 15}m
-                    </span>
-                  </>
+                  (() => {
+                    const startTime = settings?.staffWorkStartTime || "08:00"
+                    const cutoff = settings?.staffAbsenceCutoffTime || addMinutesToHHMM(startTime, settings?.staffAbsenceCutoffMinutes ?? 120)
+                    return (
+                      <>
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {startTime} - {settings?.staffWorkEndTime || "17:00"}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Grace: +{settings?.staffLateGraceMinutes ?? 15}m
+                          </span>
+                          <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                            Cutoff: {cutoff}
+                          </span>
+                        </div>
+                      </>
+                    )
+                  })()
                 )}
               </div>
 
@@ -627,7 +645,7 @@ export function StaffAttendance() {
                           <Badge
                             className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${display.checkIn.badgeColor}`}
                           >
-                            {display.checkIn.label}
+                            {display.checkIn.titleLabel}
                           </Badge>
                         </div>
                       </div>
@@ -746,7 +764,7 @@ export function StaffAttendance() {
                             <Badge
                               className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkIn.badgeColor}`}
                             >
-                              {display.checkIn.label}
+                              {display.checkIn.titleLabel}
                             </Badge>
                           </div>
 
@@ -759,7 +777,7 @@ export function StaffAttendance() {
                             <Badge
                               className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkOut.badgeColor}`}
                             >
-                              {display.checkOut.label}
+                              {display.checkOut.titleLabel}
                             </Badge>
                           </div>
                         </div>

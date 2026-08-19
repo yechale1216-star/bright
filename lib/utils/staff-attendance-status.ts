@@ -4,12 +4,14 @@
  */
 
 export interface StaffStatusDisplay {
-  status: string // "LATE" | "PRESENT" | "ON_TIME" | "EARLY_LEAVE" | "NOT_CHECKED_IN" | "NOT_CHECKED_OUT" | "ABSENT" | "LEAVE" | "PERMISSION"
-  label: string // e.g. "LATE", "ON TIME", "EARLY LEAVE", "NOT CHECKED IN", "NOT CHECKED OUT"
-  titleLabel: string // e.g. "Late", "On Time", "Early Leave", "Not Checked In", "Not Checked Out"
+  status: string // "NOT_STARTED" | "PENDING" | "LATE" | "PRESENT" | "ON_TIME" | "EARLY_LEAVE" | "NOT_CHECKED_IN" | "NOT_CHECKED_OUT" | "ABSENT" | "LEAVE" | "PERMISSION"
+  label: string // e.g. "NOT STARTED", "PENDING CHECK-IN", "LATE", "ON TIME", "EARLY LEAVE", "ABSENT", "ON LEAVE"
+  titleLabel: string // e.g. "Not Started", "Pending Check-In", "Late (15 min)", "On Time", "Absent", "On Leave"
   timeStr: string // e.g. "11:09" or "—"
   fullDateTimeStr?: string
   hasTime: boolean
+  latenessMinutes?: number
+  latenessFormatted?: string
   badgeColor: string
   badgeBg: string
   badgeText: string
@@ -24,6 +26,8 @@ export interface StaffAttendanceDisplay {
   isComplete: boolean
   faceVerified: boolean
   geofenceVerified: boolean
+  latenessMinutes?: number
+  latenessFormatted?: string
 }
 
 /**
@@ -38,6 +42,16 @@ export function addMinutesToHHMM(timeHHMM: string, minutes: number): string {
   const newH = Math.floor(totalMin / 60)
   const newM = totalMin % 60
   return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
+}
+
+/**
+ * Calculate difference in minutes between two "HH:MM" times (timeA - timeB).
+ */
+export function getMinutesDiff(timeA: string, timeB: string): number {
+  if (!timeA || !timeB || !timeA.includes(":") || !timeB.includes(":")) return 0
+  const [hA, mA] = timeA.split(":").map(Number)
+  const [hB, mB] = timeB.split(":").map(Number)
+  return (hA * 60 + mA) - (hB * 60 + mB)
 }
 
 /**
@@ -128,6 +142,8 @@ function formatFullDateTimeET(dateInput?: string | Date | null): string | undefi
 
 /**
  * Derives Check-In status details from record & schedule settings.
+ * Strictly adheres to the lifecycle:
+ * Not Started → Pending Check-In → Present / Late → Absent (with Leave exceptions)
  */
 export function getStaffCheckInStatus(
   record?: any,
@@ -138,22 +154,31 @@ export function getStaffCheckInStatus(
   const checkInTimeStr = hasCheckIn ? formatAttendanceTime(record.checkInTime) : "—"
   const rawStatus = (record?.status || "").toUpperCase()
 
-  // 1. Not checked in yet
+  // 1. Resolve schedule threshold parameters
+  const expectedStartTime = sessionConfig?.startTime || settings?.staffWorkStartTime || settings?.staff_work_start_time || "08:00"
+  const graceMinutes = sessionConfig?.lateGraceMinutes ?? settings?.staffLateGraceMinutes ?? settings?.staff_late_grace_minutes ?? 15
+  const lateCutoff = sessionConfig?.startTime
+    ? addMinutesToHHMM(sessionConfig.startTime, graceMinutes)
+    : settings?.staffCheckinLate || settings?.staff_checkin_late || addMinutesToHHMM(expectedStartTime, graceMinutes)
+
+  const absenceCutoffMinutes = sessionConfig?.absenceCutoffMinutes ?? settings?.staffAbsenceCutoffMinutes ?? settings?.staff_absence_cutoff_minutes ?? 120
+  const absenceCutoff = sessionConfig?.absenceCutoffTime || settings?.staffAbsenceCutoffTime || settings?.staff_absence_cutoff_time || addMinutesToHHMM(expectedStartTime, absenceCutoffMinutes)
+
+  // Current time in Africa/Addis_Ababa
+  const now = new Date()
+  const currentTimeHHMM = now.toLocaleTimeString("en-US", {
+    timeZone: "Africa/Addis_Ababa",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit"
+  })
+
+  const todayStr = now.toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
+  const recordDateStr = record?.date ? record.date.split("T")[0] : todayStr
+  const isToday = recordDateStr === todayStr
+
+  // 2. Not checked in yet
   if (!hasCheckIn) {
-    if (rawStatus === "ABSENT") {
-      return {
-        status: "ABSENT",
-        label: "ABSENT",
-        titleLabel: "Absent",
-        timeStr: "—",
-        hasTime: false,
-        badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
-        badgeBg: "bg-rose-500/15",
-        badgeText: "text-rose-700 dark:text-rose-300",
-        badgeBorder: "border-rose-500/30",
-        dotColor: "bg-rose-500",
-      }
-    }
     if (rawStatus === "LEAVE") {
       return {
         status: "LEAVE",
@@ -182,49 +207,108 @@ export function getStaffCheckInStatus(
         dotColor: "bg-purple-500",
       }
     }
+    if (rawStatus === "ABSENT") {
+      return {
+        status: "ABSENT",
+        label: "ABSENT",
+        titleLabel: "Absent",
+        timeStr: "—",
+        hasTime: false,
+        badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+        badgeBg: "bg-rose-500/15",
+        badgeText: "text-rose-700 dark:text-rose-300",
+        badgeBorder: "border-rose-500/30",
+        dotColor: "bg-rose-500",
+      }
+    }
+
+    // Lifecycle check when unrecorded:
+    if (isToday) {
+      if (isHHMMBefore(currentTimeHHMM, expectedStartTime)) {
+        return {
+          status: "NOT_STARTED",
+          label: "NOT STARTED",
+          titleLabel: "Not Started",
+          timeStr: "—",
+          hasTime: false,
+          badgeColor: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+          badgeBg: "bg-slate-500/10",
+          badgeText: "text-slate-600 dark:text-slate-400",
+          badgeBorder: "border-slate-500/20",
+          dotColor: "bg-slate-400",
+        }
+      }
+
+      if (isHHMMBefore(currentTimeHHMM, absenceCutoff)) {
+        return {
+          status: "PENDING",
+          label: "PENDING CHECK-IN",
+          titleLabel: "Pending Check-In",
+          timeStr: "—",
+          hasTime: false,
+          badgeColor: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
+          badgeBg: "bg-sky-500/15",
+          badgeText: "text-sky-700 dark:text-sky-300",
+          badgeBorder: "border-sky-500/30",
+          dotColor: "bg-sky-500",
+        }
+      }
+
+      // Cutoff has passed on today without check-in
+      return {
+        status: "ABSENT",
+        label: "ABSENT",
+        titleLabel: "Absent",
+        timeStr: "—",
+        hasTime: false,
+        badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+        badgeBg: "bg-rose-500/15",
+        badgeText: "text-rose-700 dark:text-rose-300",
+        badgeBorder: "border-rose-500/30",
+        dotColor: "bg-rose-500",
+      }
+    }
+
+    // Past date with no check-in -> Absent
     return {
-      status: "NOT_CHECKED_IN",
-      label: "NOT CHECKED IN",
-      titleLabel: "Not Checked In",
+      status: "ABSENT",
+      label: "ABSENT",
+      titleLabel: "Absent",
       timeStr: "—",
       hasTime: false,
-      badgeColor: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
-      badgeBg: "bg-slate-500/10",
-      badgeText: "text-slate-600 dark:text-slate-400",
-      badgeBorder: "border-slate-500/20",
-      dotColor: "bg-slate-400",
+      badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+      badgeBg: "bg-rose-500/15",
+      badgeText: "text-rose-700 dark:text-rose-300",
+      badgeBorder: "border-rose-500/30",
+      dotColor: "bg-rose-500",
     }
   }
 
-  // 2. Has check-in time -> evaluate if Late or On Time
+  // 3. Has check-in time -> evaluate if Late or On Time
   let isLate = rawStatus === "LATE"
+  const checkInHHMM = getHHMMFromDate(record.checkInTime)
 
-  if (!isLate && (rawStatus === "EARLY_DEPARTURE" || rawStatus === "EARLY_LEAVE" || rawStatus === "PRESENT")) {
-    // Check against schedule cutoff
-    const checkInHHMM = getHHMMFromDate(record.checkInTime)
-    let lateCutoff = "08:15"
-
-    if (sessionConfig?.startTime) {
-      lateCutoff = addMinutesToHHMM(sessionConfig.startTime, sessionConfig.lateGraceMinutes ?? 15)
-    } else if (settings) {
-      const startTime = settings.staffWorkStartTime || settings.staff_work_start_time || "08:00"
-      const grace = settings.staffLateGraceMinutes ?? settings.staff_late_grace_minutes ?? 15
-      lateCutoff = settings.staffCheckinLate || settings.staff_checkin_late || addMinutesToHHMM(startTime, grace)
-    }
-
+  if (!isLate && (rawStatus === "EARLY_DEPARTURE" || rawStatus === "EARLY_LEAVE" || rawStatus === "PRESENT" || !rawStatus)) {
     if (checkInHHMM && lateCutoff && isHHMMAfter(checkInHHMM, lateCutoff)) {
       isLate = true
     }
   }
 
   if (isLate) {
+    const latenessMins = Math.max(0, getMinutesDiff(checkInHHMM, expectedStartTime))
+    const formattedLateness = latenessMins > 0
+      ? (latenessMins >= 60 ? `${Math.floor(latenessMins / 60)}h ${latenessMins % 60}m late` : `${latenessMins}m late`)
+      : undefined
+
     return {
       status: "LATE",
       label: "LATE",
-      titleLabel: "Late",
+      titleLabel: latenessMins > 0 ? `Late (${latenessMins} min)` : "Late",
       timeStr: checkInTimeStr,
       fullDateTimeStr: formatFullDateTimeET(record.checkInTime),
       hasTime: true,
+      latenessMinutes: latenessMins,
+      latenessFormatted: formattedLateness,
       badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
       badgeBg: "bg-amber-500/15",
       badgeText: "text-amber-700 dark:text-amber-300",
@@ -397,5 +481,7 @@ export function getStaffAttendanceDisplay(
     isComplete: !!(record?.checkInTime && record?.checkOutTime),
     faceVerified: !!record?.faceVerified,
     geofenceVerified: !!record?.geofenceVerified,
+    latenessMinutes: checkIn.latenessMinutes,
+    latenessFormatted: checkIn.latenessFormatted,
   }
 }
