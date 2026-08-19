@@ -48,6 +48,7 @@ import {
   getOfflineStaffQueue,
   flushOfflineStaffQueue,
 } from "@/lib/utils/staff-attendance-offline-store"
+import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
 
 export function StaffDashboard() {
   const { user } = useAuth()
@@ -548,7 +549,7 @@ export function StaffDashboard() {
               </div>
               <div className="min-w-0">
                 <CardTitle className="text-base sm:text-lg font-bold text-foreground truncate">
-                  {isSessionMode ? "Session Check-In" : "Today's Attendance"}
+                  {isSessionMode ? "Session Attendance" : "Today's Attendance"}
                 </CardTitle>
                 <CardDescription className="text-xs">{formatDate(todayStr)}</CardDescription>
               </div>
@@ -558,23 +559,6 @@ export function StaffDashboard() {
               {workingDuration && (
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[11px] font-mono font-bold animate-pulse">
                   ⏱ {workingDuration}
-                </Badge>
-              )}
-              {todayRecord?.status ? (
-                <Badge
-                  className={`text-xs font-bold px-2.5 py-0.5 uppercase ${
-                    todayRecord.status === "PRESENT"
-                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                      : todayRecord.status === "LATE"
-                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                  }`}
-                >
-                  {todayRecord.status}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground text-xs font-semibold">
-                  Not Marked
                 </Badge>
               )}
             </div>
@@ -592,6 +576,8 @@ export function StaffDashboard() {
                   const sessRec = allAttendance.find(
                     (r) => r.date?.split("T")[0] === todayStr && (r.session || "morning").toLowerCase() === sess.id.toLowerCase()
                   )
+                  const sessDisplay = sessRec ? getStaffAttendanceDisplay(sessRec, settings, sess) : null
+
                   return (
                     <button
                       key={sess.id}
@@ -607,10 +593,17 @@ export function StaffDashboard() {
                       <span className="text-[10px] opacity-80 font-mono font-normal">
                         {sess.startTime} - {sess.endTime}
                       </span>
-                      {sessRec?.status && (
-                        <span className="text-[9px] font-bold uppercase mt-0.5 px-1.5 py-0.2 rounded bg-black/20 text-white">
-                          {sessRec.status}
-                        </span>
+                      {sessDisplay && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="text-[9px] font-extrabold uppercase px-1 rounded bg-black/20 text-white">
+                            IN: {sessDisplay.checkIn.label}
+                          </span>
+                          {sessRec.checkOutTime && (
+                            <span className="text-[9px] font-extrabold uppercase px-1 rounded bg-black/20 text-white">
+                              OUT: {sessDisplay.checkOut.label}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </button>
                   )
@@ -619,49 +612,97 @@ export function StaffDashboard() {
             </div>
           )}
 
-          {/* 4 Metrics Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 text-center">
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Check-In</span>
-              <span className="text-sm font-bold text-foreground">
-                {todayRecord?.checkInTime
-                  ? new Date(todayRecord.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                  : "—"}
-              </span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 text-center">
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Check-Out</span>
-              <span className="text-sm font-bold text-foreground">
-                {todayRecord?.checkOutTime
-                  ? new Date(todayRecord.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                  : "—"}
-              </span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 text-center">
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Biometrics</span>
-              <span className="text-xs font-bold flex items-center justify-center gap-1 mt-0.5">
-                {todayRecord?.faceVerified ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5" /> Verified
+          {/* ── Check-In & Check-Out Dual Status Grid ── */}
+          {(() => {
+            const currentSess = isSessionMode
+              ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+              : undefined
+            const display = getStaffAttendanceDisplay(todayRecord, settings, currentSess)
+
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {/* Check-In Card */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 flex flex-col justify-between gap-1.5">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      Check-In
+                    </span>
+                    <span className="text-sm font-bold font-mono text-foreground mt-0.5 block">
+                      {display.checkIn.timeStr}
+                    </span>
+                  </div>
+                  <div>
+                    <Badge
+                      className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${display.checkIn.badgeColor}`}
+                    >
+                      {display.checkIn.label}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Check-Out Card */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 flex flex-col justify-between gap-1.5">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      Check-Out
+                    </span>
+                    <span className="text-sm font-bold font-mono text-foreground mt-0.5 block">
+                      {display.checkOut.timeStr}
+                    </span>
+                  </div>
+                  <div>
+                    <Badge
+                      className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${display.checkOut.badgeColor}`}
+                    >
+                      {display.checkOut.label}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Biometrics */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 flex flex-col justify-between gap-1.5">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      Biometrics
+                    </span>
+                    <span className="text-xs font-bold text-foreground mt-1 flex items-center gap-1">
+                      {todayRecord?.faceVerified ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Face Auth ✓
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs font-medium">Not Verified</span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {todayRecord?.faceConfidence ? `${Math.round(todayRecord.faceConfidence * 100)}% Match` : "Facial Scanner"}
                   </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40 text-center">
-              <span className="text-[10px] text-muted-foreground uppercase font-semibold block">Campus GPS</span>
-              <span className="text-xs font-bold flex items-center justify-center gap-1 mt-0.5">
-                {todayRecord?.geofenceVerified ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" /> Verified
+                </div>
+
+                {/* Campus GPS */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border/50 flex flex-col justify-between gap-1.5">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      Campus GPS
+                    </span>
+                    <span className="text-xs font-bold text-foreground mt-1 flex items-center gap-1">
+                      {todayRecord?.geofenceVerified ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5" /> Boundary ✓
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs font-medium">Not Verified</span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {todayRecord?.geofenceDistance ? `${Math.round(todayRecord.geofenceDistance)}m from center` : "Geofenced"}
                   </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </span>
-            </div>
-          </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Big Action Buttons (Touch Friendly) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">

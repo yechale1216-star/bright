@@ -42,6 +42,11 @@ import {
   getOfflineStaffQueue,
   flushOfflineStaffQueue,
 } from "@/lib/utils/staff-attendance-offline-store"
+import {
+  getStaffAttendanceDisplay,
+  getStaffCheckInStatus,
+  getStaffCheckOutStatus,
+} from "@/lib/utils/staff-attendance-status"
 
 type VerificationStep =
   | "idle"
@@ -585,49 +590,70 @@ export function StaffAttendance() {
                 )}
               </div>
 
-              {/* Status Display */}
-              <div className="p-4 rounded-xl bg-muted/40 border border-border/60 flex flex-col items-center justify-center text-center gap-1.5">
-                <span className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
-                  {isSessionMode ? `${staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase())?.name || selectedSession} Status` : "Today's Status"}
-                </span>
-                {todayRecord?.status ? (
-                  <Badge
-                    className={`text-sm font-bold px-3 py-1 uppercase ${
-                      todayRecord.status === "PRESENT"
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                        : todayRecord.status === "LATE"
-                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                    }`}
-                  >
-                    {todayRecord.status}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground text-sm font-semibold">
-                    Not Recorded
-                  </Badge>
-                )}
+              {/* ─── TODAY'S ATTENDANCE: Check-In & Check-Out Dual View ─── */}
+              {(() => {
+                const currentSess = isSessionMode
+                  ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+                  : undefined
+                const display = getStaffAttendanceDisplay(todayRecord, settings, currentSess)
 
-                {/* Timestamps */}
-                <div className="w-full grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border/40 text-xs">
-                  <div>
-                    <span className="text-muted-foreground block">Check-In</span>
-                    <span className="font-bold text-foreground">
-                      {todayRecord?.checkInTime
-                        ? new Date(todayRecord.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                        : "—"}
-                    </span>
+                return (
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-muted/40 border border-border/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase tracking-wider font-bold text-foreground">
+                        {isSessionMode
+                          ? `${currentSess?.name || selectedSession} Attendance`
+                          : "Today's Attendance"}
+                      </span>
+                      {todayRecord?.faceVerified && (
+                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Check-In Block */}
+                      <div className="p-2.5 rounded-lg bg-card/90 border border-border/60 flex flex-col justify-between gap-1.5 shadow-2xs">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
+                            Check-In
+                          </span>
+                          <span className="text-sm font-mono font-bold text-foreground block">
+                            {display.checkIn.timeStr}
+                          </span>
+                        </div>
+                        <div>
+                          <Badge
+                            className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${display.checkIn.badgeColor}`}
+                          >
+                            {display.checkIn.label}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Check-Out Block */}
+                      <div className="p-2.5 rounded-lg bg-card/90 border border-border/60 flex flex-col justify-between gap-1.5 shadow-2xs">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block tracking-wider">
+                            Check-Out
+                          </span>
+                          <span className="text-sm font-mono font-bold text-foreground block">
+                            {display.checkOut.timeStr}
+                          </span>
+                        </div>
+                        <div>
+                          <Badge
+                            className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${display.checkOut.badgeColor}`}
+                          >
+                            {display.checkOut.label}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground block">Check-Out</span>
-                    <span className="font-bold text-foreground">
-                      {todayRecord?.checkOutTime
-                        ? new Date(todayRecord.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                        : "—"}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                )
+              })()}
 
               {/* Action Buttons */}
               <div className="space-y-2 pt-2">
@@ -689,61 +715,70 @@ export function StaffAttendance() {
                     No attendance history found.
                   </div>
                 ) : (
-                  myHistory.map((rec) => (
-                    <div key={rec.id} className="p-3.5 space-y-2 hover:bg-muted/20 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-foreground">
-                          {formatDate(rec.date?.split("T")[0])}
-                        </span>
-                        <div className="flex items-center gap-1.5">
+                  myHistory.map((rec) => {
+                    const sessCfg = isSessionMode
+                      ? staffSessions.find(
+                          (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
+                        )
+                      : undefined
+                    const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
+
+                    return (
+                      <div key={rec.id} className="p-3.5 space-y-2 hover:bg-muted/20 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-foreground">
+                            {formatDate(rec.date?.split("T")[0])}
+                          </span>
                           {isSessionMode && (
                             <Badge variant="outline" className="text-[10px] font-bold uppercase py-0 px-1.5">
                               {rec.session || "daily"}
                             </Badge>
                           )}
-                          <Badge
-                            className={`text-[10px] font-bold py-0 px-2 uppercase ${
-                              rec.status === "PRESENT"
-                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                : rec.status === "LATE"
-                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                            }`}
-                          >
-                            {rec.status}
-                          </Badge>
                         </div>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2 rounded-lg bg-muted/40">
-                          <span className="text-[10px] text-muted-foreground block font-medium">Check-In</span>
-                          <span className="font-semibold text-foreground">
-                            {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                          </span>
-                        </div>
-                        <div className="p-2 rounded-lg bg-muted/40">
-                          <span className="text-[10px] text-muted-foreground block font-medium">Check-Out</span>
-                          <span className="font-semibold text-foreground">
-                            {rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                          </span>
-                        </div>
-                      </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {/* Check-In */}
+                          <div className="p-2 rounded-lg bg-muted/40 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-muted-foreground font-medium">Check-In</span>
+                              <span className="font-semibold text-foreground">{display.checkIn.timeStr}</span>
+                            </div>
+                            <Badge
+                              className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkIn.badgeColor}`}
+                            >
+                              {display.checkIn.label}
+                            </Badge>
+                          </div>
 
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-0.5">
-                        {rec.faceVerified && (
-                          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Face Verified
-                          </span>
-                        )}
-                        {rec.geofenceVerified && (
-                          <span className="flex items-center gap-1 text-primary">
-                            <MapPin className="w-3.5 h-3.5" /> GPS Verified
-                          </span>
-                        )}
+                          {/* Check-Out */}
+                          <div className="p-2 rounded-lg bg-muted/40 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-muted-foreground font-medium">Check-Out</span>
+                              <span className="font-semibold text-foreground">{display.checkOut.timeStr}</span>
+                            </div>
+                            <Badge
+                              className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkOut.badgeColor}`}
+                            >
+                              {display.checkOut.label}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-0.5">
+                          {rec.faceVerified && (
+                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                              <ShieldCheck className="w-3.5 h-3.5" /> Face Verified
+                            </span>
+                          )}
+                          {rec.geofenceVerified && (
+                            <span className="flex items-center gap-1 text-primary">
+                              <MapPin className="w-3.5 h-3.5" /> GPS Verified
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
 
@@ -754,60 +789,72 @@ export function StaffAttendance() {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       {isSessionMode && <TableHead>Session</TableHead>}
-                      <TableHead>Status</TableHead>
                       <TableHead>Check-In</TableHead>
+                      <TableHead>Check-In Status</TableHead>
                       <TableHead>Check-Out</TableHead>
+                      <TableHead>Check-Out Status</TableHead>
                       <TableHead>Verification</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {myHistory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isSessionMode ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={isSessionMode ? 7 : 6} className="text-center py-8 text-muted-foreground">
                           No attendance history found.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      myHistory.map((rec) => (
-                        <TableRow key={rec.id}>
-                          <TableCell className="font-medium text-xs">
-                            {formatDate(rec.date?.split("T")[0])}
-                          </TableCell>
-                          {isSessionMode && (
+                      myHistory.map((rec) => {
+                        const sessCfg = isSessionMode
+                          ? staffSessions.find(
+                              (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
+                            )
+                          : undefined
+                        const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
+
+                        return (
+                          <TableRow key={rec.id}>
+                            <TableCell className="font-medium text-xs">
+                              {formatDate(rec.date?.split("T")[0])}
+                            </TableCell>
+                            {isSessionMode && (
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                                  {rec.session || "daily"}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            <TableCell className="text-xs font-mono font-medium">
+                              {display.checkIn.timeStr}
+                            </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="text-[10px] font-bold uppercase">
-                                {rec.session || "daily"}
+                              <Badge
+                                variant="outline"
+                                className={`text-xs font-bold ${display.checkIn.badgeColor}`}
+                              >
+                                {display.checkIn.titleLabel}
                               </Badge>
                             </TableCell>
-                          )}
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={`text-xs font-bold ${
-                                rec.status === "PRESENT"
-                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                                  : rec.status === "LATE"
-                                  ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                                  : "bg-rose-500/10 text-rose-600 border-rose-500/30"
-                              }`}
-                            >
-                              {rec.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              {rec.faceVerified && <span title="Face Verified"><ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /></span>}
-                              {rec.geofenceVerified && <span title="Geofence Verified"><MapPin className="w-3.5 h-3.5 text-primary" /></span>}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            <TableCell className="text-xs font-mono font-medium">
+                              {display.checkOut.timeStr}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs font-bold ${display.checkOut.badgeColor}`}
+                              >
+                                {display.checkOut.titleLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                {rec.faceVerified && <span title="Face Verified"><ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /></span>}
+                                {rec.geofenceVerified && <span title="Geofence Verified"><MapPin className="w-3.5 h-3.5 text-primary" /></span>}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -881,65 +928,78 @@ export function StaffAttendance() {
                   No staff attendance records for this date.
                 </div>
               ) : (
-                filteredAllStaff.map((rec) => (
-                  <div key={rec.id} className="p-3.5 space-y-2.5 hover:bg-muted/20 transition-colors">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Avatar className="w-8 h-8 border shrink-0">
-                          <AvatarImage src={rec.user?.profile_photo || ""} />
-                          <AvatarFallback className="text-[11px] font-bold bg-primary/10 text-primary">
-                            {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-xs text-foreground truncate">{rec.user?.full_name || "Unknown Staff"}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{rec.user?.role?.replace("_", " ") || "Staff"}</p>
+                filteredAllStaff.map((rec) => {
+                  const sessCfg = isSessionMode
+                    ? staffSessions.find(
+                        (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
+                      )
+                    : undefined
+                  const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
+
+                  return (
+                    <div key={rec.id} className="p-3.5 space-y-2.5 hover:bg-muted/20 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar className="w-8 h-8 border shrink-0">
+                            <AvatarImage src={rec.user?.profile_photo || ""} />
+                            <AvatarFallback className="text-[11px] font-bold bg-primary/10 text-primary">
+                              {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-xs text-foreground truncate">{rec.user?.full_name || "Unknown Staff"}</p>
+                            <p className="text-[10px] text-muted-foreground capitalize">{rec.user?.role?.replace("_", " ") || "Staff"}</p>
+                          </div>
+                        </div>
+                        {isSessionMode && (
+                          <Badge variant="outline" className="text-[10px] font-bold uppercase shrink-0">
+                            {rec.session || "daily"}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-muted/40 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground font-medium">Check-In</span>
+                            <span className="font-semibold text-foreground">{display.checkIn.timeStr}</span>
+                          </div>
+                          <Badge
+                            className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkIn.badgeColor}`}
+                          >
+                            {display.checkIn.label}
+                          </Badge>
+                        </div>
+                        <div className="p-2 rounded-lg bg-muted/40 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground font-medium">Check-Out</span>
+                            <span className="font-semibold text-foreground">{display.checkOut.timeStr}</span>
+                          </div>
+                          <Badge
+                            className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkOut.badgeColor}`}
+                          >
+                            {display.checkOut.label}
+                          </Badge>
                         </div>
                       </div>
-                      <Badge
-                        className={`text-[10px] font-bold py-0 px-2 uppercase shrink-0 ${
-                          rec.status === "PRESENT"
-                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                            : rec.status === "LATE"
-                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                            : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                        }`}
-                      >
-                        {rec.status}
-                      </Badge>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2 rounded-lg bg-muted/40">
-                        <span className="text-[10px] text-muted-foreground block font-medium">Check-In</span>
-                        <span className="font-semibold text-foreground">
-                          {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                        </span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-muted/40">
-                        <span className="text-[10px] text-muted-foreground block font-medium">Check-Out</span>
-                        <span className="font-semibold text-foreground">
-                          {rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                        </span>
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-0.5">
+                        {rec.faceVerified ? (
+                          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-[10px]">No Face ID</span>
+                        )}
+                        {rec.geofenceVerified && (
+                          <span className="flex items-center gap-1 text-primary">
+                            <MapPin className="w-3.5 h-3.5" /> GPS Verified
+                          </span>
+                        )}
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-0.5">
-                      {rec.faceVerified ? (
-                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                          <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-[10px]">No Face ID</span>
-                      )}
-                      {rec.geofenceVerified && (
-                        <span className="flex items-center gap-1 text-primary">
-                          <MapPin className="w-3.5 h-3.5" /> GPS Verified
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
 
@@ -950,85 +1010,104 @@ export function StaffAttendance() {
                   <TableRow>
                     <TableHead>Staff Member</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
+                    {isSessionMode && <TableHead>Session</TableHead>}
                     <TableHead>Check-In</TableHead>
+                    <TableHead>Check-In Status</TableHead>
                     <TableHead>Check-Out</TableHead>
+                    <TableHead>Check-Out Status</TableHead>
                     <TableHead>Biometric / GPS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={isSessionMode ? 8 : 7} className="text-center py-12 text-muted-foreground">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
                         Loading staff records...
                       </TableCell>
                     </TableRow>
                   ) : filteredAllStaff.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={isSessionMode ? 8 : 7} className="text-center py-12 text-muted-foreground">
                         No staff attendance records for this date.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredAllStaff.map((rec) => (
-                      <TableRow key={rec.id} className="hover:bg-muted/30">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="w-8 h-8 border">
-                              <AvatarImage src={rec.user?.profile_photo || ""} />
-                              <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
-                                {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-semibold text-sm leading-none">{rec.user?.full_name || "Unknown Staff"}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">{rec.user?.email || ""}</p>
+                    filteredAllStaff.map((rec) => {
+                      const sessCfg = isSessionMode
+                        ? staffSessions.find(
+                            (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
+                          )
+                        : undefined
+                      const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
+
+                      return (
+                        <TableRow key={rec.id} className="hover:bg-muted/30">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="w-8 h-8 border">
+                                <AvatarImage src={rec.user?.profile_photo || ""} />
+                                <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                                  {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-semibold text-sm leading-none">{rec.user?.full_name || "Unknown Staff"}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{rec.user?.email || ""}</p>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize text-xs">
-                            {rec.user?.role?.replace("_", " ") || "Staff"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`text-xs font-bold ${
-                              rec.status === "PRESENT"
-                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                : rec.status === "LATE"
-                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                            }`}
-                          >
-                            {rec.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs font-medium">
-                          {rec.checkInTime ? new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs font-medium">
-                          {rec.checkOutTime ? new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-xs">
-                            {rec.faceVerified ? (
-                              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground text-[11px]">No Face</span>
-                            )}
-                            {rec.geofenceVerified && (
-                              <span className="flex items-center gap-1 text-primary">
-                                <MapPin className="w-3.5 h-3.5" /> GPS ({rec.geofenceDistance ? `${Math.round(rec.geofenceDistance)}m` : "✓"})
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize text-xs">
+                              {rec.user?.role?.replace("_", " ") || "Staff"}
+                            </Badge>
+                          </TableCell>
+                          {isSessionMode && (
+                            <TableCell>
+                              <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                                {rec.session || "daily"}
+                              </Badge>
+                            </TableCell>
+                          )}
+                          <TableCell className="text-xs font-mono font-medium">
+                            {display.checkIn.timeStr}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`text-xs font-bold ${display.checkIn.badgeColor}`}
+                            >
+                              {display.checkIn.titleLabel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono font-medium">
+                            {display.checkOut.timeStr}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`text-xs font-bold ${display.checkOut.badgeColor}`}
+                            >
+                              {display.checkOut.titleLabel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 text-xs">
+                              {rec.faceVerified ? (
+                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                  <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">No Face</span>
+                              )}
+                              {rec.geofenceVerified && (
+                                <span className="flex items-center gap-1 text-primary">
+                                  <MapPin className="w-3.5 h-3.5" /> GPS ({rec.geofenceDistance ? `${Math.round(rec.geofenceDistance)}m` : "✓"})
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>

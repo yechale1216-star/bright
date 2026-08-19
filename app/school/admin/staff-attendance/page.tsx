@@ -54,6 +54,7 @@ import {
   getOfflineStaffQueue,
   flushOfflineStaffQueue,
 } from "@/lib/utils/staff-attendance-offline-store"
+import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
 
 // Dynamically import biometric face enrollment modal
 const StaffFaceEnrollModal = dynamic(
@@ -446,9 +447,11 @@ export default function AdminStaffAttendanceDashboard() {
       "Email",
       "Role",
       "Date",
-      "Status",
+      "Session",
       "Check-In Time",
+      "Check-In Status",
       "Check-Out Time",
+      "Check-Out Status",
       "Geofence Verified",
       "Geofence Distance (m)",
       "Face Verified",
@@ -458,22 +461,31 @@ export default function AdminStaffAttendanceDashboard() {
       "Correction Reason",
     ]
 
-    const rows = records.map((r) => [
-      `"${r.user?.full_name || ""}"`,
-      `"${r.user?.email || ""}"`,
-      `"${r.user?.role || ""}"`,
-      `"${r.date ? r.date.split("T")[0] : ""}"`,
-      `"${r.status || ""}"`,
-      `"${r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}"`,
-      `"${r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}"`,
-      r.geofenceVerified ? "YES" : "NO",
-      r.geofenceDistance ? Math.round(r.geofenceDistance) : "",
-      r.faceVerified ? "YES" : "NO",
-      r.faceConfidence ? Math.round(r.faceConfidence * 100) : "",
-      `"${(r.remarks || "").replace(/"/g, '""')}"`,
-      `"${r.correctedBy || ""}"`,
-      `"${(r.correctionReason || "").replace(/"/g, '""')}"`,
-    ])
+    const rows = records.map((r) => {
+      const sessCfg = isSessionMode
+        ? staffSessions.find((s: any) => s.id.toLowerCase() === (r.session || "morning").toLowerCase())
+        : undefined
+      const display = getStaffAttendanceDisplay(r, settings, sessCfg)
+
+      return [
+        `"${r.user?.full_name || ""}"`,
+        `"${r.user?.email || ""}"`,
+        `"${r.user?.role || ""}"`,
+        `"${r.date ? r.date.split("T")[0] : ""}"`,
+        `"${r.session || "daily"}"`,
+        `"${display.checkIn.timeStr !== "—" ? display.checkIn.timeStr : ""}"`,
+        `"${display.checkIn.titleLabel}"`,
+        `"${display.checkOut.timeStr !== "—" ? display.checkOut.timeStr : ""}"`,
+        `"${display.checkOut.titleLabel}"`,
+        r.geofenceVerified ? "YES" : "NO",
+        r.geofenceDistance ? Math.round(r.geofenceDistance) : "",
+        r.faceVerified ? "YES" : "NO",
+        r.faceConfidence ? Math.round(r.faceConfidence * 100) : "",
+        `"${(r.remarks || "").replace(/"/g, '""')}"`,
+        `"${r.correctedBy || ""}"`,
+        `"${(r.correctionReason || "").replace(/"/g, '""')}"`,
+      ]
+    })
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n")
     const encodedUri = encodeURI(csvContent)
@@ -956,9 +968,10 @@ export default function AdminStaffAttendanceDashboard() {
                       <th className="px-5 py-4">Role</th>
                       <th className="px-5 py-4">Date</th>
                       {isSessionMode && <th className="px-5 py-4">Session</th>}
-                      <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4">Check-In</th>
+                      <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4">Check-Out</th>
+                      <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4">Biometric & GPS</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
@@ -970,11 +983,12 @@ export default function AdminStaffAttendanceDashboard() {
                         color: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20",
                         dotColor: "bg-slate-400",
                       }
-                      const statusBadge = STATUS_CONFIG[rec.status] || {
-                        label: rec.status,
-                        color: "bg-slate-500/10 text-slate-700 border-slate-500/20",
-                        dotColor: "bg-slate-400",
-                      }
+                      const sessCfg = isSessionMode
+                        ? staffSessions.find(
+                            (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
+                          )
+                        : undefined
+                      const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
 
                       return (
                         <tr key={rec.id} className="hover:bg-white/40 dark:hover:bg-slate-800/30 transition-colors group">
@@ -1018,12 +1032,17 @@ export default function AdminStaffAttendanceDashboard() {
                             </td>
                           )}
 
-                          {/* Status */}
+                          {/* Check-In Time */}
+                          <td className="px-5 py-4 text-xs font-mono font-medium text-slate-700 dark:text-slate-300">
+                            {display.checkIn.timeStr}
+                          </td>
+
+                          {/* Check-In Status */}
                           <td className="px-5 py-4">
                             <div className="flex flex-col gap-0.5">
-                              <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border backdrop-blur-md w-fit", statusBadge.color)}>
-                                <span className={cn("w-1.5 h-1.5 rounded-full", statusBadge.dotColor)} />
-                                {statusBadge.label}
+                              <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border backdrop-blur-md w-fit", display.checkIn.badgeColor)}>
+                                <span className={cn("w-1.5 h-1.5 rounded-full", display.checkIn.dotColor)} />
+                                {display.checkIn.titleLabel}
                               </span>
                               {rec.correctedBy && (
                                 <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold pl-0.5">
@@ -1033,22 +1052,17 @@ export default function AdminStaffAttendanceDashboard() {
                             </div>
                           </td>
 
-                          {/* Check-In */}
-                          <td className="px-5 py-4 text-xs font-mono text-slate-700 dark:text-slate-300">
-                            {rec.checkInTime ? (
-                              new Date(rec.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                          {/* Check-Out Time */}
+                          <td className="px-5 py-4 text-xs font-mono font-medium text-slate-700 dark:text-slate-300">
+                            {display.checkOut.timeStr}
                           </td>
 
-                          {/* Check-Out */}
-                          <td className="px-5 py-4 text-xs font-mono text-slate-700 dark:text-slate-300">
-                            {rec.checkOutTime ? (
-                              new Date(rec.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                          {/* Check-Out Status */}
+                          <td className="px-5 py-4">
+                            <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border backdrop-blur-md w-fit", display.checkOut.badgeColor)}>
+                              <span className={cn("w-1.5 h-1.5 rounded-full", display.checkOut.dotColor)} />
+                              {display.checkOut.titleLabel}
+                            </span>
                           </td>
 
                           {/* Biometric & GPS */}
@@ -1329,48 +1343,71 @@ export default function AdminStaffAttendanceDashboard() {
                   </div>
                 </div>
 
-                {/* Timestamps & Status */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-2xl bg-white/60 dark:bg-slate-950/60 border border-white/40 dark:border-white/10">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Attendance Date</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
-                      {formatDate(detailRecord.date?.split("T")[0])}
-                    </span>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white/60 dark:bg-slate-950/60 border border-white/40 dark:border-white/10">
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Attendance Status</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
-                      {detailRecord.status}
-                    </span>
-                  </div>
-                </div>
+                {/* Timestamps & Dual Statuses */}
+                {(() => {
+                  const sessCfg = isSessionMode
+                    ? staffSessions.find((s: any) => s.id.toLowerCase() === (detailRecord.session || "morning").toLowerCase())
+                    : undefined
+                  const display = getStaffAttendanceDisplay(detailRecord, settings, sessCfg)
 
-                {/* Check-In / Check-Out */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
-                    <span className="text-[10px] font-bold uppercase text-emerald-600 block">Check-In Time</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block">
-                      {detailRecord.checkInTime ? new Date(detailRecord.checkInTime).toLocaleString() : "Not Checked In"}
-                    </span>
-                    {detailRecord.checkInLatitude && (
-                      <p className="text-[10px] text-slate-400 font-mono mt-1">
-                        GPS: {detailRecord.checkInLatitude.toFixed(5)}, {detailRecord.checkInLongitude.toFixed(5)}
-                      </p>
-                    )}
-                  </div>
+                  return (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-2xl bg-white/60 dark:bg-slate-950/60 border border-white/40 dark:border-white/10">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 block">Attendance Date</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                            {formatDate(detailRecord.date?.split("T")[0])}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-2xl bg-white/60 dark:bg-slate-950/60 border border-white/40 dark:border-white/10">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                            {isSessionMode ? "Session" : "Attendance Mode"}
+                          </span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block uppercase">
+                            {isSessionMode ? (detailRecord.session || "Morning") : "Daily"}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="p-3 rounded-2xl bg-primary/5 border border-primary/20">
-                    <span className="text-[10px] font-bold uppercase text-primary block">Check-Out Time</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5 block">
-                      {detailRecord.checkOutTime ? new Date(detailRecord.checkOutTime).toLocaleString() : "Not Checked Out"}
-                    </span>
-                    {detailRecord.checkOutLatitude && (
-                      <p className="text-[10px] text-slate-400 font-mono mt-1">
-                        GPS: {detailRecord.checkOutLatitude.toFixed(5)}, {detailRecord.checkOutLongitude.toFixed(5)}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                      {/* Check-In / Check-Out Details with Independent Statuses */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase text-emerald-600">Check-In</span>
+                            <Badge className={cn("text-[10px] font-extrabold uppercase px-2 py-0", display.checkIn.badgeColor)}>
+                              {display.checkIn.titleLabel}
+                            </Badge>
+                          </div>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-sm block font-mono">
+                            {detailRecord.checkInTime ? new Date(detailRecord.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not Checked In"}
+                          </span>
+                          {detailRecord.checkInLatitude && (
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              GPS: {detailRecord.checkInLatitude.toFixed(5)}, {detailRecord.checkInLongitude.toFixed(5)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-primary/5 border border-primary/20 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase text-primary">Check-Out</span>
+                            <Badge className={cn("text-[10px] font-extrabold uppercase px-2 py-0", display.checkOut.badgeColor)}>
+                              {display.checkOut.titleLabel}
+                            </Badge>
+                          </div>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-sm block font-mono">
+                            {detailRecord.checkOutTime ? new Date(detailRecord.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not Checked Out"}
+                          </span>
+                          {detailRecord.checkOutLatitude && (
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              GPS: {detailRecord.checkOutLatitude.toFixed(5)}, {detailRecord.checkOutLongitude.toFixed(5)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
 
                 {/* Verification Evidence */}
                 <div className="p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-800/40 border border-white/40 dark:border-white/10 space-y-2.5">

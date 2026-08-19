@@ -1,5 +1,10 @@
 import { calculateDistanceMeters } from "../lib/utils/geofence"
 import { calculateEuclideanDistance } from "../lib/hooks/use-face-recognition"
+import {
+  getStaffCheckInStatus,
+  getStaffCheckOutStatus,
+  getStaffAttendanceDisplay,
+} from "../lib/utils/staff-attendance-status"
 
 describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
   describe("1. Geofencing Distance Calculations (Haversine)", () => {
@@ -399,6 +404,116 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
 
       expect(morningPresent).toBe(1)
       expect(morningLate).toBe(1)
+    })
+  })
+
+  describe("8. Independent Check-In and Check-Out Status Display UI Rules", () => {
+    const mockSettings = {
+      staffWorkStartTime: "08:00",
+      staffWorkEndTime: "17:00",
+      staffLateGraceMinutes: 15, // late cutoff: 08:15
+      staffEarlyCheckoutToleranceMinutes: 15, // early cutoff: 16:45
+    }
+
+    test("Staff checks in Late and later checks out early: Check-In remains 'LATE' and Check-Out displays 'EARLY LEAVE'", () => {
+      // 11:09 is late, 15:20 is early departure
+      const record = {
+        id: "rec_01",
+        userId: "staff_A",
+        date: "2026-08-19T00:00:00.000Z",
+        status: "EARLY_DEPARTURE", // Backend stored latest event status
+        checkInTime: "2026-08-19T08:09:00.000Z", // 11:09 in UTC+3 (Addis)
+        checkOutTime: "2026-08-19T12:20:00.000Z", // 15:20 in UTC+3 (Addis)
+      }
+
+      const display = getStaffAttendanceDisplay(record, mockSettings)
+
+      // Check-In status MUST remain LATE
+      expect(display.checkIn.status).toBe("LATE")
+      expect(display.checkIn.label).toBe("LATE")
+      expect(display.checkIn.titleLabel).toBe("Late")
+      expect(display.checkIn.hasTime).toBe(true)
+
+      // Check-Out status MUST be EARLY LEAVE
+      expect(display.checkOut.status).toBe("EARLY_LEAVE")
+      expect(display.checkOut.label).toBe("EARLY LEAVE")
+      expect(display.checkOut.titleLabel).toBe("Early Leave")
+      expect(display.checkOut.hasTime).toBe(true)
+    })
+
+    test("Staff checks in On Time and checks out On Time: both display 'ON TIME'", () => {
+      const record = {
+        id: "rec_02",
+        userId: "staff_B",
+        date: "2026-08-19T00:00:00.000Z",
+        status: "PRESENT",
+        checkInTime: "2026-08-19T05:05:00.000Z", // 08:05 in UTC+3
+        checkOutTime: "2026-08-19T13:55:00.000Z", // 16:55 in UTC+3
+      }
+
+      const display = getStaffAttendanceDisplay(record, mockSettings)
+
+      expect(display.checkIn.status).toBe("ON_TIME")
+      expect(display.checkIn.label).toBe("ON TIME")
+      expect(display.checkIn.titleLabel).toBe("On Time")
+
+      expect(display.checkOut.status).toBe("ON_TIME")
+      expect(display.checkOut.label).toBe("ON TIME")
+      expect(display.checkOut.titleLabel).toBe("On Time")
+    })
+
+    test("Staff has checked in but NOT checked out yet: Check-Out displays 'NOT CHECKED OUT'", () => {
+      const record = {
+        id: "rec_03",
+        userId: "staff_C",
+        date: "2026-08-19T00:00:00.000Z",
+        status: "PRESENT",
+        checkInTime: "2026-08-19T05:10:00.000Z", // 08:10 in UTC+3
+        checkOutTime: null,
+      }
+
+      const display = getStaffAttendanceDisplay(record, mockSettings)
+
+      expect(display.checkIn.status).toBe("ON_TIME")
+      expect(display.checkIn.label).toBe("ON TIME")
+      expect(display.checkIn.hasTime).toBe(true)
+
+      expect(display.checkOut.status).toBe("NOT_CHECKED_OUT")
+      expect(display.checkOut.label).toBe("NOT CHECKED OUT")
+      expect(display.checkOut.titleLabel).toBe("Not Checked Out")
+      expect(display.checkOut.timeStr).toBe("—")
+      expect(display.checkOut.hasTime).toBe(false)
+    })
+
+    test("Staff has NOT checked in: Check-In displays 'NOT CHECKED IN' and Check-Out displays 'NOT CHECKED OUT'", () => {
+      const record = null
+
+      const display = getStaffAttendanceDisplay(record, mockSettings)
+
+      expect(display.checkIn.status).toBe("NOT_CHECKED_IN")
+      expect(display.checkIn.label).toBe("NOT CHECKED IN")
+      expect(display.checkIn.timeStr).toBe("—")
+
+      expect(display.checkOut.status).toBe("NOT_CHECKED_OUT")
+      expect(display.checkOut.label).toBe("NOT CHECKED OUT")
+      expect(display.checkOut.timeStr).toBe("—")
+    })
+
+    test("Staff marked ABSENT: displays 'ABSENT' consistently", () => {
+      const record = {
+        id: "rec_04",
+        userId: "staff_D",
+        date: "2026-08-19T00:00:00.000Z",
+        status: "ABSENT",
+        checkInTime: null,
+        checkOutTime: null,
+      }
+
+      const display = getStaffAttendanceDisplay(record, mockSettings)
+
+      expect(display.checkIn.status).toBe("ABSENT")
+      expect(display.checkIn.label).toBe("ABSENT")
+      expect(display.checkIn.titleLabel).toBe("Absent")
     })
   })
 })
