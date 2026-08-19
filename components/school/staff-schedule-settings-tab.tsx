@@ -445,13 +445,6 @@ export function StaffScheduleSettingsTab({
                 Choose between single daily check-in/out or fixed Morning and Afternoon session-based attendance.
               </CardDescription>
             </div>
-            <Button
-              onClick={onSaveSettings}
-              disabled={isSaving}
-              className="bg-primary text-white font-bold text-xs uppercase tracking-wider h-10 px-6 rounded-xl shadow-sm"
-            >
-              {isSaving ? "Saving..." : "Save Settings"}
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -530,13 +523,6 @@ export function StaffScheduleSettingsTab({
                   : "Configure official school working days, check-in/out times, and arrival/departure thresholds."}
               </CardDescription>
             </div>
-            <Button
-              onClick={onSaveSettings}
-              disabled={isSaving}
-              className="bg-primary text-white font-bold text-xs uppercase tracking-wider h-10 px-6 rounded-xl shadow-sm"
-            >
-              {isSaving ? "Saving..." : isSessionMode ? "Save Session Rules" : "Save Working Hours"}
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -947,7 +933,7 @@ export function StaffScheduleSettingsTab({
               <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
                 <Info className="w-4 h-4 text-primary shrink-0" />
                 <span>
-                  Morning and Afternoon sessions function independently. Remember to click <strong>Save Session Rules</strong> above to persist changes.
+                  Morning and Afternoon sessions function independently. Changes will be persisted when saving settings.
                 </span>
               </div>
             </div>
