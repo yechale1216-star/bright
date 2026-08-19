@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -122,8 +122,11 @@ export function StaffFaceEnrollModal({
     setIsEnrollCameraOpen(true)
   }
 
+  const isSavingEnrollmentRef = useRef(false)
+
   const handleFaceCaptured = async (result: { descriptor: number[] }) => {
-    if (!selectedStaff) return
+    if (!selectedStaff || isSavingEnrollmentRef.current) return
+    isSavingEnrollmentRef.current = true
     setIsSavingEnrollment(true)
     try {
       await db.enrollStaffFace(selectedStaff.id, result.descriptor)
@@ -139,6 +142,7 @@ export function StaffFaceEnrollModal({
       notifications.error("Enrollment Failed", err.message || "Failed to save biometric face template")
     } finally {
       setIsSavingEnrollment(false)
+      isSavingEnrollmentRef.current = false
     }
   }
 

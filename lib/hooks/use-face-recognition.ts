@@ -11,6 +11,7 @@ export interface FaceDetectionResult {
   isProperlyPositioned?: boolean
   isLive?: boolean
   error?: string
+  inferenceTimeMs?: number
 }
 
 export interface FaceMatchResult {
@@ -32,55 +33,123 @@ export function calculateEuclideanDistance(desc1: number[], desc2: number[]): nu
   return Math.sqrt(sum)
 }
 
-const DEFAULT_MATCH_THRESHOLD = 0.50 // Standard threshold for face descriptor matching
+export const DEFAULT_MATCH_THRESHOLD = 0.50 // Standard strict threshold for face descriptor matching
+
+// Module-level singletons for model caching across hook instances
+let globalFaceApi: any = null
+let globalModelsPromise: Promise<void> | null = null
+let globalModelsLoaded = false
+let globalLoadError: string | null = null
 
 export function useFaceRecognition() {
-  const [isModelsLoaded, setIsModelsLoaded] = useState(false)
+  const [isModelsLoaded, setIsModelsLoaded] = useState(globalModelsLoaded)
   const [isLoadingModels, setIsLoadingModels] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const faceApiRef = useRef<any>(null)
+  const [loadError, setLoadError] = useState<string | null>(globalLoadError)
+  const faceApiRef = useRef<any>(globalFaceApi)
 
-  const loadModels = useCallback(async () => {
-    if (isModelsLoaded || isLoadingModels) return
+  const loadModels = useCallback(async (timeoutMs = 12000) => {
+    if (globalModelsLoaded) {
+      setIsModelsLoaded(true)
+      faceApiRef.current = globalFaceApi
+      return
+    }
+
+    if (globalModelsPromise) {
+      setIsLoadingModels(true)
+      try {
+        await globalModelsPromise
+        setIsModelsLoaded(true)
+        faceApiRef.current = globalFaceApi
+      } catch (err: any) {
+        setLoadError(err.message || "Failed to load models")
+      } finally {
+        setIsLoadingModels(false)
+      }
+      return
+    }
+
     setIsLoadingModels(true)
     setLoadError(null)
 
-    try {
+    globalModelsPromise = (async () => {
       // Dynamic import to avoid SSR issues
       const faceapi = await import("@vladmandic/face-api")
+      globalFaceApi = faceapi
       faceApiRef.current = faceapi
 
       const localModelPath = "/models"
       const cdnModelPath = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/"
 
-      // Try local models first, fallback to CDN if not available
-      try {
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(localModelPath),
-          faceapi.nets.faceLandmark68Net.loadFromUri(localModelPath),
-          faceapi.nets.faceRecognitionNet.loadFromUri(localModelPath),
-        ])
-      } catch (localErr) {
-        console.warn("[FaceRecognition] Local models not found, attempting CDN load:", localErr)
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri(cdnModelPath),
-          faceapi.nets.faceLandmark68Net.loadFromUri(cdnModelPath),
-          faceapi.nets.faceRecognitionNet.loadFromUri(cdnModelPath),
-        ])
+      // Helper with timeout
+      const loadWithTimeout = async (fn: () => Promise<any>, timeoutLimit: number) => {
+        let timer: any
+        const timeoutPromise = new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Model loading timed out after ${timeoutLimit}ms`)), timeoutLimit)
+        })
+        try {
+          const res = await Promise.race([fn(), timeoutPromise])
+          clearTimeout(timer)
+          return res
+        } catch (e) {
+          clearTimeout(timer)
+          throw e
+        }
       }
 
+      // Load TinyFaceDetector, landmark and recognition models
+      // TinyFaceDetector is ~190KB (vs 5.6MB SsdMobilenet) and 10x-20x faster on mobile
+      try {
+        await loadWithTimeout(
+          () =>
+            Promise.all([
+              faceapi.nets.tinyFaceDetector.loadFromUri(localModelPath),
+              faceapi.nets.faceLandmark68Net.loadFromUri(localModelPath),
+              faceapi.nets.faceRecognitionNet.loadFromUri(localModelPath),
+            ]),
+          timeoutMs
+        )
+      } catch (localErr) {
+        console.warn("[FaceRecognition] Local models not found or timed out, attempting CDN fallback:", localErr)
+        await loadWithTimeout(
+          () =>
+            Promise.all([
+              faceapi.nets.tinyFaceDetector.loadFromUri(cdnModelPath),
+              faceapi.nets.faceLandmark68Net.loadFromUri(cdnModelPath),
+              faceapi.nets.faceRecognitionNet.loadFromUri(cdnModelPath),
+            ]),
+          timeoutMs
+        )
+      }
+
+      globalModelsLoaded = true
+      globalLoadError = null
+    })()
+
+    try {
+      await globalModelsPromise
       setIsModelsLoaded(true)
     } catch (err: any) {
       console.error("[FaceRecognition] Failed to load face models:", err)
-      setLoadError(err.message || "Failed to load face recognition models")
+      const errorMsg = err.message || "Failed to load face recognition models"
+      globalLoadError = errorMsg
+      globalModelsPromise = null
+      setLoadError(errorMsg)
     } finally {
       setIsLoadingModels(false)
     }
-  }, [isModelsLoaded, isLoadingModels])
+  }, [])
+
+  // Auto-sync local state with singleton status
+  useEffect(() => {
+    if (globalModelsLoaded && !isModelsLoaded) {
+      setIsModelsLoaded(true)
+      faceApiRef.current = globalFaceApi
+    }
+  }, [isModelsLoaded])
 
   const detectFaceFromVideo = useCallback(
     async (videoElement: HTMLVideoElement): Promise<FaceDetectionResult> => {
-      if (!faceApiRef.current || !isModelsLoaded) {
+      if (!faceApiRef.current || !globalModelsLoaded) {
         return {
           detected: false,
           descriptor: null,
@@ -90,15 +159,24 @@ export function useFaceRecognition() {
         }
       }
 
+      const startTime = performance.now()
+
       try {
         const faceapi = faceApiRef.current
 
-        // Detect all faces with landmarks and descriptors
-        // minConfidence 0.45 catches faces faster on lower-end devices
+        // Ultra-fast TinyFaceDetector options (inputSize: 320 is optimized for speed & accuracy)
+        const detectorOptions = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 320,
+          scoreThreshold: 0.40,
+        })
+
+        // Step 1: Detect all faces and landmarks
         const detections = await faceapi
-          .detectAllFaces(videoElement, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.45 }))
+          .detectAllFaces(videoElement, detectorOptions)
           .withFaceLandmarks()
           .withFaceDescriptors()
+
+        const inferenceTimeMs = Math.round(performance.now() - startTime)
 
         if (!detections || detections.length === 0) {
           return {
@@ -106,6 +184,7 @@ export function useFaceRecognition() {
             descriptor: null,
             multipleFaces: false,
             qualityScore: 0,
+            inferenceTimeMs,
           }
         }
 
@@ -116,6 +195,7 @@ export function useFaceRecognition() {
             multipleFaces: true,
             qualityScore: 0,
             error: "Multiple faces detected. Please ensure only one person is in the frame.",
+            inferenceTimeMs,
           }
         }
 
@@ -125,22 +205,21 @@ export function useFaceRecognition() {
         const box = primaryDetection.detection.box
         const landmarks = primaryDetection.landmarks
 
-        // Basic liveness / anti-spoof checks:
-        // 1. Adequate detector score (>= 0.50 — permissive for speed on low-end devices)
-        // 2. Minimum face resolution (box width/height >= 60px)
+        // Quality & liveness checks:
+        // 1. Adequate detector score (>= 0.45)
+        // 2. Minimum face resolution (box width/height >= 50px)
         // 3. Complete 68-point 3D facial landmark mesh
-        const hasLandmarks = landmarks && landmarks.positions && landmarks.positions.length === 68
-        const isAdequateSize = box.width >= 60 && box.height >= 60
-        const isLive = score >= 0.50 && hasLandmarks && isAdequateSize
+        const hasLandmarks = !!(landmarks && landmarks.positions && landmarks.positions.length === 68)
+        const isAdequateSize = box.width >= 50 && box.height >= 50
+        const isLive = score >= 0.45 && hasLandmarks && isAdequateSize
 
-        // Check if face is properly centered within the video frame
+        // Center positioning check
         const videoWidth = videoElement.videoWidth || 640
         const videoHeight = videoElement.videoHeight || 480
         const faceCenterX = box.x + box.width / 2
         const faceCenterY = box.y + box.height / 2
-        // Slightly wider acceptance zone — avoids false "not positioned" on mobile
-        const isCenteredX = faceCenterX > videoWidth * 0.12 && faceCenterX < videoWidth * 0.88
-        const isCenteredY = faceCenterY > videoHeight * 0.10 && faceCenterY < videoHeight * 0.90
+        const isCenteredX = faceCenterX > videoWidth * 0.10 && faceCenterX < videoWidth * 0.90
+        const isCenteredY = faceCenterY > videoHeight * 0.08 && faceCenterY < videoHeight * 0.92
         const isProperlyPositioned = isCenteredX && isCenteredY && isAdequateSize
 
         return {
@@ -156,6 +235,7 @@ export function useFaceRecognition() {
             width: box.width,
             height: box.height,
           },
+          inferenceTimeMs,
         }
       } catch (err: any) {
         console.error("[FaceRecognition] Detection error:", err)
@@ -165,10 +245,11 @@ export function useFaceRecognition() {
           multipleFaces: false,
           qualityScore: 0,
           error: err.message || "Face detection failed",
+          inferenceTimeMs: Math.round(performance.now() - startTime),
         }
       }
     },
-    [isModelsLoaded]
+    []
   )
 
   const verifyFaceMatch = useCallback(
@@ -190,3 +271,4 @@ export function useFaceRecognition() {
     verifyFaceMatch,
   }
 }
+
