@@ -523,7 +523,7 @@ export function StaffAttendance() {
                 {isSessionMode ? "Session Attendance" : "Today's Check-In"}
               </CardTitle>
               <CardDescription>
-                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })}
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric", timeZone: "Africa/Addis_Ababa" })}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

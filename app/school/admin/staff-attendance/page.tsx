@@ -366,10 +366,16 @@ export default function AdminStaffAttendanceDashboard() {
   // Open Correction Modal
   const openCorrectionModal = (rec: any) => {
     setCorrectingRecord(rec)
+    // Pre-fill the datetime-local input using Ethiopia's fixed UTC+3 offset.
+    // We must NOT use getTimezoneOffset() because that reflects the device's local
+    // timezone — on a phone set to UTC+0 it would show a time 3 hours too early.
     const toInputVal = (dateStr?: string) => {
       if (!dateStr) return ""
       const d = new Date(dateStr)
-      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      if (isNaN(d.getTime())) return ""
+      // Africa/Addis_Ababa is permanently UTC+3 (no DST)
+      const ET_OFFSET_MS = 3 * 60 * 60 * 1000
+      return new Date(d.getTime() + ET_OFFSET_MS).toISOString().slice(0, 16)
     }
 
     setCorrectionForm({
@@ -390,11 +396,21 @@ export default function AdminStaffAttendanceDashboard() {
     }
 
     setIsSavingCorrection(true)
+    // The datetime-local inputs were pre-filled in Ethiopian time (UTC+3).
+    // new Date("YYYY-MM-DDTHH:MM") treats the value as LOCAL device time,
+    // which is wrong on non-ET devices. We must subtract ET's fixed offset to get UTC.
+    const ET_OFFSET_MS = 3 * 60 * 60 * 1000
+    const etLocalToUTC = (val: string) => {
+      if (!val) return null
+      // val is "YYYY-MM-DDTHH:MM" — interpret as ET, convert to UTC ISO
+      const utcMs = new Date(val).getTime() - ET_OFFSET_MS
+      return new Date(utcMs).toISOString()
+    }
     try {
       await db.correctStaffAttendance(correctingRecord.id, {
         status: correctionForm.status,
-        checkInTime: correctionForm.checkInTime ? new Date(correctionForm.checkInTime).toISOString() : null,
-        checkOutTime: correctionForm.checkOutTime ? new Date(correctionForm.checkOutTime).toISOString() : null,
+        checkInTime: correctionForm.checkInTime ? etLocalToUTC(correctionForm.checkInTime) : null,
+        checkOutTime: correctionForm.checkOutTime ? etLocalToUTC(correctionForm.checkOutTime) : null,
         remarks: correctionForm.remarks,
         reason: correctionForm.reason,
       })
@@ -1379,7 +1395,9 @@ export default function AdminStaffAttendanceDashboard() {
                             </Badge>
                           </div>
                           <span className="font-bold text-slate-800 dark:text-slate-200 text-sm block font-mono">
-                            {detailRecord.checkInTime ? new Date(detailRecord.checkInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not Checked In"}
+                            {detailRecord.checkInTime
+                              ? new Date(detailRecord.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Addis_Ababa" })
+                              : "Not Checked In"}
                           </span>
                           {detailRecord.checkInLatitude && (
                             <p className="text-[10px] text-slate-400 font-mono">
@@ -1396,7 +1414,9 @@ export default function AdminStaffAttendanceDashboard() {
                             </Badge>
                           </div>
                           <span className="font-bold text-slate-800 dark:text-slate-200 text-sm block font-mono">
-                            {detailRecord.checkOutTime ? new Date(detailRecord.checkOutTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Not Checked Out"}
+                            {detailRecord.checkOutTime
+                              ? new Date(detailRecord.checkOutTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Addis_Ababa" })
+                              : "Not Checked Out"}
                           </span>
                           {detailRecord.checkOutLatitude && (
                             <p className="text-[10px] text-slate-400 font-mono">
@@ -1460,7 +1480,9 @@ export default function AdminStaffAttendanceDashboard() {
                     </span>
                     <p className="text-[11px]">
                       <span className="font-bold">Corrected At:</span>{" "}
-                      {detailRecord.correctedAt ? new Date(detailRecord.correctedAt).toLocaleString() : "—"}
+                      {detailRecord.correctedAt
+                        ? new Date(detailRecord.correctedAt).toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+                        : "—"}
                     </p>
                     <p className="text-[11px]">
                       <span className="font-bold">Previous Status:</span> {detailRecord.previousStatus || "—"}

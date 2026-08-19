@@ -84,16 +84,45 @@ export function getHHMMFromDate(dateInput?: string | Date | null): string {
 }
 
 /**
- * Formats a Date or ISO string into localized "HH:MM" (12h or 24h as per system).
+ * Formats a Date or ISO string into "HH:MM AM/PM" strictly in Africa/Addis_Ababa timezone.
+ * Using the timezone explicitly prevents any device-clock dependency.
  */
 export function formatAttendanceTime(dateInput?: string | Date | null): string {
   if (!dateInput) return "—"
   try {
     const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
     if (isNaN(d.getTime())) return "—"
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    return d.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Africa/Addis_Ababa",
+    })
   } catch {
     return "—"
+  }
+}
+
+/**
+ * Formats a Date or ISO string into a full datetime string in Africa/Addis_Ababa timezone.
+ * Used for fullDateTimeStr tooltip/title attributes — never relies on device locale.
+ */
+function formatFullDateTimeET(dateInput?: string | Date | null): string | undefined {
+  if (!dateInput) return undefined
+  try {
+    const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
+    if (isNaN(d.getTime())) return undefined
+    return d.toLocaleString("en-US", {
+      timeZone: "Africa/Addis_Ababa",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+  } catch {
+    return undefined
   }
 }
 
@@ -194,7 +223,7 @@ export function getStaffCheckInStatus(
       label: "LATE",
       titleLabel: "Late",
       timeStr: checkInTimeStr,
-      fullDateTimeStr: record.checkInTime ? new Date(record.checkInTime).toLocaleString() : undefined,
+      fullDateTimeStr: formatFullDateTimeET(record.checkInTime),
       hasTime: true,
       badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
       badgeBg: "bg-amber-500/15",
@@ -209,7 +238,7 @@ export function getStaffCheckInStatus(
     label: "ON TIME",
     titleLabel: "On Time",
     timeStr: checkInTimeStr,
-    fullDateTimeStr: record.checkInTime ? new Date(record.checkInTime).toLocaleString() : undefined,
+    fullDateTimeStr: formatFullDateTimeET(record.checkInTime),
     hasTime: true,
     badgeColor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
     badgeBg: "bg-emerald-500/15",
@@ -325,7 +354,7 @@ export function getStaffCheckOutStatus(
       label: "EARLY LEAVE",
       titleLabel: "Early Leave",
       timeStr: checkOutTimeStr,
-      fullDateTimeStr: record.checkOutTime ? new Date(record.checkOutTime).toLocaleString() : undefined,
+      fullDateTimeStr: formatFullDateTimeET(record.checkOutTime),
       hasTime: true,
       badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
       badgeBg: "bg-amber-500/15",
@@ -340,7 +369,7 @@ export function getStaffCheckOutStatus(
     label: "ON TIME",
     titleLabel: "On Time",
     timeStr: checkOutTimeStr,
-    fullDateTimeStr: record.checkOutTime ? new Date(record.checkOutTime).toLocaleString() : undefined,
+    fullDateTimeStr: formatFullDateTimeET(record.checkOutTime),
     hasTime: true,
     badgeColor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
     badgeBg: "bg-emerald-500/15",
