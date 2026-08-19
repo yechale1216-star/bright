@@ -179,7 +179,7 @@ export const getReport = async (req: AuthenticatedRequest, res: Response, next: 
       return res.status(401).json({ success: false, message: 'School context required' });
     }
 
-    const { startDate, endDate, role, userId } = req.query;
+    const { startDate, endDate, role, userId, mode, session } = req.query;
     if (!startDate || !endDate) {
       return res.status(400).json({ success: false, message: 'startDate and endDate are required' });
     }
@@ -189,6 +189,8 @@ export const getReport = async (req: AuthenticatedRequest, res: Response, next: 
       endDate: endDate as string,
       role: role as string,
       userId: userId as string,
+      mode: mode as string,
+      session: session as string,
     });
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
@@ -224,12 +226,12 @@ export const setLeave = async (req: AuthenticatedRequest, res: Response, next: N
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { userId, date, status, reason, session } = req.body;
+    const { userId, date, status, reason, session, mode } = req.body;
     if (!userId || !date || !status || !reason) {
       return res.status(400).json({ success: false, message: 'userId, date, status (LEAVE | PERMISSION), and reason are required' });
     }
 
-    const result = await staffAttendanceService.setLeaveOrPermission(adminUserId, userId, schoolId, { date, status, reason, session });
+    const result = await staffAttendanceService.setLeaveOrPermission(adminUserId, userId, schoolId, { date, status, reason, session, mode });
     res.status(200).json({ success: true, data: result, message: `Staff marked as ${status}` });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to set leave/permission' });

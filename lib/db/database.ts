@@ -769,11 +769,19 @@ class Database extends BaseDatabase {
     return result.data
   }
 
-  async getMyStaffAttendance(filters: { date?: string; startDate?: string; endDate?: string } = {}): Promise<any[]> {
+  async getMyStaffAttendance(filters: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    mode?: string;     // 'daily' | 'session_based'
+    session?: string;  // optional session filter in session_based mode
+  } = {}): Promise<any[]> {
     const params = new URLSearchParams()
     if (filters.date) params.append("date", filters.date)
     if (filters.startDate) params.append("startDate", filters.startDate)
     if (filters.endDate) params.append("endDate", filters.endDate)
+    if (filters.mode) params.append("mode", filters.mode)
+    if (filters.session) params.append("session", filters.session)
     params.append("_t", Date.now().toString())
 
     const result = await apiFetch<{ success: boolean; data: any[] }>(
@@ -790,6 +798,7 @@ class Database extends BaseDatabase {
     role?: string;
     status?: string;
     session?: string;      // 'all' | 'daily' | 'morning' | 'afternoon' | custom
+    mode?: string;         // 'daily' | 'session_based' — enforced by backend
     userId?: string;
     search?: string;
     geofenceVerified?: boolean | string;
@@ -802,6 +811,7 @@ class Database extends BaseDatabase {
     if (filters.role) params.append("role", filters.role)
     if (filters.status) params.append("status", filters.status)
     if (filters.session) params.append("session", filters.session)
+    if (filters.mode) params.append("mode", filters.mode)
     if (filters.userId) params.append("userId", filters.userId)
     if (filters.search) params.append("search", filters.search)
     if (filters.geofenceVerified !== undefined) params.append("geofenceVerified", String(filters.geofenceVerified))
@@ -833,12 +843,16 @@ class Database extends BaseDatabase {
     endDate: string;
     role?: string;
     userId?: string;
+    mode?: string;     // 'daily' | 'session_based'
+    session?: string;  // optional session filter in session_based mode
   }): Promise<any> {
     const params = new URLSearchParams()
     params.append("startDate", filters.startDate)
     params.append("endDate", filters.endDate)
     if (filters.role) params.append("role", filters.role)
     if (filters.userId) params.append("userId", filters.userId)
+    if (filters.mode) params.append("mode", filters.mode)
+    if (filters.session) params.append("session", filters.session)
     params.append("_t", Date.now().toString())
 
     const result = await apiFetch<{ success: boolean; data: any }>(
@@ -876,14 +890,16 @@ class Database extends BaseDatabase {
     userId: string,
     date: string,
     status: "LEAVE" | "PERMISSION",
-    reason: string
+    reason: string,
+    session?: string,  // pass for session-based mode
+    mode?: string      // 'daily' | 'session_based'
   ): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/staff-attendance/leave`,
       {
         method: "POST",
         headers: this.getApiHeaders(),
-        body: JSON.stringify({ userId, date, status, reason }),
+        body: JSON.stringify({ userId, date, status, reason, session, mode }),
       }
     )
     if (typeof window !== "undefined") {

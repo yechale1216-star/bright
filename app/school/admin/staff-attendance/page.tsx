@@ -134,20 +134,23 @@ export default function AdminStaffAttendanceDashboard() {
 
   const isSessionMode = settings?.staffAttendanceMode === "session_based"
   const staffSessions = useMemo(() => {
-    if (!settings?.staffSessions) {
-      return [
-        { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30" },
-        { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00" },
-      ]
-    }
+    const defaults = [
+      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+    ]
+    if (!settings?.staffSessions) return defaults
     try {
       const arr = typeof settings.staffSessions === "string" ? JSON.parse(settings.staffSessions) : settings.staffSessions
-      if (Array.isArray(arr) && arr.length > 0) return arr.filter((s: any) => s.isActive !== false)
+      if (Array.isArray(arr) && arr.length > 0) {
+        const morning = arr.find((s: any) => s && (s.id === "morning" || s.name?.toLowerCase() === "morning")) || defaults[0]
+        const afternoon = arr.find((s: any) => s && (s.id === "afternoon" || s.name?.toLowerCase() === "afternoon")) || defaults[1]
+        return [
+          { ...defaults[0], ...morning, id: "morning", name: "Morning" },
+          { ...defaults[1], ...afternoon, id: "afternoon", name: "Afternoon" },
+        ].filter((s: any) => s.isActive !== false)
+      }
     } catch (_) {}
-    return [
-      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30" },
-      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00" },
-    ]
+    return defaults
   }, [settings?.staffSessions])
 
   // Active view tab: 'roster' | 'reports'
@@ -200,6 +203,7 @@ export default function AdminStaffAttendanceDashboard() {
     date: selectedDate,
     status: "LEAVE" as "LEAVE" | "PERMISSION",
     reason: "",
+    session: "morning" as string,  // used in session_based mode
   })
   const [isSavingLeave, setIsSavingLeave] = useState(false)
 
@@ -244,9 +248,12 @@ export default function AdminStaffAttendanceDashboard() {
     setLoading(true)
     try {
       const filterPayload: any = {
+        // Always pass the mode so the backend enforces strict mode separation
+        mode: isSessionMode ? "session_based" : "daily",
         role: roleFilter !== "all" ? roleFilter : undefined,
         status: statusFilter !== "ALL" ? statusFilter : undefined,
-        session: sessionFilter !== "all" ? sessionFilter : undefined,
+        // Only pass session filter when in session-based mode
+        session: isSessionMode && sessionFilter !== "all" ? sessionFilter : undefined,
         search: search.trim() || undefined,
         geofenceVerified: geoFilter === "verified" ? true : geoFilter === "unverified" ? false : undefined,
         faceVerified: faceFilter === "verified" ? true : faceFilter === "unverified" ? false : undefined,
@@ -267,7 +274,7 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter, faceFilter])
+  }, [isSessionMode, isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter, faceFilter])
 
   const fetchReport = useCallback(async () => {
     setReportLoading(true)
@@ -276,6 +283,10 @@ export default function AdminStaffAttendanceDashboard() {
         startDate,
         endDate,
         role: roleFilter !== "all" ? roleFilter : undefined,
+        // Pass active mode so the backend strictly filters by mode
+        mode: isSessionMode ? "session_based" : "daily",
+        // In session-based mode, pass session filter if one is selected
+        session: isSessionMode && sessionFilter !== "all" ? sessionFilter : undefined,
       })
       setReportData(r)
     } catch (err) {
@@ -284,11 +295,14 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setReportLoading(false)
     }
-  }, [startDate, endDate, roleFilter])
+  }, [isSessionMode, startDate, endDate, roleFilter, sessionFilter])
 
   const loadAllUsers = useCallback(async () => {
     try {
-      const res = await db.getStaffAttendance()
+      // Fetch mode-correct records to build the users map
+      const res = await db.getStaffAttendance({
+        mode: isSessionMode ? "session_based" : "daily",
+      })
       const userMap = new Map<string, any>()
       res.forEach((r: any) => {
         if (r.user && !userMap.has(r.user.id)) {
@@ -299,7 +313,7 @@ export default function AdminStaffAttendanceDashboard() {
     } catch {
       /* ignore */
     }
-  }, [])
+  }, [isSessionMode])
 
   useEffect(() => {
     fetchStats()
@@ -438,10 +452,20 @@ export default function AdminStaffAttendanceDashboard() {
 
     setIsSavingLeave(true)
     try {
-      await db.setStaffLeave(leaveForm.userId, leaveForm.date, leaveForm.status, leaveForm.reason)
+      // Pass mode and session so the backend stores with the correct session key
+      const leaveSession = isSessionMode ? leaveForm.session : undefined
+      const leaveMode = isSessionMode ? "session_based" : "daily"
+      await db.setStaffLeave(
+        leaveForm.userId,
+        leaveForm.date,
+        leaveForm.status,
+        leaveForm.reason,
+        leaveSession,
+        leaveMode
+      )
       notifications.success("Leave Recorded", `Marked staff member as ${leaveForm.status}.`)
       setIsLeaveModalOpen(false)
-      setLeaveForm({ userId: "", date: selectedDate, status: "LEAVE", reason: "" })
+      setLeaveForm({ userId: "", date: selectedDate, status: "LEAVE", reason: "", session: "morning" })
       fetchData()
       fetchStats()
     } catch (err: any) {
@@ -1769,6 +1793,23 @@ export default function AdminStaffAttendanceDashboard() {
                     className="w-full mt-1 p-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-medium focus:outline-none"
                   />
                 </div>
+
+                {/* Session Selector — only shown in Session-Based mode */}
+                {isSessionMode && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Session *</label>
+                    <select
+                      value={leaveForm.session}
+                      onChange={(e) => setLeaveForm({ ...leaveForm, session: e.target.value })}
+                      className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
+                    >
+                      {staffSessions.map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[10px] text-slate-400">Leave applies to the selected session only.</p>
+                  </div>
+                )}
               </form>
 
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-end gap-2 shrink-0">

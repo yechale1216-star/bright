@@ -22,51 +22,151 @@ import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import {
   Clock,
-  Calendar,
   CalendarDays,
   Plus,
   Trash2,
   Edit2,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   Sparkles,
-  ShieldCheck,
   MapPin,
   CalendarOff,
   Sun,
-  Moon,
+  Sunset,
   Info,
   LayoutList,
   Layers,
-  GripVertical,
+  Lock,
 } from "lucide-react"
 
-// ── Session type (mirrors backend StaffSession interface) ──
-interface StaffSession {
-  id: string
-  name: string
+// ── Fixed Session Type (Strictly Morning and Afternoon) ──
+export interface StaffSession {
+  id: "morning" | "afternoon"
+  name: "Morning" | "Afternoon"
   startTime: string
   endTime: string
   lateGraceMinutes: number
   earlyDepartureToleranceMinutes: number
-  absenceCutoffMinutes?: number
-  absenceCutoffTime?: string
+  absenceCutoffMinutes: number
+  absenceCutoffTime: string
+  earliestCheckinTime: string
+  latestCheckoutTime: string
   isActive: boolean
 }
 
-const DEFAULT_SESSIONS: StaffSession[] = [
-  { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true },
-  { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true },
+export const DEFAULT_FIXED_SESSIONS: StaffSession[] = [
+  {
+    id: "morning",
+    name: "Morning",
+    startTime: "08:00",
+    endTime: "12:30",
+    lateGraceMinutes: 15,
+    earlyDepartureToleranceMinutes: 10,
+    absenceCutoffMinutes: 90,
+    absenceCutoffTime: "09:30",
+    earliestCheckinTime: "06:00",
+    latestCheckoutTime: "13:30",
+    isActive: true,
+  },
+  {
+    id: "afternoon",
+    name: "Afternoon",
+    startTime: "13:30",
+    endTime: "17:00",
+    lateGraceMinutes: 10,
+    earlyDepartureToleranceMinutes: 10,
+    absenceCutoffMinutes: 90,
+    absenceCutoffTime: "15:00",
+    earliestCheckinTime: "12:30",
+    latestCheckoutTime: "18:30",
+    isActive: true,
+  },
 ]
 
+function addMinutesToHHMM(timeHHMM: string, minutes: number): string {
+  if (!timeHHMM || !timeHHMM.includes(":")) return "08:00"
+  const [h, m] = timeHHMM.split(":").map(Number)
+  let total = (isNaN(h) ? 8 : h) * 60 + (isNaN(m) ? 0 : m) + minutes
+  if (total < 0) total = 0
+  if (total >= 24 * 60) total = 24 * 60 - 1
+  const newH = Math.floor(total / 60)
+  const newM = total % 60
+  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
+}
+
+function getMinutesDiff(timeA: string, timeB: string): number {
+  if (!timeA || !timeB || !timeA.includes(":") || !timeB.includes(":")) return 0
+  const [hA, mA] = timeA.split(":").map(Number)
+  const [hB, mB] = timeB.split(":").map(Number)
+  return (hA * 60 + mA) - (hB * 60 + mB)
+}
+
 function parseSessionsFromSettings(raw: any): StaffSession[] {
-  if (!raw) return DEFAULT_SESSIONS
-  try {
-    const arr: StaffSession[] = typeof raw === "string" ? JSON.parse(raw) : raw
-    if (Array.isArray(arr) && arr.length > 0) return arr
-  } catch (_) {}
-  return DEFAULT_SESSIONS
+  let arr: any[] = []
+  if (raw) {
+    try {
+      arr = typeof raw === "string" ? JSON.parse(raw) : raw
+      if (!Array.isArray(arr)) arr = []
+    } catch (_) {
+      arr = []
+    }
+  }
+
+  const findRaw = (key: "morning" | "afternoon") => {
+    return arr.find(
+      (s: any) =>
+        s &&
+        ((s.id && String(s.id).toLowerCase().trim() === key) ||
+          (s.name && String(s.name).toLowerCase().trim() === key))
+    )
+  }
+
+  const morningRaw = findRaw("morning")
+  const afternoonRaw = findRaw("afternoon")
+
+  const merge = (
+    key: "morning" | "afternoon",
+    name: "Morning" | "Afternoon",
+    r: any,
+    fallback: StaffSession
+  ): StaffSession => {
+    const startTime = r?.startTime || fallback.startTime
+    const lateGraceMinutes = r?.lateGraceMinutes != null ? Number(r.lateGraceMinutes) : fallback.lateGraceMinutes
+    const earlyDepartureToleranceMinutes =
+      r?.earlyDepartureToleranceMinutes != null ? Number(r.earlyDepartureToleranceMinutes) : fallback.earlyDepartureToleranceMinutes
+    let absenceCutoffMinutes =
+      r?.absenceCutoffMinutes != null ? Number(r.absenceCutoffMinutes) : fallback.absenceCutoffMinutes
+    let absenceCutoffTime = r?.absenceCutoffTime || addMinutesToHHMM(startTime, absenceCutoffMinutes)
+
+    if (r?.absenceCutoffTime && !r?.absenceCutoffMinutes) {
+      const diff = getMinutesDiff(r.absenceCutoffTime, startTime)
+      if (diff > 0) absenceCutoffMinutes = diff
+    }
+
+    const earliestCheckinTime =
+      r?.earliestCheckinTime || r?.earliestCheckInTime || fallback.earliestCheckinTime
+    const latestCheckoutTime =
+      r?.latestCheckoutTime || r?.latestCheckOutTime || fallback.latestCheckoutTime
+
+    return {
+      id: key,
+      name,
+      startTime,
+      endTime: r?.endTime || fallback.endTime,
+      lateGraceMinutes,
+      earlyDepartureToleranceMinutes,
+      absenceCutoffMinutes,
+      absenceCutoffTime,
+      earliestCheckinTime,
+      latestCheckoutTime,
+      isActive: r?.isActive !== false,
+    }
+  }
+
+  return [
+    merge("morning", "Morning", morningRaw, DEFAULT_FIXED_SESSIONS[0]),
+    merge("afternoon", "Afternoon", afternoonRaw, DEFAULT_FIXED_SESSIONS[1]),
+  ]
 }
 
 const ALL_WEEKDAYS = [
@@ -104,13 +204,8 @@ export function StaffScheduleSettingsTab({
   const [editingHoliday, setEditingHoliday] = useState<any | null>(null)
   const [isSubmittingHoliday, setIsSubmittingHoliday] = useState(false)
 
-  // ── Session management state ──
+  // ── Fixed Session Management State (Morning & Afternoon) ──
   const [sessions, setSessions] = useState<StaffSession[]>(() => parseSessionsFromSettings(settings?.staffSessions))
-  const [sessionModalOpen, setSessionModalOpen] = useState(false)
-  const [editingSession, setEditingSession] = useState<StaffSession | null>(null)
-  const [sessionForm, setSessionForm] = useState<Omit<StaffSession, "id">>({
-    name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true
-  })
 
   // Sync sessions state when settings change
   useEffect(() => {
@@ -122,37 +217,32 @@ export function StaffScheduleSettingsTab({
     setSettings((prev: any) => ({ ...prev, staffSessions: updated }))
   }
 
-  const handleOpenAddSession = () => {
-    setEditingSession(null)
-    setSessionForm({ name: "", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, isActive: true })
-    setSessionModalOpen(true)
-  }
+  // Update field for a specific fixed session with bidirectional absence sync
+  const updateSessionField = (id: "morning" | "afternoon", field: keyof StaffSession, value: any) => {
+    const updated = sessions.map((s) => {
+      if (s.id !== id) return s
+      const copy = { ...s, [field]: value }
 
-  const handleOpenEditSession = (s: StaffSession) => {
-    setEditingSession(s)
-    setSessionForm({ name: s.name, startTime: s.startTime, endTime: s.endTime, lateGraceMinutes: s.lateGraceMinutes, earlyDepartureToleranceMinutes: s.earlyDepartureToleranceMinutes, absenceCutoffMinutes: s.absenceCutoffMinutes ?? 90, absenceCutoffTime: s.absenceCutoffTime, isActive: s.isActive })
-    setSessionModalOpen(true)
-  }
+      // Bidirectional sync for absence cutoff
+      if (field === "startTime") {
+        copy.absenceCutoffTime = addMinutesToHHMM(value, s.absenceCutoffMinutes)
+      } else if (field === "absenceCutoffMinutes") {
+        const mins = Number(value) || 0
+        copy.absenceCutoffMinutes = mins
+        copy.absenceCutoffTime = addMinutesToHHMM(s.startTime, mins)
+      } else if (field === "absenceCutoffTime") {
+        copy.absenceCutoffTime = value
+        const diff = getMinutesDiff(value, s.startTime)
+        if (diff > 0) {
+          copy.absenceCutoffMinutes = diff
+        } else {
+          copy.absenceCutoffMinutes = 0
+        }
+      }
 
-  const handleSaveSession = () => {
-    if (!sessionForm.name.trim()) { notifications.error("Session", "Session name is required."); return }
-    if (sessionForm.startTime >= sessionForm.endTime) { notifications.error("Session", "End time must be after start time."); return }
-    if (editingSession) {
-      const updated = sessions.map(s => s.id === editingSession.id ? { ...editingSession, ...sessionForm, name: sessionForm.name.trim() } : s)
-      persistSessions(updated)
-      notifications.success("Updated", `Session "${sessionForm.name}" updated.`)
-    } else {
-      const id = sessionForm.name.toLowerCase().trim().replace(/\s+/g, "-")
-      if (sessions.find(s => s.id === id)) { notifications.error("Session", "A session with this name already exists."); return }
-      persistSessions([...sessions, { id, ...sessionForm, name: sessionForm.name.trim() }])
-      notifications.success("Added", `Session "${sessionForm.name}" added.`)
-    }
-    setSessionModalOpen(false)
-  }
-
-  const handleDeleteSession = (id: string) => {
-    if (sessions.length <= 1) { notifications.error("Session", "At least one session must remain."); return }
-    persistSessions(sessions.filter(s => s.id !== id))
+      return copy
+    })
+    persistSessions(updated)
   }
 
   useEffect(() => {
@@ -221,37 +311,24 @@ export function StaffScheduleSettingsTab({
     notifications.info("Preset Applied", `Working days set to ${days.join(", ")}`)
   }
 
-  // Dynamic threshold calculations for UI feedback
-  const computeLateCutoff = () => {
+  // Daily Mode dynamic threshold calculations
+  const computeDailyLateCutoff = () => {
     const start = settings.staffWorkStartTime || "08:00"
     const grace = parseInt(settings.staffLateGraceMinutes || "15", 10) || 0
-    const [h, m] = start.split(":").map(Number)
-    let total = h * 60 + m + grace
-    const newH = Math.floor(total / 60) % 24
-    const newM = total % 60
-    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
+    return addMinutesToHHMM(start, grace)
   }
 
-  const computeEarlyCutoff = () => {
+  const computeDailyEarlyCutoff = () => {
     const end = settings.staffWorkEndTime || "17:00"
     const tol = parseInt(settings.staffEarlyCheckoutToleranceMinutes || "15", 10) || 0
-    const [h, m] = end.split(":").map(Number)
-    let total = h * 60 + m - tol
-    if (total < 0) total = 0
-    const newH = Math.floor(total / 60)
-    const newM = total % 60
-    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
+    return addMinutesToHHMM(end, -tol)
   }
 
-  const computeAbsenceCutoff = () => {
+  const computeDailyAbsenceCutoff = () => {
     if (settings.staffAbsenceCutoffTime) return settings.staffAbsenceCutoffTime
     const start = settings.staffWorkStartTime || "08:00"
     const mins = parseInt(settings.staffAbsenceCutoffMinutes ?? "120", 10) || 120
-    const [h, m] = start.split(":").map(Number)
-    let total = h * 60 + m + mins
-    const newH = Math.floor(total / 60) % 24
-    const newM = total % 60
-    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
+    return addMinutesToHHMM(start, mins)
   }
 
   // Holiday Modal Handlers
@@ -346,6 +423,11 @@ export function StaffScheduleSettingsTab({
     }
   }
 
+  const morningSession = sessions.find((s) => s.id === "morning") || DEFAULT_FIXED_SESSIONS[0]
+  const afternoonSession = sessions.find((s) => s.id === "afternoon") || DEFAULT_FIXED_SESSIONS[1]
+
+  const isSessionMode = settings.staffAttendanceMode === "session_based"
+
   return (
     <div className="space-y-8">
       {/* ─── SECTION 0: STAFF ATTENDANCE MODE ──────────────────────────── */}
@@ -358,7 +440,7 @@ export function StaffScheduleSettingsTab({
                 Staff Attendance Mode
               </CardTitle>
               <CardDescription>
-                Choose between single daily check-in/out or multiple session-based attendance per day.
+                Choose between single daily check-in/out or fixed Morning and Afternoon session-based attendance.
               </CardDescription>
             </div>
             <Button
@@ -366,7 +448,7 @@ export function StaffScheduleSettingsTab({
               disabled={isSaving}
               className="bg-primary text-white font-bold text-xs uppercase tracking-wider h-10 px-6 rounded-xl shadow-sm"
             >
-              {isSaving ? "Saving..." : "Save Mode"}
+              {isSaving ? "Saving..." : "Save Settings"}
             </Button>
           </div>
         </CardHeader>
@@ -377,15 +459,15 @@ export function StaffScheduleSettingsTab({
               type="button"
               onClick={() => setSettings((prev: any) => ({ ...prev, staffAttendanceMode: "daily" }))}
               className={`flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all ${
-                (settings.staffAttendanceMode || "daily") === "daily"
+                !isSessionMode
                   ? "border-primary bg-primary/5 shadow-sm"
                   : "border-border hover:border-primary/40 bg-card"
               }`}
             >
               <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                (settings.staffAttendanceMode || "daily") === "daily" ? "border-primary" : "border-muted-foreground"
+                !isSessionMode ? "border-primary" : "border-muted-foreground"
               }`}>
-                {(settings.staffAttendanceMode || "daily") === "daily" && (
+                {!isSessionMode && (
                   <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                 )}
               </div>
@@ -395,7 +477,7 @@ export function StaffScheduleSettingsTab({
                   Daily Attendance
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Staff check-in once per day and check-out once per day. Lateness and early departure calculated against daily working hours.
+                  Staff check in once per day and check out once per day. Lateness and early departure are calculated against daily working hours.
                 </p>
               </div>
             </button>
@@ -405,92 +487,29 @@ export function StaffScheduleSettingsTab({
               type="button"
               onClick={() => setSettings((prev: any) => ({ ...prev, staffAttendanceMode: "session_based" }))}
               className={`flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all ${
-                settings.staffAttendanceMode === "session_based"
+                isSessionMode
                   ? "border-primary bg-primary/5 shadow-sm"
                   : "border-border hover:border-primary/40 bg-card"
               }`}
             >
               <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                settings.staffAttendanceMode === "session_based" ? "border-primary" : "border-muted-foreground"
+                isSessionMode ? "border-primary" : "border-muted-foreground"
               }`}>
-                {settings.staffAttendanceMode === "session_based" && (
+                {isSessionMode && (
                   <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                 )}
               </div>
               <div>
                 <div className="flex items-center gap-2 font-semibold text-sm">
                   <Layers className="w-4 h-4 text-primary" />
-                  Session-Based Attendance
+                  Session-Based Attendance (Fixed: Morning & Afternoon)
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Staff mark attendance separately for each defined session (e.g., Morning and Afternoon). Each session has its own time thresholds.
+                  Staff mark attendance separately for fixed <strong>Morning</strong> and <strong>Afternoon</strong> sessions. Each session operates completely independently.
                 </p>
               </div>
             </button>
           </div>
-
-          {/* Session Configuration — visible only in session mode */}
-          {settings.staffAttendanceMode === "session_based" && (
-            <div className="pt-2">
-              <Separator className="mb-5" />
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <Label className="text-sm font-semibold">Configured Sessions</Label>
-                  <p className="text-xs text-muted-foreground">Add and configure the sessions for the school day. Staff will mark attendance once per session.</p>
-                </div>
-                <Button type="button" size="sm" variant="outline" onClick={handleOpenAddSession} className="gap-1.5 text-xs">
-                  <Plus className="w-3.5 h-3.5" /> Add Session
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {sessions.map((s) => {
-                  const lateAfter = (() => {
-                    const [h, m] = s.startTime.split(":").map(Number)
-                    const t = h * 60 + m + s.lateGraceMinutes
-                    return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`
-                  })()
-                  const earlyBefore = (() => {
-                    const [h, m] = s.endTime.split(":").map(Number)
-                    const t = Math.max(0, h * 60 + m - s.earlyDepartureToleranceMinutes)
-                    return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`
-                  })()
-                  return (
-                    <div key={s.id} className={`flex items-center gap-3 p-4 rounded-xl border ${s.isActive ? "border-border bg-card" : "border-border/40 bg-muted/30 opacity-60"}` }>
-                      <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-sm">{s.name}</span>
-                          {!s.isActive && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
-                          <span className="text-xs text-muted-foreground font-mono">{s.startTime} – {s.endTime}</span>
-                        </div>
-                        <div className="flex gap-3 text-[11px] text-muted-foreground mt-0.5">
-                          <span className="text-amber-600">Late after {lateAfter}</span>
-                          <span className="text-orange-600">Early before {earlyBefore}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Switch
-                          checked={s.isActive}
-                          onCheckedChange={(v) => persistSessions(sessions.map(x => x.id === s.id ? { ...x, isActive: v } : x))}
-                          className="scale-75"
-                        />
-                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleOpenEditSession(s)}>
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteSession(s.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-xs text-muted-foreground mt-3">
-                <Info className="w-3 h-3 inline mr-1" />
-                After editing sessions, click <strong>Save Mode</strong> above to persist changes.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -501,10 +520,12 @@ export function StaffScheduleSettingsTab({
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Clock className="w-5 h-5 text-primary" />
-                Staff Working Hours & Shift Rules
+                {isSessionMode ? "Staff Working Days & Session Rules" : "Staff Working Hours & Shift Rules"}
               </CardTitle>
               <CardDescription>
-                Configure official school working days, check-in/out times, and arrival/departure thresholds.
+                {isSessionMode
+                  ? "Configure official school working days and independent Morning & Afternoon session thresholds."
+                  : "Configure official school working days, check-in/out times, and arrival/departure thresholds."}
               </CardDescription>
             </div>
             <Button
@@ -512,12 +533,12 @@ export function StaffScheduleSettingsTab({
               disabled={isSaving}
               className="bg-primary text-white font-bold text-xs uppercase tracking-wider h-10 px-6 rounded-xl shadow-sm"
             >
-              {isSaving ? "Saving..." : "Save Working Hours"}
+              {isSaving ? "Saving..." : isSessionMode ? "Save Session Rules" : "Save Working Hours"}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Working Days */}
+          {/* Working Days (Common to both modes) */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -564,163 +585,532 @@ export function StaffScheduleSettingsTab({
 
           <Separator />
 
-          {/* Time pickers grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <Label htmlFor="staffWorkStartTime" className="text-xs font-semibold">
-                Expected Start / Check-in Time
-              </Label>
-              <Input
-                id="staffWorkStartTime"
-                type="time"
-                value={settings.staffWorkStartTime || "08:00"}
-                onChange={(e) => setSettings({ ...settings, staffWorkStartTime: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
-            </div>
-
-            <div>
-              <Label htmlFor="staffLateGraceMinutes" className="text-xs font-semibold">
-                Late Grace Period (Minutes)
-              </Label>
-              <Input
-                id="staffLateGraceMinutes"
-                type="number"
-                min="0"
-                max="120"
-                value={settings.staffLateGraceMinutes ?? 15}
-                onChange={(e) => setSettings({ ...settings, staffLateGraceMinutes: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                Late after {computeLateCutoff()}
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="staffWorkEndTime" className="text-xs font-semibold">
-                Expected End / Check-out Time
-              </Label>
-              <Input
-                id="staffWorkEndTime"
-                type="time"
-                value={settings.staffWorkEndTime || "17:00"}
-                onChange={(e) => setSettings({ ...settings, staffWorkEndTime: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
-            </div>
-
-            <div>
-              <Label htmlFor="staffEarlyCheckoutToleranceMinutes" className="text-xs font-semibold">
-                Early Departure Tolerance (Min)
-              </Label>
-              <Input
-                id="staffEarlyCheckoutToleranceMinutes"
-                type="number"
-                min="0"
-                max="120"
-                value={settings.staffEarlyCheckoutToleranceMinutes ?? 15}
-                onChange={(e) => setSettings({ ...settings, staffEarlyCheckoutToleranceMinutes: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                Early departure before {computeEarlyCutoff()}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-            <div>
-              <Label htmlFor="staffAbsenceCutoffTime" className="text-xs font-semibold">
-                Absence Cutoff Time
-              </Label>
-              <Input
-                id="staffAbsenceCutoffTime"
-                type="time"
-                value={settings.staffAbsenceCutoffTime || "10:00"}
-                onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffTime: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                Auto-marked Absent after {computeAbsenceCutoff()}
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="staffAbsenceCutoffMinutes" className="text-xs font-semibold">
-                Absence Cutoff (Minutes from Start)
-              </Label>
-              <Input
-                id="staffAbsenceCutoffMinutes"
-                type="number"
-                min="30"
-                max="360"
-                value={settings.staffAbsenceCutoffMinutes ?? 120}
-                onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffMinutes: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
-            </div>
-
-            <div>
-              <Label htmlFor="staffEarliestCheckinTime" className="text-xs font-semibold">
-                Earliest Allowed Check-in
-              </Label>
-              <Input
-                id="staffEarliestCheckinTime"
-                type="time"
-                value={settings.staffEarliestCheckinTime || "06:00"}
-                onChange={(e) => setSettings({ ...settings, staffEarliestCheckinTime: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
-            </div>
-
-            <div>
-              <Label htmlFor="staffLatestCheckoutTime" className="text-xs font-semibold">
-                Latest Allowed Check-out
-              </Label>
-              <Input
-                id="staffLatestCheckoutTime"
-                type="time"
-                value={settings.staffLatestCheckoutTime || "20:00"}
-                onChange={(e) => setSettings({ ...settings, staffLatestCheckoutTime: e.target.value })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
-            </div>
-          </div>
-
-          {/* Attendance Lifecycle Explanation Banner */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/5 via-sky-500/5 to-emerald-500/5 border border-indigo-500/20 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-              <Clock className="w-4 h-4 text-indigo-500" />
-              <span>Daily Attendance Automatic Lifecycle Timeline:</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
-              <div className="p-2 rounded-xl bg-slate-500/10 border border-slate-500/20">
-                <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                <span className="opacity-80">Before {settings.staffWorkStartTime || "08:00"}</span>
+          {/* ─── MODE-ISOLATED CONTENT ─────────────────────────────────── */}
+          {isSessionMode ? (
+            /* ══════ SESSION-BASED MODE: MORNING & AFTERNOON CARDS ══════ */
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    Fixed Session Configurations
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Configure independent attendance times and thresholds for Morning and Afternoon sessions.
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-xs px-2.5 py-1 font-semibold gap-1 bg-muted/50 border-border">
+                  <Lock className="w-3 h-3 text-muted-foreground" /> Exactly 2 Fixed Sessions
+                </Badge>
               </div>
-              <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                <span className="opacity-80">{settings.staffWorkStartTime || "08:00"} – {computeLateCutoff()}</span>
+
+              {/* ── 1. MORNING SESSION CARD ── */}
+              <div className="p-5 rounded-2xl border-2 border-amber-500/30 bg-gradient-to-b from-amber-500/5 to-transparent space-y-5">
+                <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                      <Sun className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-base text-foreground">Morning Session</span>
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold">
+                          System Session
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Morning attendance window and rules</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="morningActive" className="text-xs font-semibold cursor-pointer">
+                      {morningSession.isActive ? "Active" : "Inactive"}
+                    </Label>
+                    <Switch
+                      id="morningActive"
+                      checked={morningSession.isActive}
+                      onCheckedChange={(checked) => updateSessionField("morning", "isActive", checked)}
+                    />
+                  </div>
+                </div>
+
+                {/* 8 Configuration Fields for Morning */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Field 1: Start Time */}
+                  <div>
+                    <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
+                    <Input
+                      type="time"
+                      value={morningSession.startTime}
+                      onChange={(e) => updateSessionField("morning", "startTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
+                  </div>
+
+                  {/* Field 2: Late Grace */}
+                  <div>
+                    <Label className="text-xs font-semibold">Late Grace Period (Minutes)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={morningSession.lateGraceMinutes}
+                      onChange={(e) => updateSessionField("morning", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                      Late after {addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes)}
+                    </p>
+                  </div>
+
+                  {/* Field 3: End Time */}
+                  <div>
+                    <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
+                    <Input
+                      type="time"
+                      value={morningSession.endTime}
+                      onChange={(e) => updateSessionField("morning", "endTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
+                  </div>
+
+                  {/* Field 4: Early Checkout Tolerance */}
+                  <div>
+                    <Label className="text-xs font-semibold">Early Departure Tolerance (Min)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={morningSession.earlyDepartureToleranceMinutes}
+                      onChange={(e) => updateSessionField("morning", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                      Early departure before {addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                  {/* Field 5: Absence Cutoff Time */}
+                  <div>
+                    <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
+                    <Input
+                      type="time"
+                      value={morningSession.absenceCutoffTime}
+                      onChange={(e) => updateSessionField("morning", "absenceCutoffTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
+                      Auto-marked Absent after {morningSession.absenceCutoffTime}
+                    </p>
+                  </div>
+
+                  {/* Field 6: Absence Cutoff Minutes */}
+                  <div>
+                    <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
+                    <Input
+                      type="number"
+                      min="15"
+                      max="360"
+                      value={morningSession.absenceCutoffMinutes}
+                      onChange={(e) => updateSessionField("morning", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                  </div>
+
+                  {/* Field 7: Earliest Allowed Check-in */}
+                  <div>
+                    <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
+                    <Input
+                      type="time"
+                      value={morningSession.earliestCheckinTime}
+                      onChange={(e) => updateSessionField("morning", "earliestCheckinTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
+                  </div>
+
+                  {/* Field 8: Latest Allowed Check-out */}
+                  <div>
+                    <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
+                    <Input
+                      type="time"
+                      value={morningSession.latestCheckoutTime}
+                      onChange={(e) => updateSessionField("morning", "latestCheckoutTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
+                  </div>
+                </div>
+
+                {/* Morning Session Timeline Helper */}
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Morning Session Lifecycle Timeline:</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="p-2 rounded-lg bg-background/80 border border-border">
+                      <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
+                      <span className="opacity-80">Before {morningSession.startTime}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
+                      <span className="opacity-80">{morningSession.startTime} – {addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes)}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                      <span className="opacity-80">{addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes)} – {morningSession.absenceCutoffTime}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                      <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
+                      <span className="opacity-80">After {morningSession.absenceCutoffTime}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                <span className="opacity-80">{computeLateCutoff()} – {computeAbsenceCutoff()}</span>
+
+              {/* ── 2. AFTERNOON SESSION CARD ── */}
+              <div className="p-5 rounded-2xl border-2 border-indigo-500/30 bg-gradient-to-b from-indigo-500/5 to-transparent space-y-5">
+                <div className="flex items-center justify-between pb-2 border-b border-indigo-500/20">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/15 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                      <Sunset className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-base text-foreground">Afternoon Session</span>
+                        <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 text-[10px] font-bold">
+                          System Session
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Afternoon attendance window and rules</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="afternoonActive" className="text-xs font-semibold cursor-pointer">
+                      {afternoonSession.isActive ? "Active" : "Inactive"}
+                    </Label>
+                    <Switch
+                      id="afternoonActive"
+                      checked={afternoonSession.isActive}
+                      onCheckedChange={(checked) => updateSessionField("afternoon", "isActive", checked)}
+                    />
+                  </div>
+                </div>
+
+                {/* 8 Configuration Fields for Afternoon */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Field 1: Start Time */}
+                  <div>
+                    <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
+                    <Input
+                      type="time"
+                      value={afternoonSession.startTime}
+                      onChange={(e) => updateSessionField("afternoon", "startTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
+                  </div>
+
+                  {/* Field 2: Late Grace */}
+                  <div>
+                    <Label className="text-xs font-semibold">Late Grace Period (Minutes)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={afternoonSession.lateGraceMinutes}
+                      onChange={(e) => updateSessionField("afternoon", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                      Late after {addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes)}
+                    </p>
+                  </div>
+
+                  {/* Field 3: End Time */}
+                  <div>
+                    <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
+                    <Input
+                      type="time"
+                      value={afternoonSession.endTime}
+                      onChange={(e) => updateSessionField("afternoon", "endTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
+                  </div>
+
+                  {/* Field 4: Early Checkout Tolerance */}
+                  <div>
+                    <Label className="text-xs font-semibold">Early Departure Tolerance (Min)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={afternoonSession.earlyDepartureToleranceMinutes}
+                      onChange={(e) => updateSessionField("afternoon", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                      Early departure before {addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                  {/* Field 5: Absence Cutoff Time */}
+                  <div>
+                    <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
+                    <Input
+                      type="time"
+                      value={afternoonSession.absenceCutoffTime}
+                      onChange={(e) => updateSessionField("afternoon", "absenceCutoffTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
+                      Auto-marked Absent after {afternoonSession.absenceCutoffTime}
+                    </p>
+                  </div>
+
+                  {/* Field 6: Absence Cutoff Minutes */}
+                  <div>
+                    <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
+                    <Input
+                      type="number"
+                      min="15"
+                      max="360"
+                      value={afternoonSession.absenceCutoffMinutes}
+                      onChange={(e) => updateSessionField("afternoon", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                  </div>
+
+                  {/* Field 7: Earliest Allowed Check-in */}
+                  <div>
+                    <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
+                    <Input
+                      type="time"
+                      value={afternoonSession.earliestCheckinTime}
+                      onChange={(e) => updateSessionField("afternoon", "earliestCheckinTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
+                  </div>
+
+                  {/* Field 8: Latest Allowed Check-out */}
+                  <div>
+                    <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
+                    <Input
+                      type="time"
+                      value={afternoonSession.latestCheckoutTime}
+                      onChange={(e) => updateSessionField("afternoon", "latestCheckoutTime", e.target.value)}
+                      className="mt-1 font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
+                  </div>
+                </div>
+
+                {/* Afternoon Session Timeline Helper */}
+                <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <Sunset className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Afternoon Session Lifecycle Timeline:</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="p-2 rounded-lg bg-background/80 border border-border">
+                      <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
+                      <span className="opacity-80">Before {afternoonSession.startTime}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
+                      <span className="opacity-80">{afternoonSession.startTime} – {addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes)}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                      <span className="opacity-80">{addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes)} – {afternoonSession.absenceCutoffTime}</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                      <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
+                      <span className="opacity-80">After {afternoonSession.absenceCutoffTime}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                <span className="opacity-80">After {computeAbsenceCutoff()} (Unrecorded)</span>
+
+              <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
+                <Info className="w-4 h-4 text-primary shrink-0" />
+                <span>
+                  Morning and Afternoon sessions function independently. Remember to click <strong>Save Session Rules</strong> above to persist changes.
+                </span>
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground italic">
-              * Staff with approved Leave or Permission are never automatically marked Absent. Holidays & non-working days are strictly excluded.
-            </p>
-          </div>
+          ) : (
+            /* ══════ DAILY ATTENDANCE MODE: SINGLE DAY SCHEDULE ══════ */
+            <div className="space-y-6">
+              {/* Time pickers grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="staffWorkStartTime" className="text-xs font-semibold">
+                    Expected Start / Check-in Time
+                  </Label>
+                  <Input
+                    id="staffWorkStartTime"
+                    type="time"
+                    value={settings.staffWorkStartTime || "08:00"}
+                    onChange={(e) => setSettings({ ...settings, staffWorkStartTime: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="staffLateGraceMinutes" className="text-xs font-semibold">
+                    Late Grace Period (Minutes)
+                  </Label>
+                  <Input
+                    id="staffLateGraceMinutes"
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={settings.staffLateGraceMinutes ?? 15}
+                    onChange={(e) => setSettings({ ...settings, staffLateGraceMinutes: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                    Late after {computeDailyLateCutoff()}
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="staffWorkEndTime" className="text-xs font-semibold">
+                    Expected End / Check-out Time
+                  </Label>
+                  <Input
+                    id="staffWorkEndTime"
+                    type="time"
+                    value={settings.staffWorkEndTime || "17:00"}
+                    onChange={(e) => setSettings({ ...settings, staffWorkEndTime: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="staffEarlyCheckoutToleranceMinutes" className="text-xs font-semibold">
+                    Early Departure Tolerance (Min)
+                  </Label>
+                  <Input
+                    id="staffEarlyCheckoutToleranceMinutes"
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={settings.staffEarlyCheckoutToleranceMinutes ?? 15}
+                    onChange={(e) => setSettings({ ...settings, staffEarlyCheckoutToleranceMinutes: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                    Early departure before {computeDailyEarlyCutoff()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                <div>
+                  <Label htmlFor="staffAbsenceCutoffTime" className="text-xs font-semibold">
+                    Absence Cutoff Time
+                  </Label>
+                  <Input
+                    id="staffAbsenceCutoffTime"
+                    type="time"
+                    value={settings.staffAbsenceCutoffTime || "10:00"}
+                    onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffTime: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
+                    Auto-marked Absent after {computeDailyAbsenceCutoff()}
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="staffAbsenceCutoffMinutes" className="text-xs font-semibold">
+                    Absence Cutoff (Minutes from Start)
+                  </Label>
+                  <Input
+                    id="staffAbsenceCutoffMinutes"
+                    type="number"
+                    min="30"
+                    max="360"
+                    value={settings.staffAbsenceCutoffMinutes ?? 120}
+                    onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffMinutes: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="staffEarliestCheckinTime" className="text-xs font-semibold">
+                    Earliest Allowed Check-in
+                  </Label>
+                  <Input
+                    id="staffEarliestCheckinTime"
+                    type="time"
+                    value={settings.staffEarliestCheckinTime || "06:00"}
+                    onChange={(e) => setSettings({ ...settings, staffEarliestCheckinTime: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
+                </div>
+
+                <div>
+                  <Label htmlFor="staffLatestCheckoutTime" className="text-xs font-semibold">
+                    Latest Allowed Check-out
+                  </Label>
+                  <Input
+                    id="staffLatestCheckoutTime"
+                    type="time"
+                    value={settings.staffLatestCheckoutTime || "20:00"}
+                    onChange={(e) => setSettings({ ...settings, staffLatestCheckoutTime: e.target.value })}
+                    className="mt-1 font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
+                </div>
+              </div>
+
+              {/* Attendance Lifecycle Explanation Banner */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/5 via-sky-500/5 to-emerald-500/5 border border-indigo-500/20 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <Clock className="w-4 h-4 text-indigo-500" />
+                  <span>Daily Attendance Automatic Lifecycle Timeline:</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="p-2 rounded-xl bg-slate-500/10 border border-slate-500/20">
+                    <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
+                    <span className="opacity-80">Before {settings.staffWorkStartTime || "08:00"}</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
+                    <span className="opacity-80">{settings.staffWorkStartTime || "08:00"} – {computeDailyLateCutoff()}</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                    <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                    <span className="opacity-80">{computeDailyLateCutoff()} – {computeDailyAbsenceCutoff()}</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                    <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
+                    <span className="opacity-80">After {computeDailyAbsenceCutoff()} (Unrecorded)</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  * Staff with approved Leave or Permission are never automatically marked Absent. Holidays & non-working days are strictly excluded.
+                </p>
+              </div>
+            </div>
+          )}
 
           <Separator />
 
@@ -1004,81 +1394,6 @@ export function StaffScheduleSettingsTab({
             </Button>
             <Button onClick={handleSaveHoliday} disabled={isSubmittingHoliday} className="bg-primary text-white">
               {isSubmittingHoliday ? "Saving..." : editingHoliday ? "Update Holiday" : "Create Holiday"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── SESSION ADD / EDIT DIALOG ──────────────────────────────────── */}
-      <Dialog open={sessionModalOpen} onOpenChange={setSessionModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingSession ? "Edit Session" : "Add Session"}</DialogTitle>
-            <DialogDescription>
-              Configure the session name, time window, and thresholds.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label htmlFor="sessionName" className="text-xs font-semibold">Session Name *</Label>
-              <Input
-                id="sessionName"
-                placeholder="e.g. Morning, Afternoon, Evening"
-                value={sessionForm.name}
-                onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="sessionStart" className="text-xs font-semibold">Start Time *</Label>
-                <Input id="sessionStart" type="time" value={sessionForm.startTime} onChange={(e) => setSessionForm({ ...sessionForm, startTime: e.target.value })} className="mt-1 font-mono" />
-              </div>
-              <div>
-                <Label htmlFor="sessionEnd" className="text-xs font-semibold">End Time *</Label>
-                <Input id="sessionEnd" type="time" value={sessionForm.endTime} onChange={(e) => setSessionForm({ ...sessionForm, endTime: e.target.value })} className="mt-1 font-mono" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="sessionLateGrace" className="text-xs font-semibold">Late Grace (min)</Label>
-                <Input id="sessionLateGrace" type="number" min={0} max={60} value={sessionForm.lateGraceMinutes} onChange={(e) => setSessionForm({ ...sessionForm, lateGraceMinutes: parseInt(e.target.value) || 0 })} className="mt-1 font-mono" />
-                <p className="text-[11px] text-amber-600 mt-1">
-                  Late after {(() => { const [h,m] = sessionForm.startTime.split(":").map(Number); const t = h*60+m+sessionForm.lateGraceMinutes; return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="sessionEarlyTol" className="text-xs font-semibold">Early Departure (min)</Label>
-                <Input id="sessionEarlyTol" type="number" min={0} max={60} value={sessionForm.earlyDepartureToleranceMinutes} onChange={(e) => setSessionForm({ ...sessionForm, earlyDepartureToleranceMinutes: parseInt(e.target.value) || 0 })} className="mt-1 font-mono" />
-                <p className="text-[11px] text-orange-600 mt-1">
-                  Early before {(() => { const [h,m] = sessionForm.endTime.split(":").map(Number); const t = Math.max(0, h*60+m-sessionForm.earlyDepartureToleranceMinutes); return `${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
-                </p>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="sessionAbsenceCutoff" className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
-              <Input
-                id="sessionAbsenceCutoff"
-                type="number"
-                min={15}
-                max={240}
-                value={sessionForm.absenceCutoffMinutes ?? 90}
-                onChange={(e) => setSessionForm({ ...sessionForm, absenceCutoffMinutes: parseInt(e.target.value) || 90 })}
-                className="mt-1 font-mono"
-              />
-              <p className="text-[11px] text-rose-600 mt-1">
-                Auto-marked Absent after {(() => { const [h,m] = sessionForm.startTime.split(":").map(Number); const t = h*60+m+(sessionForm.absenceCutoffMinutes ?? 90); return `${String(Math.floor(t/60)%24).padStart(2,"0")}:${String(t%60).padStart(2,"0")}` })()}
-              </p>
-            </div>
-            <div className="flex items-center justify-between pt-1">
-              <Label htmlFor="sessionActive" className="text-xs font-semibold">Active</Label>
-              <Switch id="sessionActive" checked={sessionForm.isActive} onCheckedChange={(v) => setSessionForm({ ...sessionForm, isActive: v })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSessionModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveSession} className="bg-primary text-white">
-              {editingSession ? "Update Session" : "Add Session"}
             </Button>
           </DialogFooter>
         </DialogContent>

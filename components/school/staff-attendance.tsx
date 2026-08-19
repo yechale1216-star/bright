@@ -84,20 +84,23 @@ export function StaffAttendance() {
   // Session-based mode config
   const isSessionMode = settings?.staffAttendanceMode === "session_based"
   const staffSessions = useMemo(() => {
-    if (!settings?.staffSessions) {
-      return [
-        { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
-        { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
-      ]
-    }
+    const defaults = [
+      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+    ]
+    if (!settings?.staffSessions) return defaults
     try {
       const arr = typeof settings.staffSessions === "string" ? JSON.parse(settings.staffSessions) : settings.staffSessions
-      if (Array.isArray(arr) && arr.length > 0) return arr.filter((s: any) => s.isActive !== false)
+      if (Array.isArray(arr) && arr.length > 0) {
+        const morning = arr.find((s: any) => s && (s.id === "morning" || s.name?.toLowerCase() === "morning")) || defaults[0]
+        const afternoon = arr.find((s: any) => s && (s.id === "afternoon" || s.name?.toLowerCase() === "afternoon")) || defaults[1]
+        return [
+          { ...defaults[0], ...morning, id: "morning", name: "Morning" },
+          { ...defaults[1], ...afternoon, id: "afternoon", name: "Afternoon" },
+        ].filter((s: any) => s.isActive !== false)
+      }
     } catch (_) {}
-    return [
-      { id: "morning", name: "Morning Session", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
-      { id: "afternoon", name: "Afternoon Session", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
-    ]
+    return defaults
   }, [settings?.staffSessions])
 
   const [selectedSession, setSelectedSession] = useState<string>("morning")
@@ -206,9 +209,11 @@ export function StaffAttendance() {
         console.warn("Could not check working day status:", calErr)
       }
 
-      // 1. Load my history
+      // 1. Load my history — strictly filtered to the configured attendance mode
       if (activeUser?.id) {
-        const history = await db.getMyStaffAttendance()
+        const history = await db.getMyStaffAttendance({
+          mode: isSessionMode ? "session_based" : "daily",
+        })
         setMyHistory(history)
 
         // Fetch enrolled face descriptor
@@ -220,7 +225,10 @@ export function StaffAttendance() {
 
       // 2. If Admin, load all staff attendance for selected date
       if (activeUser?.role === "admin" || activeUser?.role === "school_admin") {
-        const allAtt = await db.getStaffAttendance({ date: selectedDate })
+        const allAtt = await db.getStaffAttendance({
+          date: selectedDate,
+          mode: isSessionMode ? "session_based" : "daily",
+        })
         setAllStaffAttendance(allAtt)
       }
     } catch (err: any) {
