@@ -522,7 +522,7 @@ export function TeacherView() {
                       {selectedStudentProfile.date_of_birth && (
                         <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
                           <span className="text-muted-foreground font-medium">Date of Birth</span>
-                          <span className="font-bold text-foreground">{selectedStudentProfile.date_of_birth}</span>
+                          <span className="font-bold text-foreground">{formatDate(selectedStudentProfile.date_of_birth)}</span>
                         </div>
                       )}
                       {selectedStudentProfile.address && (

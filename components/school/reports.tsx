@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils/utils"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { DualDatePicker } from "@/components/ui/dual-date-picker"
+import { toEthiopianDate, ethiopicToJDN, jdnToGregorian } from "@/lib/utils/ethiopian-calendar"
 
 interface StudentReport {
   student: Student
@@ -37,7 +38,7 @@ interface StudentReport {
 }
 
 export function Reports() {
-  const { formatDate } = useCalendar()
+  const { formatDate, calendarPreference } = useCalendar()
   const [students, setStudents] = useState<Student[]>([])
   const [studentsLoaded, setStudentsLoaded] = useState(false)
   const [reportData, setReportData] = useState<StudentReport[]>([])
@@ -97,11 +98,19 @@ export function Reports() {
       setEndDate(today.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
     } else if (reportType === "monthly") {
       const today = getAddisDate()
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-      setStartDate(firstDayOfMonth.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
+      if (calendarPreference === "ethiopian") {
+        const ec = toEthiopianDate(today)
+        const jdn = ethiopicToJDN(ec.year, ec.month, 1)
+        const startGregorian = jdnToGregorian(jdn)
+        const startISO = startGregorian.toISOString().split("T")[0]
+        setStartDate(startISO)
+      } else {
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+        setStartDate(firstDayOfMonth.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
+      }
       setEndDate(today.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
     }
-  }, [reportType])
+  }, [reportType, calendarPreference])
 
   // Re-generate the report whenever dates, mode, session filter, or the student list changes.
   // `studentsLoaded` is included so the first report fires only AFTER loadStudents() has resolved,
@@ -604,11 +613,21 @@ export function Reports() {
             <div className="space-y-2">
               <label className="typography-label text-[10px] uppercase text-muted-foreground ml-1">Start Date</label>
               <DualDatePicker value={startDate} onChange={(val) => setStartDate(val)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11" />
+              {startDate && (
+                <p className="text-[11px] font-semibold text-primary/80 pl-1">
+                  {formatDate(startDate, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <label className="typography-label text-[10px] uppercase text-muted-foreground ml-1">End Date</label>
               <DualDatePicker value={endDate} onChange={(val) => setEndDate(val)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11" />
+              {endDate && (
+                <p className="text-[11px] font-semibold text-primary/80 pl-1">
+                  {formatDate(endDate, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              )}
             </div>
 
             {isSessionBased && (
