@@ -97,44 +97,34 @@ export function getHHMMFromDate(dateInput?: string | Date | null): string {
   }
 }
 
+import { formatEthiopianTime, toEthiopianTime } from "@/lib/utils/ethiopian-time"
+
 /**
- * Formats a Date or ISO string into "HH:MM AM/PM" strictly in Africa/Addis_Ababa timezone.
- * Using the timezone explicitly prevents any device-clock dependency.
+ * Formats a Date or ISO string into Ethiopian Clock format (e.g. "2:15 Ethiopian").
+ * Strictly in Africa/Addis_Ababa timezone without device-clock dependence.
  */
 export function formatAttendanceTime(dateInput?: string | Date | null): string {
   if (!dateInput) return "—"
-  try {
-    const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
-    if (isNaN(d.getTime())) return "—"
-    return d.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "Africa/Addis_Ababa",
-    })
-  } catch {
-    return "—"
-  }
+  return formatEthiopianTime(dateInput)
 }
 
 /**
- * Formats a Date or ISO string into a full datetime string in Africa/Addis_Ababa timezone.
- * Used for fullDateTimeStr tooltip/title attributes — never relies on device locale.
+ * Formats a Date or ISO string into a full datetime string in Ethiopian Calendar and Clock.
+ * Used for fullDateTimeStr tooltip/title attributes.
  */
 function formatFullDateTimeET(dateInput?: string | Date | null): string | undefined {
   if (!dateInput) return undefined
   try {
+    const et = toEthiopianTime(dateInput)
     const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
     if (isNaN(d.getTime())) return undefined
-    return d.toLocaleString("en-US", {
+    const datePart = d.toLocaleDateString("en-US", {
       timeZone: "Africa/Addis_Ababa",
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
     })
+    return `${datePart} • ${et.timeString} (${et.periodLabelAm})`
   } catch {
     return undefined
   }

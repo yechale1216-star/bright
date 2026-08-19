@@ -49,6 +49,7 @@ import {
   flushOfflineStaffQueue,
 } from "@/lib/utils/staff-attendance-offline-store"
 import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
+import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 
 export function StaffDashboard() {
   const { user } = useAuth()
@@ -596,7 +597,7 @@ export function StaffDashboard() {
                     >
                       <span className="truncate">{sess.name}</span>
                       <span className="text-[10px] opacity-80 font-mono font-normal">
-                        {sess.startTime} - {sess.endTime}
+                        {formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)}
                       </span>
                       {sessDisplay && (
                         <div className="flex items-center gap-1 mt-0.5">

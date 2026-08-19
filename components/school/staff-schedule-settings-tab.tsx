@@ -38,6 +38,8 @@ import {
   Layers,
   Lock,
 } from "lucide-react"
+import { EthiopianTimeInput } from "@/components/ui/ethiopian-time-input"
+import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 
 // ── Fixed Session Type (Strictly Morning and Afternoon) ──
 export interface StaffSession {
@@ -311,24 +313,24 @@ export function StaffScheduleSettingsTab({
     notifications.info("Preset Applied", `Working days set to ${days.join(", ")}`)
   }
 
-  // Daily Mode dynamic threshold calculations
+  // Daily Mode dynamic threshold calculations (returning Ethiopian Clock strings for display)
   const computeDailyLateCutoff = () => {
     const start = settings.staffWorkStartTime || "08:00"
     const grace = parseInt(settings.staffLateGraceMinutes || "15", 10) || 0
-    return addMinutesToHHMM(start, grace)
+    return formatEthiopianTime(addMinutesToHHMM(start, grace))
   }
 
   const computeDailyEarlyCutoff = () => {
     const end = settings.staffWorkEndTime || "17:00"
     const tol = parseInt(settings.staffEarlyCheckoutToleranceMinutes || "15", 10) || 0
-    return addMinutesToHHMM(end, -tol)
+    return formatEthiopianTime(addMinutesToHHMM(end, -tol))
   }
 
   const computeDailyAbsenceCutoff = () => {
-    if (settings.staffAbsenceCutoffTime) return settings.staffAbsenceCutoffTime
+    if (settings.staffAbsenceCutoffTime) return formatEthiopianTime(settings.staffAbsenceCutoffTime)
     const start = settings.staffWorkStartTime || "08:00"
     const mins = parseInt(settings.staffAbsenceCutoffMinutes ?? "120", 10) || 120
-    return addMinutesToHHMM(start, mins)
+    return formatEthiopianTime(addMinutesToHHMM(start, mins))
   }
 
   // Holiday Modal Handlers
@@ -638,13 +640,13 @@ export function StaffScheduleSettingsTab({
                   {/* Field 1: Start Time */}
                   <div>
                     <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={morningSession.startTime}
-                      onChange={(e) => updateSessionField("morning", "startTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("morning", "startTime", val)}
+                      allowedPeriods={["morning", "afternoon"]}
+                      helperText="Official morning arrival time (ጠዋት)"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
                   </div>
 
                   {/* Field 2: Late Grace */}
@@ -659,20 +661,20 @@ export function StaffScheduleSettingsTab({
                       className="mt-1 font-mono"
                     />
                     <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                      Late after {addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes)}
+                      Late after {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}
                     </p>
                   </div>
 
                   {/* Field 3: End Time */}
                   <div>
                     <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={morningSession.endTime}
-                      onChange={(e) => updateSessionField("morning", "endTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("morning", "endTime", val)}
+                      allowedPeriods={["morning", "afternoon"]}
+                      helperText="Official morning departure time"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
                   </div>
 
                   {/* Field 4: Early Checkout Tolerance */}
@@ -687,7 +689,7 @@ export function StaffScheduleSettingsTab({
                       className="mt-1 font-mono"
                     />
                     <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                      Early departure before {addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes)}
+                      Early departure before {formatEthiopianTime(addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes))}
                     </p>
                   </div>
                 </div>
@@ -696,14 +698,14 @@ export function StaffScheduleSettingsTab({
                   {/* Field 5: Absence Cutoff Time */}
                   <div>
                     <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={morningSession.absenceCutoffTime}
-                      onChange={(e) => updateSessionField("morning", "absenceCutoffTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("morning", "absenceCutoffTime", val)}
+                      allowedPeriods={["morning", "afternoon"]}
+                      className="mt-1"
                     />
                     <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                      Auto-marked Absent after {morningSession.absenceCutoffTime}
+                      Auto-marked Absent after {formatEthiopianTime(morningSession.absenceCutoffTime)}
                     </p>
                   </div>
 
@@ -724,25 +726,25 @@ export function StaffScheduleSettingsTab({
                   {/* Field 7: Earliest Allowed Check-in */}
                   <div>
                     <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={morningSession.earliestCheckinTime}
-                      onChange={(e) => updateSessionField("morning", "earliestCheckinTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("morning", "earliestCheckinTime", val)}
+                      allowedPeriods={["night", "morning"]}
+                      helperText="Check-in blocked before this time"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
                   </div>
 
                   {/* Field 8: Latest Allowed Check-out */}
                   <div>
                     <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={morningSession.latestCheckoutTime}
-                      onChange={(e) => updateSessionField("morning", "latestCheckoutTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("morning", "latestCheckoutTime", val)}
+                      allowedPeriods={["afternoon", "evening"]}
+                      helperText="Maximum allowed shift boundary"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
                   </div>
                 </div>
 
@@ -750,24 +752,24 @@ export function StaffScheduleSettingsTab({
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                     <Sun className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Morning Session Lifecycle Timeline:</span>
+                    <span>Morning Session Lifecycle Timeline (Ethiopian Clock):</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
                     <div className="p-2 rounded-lg bg-background/80 border border-border">
                       <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                      <span className="opacity-80">Before {morningSession.startTime}</span>
+                      <span className="opacity-80">Before {formatEthiopianTime(morningSession.startTime)}</span>
                     </div>
                     <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                       <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                      <span className="opacity-80">{morningSession.startTime} – {addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes)}</span>
+                      <span className="opacity-80">{formatEthiopianTime(morningSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}</span>
                     </div>
                     <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                       <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                      <span className="opacity-80">{addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes)} – {morningSession.absenceCutoffTime}</span>
+                      <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))} – {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
                     </div>
                     <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
                       <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                      <span className="opacity-80">After {morningSession.absenceCutoffTime}</span>
+                      <span className="opacity-80">After {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
                     </div>
                   </div>
                 </div>
@@ -807,13 +809,13 @@ export function StaffScheduleSettingsTab({
                   {/* Field 1: Start Time */}
                   <div>
                     <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={afternoonSession.startTime}
-                      onChange={(e) => updateSessionField("afternoon", "startTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("afternoon", "startTime", val)}
+                      allowedPeriods={["afternoon", "evening"]}
+                      helperText="Official afternoon arrival time (ከሰዓት)"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
                   </div>
 
                   {/* Field 2: Late Grace */}
@@ -828,20 +830,20 @@ export function StaffScheduleSettingsTab({
                       className="mt-1 font-mono"
                     />
                     <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                      Late after {addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes)}
+                      Late after {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}
                     </p>
                   </div>
 
                   {/* Field 3: End Time */}
                   <div>
                     <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={afternoonSession.endTime}
-                      onChange={(e) => updateSessionField("afternoon", "endTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("afternoon", "endTime", val)}
+                      allowedPeriods={["afternoon", "evening"]}
+                      helperText="Official afternoon departure time"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
                   </div>
 
                   {/* Field 4: Early Checkout Tolerance */}
@@ -856,7 +858,7 @@ export function StaffScheduleSettingsTab({
                       className="mt-1 font-mono"
                     />
                     <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                      Early departure before {addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes)}
+                      Early departure before {formatEthiopianTime(addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes))}
                     </p>
                   </div>
                 </div>
@@ -865,14 +867,14 @@ export function StaffScheduleSettingsTab({
                   {/* Field 5: Absence Cutoff Time */}
                   <div>
                     <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={afternoonSession.absenceCutoffTime}
-                      onChange={(e) => updateSessionField("afternoon", "absenceCutoffTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("afternoon", "absenceCutoffTime", val)}
+                      allowedPeriods={["afternoon", "evening"]}
+                      className="mt-1"
                     />
                     <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                      Auto-marked Absent after {afternoonSession.absenceCutoffTime}
+                      Auto-marked Absent after {formatEthiopianTime(afternoonSession.absenceCutoffTime)}
                     </p>
                   </div>
 
@@ -893,25 +895,25 @@ export function StaffScheduleSettingsTab({
                   {/* Field 7: Earliest Allowed Check-in */}
                   <div>
                     <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={afternoonSession.earliestCheckinTime}
-                      onChange={(e) => updateSessionField("afternoon", "earliestCheckinTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("afternoon", "earliestCheckinTime", val)}
+                      allowedPeriods={["morning", "afternoon"]}
+                      helperText="Check-in blocked before this time"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
                   </div>
 
                   {/* Field 8: Latest Allowed Check-out */}
                   <div>
                     <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
-                    <Input
-                      type="time"
+                    <EthiopianTimeInput
                       value={afternoonSession.latestCheckoutTime}
-                      onChange={(e) => updateSessionField("afternoon", "latestCheckoutTime", e.target.value)}
-                      className="mt-1 font-mono"
+                      onChange={(val) => updateSessionField("afternoon", "latestCheckoutTime", val)}
+                      allowedPeriods={["evening", "night"]}
+                      helperText="Maximum allowed shift boundary"
+                      className="mt-1"
                     />
-                    <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
                   </div>
                 </div>
 
@@ -919,24 +921,24 @@ export function StaffScheduleSettingsTab({
                 <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                     <Sunset className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Afternoon Session Lifecycle Timeline:</span>
+                    <span>Afternoon Session Lifecycle Timeline (Ethiopian Clock):</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
                     <div className="p-2 rounded-lg bg-background/80 border border-border">
                       <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                      <span className="opacity-80">Before {afternoonSession.startTime}</span>
+                      <span className="opacity-80">Before {formatEthiopianTime(afternoonSession.startTime)}</span>
                     </div>
                     <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                       <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                      <span className="opacity-80">{afternoonSession.startTime} – {addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes)}</span>
+                      <span className="opacity-80">{formatEthiopianTime(afternoonSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}</span>
                     </div>
                     <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                       <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                      <span className="opacity-80">{addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes)} – {afternoonSession.absenceCutoffTime}</span>
+                      <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))} – {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
                     </div>
                     <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
                       <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                      <span className="opacity-80">After {afternoonSession.absenceCutoffTime}</span>
+                      <span className="opacity-80">After {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
                     </div>
                   </div>
                 </div>
@@ -958,14 +960,13 @@ export function StaffScheduleSettingsTab({
                   <Label htmlFor="staffWorkStartTime" className="text-xs font-semibold">
                     Expected Start / Check-in Time
                   </Label>
-                  <Input
-                    id="staffWorkStartTime"
-                    type="time"
+                  <EthiopianTimeInput
                     value={settings.staffWorkStartTime || "08:00"}
-                    onChange={(e) => setSettings({ ...settings, staffWorkStartTime: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(val) => setSettings({ ...settings, staffWorkStartTime: val })}
+                    allowedPeriods={["morning", "afternoon"]}
+                    helperText="Official daily arrival time"
+                    className="mt-1"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">Official arrival time</p>
                 </div>
 
                 <div>
@@ -990,14 +991,13 @@ export function StaffScheduleSettingsTab({
                   <Label htmlFor="staffWorkEndTime" className="text-xs font-semibold">
                     Expected End / Check-out Time
                   </Label>
-                  <Input
-                    id="staffWorkEndTime"
-                    type="time"
+                  <EthiopianTimeInput
                     value={settings.staffWorkEndTime || "17:00"}
-                    onChange={(e) => setSettings({ ...settings, staffWorkEndTime: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(val) => setSettings({ ...settings, staffWorkEndTime: val })}
+                    allowedPeriods={["afternoon", "evening"]}
+                    helperText="Official daily departure time"
+                    className="mt-1"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">Official departure time</p>
                 </div>
 
                 <div>
@@ -1024,12 +1024,11 @@ export function StaffScheduleSettingsTab({
                   <Label htmlFor="staffAbsenceCutoffTime" className="text-xs font-semibold">
                     Absence Cutoff Time
                   </Label>
-                  <Input
-                    id="staffAbsenceCutoffTime"
-                    type="time"
+                  <EthiopianTimeInput
                     value={settings.staffAbsenceCutoffTime || "10:00"}
-                    onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffTime: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(val) => setSettings({ ...settings, staffAbsenceCutoffTime: val })}
+                    allowedPeriods={["morning", "afternoon"]}
+                    className="mt-1"
                   />
                   <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
                     Auto-marked Absent after {computeDailyAbsenceCutoff()}
@@ -1056,28 +1055,26 @@ export function StaffScheduleSettingsTab({
                   <Label htmlFor="staffEarliestCheckinTime" className="text-xs font-semibold">
                     Earliest Allowed Check-in
                   </Label>
-                  <Input
-                    id="staffEarliestCheckinTime"
-                    type="time"
+                  <EthiopianTimeInput
                     value={settings.staffEarliestCheckinTime || "06:00"}
-                    onChange={(e) => setSettings({ ...settings, staffEarliestCheckinTime: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(val) => setSettings({ ...settings, staffEarliestCheckinTime: val })}
+                    allowedPeriods={["night", "morning"]}
+                    helperText="Check-in blocked before this time"
+                    className="mt-1"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">Check-in blocked before this time</p>
                 </div>
 
                 <div>
                   <Label htmlFor="staffLatestCheckoutTime" className="text-xs font-semibold">
                     Latest Allowed Check-out
                   </Label>
-                  <Input
-                    id="staffLatestCheckoutTime"
-                    type="time"
+                  <EthiopianTimeInput
                     value={settings.staffLatestCheckoutTime || "20:00"}
-                    onChange={(e) => setSettings({ ...settings, staffLatestCheckoutTime: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(val) => setSettings({ ...settings, staffLatestCheckoutTime: val })}
+                    allowedPeriods={["evening", "night"]}
+                    helperText="Maximum allowed shift boundary"
+                    className="mt-1"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">Maximum allowed shift boundary</p>
                 </div>
               </div>
 
@@ -1085,16 +1082,16 @@ export function StaffScheduleSettingsTab({
               <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/5 via-sky-500/5 to-emerald-500/5 border border-indigo-500/20 space-y-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                   <Clock className="w-4 h-4 text-indigo-500" />
-                  <span>Daily Attendance Automatic Lifecycle Timeline:</span>
+                  <span>Daily Attendance Automatic Lifecycle Timeline (Ethiopian Clock):</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
                   <div className="p-2 rounded-xl bg-slate-500/10 border border-slate-500/20">
                     <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                    <span className="opacity-80">Before {settings.staffWorkStartTime || "08:00"}</span>
+                    <span className="opacity-80">Before {formatEthiopianTime(settings.staffWorkStartTime || "08:00")}</span>
                   </div>
                   <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                     <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                    <span className="opacity-80">{settings.staffWorkStartTime || "08:00"} – {computeDailyLateCutoff()}</span>
+                    <span className="opacity-80">{formatEthiopianTime(settings.staffWorkStartTime || "08:00")} – {computeDailyLateCutoff()}</span>
                   </div>
                   <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
                     <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>

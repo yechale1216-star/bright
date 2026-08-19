@@ -48,6 +48,7 @@ import {
   getStaffCheckOutStatus,
   addMinutesToHHMM,
 } from "@/lib/utils/staff-attendance-status"
+import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 
 type VerificationStep =
   | "idle"
@@ -557,7 +558,7 @@ export function StaffAttendance() {
                         >
                           <span>{sess.name}</span>
                           <span className="text-[10px] opacity-80 font-mono font-normal">
-                            {sess.startTime} - {sess.endTime}
+                            {formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)}
                           </span>
                           {sessRec?.status && (
                             <span className="text-[9px] font-bold uppercase mt-0.5 px-1 rounded bg-black/20 text-white">
@@ -580,14 +581,14 @@ export function StaffAttendance() {
                     return (
                       <>
                         <span className="flex items-center gap-1.5 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-primary" /> {currentSess?.name}: {currentSess?.startTime} - {currentSess?.endTime}
+                          <Clock className="w-3.5 h-3.5 text-primary" /> {currentSess?.name}: {formatEthiopianTime(currentSess?.startTime)} - {formatEthiopianTime(currentSess?.endTime)}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                             Grace: +{currentSess?.lateGraceMinutes ?? 15}m
                           </span>
                           <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-                            Cutoff: {cutoff}
+                            Cutoff: {formatEthiopianTime(cutoff)}
                           </span>
                         </div>
                       </>
@@ -600,14 +601,14 @@ export function StaffAttendance() {
                     return (
                       <>
                         <span className="flex items-center gap-1.5 font-medium">
-                          <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {startTime} - {settings?.staffWorkEndTime || "17:00"}
+                          <Clock className="w-3.5 h-3.5 text-primary" /> Shift: {formatEthiopianTime(startTime)} - {formatEthiopianTime(settings?.staffWorkEndTime || "17:00")}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                             Grace: +{settings?.staffLateGraceMinutes ?? 15}m
                           </span>
                           <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-                            Cutoff: {cutoff}
+                            Cutoff: {formatEthiopianTime(cutoff)}
                           </span>
                         </div>
                       </>

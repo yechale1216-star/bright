@@ -55,6 +55,7 @@ import {
   flushOfflineStaffQueue,
 } from "@/lib/utils/staff-attendance-offline-store"
 import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
+import { formatEthiopianTime, formatEthiopianFullDateTime } from "@/lib/utils/ethiopian-time"
 
 // Dynamically import biometric face enrollment modal
 const StaffFaceEnrollModal = dynamic(
@@ -821,7 +822,7 @@ export default function AdminStaffAttendanceDashboard() {
             {statsLoading ? "..." : (stats?.pendingCheckIn || stats?.notStarted || stats?.notCheckedIn || 0)}
           </p>
           <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
-            {stats?.notStarted ? "Not Started" : stats?.absenceCutoffTime ? `Cutoff: ${stats.absenceCutoffTime}` : "Pending Check-In"}
+            {stats?.notStarted ? "Not Started" : stats?.absenceCutoffTime ? `Cutoff: ${formatEthiopianTime(stats.absenceCutoffTime)}` : "Pending Check-In"}
           </p>
         </motion.div>
       </div>
@@ -990,7 +991,7 @@ export default function AdminStaffAttendanceDashboard() {
                   <option value="all">All Sessions</option>
                   {staffSessions.map((sess: any) => (
                     <option key={sess.id} value={sess.id}>
-                      {sess.name} ({sess.startTime} - {sess.endTime})
+                      {sess.name} ({formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)})
                     </option>
                   ))}
                 </select>
@@ -1459,7 +1460,7 @@ export default function AdminStaffAttendanceDashboard() {
                           </div>
                           <span className="font-bold text-slate-800 dark:text-slate-200 text-sm block font-mono">
                             {detailRecord.checkInTime
-                              ? new Date(detailRecord.checkInTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Addis_Ababa" })
+                              ? formatEthiopianTime(detailRecord.checkInTime)
                               : "Not Checked In"}
                           </span>
                           {detailRecord.checkInLatitude && (
@@ -1478,7 +1479,7 @@ export default function AdminStaffAttendanceDashboard() {
                           </div>
                           <span className="font-bold text-slate-800 dark:text-slate-200 text-sm block font-mono">
                             {detailRecord.checkOutTime
-                              ? new Date(detailRecord.checkOutTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Addis_Ababa" })
+                              ? formatEthiopianTime(detailRecord.checkOutTime)
                               : "Not Checked Out"}
                           </span>
                           {detailRecord.checkOutLatitude && (
@@ -1544,7 +1545,7 @@ export default function AdminStaffAttendanceDashboard() {
                     <p className="text-[11px]">
                       <span className="font-bold">Corrected At:</span>{" "}
                       {detailRecord.correctedAt
-                        ? new Date(detailRecord.correctedAt).toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+                        ? formatEthiopianFullDateTime(detailRecord.correctedAt)
                         : "—"}
                     </p>
                     <p className="text-[11px]">
