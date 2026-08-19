@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   UserCheck,
   MessageSquare,
+  Megaphone,
   User,
   LogOut,
   X,
@@ -27,7 +28,8 @@ import { PageSkeleton } from '@/components/ui/page-skeleton'
 const navItems = [
   { href: '/school/staff', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/school/staff/attendance', icon: UserCheck, label: 'My Attendance' },
-  { href: '/school/staff/communication', icon: MessageSquare, label: 'Announcements & Messages' },
+  { href: '/school/staff/communication', icon: MessageSquare, label: 'Messages' },
+  { href: '/school/staff/announcements', icon: Megaphone, label: 'Announcements' },
   { href: '/school/staff/profile', icon: User, label: 'My Profile' },
 ]
 
@@ -240,7 +242,7 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
                 <MobileTabLink
                   href="/school/staff/attendance"
                   icon={<UserCheck className="w-5 h-5" />}
-                  label="Attendance"
+                  label="Attend"
                   active={isActive('/school/staff/attendance')}
                 />
                 <MobileTabLink
@@ -249,6 +251,12 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
                   label="Messages"
                   active={isActive('/school/staff/communication')}
                   badge={totalUnreadCount}
+                />
+                <MobileTabLink
+                  href="/school/staff/announcements"
+                  icon={<Megaphone className="w-5 h-5" />}
+                  label="Notices"
+                  active={isActive('/school/staff/announcements')}
                 />
                 <MobileTabLink
                   href="/school/staff/profile"
