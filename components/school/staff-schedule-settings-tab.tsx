@@ -37,9 +37,13 @@ import {
   LayoutList,
   Layers,
   Lock,
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal,
 } from "lucide-react"
 import { EthiopianTimeInput } from "@/components/ui/ethiopian-time-input"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
+import { cn } from "@/lib/utils/utils"
 
 // ── Fixed Session Type (Strictly Morning and Afternoon) ──
 export interface StaffSession {
@@ -208,6 +212,17 @@ export function StaffScheduleSettingsTab({
 
   // ── Fixed Session Management State (Morning & Afternoon) ──
   const [sessions, setSessions] = useState<StaffSession[]>(() => parseSessionsFromSettings(settings?.staffSessions))
+  const [expandedSessions, setExpandedSessions] = useState<{ morning: boolean; afternoon: boolean }>({
+    morning: true,
+    afternoon: false,
+  })
+
+  const toggleSessionExpand = (id: "morning" | "afternoon") => {
+    setExpandedSessions((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }))
+  }
 
   // Sync sessions state when settings change
   useEffect(() => {
@@ -593,341 +608,429 @@ export function StaffScheduleSettingsTab({
               </div>
 
               {/* ── 1. MORNING SESSION CARD ── */}
-              <div className="p-5 rounded-2xl border-2 border-amber-500/30 bg-gradient-to-b from-amber-500/5 to-transparent space-y-5">
-                <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                      <Sun className="w-4 h-4" />
+              <div className="rounded-2xl border-2 border-amber-500/30 bg-gradient-to-b from-amber-500/5 to-transparent overflow-hidden transition-all shadow-xs">
+                {/* Clickable Card Header */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSessionExpand("morning")}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleSessionExpand("morning") }}
+                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-amber-500/10 transition-colors select-none"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                      <Sun className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-base text-foreground">Morning Session</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-base text-foreground">Morning Session</span>
                         <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold">
-                          System Session
+                          Fixed Session
+                        </Badge>
+                        <Badge variant="outline" className={cn("text-[10px] font-bold", morningSession.isActive ? "text-emerald-600 border-emerald-500/30 bg-emerald-500/10" : "text-slate-400 border-slate-400/30")}>
+                          {morningSession.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">Morning attendance window and rules</p>
+
+                      {/* Quick Summary Chips */}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-muted-foreground">
+                        <span className="font-mono font-bold text-foreground">
+                          🕒 {formatEthiopianTime(morningSession.startTime)} – {formatEthiopianTime(morningSession.endTime)}
+                        </span>
+                        <span>•</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          +{morningSession.lateGraceMinutes}m grace
+                        </span>
+                        <span>•</span>
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">
+                          Cutoff: {formatEthiopianTime(morningSession.absenceCutoffTime)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="morningActive" className="text-xs font-semibold cursor-pointer">
-                      {morningSession.isActive ? "Active" : "Inactive"}
-                    </Label>
-                    <Switch
-                      id="morningActive"
-                      checked={morningSession.isActive}
-                      onCheckedChange={(checked) => updateSessionField("morning", "isActive", checked)}
-                    />
+
+                  {/* Right Action Controls */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-amber-500/20" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="morningActive" className="text-xs font-semibold cursor-pointer">
+                        {morningSession.isActive ? "Active" : "Inactive"}
+                      </Label>
+                      <Switch
+                        id="morningActive"
+                        checked={morningSession.isActive}
+                        onCheckedChange={(checked) => updateSessionField("morning", "isActive", checked)}
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleSessionExpand("morning")}
+                      className="h-8 px-2.5 rounded-lg text-xs font-bold gap-1 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>{expandedSessions.morning ? "Hide Config" : "Configure"}</span>
+                      {expandedSessions.morning ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </Button>
                   </div>
                 </div>
 
-                {/* 8 Configuration Fields for Morning */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Field 1: Start Time */}
-                  <div>
-                    <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
-                    <EthiopianTimeInput
-                      value={morningSession.startTime}
-                      onChange={(val) => updateSessionField("morning", "startTime", val)}
-                      allowedPeriods={["morning", "afternoon"]}
-                      helperText="Official morning arrival time (ጠዋት)"
-                      className="mt-1"
-                    />
-                  </div>
+                {/* 8 Configuration Fields for Morning (Shown when expanded) */}
+                {expandedSessions.morning && (
+                  <div className="p-5 pt-3 border-t border-amber-500/20 space-y-5 bg-background/50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Field 1: Start Time */}
+                      <div>
+                        <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
+                        <EthiopianTimeInput
+                          value={morningSession.startTime}
+                          onChange={(val) => updateSessionField("morning", "startTime", val)}
+                          allowedPeriods={["morning", "afternoon"]}
+                          helperText="Official morning arrival time (ጠዋት)"
+                          className="mt-1"
+                        />
+                      </div>
 
-                  {/* Field 2: Late Grace */}
-                  <div>
-                    <Label className="text-xs font-semibold">Late Grace Period (Minutes)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="120"
-                      value={morningSession.lateGraceMinutes}
-                      onChange={(e) => updateSessionField("morning", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                      className="mt-1 font-mono"
-                    />
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                      Late after {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}
-                    </p>
-                  </div>
+                      {/* Field 2: Late Grace */}
+                      <div>
+                        <Label className="text-xs font-semibold">Late Grace Period (Minutes)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={morningSession.lateGraceMinutes}
+                          onChange={(e) => updateSessionField("morning", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="mt-1 font-mono"
+                        />
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                          Late after {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}
+                        </p>
+                      </div>
 
-                  {/* Field 3: End Time */}
-                  <div>
-                    <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
-                    <EthiopianTimeInput
-                      value={morningSession.endTime}
-                      onChange={(val) => updateSessionField("morning", "endTime", val)}
-                      allowedPeriods={["morning", "afternoon"]}
-                      helperText="Official morning departure time"
-                      className="mt-1"
-                    />
-                  </div>
+                      {/* Field 3: End Time */}
+                      <div>
+                        <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
+                        <EthiopianTimeInput
+                          value={morningSession.endTime}
+                          onChange={(val) => updateSessionField("morning", "endTime", val)}
+                          allowedPeriods={["morning", "afternoon"]}
+                          helperText="Official morning departure time"
+                          className="mt-1"
+                        />
+                      </div>
 
-                  {/* Field 4: Early Checkout Tolerance */}
-                  <div>
-                    <Label className="text-xs font-semibold">Early Departure Tolerance (Min)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="120"
-                      value={morningSession.earlyDepartureToleranceMinutes}
-                      onChange={(e) => updateSessionField("morning", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                      className="mt-1 font-mono"
-                    />
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                      Early departure before {formatEthiopianTime(addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes))}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                  {/* Field 5: Absence Cutoff Time */}
-                  <div>
-                    <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
-                    <EthiopianTimeInput
-                      value={morningSession.absenceCutoffTime}
-                      onChange={(val) => updateSessionField("morning", "absenceCutoffTime", val)}
-                      allowedPeriods={["morning", "afternoon"]}
-                      className="mt-1"
-                    />
-                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                      Auto-marked Absent after {formatEthiopianTime(morningSession.absenceCutoffTime)}
-                    </p>
-                  </div>
-
-                  {/* Field 6: Absence Cutoff Minutes */}
-                  <div>
-                    <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
-                    <Input
-                      type="number"
-                      min="15"
-                      max="360"
-                      value={morningSession.absenceCutoffMinutes}
-                      onChange={(e) => updateSessionField("morning", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                      className="mt-1 font-mono"
-                    />
-                    <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
-                  </div>
-
-                  {/* Field 7: Earliest Allowed Check-in */}
-                  <div>
-                    <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
-                    <EthiopianTimeInput
-                      value={morningSession.earliestCheckinTime}
-                      onChange={(val) => updateSessionField("morning", "earliestCheckinTime", val)}
-                      allowedPeriods={["night", "morning"]}
-                      helperText="Check-in blocked before this time"
-                      className="mt-1"
-                    />
-                  </div>
-
-                  {/* Field 8: Latest Allowed Check-out */}
-                  <div>
-                    <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
-                    <EthiopianTimeInput
-                      value={morningSession.latestCheckoutTime}
-                      onChange={(val) => updateSessionField("morning", "latestCheckoutTime", val)}
-                      allowedPeriods={["afternoon", "evening"]}
-                      helperText="Maximum allowed shift boundary"
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Morning Session Timeline Helper */}
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <Sun className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Morning Session Lifecycle Timeline (Ethiopian Clock):</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div className="p-2 rounded-lg bg-background/80 border border-border">
-                      <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                      <span className="opacity-80">Before {formatEthiopianTime(morningSession.startTime)}</span>
+                      {/* Field 4: Early Checkout Tolerance */}
+                      <div>
+                        <Label className="text-xs font-semibold">Early Departure Tolerance (Min)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={morningSession.earlyDepartureToleranceMinutes}
+                          onChange={(e) => updateSessionField("morning", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="mt-1 font-mono"
+                        />
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                          Early departure before {formatEthiopianTime(addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes))}
+                        </p>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                      <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                      <span className="opacity-80">{formatEthiopianTime(morningSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}</span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                      {/* Field 5: Absence Cutoff Time */}
+                      <div>
+                        <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
+                        <EthiopianTimeInput
+                          value={morningSession.absenceCutoffTime}
+                          onChange={(val) => updateSessionField("morning", "absenceCutoffTime", val)}
+                          allowedPeriods={["morning", "afternoon"]}
+                          className="mt-1"
+                        />
+                        <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
+                          Auto-marked Absent after {formatEthiopianTime(morningSession.absenceCutoffTime)}
+                        </p>
+                      </div>
+
+                      {/* Field 6: Absence Cutoff Minutes */}
+                      <div>
+                        <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
+                        <Input
+                          type="number"
+                          min="15"
+                          max="360"
+                          value={morningSession.absenceCutoffMinutes}
+                          onChange={(e) => updateSessionField("morning", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="mt-1 font-mono"
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                      </div>
+
+                      {/* Field 7: Earliest Allowed Check-in */}
+                      <div>
+                        <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
+                        <EthiopianTimeInput
+                          value={morningSession.earliestCheckinTime}
+                          onChange={(val) => updateSessionField("morning", "earliestCheckinTime", val)}
+                          allowedPeriods={["night", "morning"]}
+                          helperText="Check-in blocked before this time"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      {/* Field 8: Latest Allowed Check-out */}
+                      <div>
+                        <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
+                        <EthiopianTimeInput
+                          value={morningSession.latestCheckoutTime}
+                          onChange={(val) => updateSessionField("morning", "latestCheckoutTime", val)}
+                          allowedPeriods={["afternoon", "evening"]}
+                          helperText="Maximum allowed shift boundary"
+                          className="mt-1"
+                        />
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                      <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))} – {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
-                      <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                      <span className="opacity-80">After {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
+
+                    {/* Morning Session Timeline Helper */}
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Morning Session Lifecycle Timeline (Ethiopian Clock):</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+                        <div className="p-2 rounded-lg bg-background/80 border border-border">
+                          <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
+                          <span className="opacity-80">Before {formatEthiopianTime(morningSession.startTime)}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
+                          <span className="opacity-80">{formatEthiopianTime(morningSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                          <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                          <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))} – {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                          <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
+                          <span className="opacity-80">After {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* ── 2. AFTERNOON SESSION CARD ── */}
-              <div className="p-5 rounded-2xl border-2 border-indigo-500/30 bg-gradient-to-b from-indigo-500/5 to-transparent space-y-5">
-                <div className="flex items-center justify-between pb-2 border-b border-indigo-500/20">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/15 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                      <Sunset className="w-4 h-4" />
+              <div className="rounded-2xl border-2 border-indigo-500/30 bg-gradient-to-b from-indigo-500/5 to-transparent overflow-hidden transition-all shadow-xs">
+                {/* Clickable Card Header */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSessionExpand("afternoon")}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleSessionExpand("afternoon") }}
+                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:bg-indigo-500/10 transition-colors select-none"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/15 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                      <Sunset className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-base text-foreground">Afternoon Session</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-base text-foreground">Afternoon Session</span>
                         <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 text-[10px] font-bold">
-                          System Session
+                          Fixed Session
+                        </Badge>
+                        <Badge variant="outline" className={cn("text-[10px] font-bold", afternoonSession.isActive ? "text-emerald-600 border-emerald-500/30 bg-emerald-500/10" : "text-slate-400 border-slate-400/30")}>
+                          {afternoonSession.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">Afternoon attendance window and rules</p>
+
+                      {/* Quick Summary Chips */}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-muted-foreground">
+                        <span className="font-mono font-bold text-foreground">
+                          🕒 {formatEthiopianTime(afternoonSession.startTime)} – {formatEthiopianTime(afternoonSession.endTime)}
+                        </span>
+                        <span>•</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          +{afternoonSession.lateGraceMinutes}m grace
+                        </span>
+                        <span>•</span>
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">
+                          Cutoff: {formatEthiopianTime(afternoonSession.absenceCutoffTime)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="afternoonActive" className="text-xs font-semibold cursor-pointer">
-                      {afternoonSession.isActive ? "Active" : "Inactive"}
-                    </Label>
-                    <Switch
-                      id="afternoonActive"
-                      checked={afternoonSession.isActive}
-                      onCheckedChange={(checked) => updateSessionField("afternoon", "isActive", checked)}
-                    />
+
+                  {/* Right Action Controls */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-indigo-500/20" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="afternoonActive" className="text-xs font-semibold cursor-pointer">
+                        {afternoonSession.isActive ? "Active" : "Inactive"}
+                      </Label>
+                      <Switch
+                        id="afternoonActive"
+                        checked={afternoonSession.isActive}
+                        onCheckedChange={(checked) => updateSessionField("afternoon", "isActive", checked)}
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleSessionExpand("afternoon")}
+                      className="h-8 px-2.5 rounded-lg text-xs font-bold gap-1 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>{expandedSessions.afternoon ? "Hide Config" : "Configure"}</span>
+                      {expandedSessions.afternoon ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </Button>
                   </div>
                 </div>
 
-                {/* 8 Configuration Fields for Afternoon */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Field 1: Start Time */}
-                  <div>
-                    <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
-                    <EthiopianTimeInput
-                      value={afternoonSession.startTime}
-                      onChange={(val) => updateSessionField("afternoon", "startTime", val)}
-                      allowedPeriods={["afternoon", "evening"]}
-                      helperText="Official afternoon arrival time (ከሰዓት)"
-                      className="mt-1"
-                    />
-                  </div>
+                {/* 8 Configuration Fields for Afternoon (Shown when expanded) */}
+                {expandedSessions.afternoon && (
+                  <div className="p-5 pt-3 border-t border-indigo-500/20 space-y-5 bg-background/50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Field 1: Start Time */}
+                      <div>
+                        <Label className="text-xs font-semibold">Expected Start / Check-in Time</Label>
+                        <EthiopianTimeInput
+                          value={afternoonSession.startTime}
+                          onChange={(val) => updateSessionField("afternoon", "startTime", val)}
+                          allowedPeriods={["afternoon", "evening"]}
+                          helperText="Official afternoon arrival time (ከሰዓት)"
+                          className="mt-1"
+                        />
+                      </div>
 
-                  {/* Field 2: Late Grace */}
-                  <div>
-                    <Label className="text-xs font-semibold">Late Grace Period (Minutes)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="120"
-                      value={afternoonSession.lateGraceMinutes}
-                      onChange={(e) => updateSessionField("afternoon", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                      className="mt-1 font-mono"
-                    />
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                      Late after {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}
-                    </p>
-                  </div>
+                      {/* Field 2: Late Grace */}
+                      <div>
+                        <Label className="text-xs font-semibold">Late Grace Period (Minutes)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={afternoonSession.lateGraceMinutes}
+                          onChange={(e) => updateSessionField("afternoon", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="mt-1 font-mono"
+                        />
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                          Late after {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}
+                        </p>
+                      </div>
 
-                  {/* Field 3: End Time */}
-                  <div>
-                    <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
-                    <EthiopianTimeInput
-                      value={afternoonSession.endTime}
-                      onChange={(val) => updateSessionField("afternoon", "endTime", val)}
-                      allowedPeriods={["afternoon", "evening"]}
-                      helperText="Official afternoon departure time"
-                      className="mt-1"
-                    />
-                  </div>
+                      {/* Field 3: End Time */}
+                      <div>
+                        <Label className="text-xs font-semibold">Expected End / Check-out Time</Label>
+                        <EthiopianTimeInput
+                          value={afternoonSession.endTime}
+                          onChange={(val) => updateSessionField("afternoon", "endTime", val)}
+                          allowedPeriods={["afternoon", "evening"]}
+                          helperText="Official afternoon departure time"
+                          className="mt-1"
+                        />
+                      </div>
 
-                  {/* Field 4: Early Checkout Tolerance */}
-                  <div>
-                    <Label className="text-xs font-semibold">Early Departure Tolerance (Min)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="120"
-                      value={afternoonSession.earlyDepartureToleranceMinutes}
-                      onChange={(e) => updateSessionField("afternoon", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                      className="mt-1 font-mono"
-                    />
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                      Early departure before {formatEthiopianTime(addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes))}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                  {/* Field 5: Absence Cutoff Time */}
-                  <div>
-                    <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
-                    <EthiopianTimeInput
-                      value={afternoonSession.absenceCutoffTime}
-                      onChange={(val) => updateSessionField("afternoon", "absenceCutoffTime", val)}
-                      allowedPeriods={["afternoon", "evening"]}
-                      className="mt-1"
-                    />
-                    <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                      Auto-marked Absent after {formatEthiopianTime(afternoonSession.absenceCutoffTime)}
-                    </p>
-                  </div>
-
-                  {/* Field 6: Absence Cutoff Minutes */}
-                  <div>
-                    <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
-                    <Input
-                      type="number"
-                      min="15"
-                      max="360"
-                      value={afternoonSession.absenceCutoffMinutes}
-                      onChange={(e) => updateSessionField("afternoon", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                      className="mt-1 font-mono"
-                    />
-                    <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
-                  </div>
-
-                  {/* Field 7: Earliest Allowed Check-in */}
-                  <div>
-                    <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
-                    <EthiopianTimeInput
-                      value={afternoonSession.earliestCheckinTime}
-                      onChange={(val) => updateSessionField("afternoon", "earliestCheckinTime", val)}
-                      allowedPeriods={["morning", "afternoon"]}
-                      helperText="Check-in blocked before this time"
-                      className="mt-1"
-                    />
-                  </div>
-
-                  {/* Field 8: Latest Allowed Check-out */}
-                  <div>
-                    <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
-                    <EthiopianTimeInput
-                      value={afternoonSession.latestCheckoutTime}
-                      onChange={(val) => updateSessionField("afternoon", "latestCheckoutTime", val)}
-                      allowedPeriods={["evening", "night"]}
-                      helperText="Maximum allowed shift boundary"
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Afternoon Session Timeline Helper */}
-                <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <Sunset className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>Afternoon Session Lifecycle Timeline (Ethiopian Clock):</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div className="p-2 rounded-lg bg-background/80 border border-border">
-                      <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                      <span className="opacity-80">Before {formatEthiopianTime(afternoonSession.startTime)}</span>
+                      {/* Field 4: Early Checkout Tolerance */}
+                      <div>
+                        <Label className="text-xs font-semibold">Early Departure Tolerance (Min)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={afternoonSession.earlyDepartureToleranceMinutes}
+                          onChange={(e) => updateSessionField("afternoon", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="mt-1 font-mono"
+                        />
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                          Early departure before {formatEthiopianTime(addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes))}
+                        </p>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                      <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                      <span className="opacity-80">{formatEthiopianTime(afternoonSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}</span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                      {/* Field 5: Absence Cutoff Time */}
+                      <div>
+                        <Label className="text-xs font-semibold">Absence Cutoff Time</Label>
+                        <EthiopianTimeInput
+                          value={afternoonSession.absenceCutoffTime}
+                          onChange={(val) => updateSessionField("afternoon", "absenceCutoffTime", val)}
+                          allowedPeriods={["afternoon", "evening"]}
+                          className="mt-1"
+                        />
+                        <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
+                          Auto-marked Absent after {formatEthiopianTime(afternoonSession.absenceCutoffTime)}
+                        </p>
+                      </div>
+
+                      {/* Field 6: Absence Cutoff Minutes */}
+                      <div>
+                        <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
+                        <Input
+                          type="number"
+                          min="15"
+                          max="360"
+                          value={afternoonSession.absenceCutoffMinutes}
+                          onChange={(e) => updateSessionField("afternoon", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="mt-1 font-mono"
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                      </div>
+
+                      {/* Field 7: Earliest Allowed Check-in */}
+                      <div>
+                        <Label className="text-xs font-semibold">Earliest Allowed Check-in</Label>
+                        <EthiopianTimeInput
+                          value={afternoonSession.earliestCheckinTime}
+                          onChange={(val) => updateSessionField("afternoon", "earliestCheckinTime", val)}
+                          allowedPeriods={["morning", "afternoon"]}
+                          helperText="Check-in blocked before this time"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      {/* Field 8: Latest Allowed Check-out */}
+                      <div>
+                        <Label className="text-xs font-semibold">Latest Allowed Check-out</Label>
+                        <EthiopianTimeInput
+                          value={afternoonSession.latestCheckoutTime}
+                          onChange={(val) => updateSessionField("afternoon", "latestCheckoutTime", val)}
+                          allowedPeriods={["evening", "night"]}
+                          helperText="Maximum allowed shift boundary"
+                          className="mt-1"
+                        />
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                      <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))} – {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
-                      <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                      <span className="opacity-80">After {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
+
+                    {/* Afternoon Session Timeline Helper */}
+                    <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Sunset className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Afternoon Session Lifecycle Timeline (Ethiopian Clock):</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+                        <div className="p-2 rounded-lg bg-background/80 border border-border">
+                          <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
+                          <span className="opacity-80">Before {formatEthiopianTime(afternoonSession.startTime)}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
+                          <span className="opacity-80">{formatEthiopianTime(afternoonSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                          <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                          <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))} – {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                          <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
+                          <span className="opacity-80">After {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
