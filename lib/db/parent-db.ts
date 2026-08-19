@@ -12,6 +12,7 @@ export interface ParentNotification {
   category?: string;
   priority?: string;
   targetRole?: string;
+  targetAudience?: "GENERAL" | "PARENTS" | "STAFF" | string;
   metadata?: string;
   title: string;
   message: string;

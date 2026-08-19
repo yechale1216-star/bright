@@ -786,7 +786,7 @@ export function StaffDashboard() {
               <Megaphone className="w-4 h-4 text-primary" /> School Announcements
             </CardTitle>
             <Link
-              href="/school/staff/communication"
+              href="/school/staff/announcements"
               className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
             >
               <span>View All</span>
@@ -805,7 +805,14 @@ export function StaffDashboard() {
                   className="p-3 rounded-xl bg-muted/30 border border-border/40 space-y-1 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-xs sm:text-sm text-foreground truncate">{ann.title || "Announcement"}</p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="font-semibold text-xs sm:text-sm text-foreground truncate">{ann.title || "Announcement"}</p>
+                      {ann.targetAudience === "STAFF" && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-md font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                          Staff Only
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] text-muted-foreground shrink-0">
                       {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString() : ""}
                     </span>

@@ -775,6 +775,11 @@ export default function ParentDashboard() {
                       }`}>
                         {announcement.title}
                       </span>
+                      {announcement.targetAudience === "PARENTS" && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-md font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+                          Parents
+                        </span>
+                      )}
                     </div>
                     <span className="typography-label text-[10px] text-muted-foreground/60 whitespace-nowrap bg-muted/50 px-2 py-0.5 rounded-full font-bold">
                        {formatNotificationTime(announcement.createdAt)}

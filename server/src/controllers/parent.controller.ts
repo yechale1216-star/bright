@@ -246,7 +246,8 @@ export const getAnnouncements = async (req: AuthenticatedRequest, res: Response,
     const schoolId = req.user?.schoolId;
     if (!schoolId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const announcements = await parentService.getSchoolAnnouncements(schoolId);
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    const announcements = await parentService.getSchoolAnnouncements(schoolId, req.user?.role, limit);
     res.status(200).json({ success: true, data: announcements });
   } catch (error: any) {
     next(error);

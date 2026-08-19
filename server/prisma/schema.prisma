@@ -482,24 +482,26 @@ model ParentStudentLink {
 }
 
 model ParentNotification {
-  id         String   @id @default(uuid())
-  schoolId   String?
-  studentId  String?
-  type       String   // absent, late, announcement, emergency, warning
-  category   String   @default("GENERAL") // ATTENDANCE, DISCIPLINE, ACADEMIC, ANNOUNCEMENT, SYSTEM
-  priority   String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
-  title      String
-  message    String
-  targetRole String?  // ALL_PARENTS, SPECIFIC_GRADE, etc.
-  metadata   String?  // JSON stringified payload / deep links
-  isRead     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  school     School?  @relation(fields: [schoolId], references: [id])
-  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  schoolId       String?
+  studentId      String?
+  type           String   // absent, late, announcement, emergency, warning
+  category       String   @default("GENERAL") // ATTENDANCE, DISCIPLINE, ACADEMIC, ANNOUNCEMENT, SYSTEM
+  priority       String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  title          String
+  message        String
+  targetRole     String?  // ALL_PARENTS, SPECIFIC_GRADE, etc.
+  targetAudience String?  @default("GENERAL") // GENERAL | PARENTS | STAFF
+  metadata       String?  // JSON stringified payload / deep links
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  school         School?  @relation(fields: [schoolId], references: [id])
+  student        Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
   @@index([studentId])
   @@index([schoolId, createdAt])
+  @@index([schoolId, targetAudience])
 }
 
 model ParentPreferences {

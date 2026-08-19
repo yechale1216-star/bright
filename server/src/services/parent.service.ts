@@ -222,7 +222,13 @@ export const getNotifications = async (phone: string, schoolId: string) => {
       schoolId,
       OR: [
         { studentId: { in: studentIds } },
-        { studentId: null }
+        {
+          studentId: null,
+          OR: [
+            { targetAudience: { in: ["GENERAL", "PARENTS", "general", "parents"] } },
+            { targetAudience: null }
+          ]
+        }
       ]
     },
     orderBy: { createdAt: 'desc' },
@@ -267,7 +273,13 @@ export const markAllNotificationsAsRead = async (phone: string, schoolId: string
       schoolId,
       OR: [
         { studentId: { in: studentIds } },
-        { studentId: null }
+        {
+          studentId: null,
+          OR: [
+            { targetAudience: { in: ["GENERAL", "PARENTS", "general", "parents"] } },
+            { targetAudience: null }
+          ]
+        }
       ],
       isRead: false
     },
@@ -310,11 +322,16 @@ export const updatePreferences = async (phone: string, schoolId: string, data: a
 };
 
 export const postAnnouncement = async (schoolId: string, data: any) => {
+  const rawAudience = (data.targetAudience || 'GENERAL').toUpperCase();
+  const validAudience = ['GENERAL', 'PARENTS', 'STAFF'].includes(rawAudience) ? rawAudience : 'GENERAL';
+
   const result = await prisma.parentNotification.create({
     data: {
       schoolId,
       studentId: data.studentId || null,
       type: data.type || "announcement",
+      category: "ANNOUNCEMENT",
+      targetAudience: validAudience,
       title: data.title,
       message: data.message,
       isRead: false
@@ -322,56 +339,121 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
   });
 
   try {
-    const parentLinks = await prisma.parentStudentLink.findMany({
-      where: {
-        schoolId,
-        ...(data.studentId ? { studentId: data.studentId } : {})
-      },
-      include: {
-        parent: true
-      }
-    });
-
     const { sendCategoryNotification } = require('./notification.service');
-    const uniqueParents = Array.from(
-      new Map(
-        parentLinks
-          .filter(l => l.parent !== null)
-          .map(l => [l.parentId, l.parent])
-      ).values()
-    );
+    const { getIO } = require('../socket');
+    const io = getIO ? getIO() : null;
 
-    // Fetch school name once for all parent pushes
+    // Fetch school name once for pushes
     const schoolRecord = await prisma.school.findUnique({
       where: { id: schoolId },
       select: { name: true }
     });
     const schoolName = schoolRecord?.name || 'Addis Hiwot School';
 
-    for (const parent of uniqueParents) {
-      if (parent && parent.pushToken) {
-        // Check parent preferences only if phone is set
-        if (parent.phone) {
-          const prefs = await prisma.parentPreferences.findUnique({
-            where: { parentPhone_schoolId: { parentPhone: parent.phone, schoolId } }
+    // 1. Dispatch to Parents if audience is PARENTS or GENERAL
+    if (validAudience === 'PARENTS' || validAudience === 'GENERAL') {
+      const parentLinks = await prisma.parentStudentLink.findMany({
+        where: {
+          schoolId,
+          ...(data.studentId ? { studentId: data.studentId } : {})
+        },
+        include: {
+          parent: true
+        }
+      });
+
+      const uniqueParents = Array.from(
+        new Map(
+          parentLinks
+            .filter(l => l.parent !== null)
+            .map(l => [l.parentId, l.parent])
+        ).values()
+      );
+
+      for (const parent of uniqueParents) {
+        if (parent && parent.pushToken) {
+          if (parent.phone) {
+            const prefs = await prisma.parentPreferences.findUnique({
+              where: { parentPhone_schoolId: { parentPhone: parent.phone, schoolId } }
+            });
+            if (prefs && !prefs.pushNotifications) {
+              continue;
+            }
+          }
+
+          await sendCategoryNotification(parent.pushToken, {
+            type: 'new_announcement',
+            title: schoolName,
+            body: data.message || 'There is a new announcement from school.',
+            route: '/parent/announcements',
+            schoolId,
+            schoolName,
+            categoryLabel: 'Announcement',
+            tag: 'announcements'
+          }).catch((err: any) => {
+            console.error(`Failed to send announcement push to parent ${parent.id}:`, err);
           });
-          if (prefs && !prefs.pushNotifications) {
-            continue; // Guard: parent disabled push alerts
+        }
+      }
+
+      if (io) {
+        io.to(`school_${schoolId}`).emit('new_notification', result);
+        io.emit('new_notification', result);
+      }
+    }
+
+    // 2. Dispatch to School Staff if audience is STAFF or GENERAL
+    if (validAudience === 'STAFF' || validAudience === 'GENERAL') {
+      const staffUsers = await prisma.user.findMany({
+        where: {
+          schoolId,
+          role: { not: 'parent' }
+        },
+        select: { id: true, pushToken: true, role: true }
+      });
+
+      if (staffUsers.length > 0) {
+        // Create userNotification in-app alerts for staff
+        await (prisma as any).userNotification.createMany({
+          data: staffUsers.map(u => ({
+            userId: u.id,
+            schoolId,
+            type: data.type === 'emergency' ? 'ALERT' : 'INFO',
+            category: 'ANNOUNCEMENT',
+            priority: data.type === 'emergency' ? 'HIGH' : 'NORMAL',
+            title: data.title,
+            message: data.message,
+            targetRole: 'ALL_STAFF',
+            metadata: JSON.stringify({ announcementId: result.id, targetAudience: validAudience }),
+            isRead: false
+          }))
+        });
+
+        // Dispatch push notification to staff members with pushToken
+        for (const staff of staffUsers) {
+          if (staff.pushToken) {
+            await sendCategoryNotification(staff.pushToken, {
+              type: 'new_announcement',
+              title: schoolName,
+              body: data.message || 'There is a new staff announcement.',
+              route: '/school/staff/announcements',
+              schoolId,
+              schoolName,
+              categoryLabel: 'Staff Announcement',
+              tag: 'announcements'
+            }).catch((err: any) => {
+              console.error(`Failed to send announcement push to staff ${staff.id}:`, err);
+            });
+          }
+
+          if (io) {
+            io.to(`user_${staff.id}`).emit('new_notification', {
+              ...result,
+              category: 'ANNOUNCEMENT',
+              targetAudience: validAudience
+            });
           }
         }
-
-        await sendCategoryNotification(parent.pushToken, {
-          type: 'new_announcement',
-          title: schoolName,                                            // School name as title
-          body: data.message || 'There is a new announcement from school.',
-          route: '/parent/announcements',
-          schoolId,
-          schoolName,
-          categoryLabel: 'Announcement',                               // Category subtext
-          tag: 'announcements'
-        }).catch((err: any) => {
-          console.error(`Failed to send announcement push to parent ${parent.id}:`, err);
-        });
       }
     }
   } catch (e) {
@@ -382,24 +464,58 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
 };
 
 export const updateAnnouncement = async (id: string, schoolId: string, data: any) => {
+  const updateData: any = {
+    title: data.title,
+    message: data.message,
+    type: data.type || "announcement",
+  };
+
+  if (data.targetAudience) {
+    const rawAudience = data.targetAudience.toUpperCase();
+    if (['GENERAL', 'PARENTS', 'STAFF'].includes(rawAudience)) {
+      updateData.targetAudience = rawAudience;
+    }
+  }
+
   return await prisma.parentNotification.update({
     where: { id, schoolId },
-    data: {
-      title: data.title,
-      message: data.message,
-      type: data.type || "announcement",
-    }
+    data: updateData
   });
 };
 
-export const getSchoolAnnouncements = async (schoolId: string) => {
+export const getSchoolAnnouncements = async (schoolId: string, userRole?: string, limit?: number | string) => {
+  let audienceCondition: any = undefined;
+
+  if (userRole === 'parent') {
+    audienceCondition = {
+      OR: [
+        { targetAudience: { in: ['GENERAL', 'PARENTS', 'general', 'parents'] } },
+        { targetAudience: null }
+      ]
+    };
+  } else if (['admin', 'school_admin', 'super_admin'].includes(userRole || '')) {
+    audienceCondition = undefined; // Admins can view all announcements
+  } else {
+    // School staff, teachers, registrars, etc.
+    audienceCondition = {
+      OR: [
+        { targetAudience: { in: ['GENERAL', 'STAFF', 'general', 'staff'] } },
+        { targetAudience: null }
+      ]
+    };
+  }
+
+  const whereClause: any = {
+    schoolId,
+    type: { in: ["announcement", "emergency", "info"] },
+    studentId: null, // School-wide broadcasts
+    ...(audienceCondition ? audienceCondition : {})
+  };
+
   return await prisma.parentNotification.findMany({
-    where: { 
-      schoolId,
-      type: { in: ["announcement", "emergency"] },
-      studentId: null // General announcements
-    },
-    orderBy: { createdAt: 'desc' }
+    where: whereClause,
+    orderBy: { createdAt: 'desc' },
+    ...(limit ? { take: Number(limit) } : {})
   });
 };
 
