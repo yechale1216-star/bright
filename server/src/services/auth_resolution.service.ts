@@ -1,85 +1,36 @@
 import prisma from '../config/db';
 
 export interface Membership {
-  id: string; // matches schoolId
-  name: string; // matches schoolName
+  id: string;
+  name: string;
   role: string;
   customSchoolId?: string;
   logo?: string;
 }
 
-/**
- * Resolves all schools and roles associated with a user.
- * Checks User (staff), Teacher, and ParentStudentLink models.
- */
 export const getMemberships = async (userId: string): Promise<Membership[]> => {
-  const memberships: Membership[] = [];
-
-  // 1. Staff/Admin Memberships (via User table)
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { school: { include: { settings: true } } }
   });
 
-  if (user && user.schoolId && user.role && user.role !== 'parent') {
-    memberships.push({
-      id: user.schoolId,
-      name: user.school?.name || 'Addis Hiwot School',
-      role: user.role,
-      customSchoolId: user.school?.schoolId || '',
-      logo: (user.school?.settings as any | null)?.school_logo || ''
-    });
-  }
+  const settings = await prisma.schoolSettings.findFirst();
+  const schoolName = settings?.school_name || 'Addis Hiwot School';
+  const logo = settings?.school_logo || '';
 
-  // 2. Teacher Memberships (via Teacher table)
-  // Note: currently Teacher table has @unique on user_id, but we handle as potentially multiple for future-proofing
-  const teacherRecords = await prisma.teacher.findMany({
-    where: { user_id: userId },
-    include: { school: { include: { settings: true } } }
-  });
+  if (!user) return [];
 
-  for (const t of teacherRecords) {
-    if (t.schoolId && !memberships.some(m => m.id === t.schoolId && m.role === 'teacher')) {
-      memberships.push({
-        id: t.schoolId,
-        name: t.school?.name || 'Addis Hiwot School',
-        role: 'teacher',
-        customSchoolId: t.school?.schoolId || '',
-        logo: (t.school?.settings as any | null)?.school_logo || ''
-      });
-    }
-  }
-
-  // 3. Parent Memberships (via ParentStudentLink)
-  const parentLinks = await prisma.parentStudentLink.findMany({
-    where: { parentId: userId },
-    include: { school: { include: { settings: true } } }
-  });
-
-  for (const l of parentLinks) {
-    if (l.schoolId && !memberships.some(m => m.id === l.schoolId && m.role === 'parent')) {
-      memberships.push({
-        id: l.schoolId,
-        name: l.school?.name || 'Addis Hiwot School',
-        role: 'parent',
-        customSchoolId: l.school?.schoolId || '',
-        logo: (l.school?.settings as any | null)?.school_logo || ''
-      });
-    }
-  }
-  
-  return memberships;
+  return [{
+    id: 'single-school',
+    name: schoolName,
+    role: user.role,
+    customSchoolId: 'SCH-0001',
+    logo,
+  }];
 };
 
-/**
- * Determines the specific role a user has within a specific school.
- * If requestedRole is provided, it validates if the user actually has that role.
- * If not provided, it falls back to the highest available role in priority order (Staff > Teacher > Parent).
- */
-export const resolveRoleInSchool = async (userId: string, schoolId: string, requestedRole?: string): Promise<string | null> => {
+export const resolveRoleInSchool = async (userId: string, _schoolId?: string, requestedRole?: string): Promise<string | null> => {
   if (!userId) return null;
 
-  // 1. If a specific role is requested, validate it specifically
   if (requestedRole) {
     if (requestedRole === 'parent') {
       const parent = await prisma.parentStudentLink.findFirst({
@@ -94,7 +45,6 @@ export const resolveRoleInSchool = async (userId: string, schoolId: string, requ
       });
       if (teacher) return 'teacher';
       
-      // Also check if they are in the User table with teacher role
       const user = await prisma.user.findFirst({
         where: { id: userId, role: 'teacher' }
       });
@@ -108,7 +58,6 @@ export const resolveRoleInSchool = async (userId: string, schoolId: string, requ
       if (user) return user.role;
     }
 
-    // Staff / custom school roles (e.g. registrar, discipline_officer, staff, or any custom role)
     const staffRoles = ['staff', 'staff_member', 'registrar', 'discipline_officer'];
     if (staffRoles.includes(requestedRole)) {
       const user = await prisma.user.findFirst({
@@ -117,26 +66,22 @@ export const resolveRoleInSchool = async (userId: string, schoolId: string, requ
       if (user) return user.role;
     }
 
-    // Check if user has this requested role directly in their school profile
     const customUser = await prisma.user.findFirst({
       where: { id: userId, role: requestedRole, is_active: true }
     });
     if (customUser) return customUser.role;
   }
 
-  // 2. Fallback: Determine highest available role in priority order
   const user = await prisma.user.findUnique({
     where: { id: userId }
   });
   if (user && user.role && !['parent', 'student'].includes(user.role)) return user.role;
 
-  // Check Teacher table
   const teacher = await prisma.teacher.findFirst({
     where: { user_id: userId }
   });
   if (teacher) return 'teacher';
 
-  // Check ParentStudentLink
   const parent = await prisma.parentStudentLink.findFirst({
     where: { parentId: userId }
   });
@@ -144,3 +89,4 @@ export const resolveRoleInSchool = async (userId: string, schoolId: string, requ
 
   return user?.role || null;
 };
+

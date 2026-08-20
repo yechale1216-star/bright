@@ -60,7 +60,6 @@ export function computeWorkingScheduleThresholds(settings?: any): {
   let expectedStartTime = settings?.staff_work_start_time || '08:00';
   let expectedEndTime = settings?.staff_work_end_time || '17:00';
 
-  // Runtime safety: ensure startTime < endTime
   const [sH, sM] = expectedStartTime.split(':').map(Number);
   const [eH, eM] = expectedEndTime.split(':').map(Number);
   const startMins = (isNaN(sH) ? 8 : sH) * 60 + (isNaN(sM) ? 0 : sM);
@@ -91,15 +90,17 @@ export function computeWorkingScheduleThresholds(settings?: any): {
     latestCheckOut = addMinutesToTime(expectedEndTime, 60);
   }
 
-  // Absence cutoff: configured time, or start time + cutoff minutes (clamped within [start, end])
   const absenceCutoffMinutes = Math.min(duration, Math.max(1, Number(settings?.staff_absence_cutoff_minutes ?? 120) || 120));
   let absenceCutoffTime = settings?.staff_absence_cutoff_time || settings?.staffAbsenceCutoffTime || addMinutesToTime(expectedStartTime, absenceCutoffMinutes);
   if (isTimeBefore(absenceCutoffTime, expectedStartTime) || isTimeAfter(absenceCutoffTime, expectedEndTime)) {
     absenceCutoffTime = addMinutesToTime(expectedStartTime, Math.min(duration, Math.max(15, absenceCutoffMinutes)));
   }
 
-  const workingDaysStr = settings?.staff_working_days || 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY';
-  const workingDays = workingDaysStr.split(',').map((d: string) => d.trim().toUpperCase()).filter(Boolean);
+  const configuredDaysStr = settings?.staff_working_days || 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY';
+  const workingDays = configuredDaysStr
+    .split(',')
+    .map((d: string) => d.trim().toUpperCase())
+    .filter(Boolean);
 
   return {
     earliestCheckIn,
@@ -113,149 +114,117 @@ export function computeWorkingScheduleThresholds(settings?: any): {
   };
 }
 
-// ─── Session Helpers ──────────────────────────────────────────────────────────
-
-export interface StaffSession {
+/**
+ * Interface representing a staff session configuration.
+ */
+export interface StaffSessionConfig {
   id: string;
   name: string;
-  startTime: string;   // HH:MM
-  endTime: string;     // HH:MM
-  lateGraceMinutes: number;
-  earlyDepartureToleranceMinutes: number;
+  startTime: string;
+  endTime: string;
+  lateGraceMinutes?: number;
+  earlyDepartureToleranceMinutes?: number;
   absenceCutoffMinutes?: number;
-  absenceCutoffTime?: string;
-  earliestCheckinTime?: string;
-  latestCheckoutTime?: string;
+  earliestCheckInOffsetMinutes?: number;
+  latestCheckOutOffsetMinutes?: number;
   allowCheckinAfterCutoff?: boolean;
-  isActive: boolean;
+  isActive?: boolean;
 }
 
-const DEFAULT_STAFF_SESSIONS: StaffSession[] = [
+export const DEFAULT_STAFF_SESSIONS: StaffSessionConfig[] = [
   {
     id: 'morning',
-    name: 'Morning',
+    name: 'Morning Session',
     startTime: '08:00',
     endTime: '12:30',
     lateGraceMinutes: 15,
-    earlyDepartureToleranceMinutes: 10,
-    absenceCutoffMinutes: 90,
-    absenceCutoffTime: '09:30',
-    earliestCheckinTime: '06:00',
-    latestCheckoutTime: '13:30',
+    earlyDepartureToleranceMinutes: 15,
+    absenceCutoffMinutes: 60,
+    earliestCheckInOffsetMinutes: 60,
+    latestCheckOutOffsetMinutes: 60,
+    allowCheckinAfterCutoff: false,
     isActive: true,
   },
   {
     id: 'afternoon',
-    name: 'Afternoon',
+    name: 'Afternoon Session',
     startTime: '13:30',
     endTime: '17:00',
-    lateGraceMinutes: 10,
-    earlyDepartureToleranceMinutes: 10,
-    absenceCutoffMinutes: 90,
-    absenceCutoffTime: '15:00',
-    earliestCheckinTime: '12:30',
-    latestCheckoutTime: '18:30',
+    lateGraceMinutes: 15,
+    earlyDepartureToleranceMinutes: 15,
+    absenceCutoffMinutes: 60,
+    earliestCheckInOffsetMinutes: 30,
+    latestCheckOutOffsetMinutes: 60,
+    allowCheckinAfterCutoff: false,
     isActive: true,
   },
 ];
 
-/**
- * Parse sessions from settings JSON or return fixed morning/afternoon defaults.
- */
-export function getConfiguredSessions(settings?: any): StaffSession[] {
+export function getConfiguredSessions(settings?: any): StaffSessionConfig[] {
+  if (!settings) return DEFAULT_STAFF_SESSIONS;
+  const raw = (settings as any).staff_sessions;
+  if (!raw) return DEFAULT_STAFF_SESSIONS;
+
   try {
-    const raw = settings?.staff_sessions;
-    if (raw) {
-      const parsed: StaffSession[] = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Enforce that only Morning and Afternoon exist
-        const morning = parsed.find(s => s && (s.id === 'morning' || s.name?.toLowerCase() === 'morning')) || DEFAULT_STAFF_SESSIONS[0];
-        const afternoon = parsed.find(s => s && (s.id === 'afternoon' || s.name?.toLowerCase() === 'afternoon')) || DEFAULT_STAFF_SESSIONS[1];
-        return [
-          { ...DEFAULT_STAFF_SESSIONS[0], ...morning, id: 'morning', name: 'Morning' },
-          { ...DEFAULT_STAFF_SESSIONS[1], ...afternoon, id: 'afternoon', name: 'Afternoon' },
-        ];
-      }
+    let parsed: any = raw;
+    if (typeof raw === 'string') {
+      parsed = JSON.parse(raw);
     }
-  } catch (_) {}
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((s: any) => ({
+        id: (s.id || s.name || 'session').toLowerCase().trim(),
+        name: s.name || s.id || 'Session',
+        startTime: s.startTime || s.start || '08:00',
+        endTime: s.endTime || s.end || '12:30',
+        lateGraceMinutes: Number(s.lateGraceMinutes ?? s.grace ?? 15),
+        earlyDepartureToleranceMinutes: Number(s.earlyDepartureToleranceMinutes ?? 15),
+        absenceCutoffMinutes: Number(s.absenceCutoffMinutes ?? 60),
+        earliestCheckInOffsetMinutes: Number(s.earliestCheckInOffsetMinutes ?? 60),
+        latestCheckOutOffsetMinutes: Number(s.latestCheckOutOffsetMinutes ?? 60),
+        allowCheckinAfterCutoff: Boolean(s.allowCheckinAfterCutoff ?? false),
+        isActive: s.isActive !== false,
+      }));
+    }
+  } catch (err) {
+    console.warn('[StaffAttendance] Failed to parse staff_sessions from settings, using default:', err);
+  }
   return DEFAULT_STAFF_SESSIONS;
 }
 
-/**
- * Find the session config by id/name (case-insensitive).
- */
-export function findSession(sessions: StaffSession[], sessionId: string): StaffSession | undefined {
-  const key = sessionId.toLowerCase().trim();
-  return sessions.find((s) => s.id.toLowerCase() === key || s.name.toLowerCase() === key);
-}
+export function computeSessionThresholds(session: StaffSessionConfig) {
+  const {
+    startTime,
+    endTime,
+    lateGraceMinutes = 15,
+    earlyDepartureToleranceMinutes = 15,
+    absenceCutoffMinutes = 60,
+    earliestCheckInOffsetMinutes = 60,
+    latestCheckOutOffsetMinutes = 60,
+  } = session;
 
-/**
- * Compute schedule thresholds for a specific session with runtime validation and safety bounds.
- */
-export function computeSessionThresholds(session: StaffSession): {
-  expectedStartTime: string;
-  lateCutoffTime: string;
-  expectedEndTime: string;
-  earlyDepartureCutoffTime: string;
-  absenceCutoffTime: string;
-  earliestCheckIn: string;
-  latestCheckOut: string;
-} {
-  let startTime = session.startTime || (session.id === 'afternoon' ? '13:30' : '08:00');
-  let endTime = session.endTime || (session.id === 'afternoon' ? '17:00' : '12:30');
-
-  const [sH, sM] = startTime.split(':').map(Number);
-  const [eH, eM] = endTime.split(':').map(Number);
-  const startMins = (isNaN(sH) ? 8 : sH) * 60 + (isNaN(sM) ? 0 : sM);
-  const endMins = (isNaN(eH) ? 12 : eH) * 60 + (isNaN(eM) ? 30 : eM);
-
-  if (startMins >= endMins) {
-    console.warn(`[StaffAttendance] Corrupted session ${session.id} detected: start ${startTime} >= end ${endTime}. Falling back to default.`);
-    const fallback = session.id === 'afternoon' ? DEFAULT_STAFF_SESSIONS[1] : DEFAULT_STAFF_SESSIONS[0];
-    startTime = fallback.startTime;
-    endTime = fallback.endTime;
-  }
-
-  const [fsH, fsM] = startTime.split(':').map(Number);
-  const [feH, feM] = endTime.split(':').map(Number);
-  const duration = Math.max(1, (feH * 60 + feM) - (fsH * 60 + fsM));
-
-  const lateGrace = Math.min(duration - 1, Math.max(0, Number(session.lateGraceMinutes ?? 15) || 15));
-  const lateCutoffTime = addMinutesToTime(startTime, lateGrace);
-
-  const earlyTol = Math.min(duration - 1, Math.max(0, Number(session.earlyDepartureToleranceMinutes ?? 10) || 10));
-  const earlyDepartureCutoffTime = addMinutesToTime(endTime, -earlyTol);
-
-  const absenceMinutes = Math.min(duration, Math.max(1, Number(session.absenceCutoffMinutes ?? 90) || 90));
-  let absenceCutoffTime = session.absenceCutoffTime || addMinutesToTime(startTime, absenceMinutes);
-  if (isTimeBefore(absenceCutoffTime, startTime) || isTimeAfter(absenceCutoffTime, endTime)) {
-    absenceCutoffTime = addMinutesToTime(startTime, Math.min(duration, Math.max(15, absenceMinutes)));
-  }
-
-  let earliestCheckIn = session.earliestCheckinTime || addMinutesToTime(startTime, -60);
-  if (isTimeAfter(earliestCheckIn, startTime)) {
-    earliestCheckIn = addMinutesToTime(startTime, -60);
-  }
-
-  let latestCheckOut = session.latestCheckoutTime || addMinutesToTime(endTime, 60);
-  if (isTimeBefore(latestCheckOut, endTime)) {
-    latestCheckOut = addMinutesToTime(endTime, 60);
-  }
+  const lateCutoffTime = addMinutesToTime(startTime, lateGraceMinutes);
+  const earlyDepartureCutoffTime = addMinutesToTime(endTime, -earlyDepartureToleranceMinutes);
+  const earliestCheckIn = addMinutesToTime(startTime, -earliestCheckInOffsetMinutes);
+  const latestCheckOut = addMinutesToTime(endTime, latestCheckOutOffsetMinutes);
+  const absenceCutoffTime = addMinutesToTime(startTime, absenceCutoffMinutes);
 
   return {
     expectedStartTime: startTime,
-    lateCutoffTime,
     expectedEndTime: endTime,
+    lateCutoffTime,
     earlyDepartureCutoffTime,
-    absenceCutoffTime,
     earliestCheckIn,
     latestCheckOut,
+    absenceCutoffTime,
   };
 }
 
-/**
- * Normalise session key: lowercase + trimmed, default to 'daily'.
- */
+export function findSession(sessions: StaffSessionConfig[], sessionIdOrName: string): StaffSessionConfig | undefined {
+  if (!sessionIdOrName) return undefined;
+  const key = sessionIdOrName.toLowerCase().trim();
+  return sessions.find(s => s.id.toLowerCase() === key || s.name.toLowerCase() === key);
+}
+
 export function normaliseSessionKey(raw?: string | null): string {
   if (!raw || raw.trim() === '') return 'daily';
   return raw.toLowerCase().trim();
@@ -263,11 +232,10 @@ export function normaliseSessionKey(raw?: string | null): string {
 
 /**
  * Check-in for a staff member (self or admin-assisted)
- * Supports both daily and session-based modes.
  */
-export async function checkIn(userId: string, schoolId: string, data: {
+export async function checkIn(userId: string, _schoolId?: string, data: {
   date?: string;
-  session?: string;   // optional – 'daily' for daily mode, or session id for session mode
+  session?: string;
   latitude?: number | null;
   longitude?: number | null;
   locationVerified?: boolean;
@@ -275,18 +243,17 @@ export async function checkIn(userId: string, schoolId: string, data: {
   faceVerified?: boolean;
   faceConfidence?: number | null;
   remarks?: string;
-}) {
+} = {}) {
   const user = await prisma.user.findFirst({
-    where: { id: userId, schoolId, is_active: true }
+    where: { id: userId, is_active: true }
   });
   if (!user) {
-    throw new Error('Staff member not found or inactive in this school');
+    throw new Error('Staff member not found or inactive');
   }
 
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
 
-  // 1. Geofence Verification (using shared validator)
   let locVerified = false;
   let locDistance: number | null = null;
   if (settings?.staff_geo_required !== false) {
@@ -298,14 +265,13 @@ export async function checkIn(userId: string, schoolId: string, data: {
     locDistance = data.locationDistance ?? null;
   }
 
-  // 2. Face Verification Enforcement
   const isFaceRequired = settings?.staff_face_required ?? true;
   if (isFaceRequired && !data.faceVerified) {
     throw new Error('Face verification failed or is required for staff check-in.');
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
-  const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
 
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
@@ -315,7 +281,6 @@ export async function checkIn(userId: string, schoolId: string, data: {
     minute: '2-digit' 
   });
 
-  // ── Resolve session key and thresholds based on mode ──
   let sessionKey: string;
   let expectedEndTime: string;
   let lateCutoffTime: string;
@@ -336,7 +301,6 @@ export async function checkIn(userId: string, schoolId: string, data: {
     absenceCutoffTime = thresholds.absenceCutoffTime;
     allowCheckinAfterCutoff = sess.allowCheckinAfterCutoff ?? (settings as any)?.allow_staff_checkin_after_cutoff ?? false;
   } else {
-    // Daily mode
     sessionKey = 'daily';
     const schedule = computeWorkingScheduleThresholds(settings);
     expectedEndTime = schedule.expectedEndTime;
@@ -346,22 +310,18 @@ export async function checkIn(userId: string, schoolId: string, data: {
     allowCheckinAfterCutoff = (settings as any)?.allow_staff_checkin_after_cutoff ?? false;
   }
 
-  // 1. Earliest check-in gate: Check-in is inactive / rejected until earliestCheckIn
   if (earliestCheckIn && isTimeBefore(currentTimeHHMM, earliestCheckIn)) {
     throw new Error(`Check-in is not open yet. Earliest allowed check-in is ${formatCivilTime(earliestCheckIn)}.`);
   }
 
-  // 2. Checkout Time — Final Check-in Lock (Regardless of allowCheckinAfterCutoff)
   if (expectedEndTime && (isTimeAfter(currentTimeHHMM, expectedEndTime) || currentTimeHHMM === expectedEndTime)) {
     throw new Error(`Check-in closed for today. The checkout time (${formatCivilTime(expectedEndTime)}) has passed.`);
   }
 
-  // 3. Absence cutoff gate: If admin does not allow post-cutoff check-in, reject check-in
   if (!allowCheckinAfterCutoff && absenceCutoffTime && isTimeAfter(currentTimeHHMM, absenceCutoffTime)) {
     throw new Error(`Check-in closed for today. The absence cutoff time (${formatCivilTime(absenceCutoffTime)}) has passed.`);
   }
 
-  // Determine status & remarks based on working day calendar rules
   let status = 'PRESENT';
   let remarks = data.remarks || null;
 
@@ -370,7 +330,6 @@ export async function checkIn(userId: string, schoolId: string, data: {
       status = 'LATE';
     }
   } else {
-    // Non-working day or holiday check-in (optional work / special shift)
     status = 'PRESENT';
     const nonWorkNote = workingDayInfo.isHoliday
       ? `Holiday Attendance (${workingDayInfo.holidayName})`
@@ -378,10 +337,8 @@ export async function checkIn(userId: string, schoolId: string, data: {
     remarks = remarks ? `${remarks} | ${nonWorkNote}` : nonWorkNote;
   }
 
-  // Check existing attendance for today+session
   const existing = await prisma.staffAttendance.findFirst({
     where: {
-      schoolId,
       userId,
       date: { gte: startDate, lte: endDate },
       session: sessionKey,
@@ -412,7 +369,6 @@ export async function checkIn(userId: string, schoolId: string, data: {
 
   return await prisma.staffAttendance.create({
     data: {
-      schoolId,
       userId,
       date: startDate,
       session: sessionKey,
@@ -432,9 +388,9 @@ export async function checkIn(userId: string, schoolId: string, data: {
 /**
  * Check-out for a staff member. Supports daily and session-based modes.
  */
-export async function checkOut(userId: string, schoolId: string, data: {
+export async function checkOut(userId: string, _schoolId?: string, data: {
   date?: string;
-  session?: string;   // optional – required in session mode
+  session?: string;
   latitude?: number | null;
   longitude?: number | null;
   locationVerified?: boolean;
@@ -442,11 +398,10 @@ export async function checkOut(userId: string, schoolId: string, data: {
   faceVerified?: boolean;
   faceConfidence?: number | null;
   remarks?: string;
-}) {
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+} = {}) {
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
 
-  // Geofence
   let locVerified = false;
   let locDistance: number | null = null;
   if (settings?.staff_geo_required !== false) {
@@ -458,14 +413,13 @@ export async function checkOut(userId: string, schoolId: string, data: {
     locDistance = data.locationDistance ?? null;
   }
 
-  // Face
   const isFaceRequired = settings?.staff_face_required ?? true;
   if (isFaceRequired && !data.faceVerified) {
     throw new Error('Face verification failed or is required for staff check-out.');
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
-  const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
 
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
@@ -475,7 +429,6 @@ export async function checkOut(userId: string, schoolId: string, data: {
     minute: '2-digit' 
   });
 
-  // ── Resolve session key and early departure threshold ──
   let sessionKey: string;
   let earlyDepartureCutoffTime: string;
 
@@ -493,7 +446,6 @@ export async function checkOut(userId: string, schoolId: string, data: {
 
   const existing = await prisma.staffAttendance.findFirst({
     where: {
-      schoolId,
       userId,
       date: { gte: startDate, lte: endDate },
       session: sessionKey,
@@ -510,7 +462,6 @@ export async function checkOut(userId: string, schoolId: string, data: {
     throw new Error(`Staff is already checked out for ${dateStr}${sessLabel} at ${existing.checkOutTime.toISOString()}`);
   }
 
-  // Check early departure only if it is a scheduled working day
   let status = existing.status;
   if (workingDayInfo.isWorkingDay) {
     if (isTimeBefore(currentTimeHHMM, earlyDepartureCutoffTime)) {
@@ -535,16 +486,16 @@ export async function checkOut(userId: string, schoolId: string, data: {
 /**
  * Face enrollment for a staff member (admin only)
  */
-export async function enrollFace(adminUserId: string, targetUserId: string, schoolId: string, descriptor: number[]) {
+export async function enrollFace(adminUserId: string, targetUserId: string, _schoolId?: string, descriptor?: number[]) {
   if (!descriptor || !Array.isArray(descriptor) || descriptor.length === 0) {
     throw new Error('Valid face descriptor array is required for enrollment');
   }
 
   const staff = await prisma.user.findFirst({
-    where: { id: targetUserId, schoolId }
+    where: { id: targetUserId }
   });
   if (!staff) {
-    throw new Error('Staff member not found in this school');
+    throw new Error('Staff member not found');
   }
 
   const existing = await prisma.staffFaceEnrollment.findUnique({
@@ -564,7 +515,6 @@ export async function enrollFace(adminUserId: string, targetUserId: string, scho
 
   return await prisma.staffFaceEnrollment.create({
     data: {
-      schoolId,
       userId: targetUserId,
       descriptor,
       enrolledBy: adminUserId,
@@ -575,37 +525,34 @@ export async function enrollFace(adminUserId: string, targetUserId: string, scho
 /**
  * Retrieve face descriptor for client-side matching
  */
-export async function getEnrolledDescriptor(userId: string, schoolId: string) {
-  const enrollment = await prisma.staffFaceEnrollment.findFirst({
-    where: { userId, schoolId }
+export async function getEnrolledDescriptor(userId: string, _schoolId?: string) {
+  return await prisma.staffFaceEnrollment.findFirst({
+    where: { userId }
   });
-  return enrollment;
 }
 
 /**
  * Get staff attendance list (admin view)
  */
-export async function getStaffAttendance(schoolId: string, filters: {
+export async function getStaffAttendance(_schoolId?: string, filters: {
   date?: string;
   startDate?: string;
   endDate?: string;
   role?: string;
   userId?: string;
   status?: string;
-  session?: string;   // filter by session ('daily', 'morning', 'afternoon', 'all')
-  mode?: string;      // optional explicit mode ('daily' | 'session_based')
+  session?: string;
+  mode?: string;
   search?: string;
   geofenceVerified?: string | boolean;
   faceVerified?: string | boolean;
-}) {
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+} = {}) {
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
 
-  // If querying for a specific date (or today), evaluate any elapsed absence cutoffs first
   if (filters.date) {
     try {
       await processAutomaticStaffAbsences({
-        schoolId,
         date: filters.date,
         session: filters.session,
       });
@@ -614,7 +561,7 @@ export async function getStaffAttendance(schoolId: string, filters: {
     }
   }
 
-  const where: any = { schoolId };
+  const where: any = {};
 
   if (filters.userId) {
     where.userId = filters.userId;
@@ -659,11 +606,9 @@ export async function getStaffAttendance(schoolId: string, filters: {
     where.faceVerified = filters.faceVerified === true || filters.faceVerified === 'true';
   }
 
-  // Strict Mode and Session Enforcement
   if (attendanceMode === 'daily') {
     where.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
   } else {
-    // Session-based mode: filter to specific session or all non-daily sessions
     if (filters.session && filters.session !== 'all' && filters.session !== 'ALL') {
       where.session = normaliseSessionKey(filters.session);
     } else {
@@ -698,15 +643,12 @@ export async function getStaffAttendance(schoolId: string, filters: {
 
 /**
  * Get comprehensive daily or range summary stats for staff attendance.
- * In session-based mode, returns per-session breakdown.
  */
-export async function getStaffAttendanceStats(schoolId: string, date?: string, session?: string) {
+export async function getStaffAttendanceStats(_schoolId?: string, date?: string, session?: string) {
   const { dateStr, startDate, endDate } = normalizeStaffDate(date);
 
-  // If querying for a specific date (or today), evaluate any elapsed absence cutoffs first
   try {
     await processAutomaticStaffAbsences({
-      schoolId,
       date: dateStr,
       session,
     });
@@ -714,21 +656,18 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
     console.warn('[StaffAttendance] Auto absence check failed during getStaffAttendanceStats:', autoErr);
   }
 
-  // Fetch settings once, pass cache to both helpers
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
-  const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+  const settings = await prisma.schoolSettings.findFirst();
+  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
 
-  // Total active staff (all non-parent/student users registered in this school)
   const totalStaffCount = await prisma.user.count({
     where: {
-      schoolId,
       is_active: true,
       role: { notIn: ['parent', 'student'] }
     }
   });
 
-  const recordWhere: any = { schoolId, date: { gte: startDate, lte: endDate } };
+  const recordWhere: any = { date: { gte: startDate, lte: endDate } };
   
   if (attendanceMode === 'daily') {
     recordWhere.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
@@ -776,7 +715,6 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
     if (r.geofenceVerified) geoVerifiedCount++;
   }
 
-  // Current time in Africa/Addis_Ababa
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', {
     timeZone: 'Africa/Addis_Ababa',
@@ -786,7 +724,6 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
   });
   const isToday = dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' });
 
-  // Compute cutoff threshold for stats overview
   const scheduleThresholds = computeWorkingScheduleThresholds(settings);
   let activeAbsenceCutoff = scheduleThresholds.absenceCutoffTime;
   let activeStartTime = scheduleThresholds.expectedStartTime;
@@ -801,11 +738,9 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
     }
   }
 
-  // Unique staff who have any record for this date (avoid double-counting in session mode)
   const uniqueStaffIds = new Set(records.map((r: any) => r.userId));
   const notCheckedIn = Math.max(0, totalStaffCount - uniqueStaffIds.size);
 
-  // Lifecycle breakdown for unrecorded staff:
   let notStarted = 0;
   let pendingCheckIn = 0;
 
@@ -815,13 +750,10 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
         notStarted = notCheckedIn;
       } else if (isTimeBefore(currentTimeHHMM, activeAbsenceCutoff)) {
         pendingCheckIn = notCheckedIn;
-      } else {
-        // Cutoff passed -> unrecorded are marked absent by processAutomaticStaffAbsences
       }
     }
   }
 
-  // Session-breakdown for session_based mode
   let sessionBreakdown: Record<string, any> | undefined;
   if (attendanceMode === 'session_based') {
     const bySession: Record<string, any> = {};
@@ -875,17 +807,17 @@ export async function getStaffAttendanceStats(schoolId: string, date?: string, s
 /**
  * Get current staff user's own attendance history
  */
-export async function getMyAttendance(userId: string, schoolId: string, filters: {
+export async function getMyAttendance(userId: string, _schoolId?: string, filters: {
   startDate?: string;
   endDate?: string;
   date?: string;
   session?: string;
   mode?: string;
-}) {
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+} = {}) {
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
 
-  const where: any = { schoolId, userId };
+  const where: any = { userId };
 
   if (filters.date) {
     const { startDate, endDate } = normalizeStaffDate(filters.date);
@@ -932,11 +864,11 @@ export async function bulkSyncStaffAttendance(records: Array<{
   faceVerified?: boolean;
   faceConfidence?: number | null;
   remarks?: string;
-}>, schoolId: string) {
+}>, _schoolId?: string) {
   const results: any[] = [];
   const errors: string[] = [];
 
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
   const schedule = computeWorkingScheduleThresholds(settings);
 
@@ -955,12 +887,10 @@ export async function bulkSyncStaffAttendance(records: Array<{
         ? (normaliseSessionKey(item.session) || 'morning')
         : 'daily';
 
-      // Determine if this is a working day (reuse settings cache)
-      const workingDayInfo = await isDateWorkingDay(schoolId, dateStr, settings);
+      const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
 
       const existing = await prisma.staffAttendance.findFirst({
         where: {
-          schoolId,
           userId: item.userId,
           date: { gte: startDate, lte: endDate },
           session: sessionKey,
@@ -976,7 +906,6 @@ export async function bulkSyncStaffAttendance(records: Array<{
             status = 'LATE';
           }
         } else {
-          // Non-working day offline check-in — mark present but annotate
           const nonWorkNote = workingDayInfo.isHoliday
             ? `Holiday Attendance (${workingDayInfo.holidayName})`
             : `Weekend/Non-Working Day Attendance (${workingDayInfo.dayOfWeek})`;
@@ -1006,7 +935,6 @@ export async function bulkSyncStaffAttendance(records: Array<{
         } else {
           const created = await prisma.staffAttendance.create({
             data: {
-              schoolId,
               userId: item.userId,
               date: startDate,
               session: sessionKey,
@@ -1026,7 +954,6 @@ export async function bulkSyncStaffAttendance(records: Array<{
       } else if (item.type === 'checkout') {
         if (existing) {
           let status = existing.status;
-          // Apply early departure check only on scheduled working days
           if (workingDayInfo.isWorkingDay) {
             if (isTimeBefore(timeHHMM, schedule.earlyDepartureCutoffTime)) {
               if (status === 'PRESENT') status = 'EARLY_DEPARTURE';
@@ -1059,17 +986,17 @@ export async function bulkSyncStaffAttendance(records: Array<{
 }
 
 /**
- * Admin manual marking of absent staff for a given date (and optional session).
+ * Admin manual marking of absent staff for a given date.
  */
 export async function markAbsentStaff(
   adminUserId: string,
-  schoolId: string,
+  _schoolId: string | undefined,
   userIds: string[],
   date: string,
   remarks?: string,
   session?: string
 ) {
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
   const { startDate, endDate } = normalizeStaffDate(date);
   const sessionKey = attendanceMode === 'session_based' ? normaliseSessionKey(session) : 'daily';
@@ -1078,7 +1005,6 @@ export async function markAbsentStaff(
   for (const userId of userIds) {
     const existing = await prisma.staffAttendance.findFirst({
       where: {
-        schoolId,
         userId,
         date: { gte: startDate, lte: endDate },
         session: sessionKey,
@@ -1098,7 +1024,6 @@ export async function markAbsentStaff(
     } else {
       const created = await prisma.staffAttendance.create({
         data: {
-          schoolId,
           userId,
           date: startDate,
           session: sessionKey,
@@ -1120,7 +1045,7 @@ export async function markAbsentStaff(
 export async function correctAttendance(
   adminUserId: string,
   recordId: string,
-  schoolId: string,
+  _schoolId: string | undefined,
   corrections: {
     status?: string;
     checkInTime?: string | Date | null;
@@ -1133,13 +1058,13 @@ export async function correctAttendance(
     throw new Error('A mandatory correction reason is required for administrative audit trail.');
   }
 
-  const existing = await prisma.staffAttendance.findFirst({
-    where: { id: recordId, schoolId },
+  const existing = await prisma.staffAttendance.findUnique({
+    where: { id: recordId },
     include: { user: true }
   });
 
   if (!existing) {
-    throw new Error('Staff attendance record not found in this school');
+    throw new Error('Staff attendance record not found');
   }
 
   const updateData: any = {
@@ -1186,28 +1111,24 @@ export async function correctAttendance(
 
 /**
  * Set Leave or Permission for a staff member.
- * Respects the configured staff attendance mode:
- *  - Daily mode   → always stores with session = 'daily'
- *  - Session mode → uses the provided session, required
  */
 export async function setLeaveOrPermission(
   adminUserId: string,
   userId: string,
-  schoolId: string,
+  _schoolId: string | undefined,
   data: {
     date: string;
     status: 'LEAVE' | 'PERMISSION';
     reason: string;
     session?: string;
-    mode?: string;  // optional override; defaults to school setting
+    mode?: string;
   }
 ) {
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = data.mode || (settings as any)?.staff_attendance_mode || 'daily';
 
   const { startDate, endDate } = normalizeStaffDate(data.date);
 
-  // Enforce mode-correct session key
   let sessionKey: string;
   if (attendanceMode === 'session_based') {
     sessionKey = normaliseSessionKey(data.session) || 'morning';
@@ -1217,7 +1138,6 @@ export async function setLeaveOrPermission(
 
   const existing = await prisma.staffAttendance.findFirst({
     where: {
-      schoolId,
       userId,
       date: { gte: startDate, lte: endDate },
       session: sessionKey,
@@ -1240,7 +1160,6 @@ export async function setLeaveOrPermission(
 
   return await prisma.staffAttendance.create({
     data: {
-      schoolId,
       userId,
       date: startDate,
       session: sessionKey,
@@ -1253,27 +1172,25 @@ export async function setLeaveOrPermission(
 
 /**
  * Generate attendance report aggregated across a date range.
- * Strictly respects the configured staff attendance mode — never mixes daily and session records.
  */
 export async function getStaffAttendanceReport(
-  schoolId: string,
+  _schoolId: string | undefined,
   filters: {
     startDate: string;
     endDate: string;
     role?: string;
     userId?: string;
-    mode?: string;      // 'daily' | 'session_based' — defaults to school setting
-    session?: string;   // optional session filter in session_based mode
+    mode?: string;
+    session?: string;
   }
 ) {
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
 
   const { startDate } = normalizeStaffDate(filters.startDate);
   const { endDate } = normalizeStaffDate(filters.endDate);
 
   const where: any = {
-    schoolId,
     date: { gte: startDate, lte: endDate }
   };
 
@@ -1285,11 +1202,9 @@ export async function getStaffAttendanceReport(
     where.user = { role: filters.role };
   }
 
-  // ── Mode-strict session filter (mirrors logic in getStaffAttendance) ──
   if (attendanceMode === 'daily') {
     where.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
   } else {
-    // session_based: filter to a specific session or all non-daily sessions
     if (filters.session && filters.session !== 'all' && filters.session !== 'ALL') {
       where.session = normaliseSessionKey(filters.session);
     } else {
@@ -1317,7 +1232,6 @@ export async function getStaffAttendanceReport(
     orderBy: { date: 'asc' }
   });
 
-  // Aggregate by staff member
   const staffMap = new Map<string, any>();
 
   for (const r of records) {
@@ -1349,7 +1263,6 @@ export async function getStaffAttendanceReport(
     item.records.push(r);
   }
 
-  // Daily totals summary
   const dayMap = new Map<string, { date: string; present: number; late: number; absent: number; earlyDeparture: number; onLeave: number; total: number }>();
   for (const r of records) {
     const dStr = r.date.toISOString().split('T')[0];
@@ -1377,13 +1290,6 @@ export async function getStaffAttendanceReport(
 
 /**
  * Automatically evaluates and marks unrecorded staff as ABSENT after the configured absence cutoff time.
- * Strictly respects:
- * 1. Working days, weekends, and holidays (never marks absent on non-working days/holidays)
- * 2. Approved leaves, permissions, and manual corrections (never overwrites approved leave/permission)
- * 3. Session independence (morning/afternoon sessions evaluated separately)
- * 4. Cutoff time lifecycle (before cutoff -> pending, only after cutoff -> absent)
- * 5. Active staff eligibility (only active non-parent/student staff in school)
- * 6. Idempotency (safe to run repeatedly, will not duplicate or corrupt records)
  */
 export async function processAutomaticStaffAbsences(options?: {
   schoolId?: string;
@@ -1392,12 +1298,6 @@ export async function processAutomaticStaffAbsences(options?: {
   force?: boolean;
 }) {
   const { dateStr, startDate, endDate } = normalizeStaffDate(options?.date);
-
-  const schoolQuery = options?.schoolId ? { id: options.schoolId } : {};
-  const schools = await prisma.school.findMany({
-    where: schoolQuery,
-    select: { id: true, name: true }
-  });
 
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', {
@@ -1411,7 +1311,7 @@ export async function processAutomaticStaffAbsences(options?: {
   const summary = {
     date: dateStr,
     currentTime: currentTimeHHMM,
-    schoolsEvaluated: schools.length,
+    schoolsEvaluated: 1,
     totalEligibleStaff: 0,
     alreadyRecorded: 0,
     markedAbsent: 0,
@@ -1420,148 +1320,130 @@ export async function processAutomaticStaffAbsences(options?: {
     details: [] as any[],
   };
 
-  for (const school of schools) {
-    const settings = await prisma.schoolSettings.findUnique({ where: { schoolId: school.id } });
-    const workingDayInfo = await isDateWorkingDay(school.id, dateStr, settings);
+  const settings = await prisma.schoolSettings.findFirst();
+  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
 
-    // Rule: Never mark absences on non-working days or holidays
-    if (!workingDayInfo.isWorkingDay) {
-      summary.skippedNonWorking++;
+  if (!workingDayInfo.isWorkingDay) {
+    summary.skippedNonWorking++;
+    summary.details.push({
+      status: 'SKIPPED_NON_WORKING_DAY',
+      reason: workingDayInfo.reason || (workingDayInfo.isHoliday ? `Holiday: ${workingDayInfo.holidayName}` : 'Non-working day')
+    });
+    return summary;
+  }
+
+  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+  const eligibleStaff = await prisma.user.findMany({
+    where: {
+      is_active: true,
+      role: { notIn: ['parent', 'student'] }
+    },
+    select: { id: true, full_name: true, role: true, email: true }
+  });
+
+  summary.totalEligibleStaff += eligibleStaff.length;
+  if (eligibleStaff.length === 0) return summary;
+
+  let sessionsToProcess: Array<{ id: string; name: string; absenceCutoffTime: string; expectedStartTime: string }>;
+  if (attendanceMode === 'session_based') {
+    const allSessions = getConfiguredSessions(settings);
+    const filtered = options?.session && options.session !== 'all' && options.session !== 'ALL'
+      ? allSessions.filter(s => s.id.toLowerCase() === options.session!.toLowerCase())
+      : allSessions;
+
+    sessionsToProcess = filtered.map(s => {
+      const thresholds = computeSessionThresholds(s);
+      return {
+        id: s.id.toLowerCase(),
+        name: s.name,
+        absenceCutoffTime: thresholds.absenceCutoffTime,
+        expectedStartTime: thresholds.expectedStartTime,
+      };
+    });
+  } else {
+    const schedule = computeWorkingScheduleThresholds(settings);
+    sessionsToProcess = [{
+      id: 'daily',
+      name: 'Daily',
+      absenceCutoffTime: schedule.absenceCutoffTime,
+      expectedStartTime: schedule.expectedStartTime,
+    }];
+  }
+
+  for (const sessionConfig of sessionsToProcess) {
+    const cutoffPassed = !isToday || isTimeAfter(currentTimeHHMM, sessionConfig.absenceCutoffTime) || currentTimeHHMM === sessionConfig.absenceCutoffTime;
+
+    if (!cutoffPassed && !options?.force) {
+      summary.skippedBeforeCutoff++;
       summary.details.push({
-        schoolId: school.id,
-        schoolName: school.name,
-        status: 'SKIPPED_NON_WORKING_DAY',
-        reason: workingDayInfo.reason || (workingDayInfo.isHoliday ? `Holiday: ${workingDayInfo.holidayName}` : 'Non-working day')
+        session: sessionConfig.id,
+        status: 'PENDING_CUTOFF',
+        currentTime: currentTimeHHMM,
+        absenceCutoffTime: sessionConfig.absenceCutoffTime,
+        message: `Absence cutoff ${sessionConfig.absenceCutoffTime} has not elapsed yet.`
       });
       continue;
     }
 
-    const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
-    const eligibleStaff = await prisma.user.findMany({
+    const existingRecords = await prisma.staffAttendance.findMany({
       where: {
-        schoolId: school.id,
-        is_active: true,
-        role: { notIn: ['parent', 'student'] }
-      },
-      select: { id: true, full_name: true, role: true, email: true }
+        date: { gte: startDate, lte: endDate },
+        session: sessionConfig.id,
+      }
     });
 
-    summary.totalEligibleStaff += eligibleStaff.length;
-    if (eligibleStaff.length === 0) continue;
-
-    // Determine sessions to process
-    let sessionsToProcess: Array<{ id: string; name: string; absenceCutoffTime: string; expectedStartTime: string }>;
-    if (attendanceMode === 'session_based') {
-      const allSessions = getConfiguredSessions(settings);
-      const filtered = options?.session && options.session !== 'all' && options.session !== 'ALL'
-        ? allSessions.filter(s => s.id.toLowerCase() === options.session!.toLowerCase())
-        : allSessions;
-
-      sessionsToProcess = filtered.map(s => {
-        const thresholds = computeSessionThresholds(s);
-        return {
-          id: s.id.toLowerCase(),
-          name: s.name,
-          absenceCutoffTime: thresholds.absenceCutoffTime,
-          expectedStartTime: thresholds.expectedStartTime,
-        };
-      });
-    } else {
-      const schedule = computeWorkingScheduleThresholds(settings);
-      sessionsToProcess = [{
-        id: 'daily',
-        name: 'Daily',
-        absenceCutoffTime: schedule.absenceCutoffTime,
-        expectedStartTime: schedule.expectedStartTime,
-      }];
+    const existingRecordMap = new Map<string, any>();
+    for (const rec of existingRecords) {
+      existingRecordMap.set(rec.userId, rec);
     }
 
-    for (const sessionConfig of sessionsToProcess) {
-      // Check if absence cutoff has passed (if date is today, check time; if date is in the past, cutoff has definitely passed)
-      const cutoffPassed = !isToday || isTimeAfter(currentTimeHHMM, sessionConfig.absenceCutoffTime) || currentTimeHHMM === sessionConfig.absenceCutoffTime;
+    let schoolSessionMarked = 0;
 
-      if (!cutoffPassed && !options?.force) {
-        summary.skippedBeforeCutoff++;
-        summary.details.push({
-          schoolId: school.id,
-          session: sessionConfig.id,
-          status: 'PENDING_CUTOFF',
-          currentTime: currentTimeHHMM,
-          absenceCutoffTime: sessionConfig.absenceCutoffTime,
-          message: `Absence cutoff ${sessionConfig.absenceCutoffTime} has not elapsed yet.`
+    for (const staff of eligibleStaff) {
+      const existing = existingRecordMap.get(staff.id);
+
+      if (existing) {
+        if (existing.checkInTime || existing.status === 'LEAVE' || existing.status === 'PERMISSION' || existing.status === 'PRESENT' || existing.status === 'LATE' || existing.status === 'EARLY_DEPARTURE') {
+          summary.alreadyRecorded++;
+          continue;
+        }
+        if (existing.status === 'ABSENT') {
+          summary.alreadyRecorded++;
+          continue;
+        }
+
+        await prisma.staffAttendance.update({
+          where: { id: existing.id },
+          data: {
+            status: 'ABSENT',
+            markedAbsentBy: 'SYSTEM_AUTO_CUTOFF',
+            remarks: existing.remarks ? `${existing.remarks} | Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})` : `Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})`
+          }
         });
-        continue;
-      }
-
-      // Fetch existing records for this school, date, and session
-      const existingRecords = await prisma.staffAttendance.findMany({
-        where: {
-          schoolId: school.id,
-          date: { gte: startDate, lte: endDate },
-          session: sessionConfig.id,
-        }
-      });
-
-      const existingRecordMap = new Map<string, any>();
-      for (const rec of existingRecords) {
-        existingRecordMap.set(rec.userId, rec);
-      }
-
-      let schoolSessionMarked = 0;
-
-      for (const staff of eligibleStaff) {
-        const existing = existingRecordMap.get(staff.id);
-
-        if (existing) {
-          // If staff has checked in, or has approved leave/permission, or already absent -> preserve
-          if (existing.checkInTime || existing.status === 'LEAVE' || existing.status === 'PERMISSION' || existing.status === 'PRESENT' || existing.status === 'LATE' || existing.status === 'EARLY_DEPARTURE') {
-            summary.alreadyRecorded++;
-            continue;
+        schoolSessionMarked++;
+        summary.markedAbsent++;
+      } else {
+        await prisma.staffAttendance.create({
+          data: {
+            userId: staff.id,
+            date: startDate,
+            session: sessionConfig.id,
+            status: 'ABSENT',
+            markedAbsentBy: 'SYSTEM_AUTO_CUTOFF',
+            remarks: `Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})`
           }
-          if (existing.status === 'ABSENT') {
-            summary.alreadyRecorded++;
-            continue;
-          }
-
-          // Unrecorded placeholder -> update to ABSENT
-          await prisma.staffAttendance.update({
-            where: { id: existing.id },
-            data: {
-              status: 'ABSENT',
-              markedAbsentBy: 'SYSTEM_AUTO_CUTOFF',
-              remarks: existing.remarks ? `${existing.remarks} | Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})` : `Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})`
-            }
-          });
-          schoolSessionMarked++;
-          summary.markedAbsent++;
-        } else {
-          // No record exists -> create ABSENT record
-          await prisma.staffAttendance.create({
-            data: {
-              schoolId: school.id,
-              userId: staff.id,
-              date: startDate,
-              session: sessionConfig.id,
-              status: 'ABSENT',
-              markedAbsentBy: 'SYSTEM_AUTO_CUTOFF',
-              remarks: `Auto-marked absent after cutoff (${sessionConfig.absenceCutoffTime})`
-            }
-          });
-          schoolSessionMarked++;
-          summary.markedAbsent++;
-        }
+        });
+        schoolSessionMarked++;
+        summary.markedAbsent++;
       }
-
-      summary.details.push({
-        schoolId: school.id,
-        schoolName: school.name,
-        session: sessionConfig.id,
-        markedAbsent: schoolSessionMarked,
-        absenceCutoffTime: sessionConfig.absenceCutoffTime,
-      });
     }
+
+    summary.details.push({
+      session: sessionConfig.id,
+      markedAbsent: schoolSessionMarked,
+      absenceCutoffTime: sessionConfig.absenceCutoffTime,
+    });
   }
 
   return summary;
 }
-

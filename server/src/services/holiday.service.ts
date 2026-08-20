@@ -46,17 +46,17 @@ export function addMinutesToTime(timeHHMM: string, minutes: number): string {
 }
 
 /**
- * Retrieves all holidays for a school with optional date filtering
+ * Retrieves all holidays with optional date filtering
  */
 export async function getSchoolHolidays(
-  schoolId: string,
+  _schoolId?: string,
   options?: {
     startDate?: string;
     endDate?: string;
     includeInactive?: boolean;
   }
 ) {
-  const where: any = { schoolId };
+  const where: any = {};
 
   if (!options?.includeInactive) {
     where.isActive = true;
@@ -82,23 +82,22 @@ export async function getSchoolHolidays(
 /**
  * Creates a new holiday or closure range
  */
-export async function createSchoolHoliday(schoolId: string, data: HolidayInput) {
-  if (!data.name || !data.name.trim()) {
+export async function createSchoolHoliday(_schoolId?: string, data?: any) {
+  const holidayData: HolidayInput = data;
+  if (!holidayData.name || !holidayData.name.trim()) {
     throw new Error('Holiday / Closure name is required.');
   }
 
-  const { startDate } = normalizeStaffDate(data.startDate);
-  const { endDate } = normalizeStaffDate(data.endDate);
+  const { startDate } = normalizeStaffDate(holidayData.startDate);
+  const { endDate } = normalizeStaffDate(holidayData.endDate);
 
   if (startDate > endDate) {
     throw new Error('Holiday start date cannot be after end date.');
   }
 
-  // Prevent exact duplicates with same name and overlapping range
   const existing = await (prisma as any).schoolHoliday.findFirst({
     where: {
-      schoolId,
-      name: { equals: data.name.trim(), mode: 'insensitive' },
+      name: { equals: holidayData.name.trim(), mode: 'insensitive' },
       isActive: true,
       startDate: { lte: endDate },
       endDate: { gte: startDate },
@@ -106,18 +105,17 @@ export async function createSchoolHoliday(schoolId: string, data: HolidayInput) 
   });
 
   if (existing) {
-    throw new Error(`An active holiday named '${data.name}' already covers this date range.`);
+    throw new Error(`An active holiday named '${holidayData.name}' already covers this date range.`);
   }
 
   return await (prisma as any).schoolHoliday.create({
     data: {
-      schoolId,
-      name: data.name.trim(),
-      description: data.description?.trim() || null,
+      name: holidayData.name.trim(),
+      description: holidayData.description?.trim() || null,
       startDate,
       endDate,
-      type: data.type || 'PUBLIC_HOLIDAY',
-      isActive: data.isActive !== false,
+      type: holidayData.type || 'PUBLIC_HOLIDAY',
+      isActive: holidayData.isActive !== false,
     },
   });
 }
@@ -125,9 +123,9 @@ export async function createSchoolHoliday(schoolId: string, data: HolidayInput) 
 /**
  * Updates a holiday record
  */
-export async function updateSchoolHoliday(id: string, schoolId: string, data: Partial<HolidayInput>) {
+export async function updateSchoolHoliday(id: string, _schoolId?: string, data?: Partial<HolidayInput>) {
   const holiday = await (prisma as any).schoolHoliday.findFirst({
-    where: { id, schoolId },
+    where: { id },
   });
 
   if (!holiday) {
@@ -135,17 +133,17 @@ export async function updateSchoolHoliday(id: string, schoolId: string, data: Pa
   }
 
   const updateData: any = {};
-  if (data.name !== undefined) {
+  if (data?.name !== undefined) {
     if (!data.name.trim()) throw new Error('Holiday name cannot be empty.');
     updateData.name = data.name.trim();
   }
-  if (data.description !== undefined) updateData.description = data.description?.trim() || null;
-  if (data.type !== undefined) updateData.type = data.type;
-  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  if (data?.description !== undefined) updateData.description = data.description?.trim() || null;
+  if (data?.type !== undefined) updateData.type = data.type;
+  if (data?.isActive !== undefined) updateData.isActive = data.isActive;
 
-  if (data.startDate !== undefined || data.endDate !== undefined) {
-    const sDate = data.startDate ? normalizeStaffDate(data.startDate).startDate : holiday.startDate;
-    const eDate = data.endDate ? normalizeStaffDate(data.endDate).endDate : holiday.endDate;
+  if (data?.startDate !== undefined || data?.endDate !== undefined) {
+    const sDate = data?.startDate ? normalizeStaffDate(data.startDate).startDate : holiday.startDate;
+    const eDate = data?.endDate ? normalizeStaffDate(data.endDate).endDate : holiday.endDate;
     if (sDate > eDate) {
       throw new Error('Holiday start date cannot be after end date.');
     }
@@ -162,9 +160,9 @@ export async function updateSchoolHoliday(id: string, schoolId: string, data: Pa
 /**
  * Deletes a holiday record
  */
-export async function deleteSchoolHoliday(id: string, schoolId: string) {
+export async function deleteSchoolHoliday(id: string, _schoolId?: string) {
   const holiday = await (prisma as any).schoolHoliday.findFirst({
-    where: { id, schoolId },
+    where: { id },
   });
 
   if (!holiday) {
@@ -177,12 +175,12 @@ export async function deleteSchoolHoliday(id: string, schoolId: string) {
 }
 
 /**
- * Determines whether a given date is a working day for a school according to:
+ * Determines whether a given date is a working day for Addis Hiwot according to:
  * 1. Configured staff working days in SchoolSettings (e.g. MONDAY-FRIDAY).
  * 2. Active SchoolHoliday / Non-working days in the database.
  */
 export async function isDateWorkingDay(
-  schoolId: string,
+  _schoolId?: string,
   dateInput?: string | Date,
   cachedSettings?: any
 ): Promise<{
@@ -200,9 +198,7 @@ export async function isDateWorkingDay(
 
   const settings =
     cachedSettings ||
-    (await prisma.schoolSettings.findUnique({
-      where: { schoolId },
-    }));
+    (await prisma.schoolSettings.findFirst());
 
   const configuredDaysStr = settings?.staff_working_days || 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY';
   const workingDaysList = configuredDaysStr
@@ -213,7 +209,6 @@ export async function isDateWorkingDay(
   // 1. Check if date falls in any active SchoolHoliday / Special Closure
   const activeHoliday = await (prisma as any).schoolHoliday.findFirst({
     where: {
-      schoolId,
       isActive: true,
       startDate: { lte: startDate },
       endDate: { gte: startDate },
@@ -257,3 +252,4 @@ export async function isDateWorkingDay(
     workingDaysList,
   };
 }
+

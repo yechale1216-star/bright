@@ -1,7 +1,6 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { sendCallNotification, sendCallCancellation, sendMessageNotification } from './services/notification.service';
 import { logCall } from './services/call.service';
@@ -15,21 +14,16 @@ import prisma from './config/db';
 const KEY = {
   userSockets: (uid: string) => `sockets:user:${uid}`,
   socketData: (sid: string) => `sockets:data:${sid}`,
-  userSchool: (uid: string) => `sockets:school:${uid}`,
-  onlineUsers: (schoolId: string) => `online:${schoolId}`,
+  onlineUsers: () => `online:all`,
   activeCall: (callId: string) => `calls:${callId}`,
   userInCall: (uid: string) => `calls:user:${uid}`,
-  schoolStatus: (sid: string) => `cache:school:${sid}`,
   userInfo: (uid: string) => `cache:user:${uid}`,
-  convSchool: (cid: string) => `cache:conv:${cid}`,
   convMembers: (cid: string) => `cache:members:${cid}`,
   tempId: (key: string) => `dedup:${key}`,
 };
 
 const TTL = {
-  schoolStatus: 5 * 60,
   userInfo: 5 * 60,
-  convSchool: 5 * 60,
   convMembers: 60,
   tempId: 60,
   activeCall: 60,
@@ -40,14 +34,11 @@ const TTL = {
 // In-memory fallback state (used when Redis is unavailable)
 // ─────────────────────────────────────────────────────────────────────────────
 const memUserSockets = new Map<string, Set<string>>();            // userId → Set<socketId>
-const memSocketData = new Map<string, { userId: string; schoolId: string }>();
-const memUserSchool = new Map<string, string>();
-const memOnlineUsers = new Map<string, Set<string>>();            // schoolId → Set<userId>
+const memSocketData = new Map<string, { userId: string }>();
+const memOnlineUsers = new Set<string>();                          // Set<userId>
 const memActiveCalls = new Map<string, any>();                    // callId → call data
 const memUserInCall = new Map<string, string>();                 // userId → callId
-const memSchoolStatus = new Map<string, { status: string; expires: number }>();
 const memUserInfo = new Map<string, { data: any; expires: number }>();
-const memConvSchool = new Map<string, { schoolId: string; expires: number }>();
 const memConvMembers = new Map<string, { memberIds: string[]; expires: number }>();
 const memTempIds = new Map<string, { messageId: string; expires: number }>();
 
@@ -69,21 +60,13 @@ async function safeRedis<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// School suspension cache
-// ─────────────────────────────────────────────────────────────────────────────
-async function isSchoolSuspended(schoolId: string): Promise<boolean> {
-  return false;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // User info cache
 // ─────────────────────────────────────────────────────────────────────────────
-async function getUserCachedInfo(userId: string): Promise<{ schoolId: string; role: string; full_name: string; profile_photo?: string } | null> {
+async function getUserCachedInfo(userId: string): Promise<{ role: string; full_name: string; profile_photo?: string } | null> {
   if (isRedisAvailable()) {
     const cached = await safeRedis(() => pubClient.hgetall(KEY.userInfo(userId)), null);
     if (cached && cached.role) {
       return {
-        schoolId: cached.schoolId || '',
         role: cached.role || '',
         full_name: cached.full_name || 'User',
         profile_photo: cached.profile_photo || undefined,
@@ -97,17 +80,16 @@ async function getUserCachedInfo(userId: string): Promise<{ schoolId: string; ro
   try {
     const info = await prisma.user.findUnique({
       where: { id: userId },
-      select: { schoolId: true, role: true, full_name: true, profile_photo: true },
+      select: { role: true, full_name: true, profile_photo: true },
     });
     if (info) {
       const result = {
-        schoolId: info.schoolId || '',
         role: info.role || '',
         full_name: info.full_name || 'User',
         profile_photo: info.profile_photo || undefined,
       };
       if (isRedisAvailable()) {
-        const storeData: Record<string, string> = { schoolId: result.schoolId, role: result.role, full_name: result.full_name };
+        const storeData: Record<string, string> = { role: result.role, full_name: result.full_name };
         if (result.profile_photo) storeData.profile_photo = result.profile_photo;
         await safeRedis(async () => {
           const p = pubClient.multi();
@@ -127,31 +109,6 @@ async function getUserCachedInfo(userId: string): Promise<{ schoolId: string; ro
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Conversation school cache
-// ─────────────────────────────────────────────────────────────────────────────
-async function getConvSchoolId(convId: string): Promise<string> {
-  if (isRedisAvailable()) {
-    const cached = await safeRedis(() => pubClient.get(KEY.convSchool(convId)), null);
-    if (cached !== null) return cached;
-  } else {
-    const cached = memConvSchool.get(convId);
-    if (cached && cached.expires > Date.now()) return cached.schoolId;
-  }
-  try {
-    const conv = await prisma.conversation.findUnique({ where: { id: convId }, select: { schoolId: true } });
-    const schoolId = conv?.schoolId || '';
-    if (isRedisAvailable()) {
-      await safeRedis(() => pubClient.setex(KEY.convSchool(convId), TTL.convSchool, schoolId), null);
-    } else {
-      memConvSchool.set(convId, { schoolId, expires: Date.now() + TTL.convSchool * 1000 });
-    }
-    return schoolId;
-  } catch {
-    return '';
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Conversation member cache
 // ─────────────────────────────────────────────────────────────────────────────
 async function getConversationMemberIds(conversationId: string): Promise<string[]> {
@@ -162,48 +119,53 @@ async function getConversationMemberIds(conversationId: string): Promise<string[
     const cached = memConvMembers.get(conversationId);
     if (cached && cached.expires > Date.now()) return cached.memberIds;
   }
-  const members = await prisma.conversationMember.findMany({ where: { conversationId }, select: { userId: true } });
-  const memberIds = members.map(m => m.userId);
-  if (memberIds.length > 0) {
+
+  try {
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId },
+      select: { userId: true },
+    });
+    const ids = members.map(m => m.userId);
     if (isRedisAvailable()) {
-      await safeRedis(async () => {
-        const p = pubClient.multi();
-        p.sadd(KEY.convMembers(conversationId), ...memberIds);
-        p.expire(KEY.convMembers(conversationId), TTL.convMembers);
-        await p.exec();
-      }, null);
+      if (ids.length > 0) {
+        await safeRedis(async () => {
+          const p = pubClient.multi();
+          p.sadd(KEY.convMembers(conversationId), ...ids);
+          p.expire(KEY.convMembers(conversationId), TTL.convMembers);
+          await p.exec();
+        }, null);
+      }
     } else {
-      memConvMembers.set(conversationId, { memberIds, expires: Date.now() + TTL.convMembers * 1000 });
+      memConvMembers.set(conversationId, { memberIds: ids, expires: Date.now() + TTL.convMembers * 1000 });
     }
+    return ids;
+  } catch {
+    return [];
   }
-  return memberIds;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // User socket management
 // ─────────────────────────────────────────────────────────────────────────────
-async function addUserSocket(userId: string, socketId: string, schoolId: string): Promise<void> {
+async function addUserSocket(userId: string, socketId: string): Promise<void> {
   if (isRedisAvailable()) {
     await safeRedis(async () => {
       const p = pubClient.multi();
       p.sadd(KEY.userSockets(userId), socketId);
-      p.hset(KEY.socketData(socketId), { userId, schoolId });
+      p.hset(KEY.socketData(socketId), { userId });
       p.expire(KEY.socketData(socketId), TTL.socketData);
-      p.set(KEY.userSchool(userId), schoolId);
-      p.sadd(KEY.onlineUsers(schoolId), userId);
+      p.sadd(KEY.onlineUsers(), userId);
       await p.exec();
     }, null);
   } else {
     if (!memUserSockets.has(userId)) memUserSockets.set(userId, new Set());
     memUserSockets.get(userId)!.add(socketId);
-    memSocketData.set(socketId, { userId, schoolId });
-    memUserSchool.set(userId, schoolId);
-    if (!memOnlineUsers.has(schoolId)) memOnlineUsers.set(schoolId, new Set());
-    memOnlineUsers.get(schoolId)!.add(userId);
+    memSocketData.set(socketId, { userId });
+    memOnlineUsers.add(userId);
   }
 }
 
-async function removeUserSocket(userId: string, socketId: string, schoolId: string): Promise<{ fullyOffline: boolean }> {
+async function removeUserSocket(userId: string, socketId: string): Promise<{ fullyOffline: boolean }> {
   if (isRedisAvailable()) {
     await safeRedis(async () => {
       await pubClient.srem(KEY.userSockets(userId), socketId);
@@ -213,8 +175,7 @@ async function removeUserSocket(userId: string, socketId: string, schoolId: stri
     if (remaining === 0) {
       await safeRedis(async () => {
         await pubClient.del(KEY.userSockets(userId));
-        await pubClient.del(KEY.userSchool(userId));
-        await pubClient.srem(KEY.onlineUsers(schoolId), userId);
+        await pubClient.srem(KEY.onlineUsers(), userId);
       }, null);
       return { fullyOffline: true };
     }
@@ -225,9 +186,8 @@ async function removeUserSocket(userId: string, socketId: string, schoolId: stri
       sids.delete(socketId);
       if (sids.size === 0) {
         memUserSockets.delete(userId);
-        memUserSchool.delete(userId);
         memSocketData.delete(socketId);
-        memOnlineUsers.get(schoolId)?.delete(userId);
+        memOnlineUsers.delete(userId);
         return { fullyOffline: true };
       }
     }
@@ -243,10 +203,10 @@ async function getUserSocketIds(userId: string): Promise<string[]> {
   return Array.from(memUserSockets.get(userId) || []);
 }
 
-async function getSocketData(socketId: string): Promise<{ userId: string; schoolId: string } | null> {
+async function getSocketData(socketId: string): Promise<{ userId: string } | null> {
   if (isRedisAvailable()) {
     const data = await safeRedis(() => pubClient.hgetall(KEY.socketData(socketId)), null);
-    if (data && data.userId) return data as { userId: string; schoolId: string };
+    if (data && data.userId) return data as { userId: string };
     return null;
   }
   return memSocketData.get(socketId) || null;
@@ -259,11 +219,11 @@ async function isUserOnline(userId: string): Promise<boolean> {
   return (memUserSockets.get(userId)?.size ?? 0) > 0;
 }
 
-async function getOnlineUsersForSchool(schoolId: string): Promise<string[]> {
+async function getOnlineUsers(): Promise<string[]> {
   if (isRedisAvailable()) {
-    return safeRedis(() => pubClient.smembers(KEY.onlineUsers(schoolId)), []);
+    return safeRedis(() => pubClient.smembers(KEY.onlineUsers()), []);
   }
-  return Array.from(memOnlineUsers.get(schoolId) || []);
+  return Array.from(memOnlineUsers);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,7 +237,6 @@ interface CallData {
   type: string;
   profile: any;
   conversationId?: string;
-  schoolId?: string;
   startTime: string;
   answerTime?: string;
   timestamp: string;
@@ -294,7 +253,6 @@ async function setActiveCall(call: CallData): Promise<void> {
         type: call.type,
         profile: JSON.stringify(call.profile),
         conversationId: call.conversationId || '',
-        schoolId: call.schoolId || '',
         startTime: call.startTime,
         timestamp: call.timestamp,
       };
@@ -416,11 +374,10 @@ async function emitToUserExcept(io: SocketIOServer, userId: string, excludeSocke
 // ─────────────────────────────────────────────────────────────────────────────
 // Presence
 // ─────────────────────────────────────────────────────────────────────────────
-async function emitPresenceToSchoolMates(
+async function emitPresenceToMates(
   io: SocketIOServer,
   event: 'user_online' | 'user_offline',
   userId: string,
-  schoolId: string,
   excludeSocketId?: string
 ) {
   try {
@@ -429,7 +386,7 @@ async function emitPresenceToSchoolMates(
     if (convIds.length === 0) return;
 
     const sharedMembers = await prisma.conversationMember.findMany({
-      where: { conversation: { schoolId }, conversationId: { in: convIds } },
+      where: { conversationId: { in: convIds } },
       select: { userId: true },
       distinct: ['userId'],
     });
@@ -452,9 +409,7 @@ async function emitPresenceToSchoolMates(
 setInterval(() => {
   if (isRedisAvailable()) return;
   const now = Date.now();
-  for (const [k, v] of memSchoolStatus) if (v.expires < now) memSchoolStatus.delete(k);
   for (const [k, v] of memUserInfo) if (v.expires < now) memUserInfo.delete(k);
-  for (const [k, v] of memConvSchool) if (v.expires < now) memConvSchool.delete(k);
   for (const [k, v] of memConvMembers) if (v.expires < now) memConvMembers.delete(k);
   for (const [k, v] of memTempIds) if (v.expires < now) memTempIds.delete(k);
 }, 30_000);
@@ -470,7 +425,6 @@ export const initSocket = (server: HttpServer) => {
     transports: ['websocket'],
   });
 
-  // Only attach Redis adapter if Redis is available
   if (isRedisAvailable()) {
     io.adapter(createAdapter(pubClient, subClient));
     console.log('[Socket] Redis adapter attached — multi-instance broadcasting ENABLED.');
@@ -485,15 +439,14 @@ export const initSocket = (server: HttpServer) => {
     socket.on('authenticate', async ({ token }: { token: string }) => {
       try {
         const decoded = jwt.verify(token, getJwtSecret()) as any;
-        const { id: userId, schoolId } = decoded;
+        const { id: userId } = decoded;
 
-        await addUserSocket(userId, socket.id, schoolId);
+        await addUserSocket(userId, socket.id);
 
-        const schoolOnline = await getOnlineUsersForSchool(schoolId);
-        socket.emit('initial_online_users', schoolOnline);
-        emitPresenceToSchoolMates(io, 'user_online', userId, schoolId, socket.id);
+        const onlineUsers = await getOnlineUsers();
+        socket.emit('initial_online_users', onlineUsers);
+        emitPresenceToMates(io, 'user_online', userId, socket.id);
 
-        // Re-deliver any pending incoming call
         const callId = isRedisAvailable()
           ? await safeRedis(() => pubClient.get(KEY.userInCall(userId)), null)
           : (memUserInCall.get(userId) || null);
@@ -522,7 +475,7 @@ export const initSocket = (server: HttpServer) => {
       const tenant = await getSocketData(socket.id);
       if (!tenant) return;
       prisma.message.findMany({
-        where: { conversationId, schoolId: tenant.schoolId, senderId: { not: tenant.userId }, readBy: { none: { userId: tenant.userId } } },
+        where: { conversationId, senderId: { not: tenant.userId }, readBy: { none: { userId: tenant.userId } } },
         select: { id: true }, take: 100, orderBy: { createdAt: 'desc' },
       }).then(unread => {
         if (unread.length > 0) socket.to(conversationId).emit('messages_delivered', { conversationId, userId: tenant.userId, messageIds: unread.map(m => m.id) });
@@ -535,24 +488,7 @@ export const initSocket = (server: HttpServer) => {
       const tenant = await getSocketData(socket.id);
       if (!tenant || tenant.userId !== data.senderId) return;
 
-      const [targetSchoolId, senderInfo] = await Promise.all([
-        data.conversationId ? getConvSchoolId(data.conversationId) : Promise.resolve(tenant.schoolId),
-        getUserCachedInfo(data.senderId),
-      ]);
-
-      const senderSchoolId = (senderInfo && senderInfo.role !== 'parent') ? senderInfo.schoolId : null;
-      const schoolIdsToCheck = [...new Set([targetSchoolId || '', senderSchoolId].filter(Boolean))] as string[];
-      const suspensionResults = await Promise.all(schoolIdsToCheck.map(id => isSchoolSuspended(id)));
-
-      if (suspensionResults.some(Boolean)) {
-        socket.emit('message_error', { tempId: data.tempId, message: 'Your school account is suspended. Read-only access only.' });
-        socket.emit('school_suspended', { message: 'Your school account is suspended.' });
-        return;
-      }
-
       try {
-        // ── Block Check ─────────────────────────────────────────────────────────
-        // For 1:1 conversations, silently reject if either user has blocked the other.
         const convMembers = await prisma.conversationMember.findMany({
           where: { conversationId: data.conversationId },
           select: { userId: true, isMuted: true },
@@ -575,7 +511,7 @@ export const initSocket = (server: HttpServer) => {
         }
 
         if (data.tempId) {
-          const dedupeKey = `${tenant.schoolId}:${data.tempId}`;
+          const dedupeKey = `msg:${data.tempId}`;
           const { alreadyExists, existingMessageId } = await checkAndSetTempId(dedupeKey, 'pending');
           if (alreadyExists && existingMessageId) {
             socket.emit('message_sent', { tempId: data.tempId, messageId: existingMessageId });
@@ -594,7 +530,6 @@ export const initSocket = (server: HttpServer) => {
           data: {
             conversationId: data.conversationId,
             senderId: data.senderId,
-            schoolId: targetSchoolId,
             content: data.content,
             type: data.type,
             replyToId: data.replyToId,
@@ -604,9 +539,8 @@ export const initSocket = (server: HttpServer) => {
         });
         const dbEnd = Date.now();
 
-        // Update dedup entry with real messageId
         if (data.tempId) {
-          const dedupeKey = `${tenant.schoolId}:${data.tempId}`;
+          const dedupeKey = `msg:${data.tempId}`;
           if (isRedisAvailable()) {
             await safeRedis(() => pubClient.setex(KEY.tempId(dedupeKey), TTL.tempId, message.id), null);
           } else {
@@ -623,7 +557,6 @@ export const initSocket = (server: HttpServer) => {
         io.to(data.conversationId).emit('new_message', broadcastPayload);
         socket.emit('message_sent', { tempId: data.tempId, messageId: message.id });
 
-        // Guaranteed delivery to online-but-not-in-room members
         getConversationMemberIds(data.conversationId).then(async (memberIds) => {
           const roomSockets = io.sockets.adapter.rooms.get(data.conversationId) || new Set<string>();
           for (const memberId of memberIds) {
@@ -635,13 +568,7 @@ export const initSocket = (server: HttpServer) => {
           }
         }).catch(() => { });
 
-        // ── Push notifications ────────────────────────────────────────────────
-        // Only send FCM push to members who have NO active socket connection —
-        // i.e. they are truly offline / backgrounded with socket disconnected.
-        // If the user is online (any socket alive = they are using the app),
-        // the real-time socket message already reaches them. No native push needed.
         getConversationMemberIds(data.conversationId).then(async (memberIds) => {
-          // Push targets = members excluding sender AND any user with an active socket
           const pushTargetIds: string[] = [];
           for (const id of memberIds) {
             if (id === data.senderId) continue;
@@ -656,7 +583,6 @@ export const initSocket = (server: HttpServer) => {
             select: { id: true, pushToken: true }
           });
 
-          // Filter out members who have muted this conversation
           const mutedMemberIds = new Set(
             convMembers.filter(m => m.isMuted).map(m => m.userId)
           );
@@ -667,7 +593,8 @@ export const initSocket = (server: HttpServer) => {
             if (mutedMemberIds.has(u.id)) continue;
             const result = await sendMessageNotification(u.pushToken, {
               conversationId: data.conversationId,
-              senderId: message.sender.id, senderName: message.sender.full_name,
+              senderId: message.sender.id,
+              senderName: message.sender.full_name,
               senderAvatar: message.sender.profile_photo || '',
               messagePreview: data.content || (data.attachment ? '📎 Attachment' : 'New message'),
               messageType: data.type || 'TEXT',
@@ -685,9 +612,8 @@ export const initSocket = (server: HttpServer) => {
     socket.on('delete_message', async (data: { messageId: string; conversationId: string; deleteForEveryone?: boolean }) => {
       const tenant = await getSocketData(socket.id);
       if (!tenant) return;
-      if (await isSchoolSuspended(tenant.schoolId)) { socket.emit('school_suspended', { message: 'Your school account is suspended.' }); return; }
       try {
-        const message = await prisma.message.findFirst({ where: { id: data.messageId, schoolId: tenant.schoolId }, select: { id: true, senderId: true, conversationId: true } });
+        const message = await prisma.message.findFirst({ where: { id: data.messageId }, select: { id: true, senderId: true, conversationId: true } });
         if (!message) return;
         if (message.senderId !== tenant.userId) {
           const member = await prisma.conversationMember.findFirst({ where: { conversationId: message.conversationId, userId: tenant.userId, role: { in: ['OWNER', 'ADMIN'] } } });
@@ -707,9 +633,8 @@ export const initSocket = (server: HttpServer) => {
     socket.on('edit_message', async (data: { messageId: string; conversationId: string; content: string }) => {
       const tenant = await getSocketData(socket.id);
       if (!tenant) return;
-      if (await isSchoolSuspended(tenant.schoolId)) { socket.emit('school_suspended', { message: 'Your school account is suspended.' }); return; }
       try {
-        const message = await prisma.message.findFirst({ where: { id: data.messageId, schoolId: tenant.schoolId, senderId: tenant.userId }, select: { id: true, conversationId: true } });
+        const message = await prisma.message.findFirst({ where: { id: data.messageId, senderId: tenant.userId }, select: { id: true, conversationId: true } });
         if (!message) return;
         const updated = await prisma.message.update({ where: { id: data.messageId }, data: { content: data.content, editedAt: new Date() } });
         io.to(data.conversationId).emit('message_edited', { messageId: data.messageId, conversationId: data.conversationId, content: data.content, editedAt: updated.editedAt });
@@ -720,7 +645,6 @@ export const initSocket = (server: HttpServer) => {
     socket.on('pin_message', async (data: { messageId: string; conversationId: string }) => {
       const tenant = await getSocketData(socket.id);
       if (!tenant) return;
-      if (await isSchoolSuspended(tenant.schoolId)) { socket.emit('school_suspended', { message: 'Your school account is suspended.' }); return; }
       try {
         const conversation = await prisma.conversation.findUnique({ where: { id: data.conversationId }, select: { isGroup: true } });
         if (!conversation) return;
@@ -755,7 +679,7 @@ export const initSocket = (server: HttpServer) => {
           prisma.messageRead.upsert({
             where: { messageId_userId: { messageId, userId: data.userId } },
             update: { readAt: new Date() },
-            create: { messageId, userId: data.userId, schoolId: tenant.schoolId },
+            create: { messageId, userId: data.userId },
           })
         ));
         socket.to(data.conversationId).emit('messages_read', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
@@ -769,31 +693,20 @@ export const initSocket = (server: HttpServer) => {
       if (!tenant || tenant.userId !== data.from) return;
 
       const [callerInfo, targetUser] = await Promise.all([
-        prisma.user.findUnique({ where: { id: data.from }, select: { schoolId: true, role: true, full_name: true } }),
-        prisma.user.findFirst({ where: { id: data.to, is_active: true }, select: { id: true, schoolId: true, role: true, pushToken: true } }),
+        prisma.user.findUnique({ where: { id: data.from }, select: { role: true, full_name: true } }),
+        prisma.user.findFirst({ where: { id: data.to, is_active: true }, select: { id: true, role: true, pushToken: true } }),
       ]);
       if (!targetUser) return;
-
-      let callSchoolId = tenant.schoolId;
-      if (callerInfo && callerInfo.role !== 'parent') callSchoolId = callerInfo.schoolId || '';
-      else if (targetUser && targetUser.role !== 'parent') callSchoolId = targetUser.schoolId || '';
-
-      if (await isSchoolSuspended(callSchoolId)) {
-        socket.emit('call_blocked', { code: 'SCHOOL_SUSPENDED', callType: data.type || 'VOICE', message: 'Voice and video calls are disabled while the school account is suspended.' });
-        return;
-      }
 
       const callId = data.callId || `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       if (await isUserBusy(data.to)) {
         socket.emit('call_busy', { callId, from: data.to, to: data.from });
-        const busySchoolId = callerInfo?.schoolId || targetUser.schoolId || tenant.schoolId;
-        if (busySchoolId) logCall({ callId, schoolId: busySchoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: 'BUSY', endTime: new Date(), duration: 0, disconnectReason: 'BUSY' }).catch(() => { });
+        logCall({ callId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: 'BUSY', endTime: new Date(), duration: 0, disconnectReason: 'BUSY' }).catch(() => { });
         return;
       }
 
       const callStartTime = Date.now();
-      const resolvedSchoolId = targetUser.schoolId || callerInfo?.schoolId || tenant.schoolId;
 
       const timeoutHandle = setTimeout(async () => {
         const call = await getActiveCall(callId);
@@ -801,12 +714,12 @@ export const initSocket = (server: HttpServer) => {
           await deleteActiveCall(callId, call.from, call.to);
           emitToUser(io, call.from, 'call_missed', { callId, reason: 'NO_ANSWER' });
           emitToUser(io, call.to, 'call_ended', { from: call.from, callId, reason: 'MISSED' });
-          if (call.schoolId) logCall({ callId, schoolId: call.schoolId, userId: call.from, recipientId: call.to, conversationId: call.conversationId, type: call.type, status: 'MISSED', endTime: new Date(), duration: 0, disconnectReason: 'MISSED' }).catch(() => { });
+          logCall({ callId, userId: call.from, recipientId: call.to, conversationId: call.conversationId, type: call.type, status: 'MISSED', endTime: new Date(), duration: 0, disconnectReason: 'MISSED' }).catch(() => { });
         }
       }, 45000);
       localTimeoutHandles.set(callId, timeoutHandle);
 
-      await setActiveCall({ callId, from: data.from, to: data.to, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, conversationId: data.conversationId, schoolId: resolvedSchoolId, startTime: String(callStartTime), timestamp: String(callStartTime) });
+      await setActiveCall({ callId, from: data.from, to: data.to, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, conversationId: data.conversationId, startTime: String(callStartTime), timestamp: String(callStartTime) });
       await emitToUser(io, data.to, 'incoming_call', { from: data.from, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, callId });
 
       if (targetUser.pushToken) {
@@ -821,20 +734,6 @@ export const initSocket = (server: HttpServer) => {
     socket.on('answer_call', async (data: any) => {
       const tenant = await getSocketData(socket.id);
       if (!tenant) return;
-
-      const [answererInfo, callerInfo] = await Promise.all([
-        prisma.user.findUnique({ where: { id: data.from }, select: { schoolId: true, role: true } }),
-        prisma.user.findUnique({ where: { id: data.to }, select: { schoolId: true, role: true } }),
-      ]);
-
-      let callSchoolId = tenant.schoolId;
-      if (answererInfo && answererInfo.role !== 'parent') callSchoolId = answererInfo.schoolId || '';
-      else if (callerInfo && callerInfo.role !== 'parent') callSchoolId = callerInfo.schoolId || '';
-
-      if (await isSchoolSuspended(callSchoolId || '')) {
-        socket.emit('call_blocked', { code: 'SCHOOL_SUSPENDED', callType: data.type || 'VOICE', message: 'Voice and video calls are disabled while the school account is suspended.' });
-        return;
-      }
 
       await emitToUser(io, data.to, 'call_answered', { from: data.from, answer: data.answer });
       await emitToUserExcept(io, data.from, socket.id, 'call_stop_ringing', { callId: data.callId });
@@ -865,12 +764,11 @@ export const initSocket = (server: HttpServer) => {
       const targetUserForReject = await prisma.user.findUnique({ where: { id: data.to }, select: { pushToken: true } });
       if (targetUserForReject?.pushToken) sendCallCancellation(targetUserForReject.pushToken, data.callId || '');
 
-      const callSchoolId = rejectedCall?.schoolId || tenant.schoolId;
-      if (callSchoolId) logCall({ callId: data.callId, schoolId: callSchoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId || rejectedCall?.conversationId, type: data.type || rejectedCall?.type || 'VOICE', status: 'DECLINED', endTime: new Date(), duration: 0, disconnectReason: 'DECLINED' }).catch(err => console.warn('[Socket] reject logCall error:', err));
+      logCall({ callId: data.callId, userId: data.from, recipientId: data.to, conversationId: data.conversationId || rejectedCall?.conversationId, type: data.type || rejectedCall?.type || 'VOICE', status: 'DECLINED', endTime: new Date(), duration: 0, disconnectReason: 'DECLINED' }).catch(err => console.warn('[Socket] reject logCall error:', err));
 
       const rejectConvId = data.conversationId || rejectedCall?.conversationId;
       if (rejectConvId) {
-        const msg = await prisma.message.create({ data: { conversationId: rejectConvId, senderId: data.from, schoolId: tenant.schoolId, content: data.reason === 'MISSED' ? 'Missed Call' : 'Declined Call', type: data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE', metadata: { reason: data.reason || 'DECLINED' } } });
+        const msg = await prisma.message.create({ data: { conversationId: rejectConvId, senderId: data.from, content: data.reason === 'MISSED' ? 'Missed Call' : 'Declined Call', type: data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE', metadata: { reason: data.reason || 'DECLINED' } } });
         io.to(rejectConvId).emit('new_message', msg);
       }
     });
@@ -892,14 +790,14 @@ export const initSocket = (server: HttpServer) => {
       const answerTime = data.answerTime ? new Date(data.answerTime) : undefined;
       const callStatus = data.reason === 'CANCELLED' ? 'CANCELLED' : data.reason === 'MISSED' ? 'MISSED' : durationSecs > 0 ? 'ANSWERED' : 'CANCELLED';
 
-      if (tenant.schoolId) logCall({ callId: data.callId, schoolId: data.schoolId || tenant.schoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: callStatus, duration: durationSecs, answerTime, endTime: new Date(), disconnectReason: data.reason || 'ENDED', networkQuality: data.networkQuality }).catch(err => console.warn('[Socket] end_call logCall error:', err));
+      logCall({ callId: data.callId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: callStatus, duration: durationSecs, answerTime, endTime: new Date(), disconnectReason: data.reason || 'ENDED', networkQuality: data.networkQuality }).catch(err => console.warn('[Socket] end_call logCall error:', err));
 
       if (data.conversationId) {
         let content = 'Call ended';
         let msgType = data.type === 'VIDEO' ? 'CALL_VIDEO' : 'CALL_VOICE';
         if (data.reason === 'CANCELLED') { content = 'Canceled Call'; msgType = data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE'; }
         else if (data.reason === 'MISSED') { content = 'Missed Call'; msgType = data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE'; }
-        const msg = await prisma.message.create({ data: { conversationId: data.conversationId, senderId: data.from, schoolId: tenant.schoolId, content, type: msgType, metadata: { duration: data.duration, reason: data.reason } } });
+        const msg = await prisma.message.create({ data: { conversationId: data.conversationId, senderId: data.from, content, type: msgType, metadata: { duration: data.duration, reason: data.reason } } });
         io.to(data.conversationId).emit('new_message', msg);
       }
     });
@@ -908,9 +806,9 @@ export const initSocket = (server: HttpServer) => {
     socket.on('disconnect', async () => {
       const tenant = await getSocketData(socket.id);
       if (tenant) {
-        const { userId, schoolId } = tenant;
-        const { fullyOffline } = await removeUserSocket(userId, socket.id, schoolId);
-        if (fullyOffline) await emitPresenceToSchoolMates(io, 'user_offline', userId, schoolId, socket.id);
+        const { userId } = tenant;
+        const { fullyOffline } = await removeUserSocket(userId, socket.id);
+        if (fullyOffline) await emitPresenceToMates(io, 'user_offline', userId, socket.id);
       }
     });
   });

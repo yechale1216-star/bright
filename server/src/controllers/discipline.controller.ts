@@ -3,10 +3,9 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { DisciplineService } from '../services/discipline.service';
 
 export class DisciplineController {
-  static async getCategories(req: AuthenticatedRequest, res: Response) {
+  static async getCategories(_req: AuthenticatedRequest, res: Response) {
     try {
-      const schoolId = req.user!.schoolId;
-      const categories = await DisciplineService.getCategories(schoolId);
+      const categories = await DisciplineService.getCategories();
       return res.json({ success: true, data: categories });
     } catch (error: any) {
       console.error('[DisciplineController] getCategories error:', error);
@@ -16,12 +15,11 @@ export class DisciplineController {
 
   static async createCategory(req: AuthenticatedRequest, res: Response) {
     try {
-      const schoolId = req.user!.schoolId;
       const { name, description } = req.body;
       if (!name || !name.trim()) {
         return res.status(400).json({ success: false, message: 'Category name is required' });
       }
-      const category = await DisciplineService.createCategory(schoolId, name, description);
+      const category = await DisciplineService.createCategory(undefined, name, description);
       return res.status(201).json({ success: true, data: category });
     } catch (error: any) {
       console.error('[DisciplineController] createCategory error:', error);
@@ -31,9 +29,8 @@ export class DisciplineController {
 
   static async deleteCategory(req: AuthenticatedRequest, res: Response) {
     try {
-      const schoolId = req.user!.schoolId;
       const { id } = req.params;
-      await DisciplineService.deleteCategory(schoolId, id);
+      await DisciplineService.deleteCategory(undefined, id);
       return res.json({ success: true, message: 'Category deleted' });
     } catch (error: any) {
       console.error('[DisciplineController] deleteCategory error:', error);
@@ -41,10 +38,9 @@ export class DisciplineController {
     }
   }
 
-  static async getActionsConfig(req: AuthenticatedRequest, res: Response) {
+  static async getActionsConfig(_req: AuthenticatedRequest, res: Response) {
     try {
-      const schoolId = req.user!.schoolId;
-      const actions = await DisciplineService.getActionsConfig(schoolId);
+      const actions = await DisciplineService.getActionsConfig();
       return res.json({ success: true, data: actions });
     } catch (error: any) {
       console.error('[DisciplineController] getActionsConfig error:', error);
@@ -54,12 +50,11 @@ export class DisciplineController {
 
   static async createActionConfig(req: AuthenticatedRequest, res: Response) {
     try {
-      const schoolId = req.user!.schoolId;
       const { name, description } = req.body;
       if (!name || !name.trim()) {
         return res.status(400).json({ success: false, message: 'Action name is required' });
       }
-      const action = await DisciplineService.createActionConfig(schoolId, name, description);
+      const action = await DisciplineService.createActionConfig(undefined, name, description);
       return res.status(201).json({ success: true, data: action });
     } catch (error: any) {
       console.error('[DisciplineController] createActionConfig error:', error);
@@ -69,9 +64,8 @@ export class DisciplineController {
 
   static async deleteActionConfig(req: AuthenticatedRequest, res: Response) {
     try {
-      const schoolId = req.user!.schoolId;
       const { id } = req.params;
-      await DisciplineService.deleteActionConfig(schoolId, id);
+      await DisciplineService.deleteActionConfig(undefined, id);
       return res.json({ success: true, message: 'Action configuration deleted' });
     } catch (error: any) {
       console.error('[DisciplineController] deleteActionConfig error:', error);

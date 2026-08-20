@@ -1,7 +1,7 @@
 import prisma from '../config/db';
 import { academicYearService } from '../services/academic-year.service';
-import { bulkMarkAttendance, markAttendance, getAttendance, normalizeDate, normalizeSession } from '../services/attendance.service';
-import { getAttendanceSummary, getGradeStats } from '../services/attendance-analytics.service';
+import { bulkMarkAttendance, markAttendance, getAttendance, normalizeDate } from '../services/attendance.service';
+import { getAttendanceSummary } from '../services/attendance-analytics.service';
 import { cleanupAttendanceDuplicates } from './cleanup-attendance-duplicates';
 
 async function runAttendanceTests() {
@@ -24,21 +24,8 @@ async function runAttendanceTests() {
     // 0. Run initial cleanup
     await cleanupAttendanceDuplicates();
 
-    // 1. Resolve school context
-    let school = await prisma.school.findFirst();
-    if (!school) {
-      school = await prisma.school.create({
-        data: {
-          name: 'Test Addis Hiwot School',
-          schoolId: 'AHS_TEST_001',
-          schoolEmail: 'test@school.edu'
-        }
-      });
-    }
-    console.log(`🏫 Testing on School: "${school.name}" (${school.id})`);
-
-    // 2. Resolve or create active academic year
-    let activeAY = await academicYearService.getCurrentAcademicYear(school.id);
+    // 1. Resolve active academic year
+    let activeAY = await academicYearService.getCurrentAcademicYear();
     if (!activeAY) {
       activeAY = await prisma.academicYear.create({
         data: {
@@ -46,29 +33,28 @@ async function runAttendanceTests() {
           startDate: new Date('2026-09-01T00:00:00.000Z'),
           endDate: new Date('2027-06-30T23:59:59.999Z'),
           isCurrent: true,
-          schoolId: school.id
         }
       });
     }
 
-    // 3. Create a test grade and section if not existing
-    let grade = await prisma.grade.findFirst({ where: { schoolId: school.id } });
+    // 2. Create a test grade and section if not existing
+    let grade = await prisma.grade.findFirst();
     if (!grade) {
       grade = await prisma.grade.create({
-        data: { name: 'Grade 9', schoolId: school.id }
+        data: { name: 'Grade 9' }
       });
     }
-    let section = await prisma.section.findFirst({ where: { schoolId: school.id } });
+    let section = await prisma.section.findFirst();
     if (!section) {
       section = await prisma.section.create({
-        data: { name: 'A', schoolId: school.id }
+        data: { name: 'A' }
       });
     }
 
-    // 4. Fetch or create test students
+    // 3. Fetch or create test students
     console.log('\n--- Setup: Resolving test students ---');
     let testStudents = await prisma.student.findMany({
-      where: { schoolId: school.id, status: 'ACTIVE' },
+      where: { status: 'ACTIVE' },
       take: 32,
       select: { id: true }
     });
@@ -81,7 +67,6 @@ async function runAttendanceTests() {
         toCreate.push({
           fullName: `Test Student ${i} - Batch ${batchSuffix}`,
           student_id: `TEST_${batchSuffix}_${i}`,
-          schoolId: school.id,
           gradeId: grade.id,
           sectionId: section.id,
           status: 'ACTIVE',
@@ -93,7 +78,7 @@ async function runAttendanceTests() {
       }
       await prisma.student.createMany({ data: toCreate });
       testStudents = await prisma.student.findMany({
-        where: { schoolId: school.id, status: 'ACTIVE' },
+        where: { status: 'ACTIVE' },
         take: 32,
         select: { id: true }
       });
@@ -117,7 +102,7 @@ async function runAttendanceTests() {
       remarks: 'First online roll call'
     }));
 
-    const result1 = await bulkMarkAttendance(firstSubmissionRecords, school.id, {
+    const result1 = await bulkMarkAttendance(firstSubmissionRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -130,7 +115,6 @@ async function runAttendanceTests() {
 
     const dbRecords1 = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: startDate, lte: endDate },
         session: 'morning'
@@ -140,11 +124,9 @@ async function runAttendanceTests() {
     assert(dbRecords1.every(r => r.status === 'present'), 'All 32 records have status = present');
 
     // ==========================================
-    // TEST 2: Re-submission of Same Session with Updates (The Problem Case)
-    // Teacher opens class again, changes 5 students to Absent, 3 to Late, submits again
-    // Expected: EXACTLY 32 records, NOT 64
+    // TEST 2: Re-submission of Same Session with Updates
     // ==========================================
-    console.log('\n--- Test 2: Re-submitting Same Session with Updated Statuses (Should Update, NOT Duplicate) ---');
+    console.log('\n--- Test 2: Re-submitting Same Session with Updated Statuses ---');
     const updatedRecords = testStudentIds.map((id, index) => {
       let status = 'present';
       if (index < 5) status = 'absent';
@@ -158,7 +140,7 @@ async function runAttendanceTests() {
       };
     });
 
-    const result2 = await bulkMarkAttendance(updatedRecords, school.id, {
+    const result2 = await bulkMarkAttendance(updatedRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -171,7 +153,6 @@ async function runAttendanceTests() {
 
     const dbRecords2 = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: startDate, lte: endDate },
         session: 'morning'
@@ -190,10 +171,9 @@ async function runAttendanceTests() {
 
     // ==========================================
     // TEST 3: Repeated Sync / Retry Simulation
-    // Exact same payload sent twice immediately (simulating network retry)
     // ==========================================
     console.log('\n--- Test 3: Repeated Sync / Network Retry Idempotency ---');
-    await bulkMarkAttendance(updatedRecords, school.id, {
+    await bulkMarkAttendance(updatedRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -201,7 +181,7 @@ async function runAttendanceTests() {
       locationVerified: true,
       locationDistance: 0
     });
-    await bulkMarkAttendance(updatedRecords, school.id, {
+    await bulkMarkAttendance(updatedRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -212,7 +192,6 @@ async function runAttendanceTests() {
 
     const dbRecords3 = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: startDate, lte: endDate },
         session: 'morning'
@@ -221,9 +200,7 @@ async function runAttendanceTests() {
     assert(dbRecords3.length === 32, `After 2 retry calls, DB STILL contains exactly 32 Morning records (found: ${dbRecords3.length})`);
 
     // ==========================================
-    // TEST 4: Afternoon Session Coexistence (Session Isolation)
-    // Submitting Afternoon session for same 32 students
-    // Expected: 32 Afternoon records created; Total = 64 (32 Morning + 32 Afternoon)
+    // TEST 4: Afternoon Session Coexistence
     // ==========================================
     console.log('\n--- Test 4: Afternoon Session Coexistence (Session Isolation) ---');
     const afternoonRecords = testStudentIds.map(id => ({
@@ -234,7 +211,7 @@ async function runAttendanceTests() {
       remarks: 'Afternoon roll call'
     }));
 
-    await bulkMarkAttendance(afternoonRecords, school.id, {
+    await bulkMarkAttendance(afternoonRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -245,7 +222,6 @@ async function runAttendanceTests() {
 
     const morningRecords = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: startDate, lte: endDate },
         session: 'morning'
@@ -253,7 +229,6 @@ async function runAttendanceTests() {
     });
     const aftRecords = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: startDate, lte: endDate },
         session: 'afternoon'
@@ -264,7 +239,7 @@ async function runAttendanceTests() {
     assert(aftRecords.length === 32, `Afternoon session count is 32 (found: ${aftRecords.length})`);
 
     // ==========================================
-    // TEST 5: Daily Attendance Mode (Session = null / 'daily')
+    // TEST 5: Daily Attendance Mode
     // ==========================================
     console.log('\n--- Test 5: Daily Attendance Mode on a Different Date ---');
     const dailyDate = '2026-08-19';
@@ -273,11 +248,11 @@ async function runAttendanceTests() {
     const dailyRecords = testStudentIds.map(id => ({
       studentId: id,
       date: dailyDate,
-      session: null, // Daily mode
+      session: null,
       status: 'present'
     }));
 
-    await bulkMarkAttendance(dailyRecords, school.id, {
+    await bulkMarkAttendance(dailyRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -286,8 +261,7 @@ async function runAttendanceTests() {
       locationDistance: 0
     });
 
-    // Re-submit daily attendance
-    await bulkMarkAttendance(dailyRecords, school.id, {
+    await bulkMarkAttendance(dailyRecords, undefined, {
       userRole: 'school_admin',
       userId: 'test_admin',
       latitude: 9.585892,
@@ -298,7 +272,6 @@ async function runAttendanceTests() {
 
     const dbDailyRecords = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: dailyStart, lte: dailyEnd },
         session: null
@@ -309,13 +282,10 @@ async function runAttendanceTests() {
 
     // ==========================================
     // TEST 6: Analytics & Summary Counts
-    // Single session Morning summary should show 24 Present, 5 Absent, 3 Late (Total = 32)
     // ==========================================
     console.log('\n--- Test 6: Analytics Summary Verification ---');
-    // Also verify deduplicated count directly on test students
     const testStudentsAttendance = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: { in: testStudentIds },
         date: { gte: startDate, lte: endDate },
         session: 'morning'
@@ -335,10 +305,9 @@ async function runAttendanceTests() {
     assert(tAbsent === 5, `Test students Morning Absent is 5 (found: ${tAbsent})`);
     assert(tLate === 3, `Test students Morning Late is 3 (found: ${tLate})`);
     const totalRecorded = tPresent + tAbsent + tLate;
-    assert(totalRecorded === 32, `Total recorded test students is 32 (NEVER 64, found: ${totalRecorded})`);
+    assert(totalRecorded === 32, `Total recorded test students is 32 (found: ${totalRecorded})`);
 
-    // Verify analytics service getAttendanceSummary returns non-duplicated results
-    const summaryMorning = await getAttendanceSummary(school.id, {
+    const summaryMorning = await getAttendanceSummary(undefined, {
       startDate: testDate,
       endDate: testDate,
       session: 'morning',
@@ -352,7 +321,7 @@ async function runAttendanceTests() {
     // ==========================================
     console.log('\n--- Test 7: Single Attendance Mark / Update ---');
     const singleStudentId = testStudentIds[0];
-    const singleRes1 = await markAttendance({
+    await markAttendance({
       studentId: singleStudentId,
       date: testDate,
       session: 'morning',
@@ -362,9 +331,9 @@ async function runAttendanceTests() {
       longitude: 41.860195,
       locationVerified: true,
       locationDistance: 0
-    }, school.id);
+    });
 
-    const singleRes2 = await markAttendance({
+    await markAttendance({
       studentId: singleStudentId,
       date: testDate,
       session: 'morning',
@@ -374,11 +343,10 @@ async function runAttendanceTests() {
       longitude: 41.860195,
       locationVerified: true,
       locationDistance: 0
-    }, school.id);
+    });
 
     const singleRecords = await prisma.attendance.findMany({
       where: {
-        schoolId: school.id,
         studentId: singleStudentId,
         date: { gte: startDate, lte: endDate },
         session: 'morning'
@@ -395,7 +363,7 @@ async function runAttendanceTests() {
     const fetchedMorning = await getAttendance({
       date: testDate,
       session: 'morning'
-    }, school.id);
+    });
 
     const testStudentsInFetched = fetchedMorning.filter((r: any) => testStudentIds.includes(r.studentId || r.student_id));
     assert(testStudentsInFetched.length === 32, `getAttendance returns all 32 student records for Morning session (found: ${testStudentsInFetched.length})`);

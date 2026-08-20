@@ -7,17 +7,14 @@ const SAVED_CONV_NAME = 'Saved Messages';
 /**
  * GET /api/saved-messages/conversation
  * Get-or-create the user's Saved Messages conversation.
- * Returns the conversation object (never 404).
  */
 export const getOrCreateSavedConversation = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
-  if (!userId || !schoolId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    // Look for an existing saved-messages conversation for this user
     let conversation = await prisma.conversation.findFirst({
-      where: { savedMessagesFor: userId, schoolId, isSavedMessages: true },
+      where: { savedMessagesFor: userId, isSavedMessages: true },
       include: {
         members: { include: { user: { select: { id: true, full_name: true, profile_photo: true } } } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -25,14 +22,12 @@ export const getOrCreateSavedConversation = async (req: AuthenticatedRequest, re
     });
 
     if (!conversation) {
-      // Create a fresh one
       conversation = await prisma.conversation.create({
         data: {
           name: SAVED_CONV_NAME,
           isGroup: false,
           isSavedMessages: true,
           savedMessagesFor: userId,
-          schoolId,
           members: {
             create: [{ userId, role: 'OWNER' }],
           },
@@ -53,24 +48,21 @@ export const getOrCreateSavedConversation = async (req: AuthenticatedRequest, re
 
 /**
  * GET /api/saved-messages/messages?cursor=&limit=
- * Paginated messages for the user's saved messages conversation.
  */
 export const getSavedMessages = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
-  if (!userId || !schoolId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const { cursor, limit = '50', search } = req.query;
   const take = Math.min(Number(limit), 100);
 
   try {
     const conversation = await prisma.conversation.findFirst({
-      where: { savedMessagesFor: userId, schoolId, isSavedMessages: true },
+      where: { savedMessagesFor: userId, isSavedMessages: true },
       select: { id: true },
     });
     if (!conversation) return res.status(200).json({ messages: [], hasNextPage: false, nextCursor: null });
 
-    // Build where clause with optional text search
     const where: any = {
       conversationId: conversation.id,
       isDeleted: false,
@@ -122,19 +114,16 @@ export const getSavedMessages = async (req: AuthenticatedRequest, res: Response)
 
 /**
  * POST /api/saved-messages/messages
- * Save a new message (text, attachment, forwarded, etc.)
  */
 export const saveSavedMessage = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
-  if (!userId || !schoolId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const { content, type = 'TEXT', attachment, forwardedFromId, replyToId } = req.body;
 
   try {
-    // Get-or-create conversation
     let conversation = await prisma.conversation.findFirst({
-      where: { savedMessagesFor: userId, schoolId, isSavedMessages: true },
+      where: { savedMessagesFor: userId, isSavedMessages: true },
       select: { id: true },
     });
 
@@ -145,7 +134,6 @@ export const saveSavedMessage = async (req: AuthenticatedRequest, res: Response)
           isGroup: false,
           isSavedMessages: true,
           savedMessagesFor: userId,
-          schoolId,
           members: { create: [{ userId, role: 'OWNER' }] },
         },
         select: { id: true },
@@ -164,7 +152,6 @@ export const saveSavedMessage = async (req: AuthenticatedRequest, res: Response)
       data: {
         conversationId: conversation.id,
         senderId: userId,
-        schoolId,
         content,
         type,
         forwardedFromId: forwardedFromId || null,
@@ -178,7 +165,6 @@ export const saveSavedMessage = async (req: AuthenticatedRequest, res: Response)
       },
     });
 
-    // Update conversation updatedAt
     await prisma.conversation.update({
       where: { id: conversation.id },
       data: { updatedAt: new Date() },
@@ -193,17 +179,15 @@ export const saveSavedMessage = async (req: AuthenticatedRequest, res: Response)
 
 /**
  * DELETE /api/saved-messages/messages/:messageId
- * Delete a specific saved message (only owner can delete).
  */
 export const deleteSavedMessage = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
   const { messageId } = req.params;
-  if (!userId || !schoolId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const conversation = await prisma.conversation.findFirst({
-      where: { savedMessagesFor: userId, schoolId, isSavedMessages: true },
+      where: { savedMessagesFor: userId, isSavedMessages: true },
       select: { id: true },
     });
     if (!conversation) return res.status(404).json({ error: 'Saved Messages not found' });

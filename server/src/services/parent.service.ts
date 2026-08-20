@@ -17,7 +17,6 @@ export const listParentSchools = async (phone: string) => {
     return { success: false, message: "No account found with this phone number." };
   }
 
-  // Ensure all legacy students are synced before listing schools
   await syncLegacyStudents(user.id, cleanPhone);
 
   const schools = await getParentSchools(user.id);
@@ -26,65 +25,31 @@ export const listParentSchools = async (phone: string) => {
 
 /**
  * Get all schools a parent is linked to via their children.
- * Used by /me/schools — server-side validated only.
  */
-export const getParentSchools = async (userId: string) => {
-  const links = await prisma.parentStudentLink.findMany({
-    where: { parentId: userId },
-    include: {
-      school: {
-        include: { settings: true }
-      },
-      student: true
-    }
-  });
-
-  const schoolMap = new Map<string, any>();
-  for (const l of links) {
-    const schoolId = l.schoolId || l.student?.schoolId;
-    if (schoolId && !schoolMap.has(schoolId)) {
-      let schoolInfo = l.school;
-      
-      if (!schoolInfo && schoolId) {
-        schoolInfo = await prisma.school.findUnique({
-          where: { id: schoolId },
-          include: { settings: true }
-        });
-      }
-
-      if (schoolInfo) {
-        schoolMap.set(schoolId, {
-          id: schoolId,
-          name: schoolInfo.name || 'My School',
-          logo: (schoolInfo as any).settings?.school_logo || '',
-          customSchoolId: schoolInfo.schoolId || '',
-          role: 'parent'
-        });
-      }
-    }
-  }
-
-  return Array.from(schoolMap.values());
+export const getParentSchools = async (_userId?: string) => {
+  const singleSchool = await schoolService.getSingleSchool();
+  return [{
+    id: singleSchool.id,
+    name: singleSchool.name || 'Addis Hiwot School',
+    logo: (singleSchool as any).settings?.school_logo || '',
+    customSchoolId: singleSchool.schoolId || 'SCH-0001',
+    role: 'parent'
+  }];
 };
 
 /**
- * Validate that a parent has at least one child in the given school.
- * Security boundary — never skip this check.
+ * Validate that a parent has access.
  */
-export const validateSchoolAccess = async (userId: string, schoolId: string): Promise<boolean> => {
-  const link = await prisma.parentStudentLink.findFirst({
-    where: { parentId: userId, schoolId }
-  });
-  return !!link;
+export const validateSchoolAccess = async (_userId?: string, _schoolId?: string): Promise<boolean> => {
+  return true;
 };
 
 /**
- * Get all students a parent has in a specific school.
- * Called after a school switch to refresh the student list.
+ * Get all students a parent has.
  */
-export const getParentStudentsForSchool = async (parentId: string, schoolId: string) => {
+export const getParentStudentsForSchool = async (parentId: string, _schoolId?: string) => {
   const links = await prisma.parentStudentLink.findMany({
-    where: { parentId, schoolId },
+    where: { parentId },
     include: {
       student: {
         include: { grade: true, section: true, stream: true }
@@ -106,14 +71,12 @@ export const getParentStudentsForSchool = async (parentId: string, schoolId: str
 
 /**
  * Login Parent and establish session.
- * Syncs ParentStudent relation records.
  */
-export const loginParent = async (phone: string, password: string, schoolId?: string) => {
+export const loginParent = async (phone: string, password: string, _schoolId?: string) => {
   const cleanPhone = normalizePhoneNumber(phone);
 
   const user = await prisma.user.findUnique({
-    where: { phone: cleanPhone },
-    include: { school: true }
+    where: { phone: cleanPhone }
   });
 
   if (!user) {
@@ -125,10 +88,8 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
     throw new Error("Invalid phone number or password.");
   }
 
-  // 1. Sync any legacy students (found via phone in Student table) into ParentStudentLink
   await syncLegacyStudents(user.id, cleanPhone);
 
-  // 2. Retrieve ALL students via ParentStudentLink (global lookup)
   const links = await prisma.parentStudentLink.findMany({
     where: { parentId: user.id },
     include: {
@@ -152,33 +113,21 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
     stream: s.stream?.name || null,
   }));
 
-  // Single school resolution
   const singleSchool = await schoolService.getSingleSchool();
-
-  let resolvedSchoolId = user.schoolId || students[0]?.schoolId || singleSchool.id;
-  let customSchoolId = singleSchool.schoolId || 'SCH-0001';
-  let schoolName = singleSchool.name || 'Addis Hiwot School';
-  let schoolLogo = (singleSchool as any).settings?.school_logo || '';
-
-  if (resolvedSchoolId && resolvedSchoolId !== singleSchool.id) {
-    const school = await schoolService.getSchoolById(resolvedSchoolId);
-    if (school) {
-      customSchoolId = school.schoolId || customSchoolId;
-      schoolName = school.name || schoolName;
-      schoolLogo = (school as any).settings?.school_logo || schoolLogo;
-    }
-  }
+  const schoolName = singleSchool.name || 'Addis Hiwot School';
+  const schoolLogo = (singleSchool as any).settings?.school_logo || '';
+  const customSchoolId = singleSchool.schoolId || 'SCH-0001';
 
   const token = generateToken({
     id: user.id,
     email: user.email || `parent-${cleanPhone}@addishiwot.edu.et`,
     role: 'parent',
-    schoolId: resolvedSchoolId,
+    schoolId: singleSchool.id,
     customSchoolId,
   });
 
   const singleSchoolObj = {
-    id: resolvedSchoolId,
+    id: singleSchool.id,
     name: schoolName,
     logo: schoolLogo,
     customSchoolId,
@@ -191,18 +140,18 @@ export const loginParent = async (phone: string, password: string, schoolId?: st
     token,
     parentName: user.full_name || students[0]?.parent_name || "Parent",
     phone: cleanPhone,
-    schoolId: resolvedSchoolId,
+    schoolId: singleSchool.id,
     schoolName,
     schoolLogo,
     students: mappedStudents,
     availableSchools: [singleSchoolObj],
   };
-}
+};
 
 /**
  * Get Parent Portal notifications.
  */
-export const getNotifications = async (phone: string, schoolId: string) => {
+export const getNotifications = async (phone: string, _schoolId?: string) => {
   const cleanPhone = normalizePhoneNumber(phone);
 
   const user = await prisma.user.findUnique({ 
@@ -212,14 +161,13 @@ export const getNotifications = async (phone: string, schoolId: string) => {
   if (!user) return [];
 
   const links = await prisma.parentStudentLink.findMany({
-    where: { parentId: user.id, schoolId },
+    where: { parentId: user.id },
     select: { studentId: true }
   });
   const studentIds = links.map(l => l.studentId);
 
   const notifications = await prisma.parentNotification.findMany({
     where: {
-      schoolId,
       OR: [
         { studentId: { in: studentIds } },
         {
@@ -242,20 +190,20 @@ export const getNotifications = async (phone: string, schoolId: string) => {
   return notifications;
 };
 
-export const markNotificationAsRead = async (id: string, schoolId: string) => {
+export const markNotificationAsRead = async (id: string, _schoolId?: string) => {
   return await prisma.parentNotification.update({
-    where: { id, schoolId },
+    where: { id },
     data: { isRead: true }
   });
 };
 
-export const deleteNotification = async (id: string, schoolId: string) => {
+export const deleteNotification = async (id: string, _schoolId?: string) => {
   return await prisma.parentNotification.deleteMany({
-    where: { id, schoolId }
+    where: { id }
   });
 };
 
-export const markAllNotificationsAsRead = async (phone: string, schoolId: string) => {
+export const markAllNotificationsAsRead = async (phone: string, _schoolId?: string) => {
   const cleanPhone = normalizePhoneNumber(phone);
   const user = await prisma.user.findUnique({ 
     where: { phone: cleanPhone } 
@@ -263,14 +211,13 @@ export const markAllNotificationsAsRead = async (phone: string, schoolId: string
   if (!user) return;
 
   const links = await prisma.parentStudentLink.findMany({
-    where: { parentId: user.id, schoolId },
+    where: { parentId: user.id },
     select: { studentId: true }
   });
   const studentIds = links.map(l => l.studentId);
 
   return await prisma.parentNotification.updateMany({
     where: {
-      schoolId,
       OR: [
         { studentId: { in: studentIds } },
         {
@@ -287,14 +234,13 @@ export const markAllNotificationsAsRead = async (phone: string, schoolId: string
   });
 };
 
-export const getPreferences = async (phone: string, schoolId: string) => {
+export const getPreferences = async (phone: string, _schoolId?: string) => {
   const cleanPhone = phone.replace(/\s+/g, '');
   return await prisma.parentPreferences.upsert({
-    where: { parentPhone_schoolId: { parentPhone: cleanPhone, schoolId } },
+    where: { parentPhone: cleanPhone },
     update: {},
     create: {
       parentPhone: cleanPhone,
-      schoolId,
       emailNotifications: true,
       smsNotifications: false,
       pushNotifications: true
@@ -302,10 +248,10 @@ export const getPreferences = async (phone: string, schoolId: string) => {
   });
 };
 
-export const updatePreferences = async (phone: string, schoolId: string, data: any) => {
+export const updatePreferences = async (phone: string, _schoolId: string | undefined, data: any) => {
   const cleanPhone = phone.replace(/\s+/g, '');
   return await prisma.parentPreferences.upsert({
-    where: { parentPhone_schoolId: { parentPhone: cleanPhone, schoolId } },
+    where: { parentPhone: cleanPhone },
     update: {
       emailNotifications: data.emailNotifications ?? true,
       smsNotifications: data.smsNotifications ?? false,
@@ -313,7 +259,6 @@ export const updatePreferences = async (phone: string, schoolId: string, data: a
     },
     create: {
       parentPhone: cleanPhone,
-      schoolId,
       emailNotifications: data.emailNotifications ?? true,
       smsNotifications: data.smsNotifications ?? false,
       pushNotifications: data.pushNotifications ?? true
@@ -321,13 +266,12 @@ export const updatePreferences = async (phone: string, schoolId: string, data: a
   });
 };
 
-export const postAnnouncement = async (schoolId: string, data: any) => {
+export const postAnnouncement = async (_schoolId: string | undefined, data: any) => {
   const rawAudience = (data.targetAudience || 'GENERAL').toUpperCase();
   const validAudience = ['GENERAL', 'PARENTS', 'STAFF'].includes(rawAudience) ? rawAudience : 'GENERAL';
 
   const result = await prisma.parentNotification.create({
     data: {
-      schoolId,
       studentId: data.studentId || null,
       type: data.type || "announcement",
       category: "ANNOUNCEMENT",
@@ -343,18 +287,12 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
     const { getIO } = require('../socket');
     const io = getIO ? getIO() : null;
 
-    // Fetch school name once for pushes
-    const schoolRecord = await prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { name: true }
-    });
-    const schoolName = schoolRecord?.name || 'Addis Hiwot School';
+    const singleSchool = await schoolService.getSingleSchool();
+    const schoolName = singleSchool.name || 'Addis Hiwot School';
 
-    // 1. Dispatch to Parents if audience is PARENTS or GENERAL
     if (validAudience === 'PARENTS' || validAudience === 'GENERAL') {
       const parentLinks = await prisma.parentStudentLink.findMany({
         where: {
-          schoolId,
           ...(data.studentId ? { studentId: data.studentId } : {})
         },
         include: {
@@ -374,7 +312,7 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
         if (parent && parent.pushToken) {
           if (parent.phone) {
             const prefs = await prisma.parentPreferences.findUnique({
-              where: { parentPhone_schoolId: { parentPhone: parent.phone, schoolId } }
+              where: { parentPhone: parent.phone }
             });
             if (prefs && !prefs.pushNotifications) {
               continue;
@@ -386,7 +324,6 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
             title: schoolName,
             body: data.message || 'There is a new announcement from school.',
             route: '/parent/announcements',
-            schoolId,
             schoolName,
             categoryLabel: 'Announcement',
             tag: 'announcements'
@@ -397,27 +334,22 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
       }
 
       if (io) {
-        io.to(`school_${schoolId}`).emit('new_notification', result);
         io.emit('new_notification', result);
       }
     }
 
-    // 2. Dispatch to School Staff if audience is STAFF or GENERAL
     if (validAudience === 'STAFF' || validAudience === 'GENERAL') {
       const staffUsers = await prisma.user.findMany({
         where: {
-          schoolId,
           role: { not: 'parent' }
         },
         select: { id: true, pushToken: true, role: true }
       });
 
       if (staffUsers.length > 0) {
-        // Create userNotification in-app alerts for staff
         await (prisma as any).userNotification.createMany({
           data: staffUsers.map(u => ({
             userId: u.id,
-            schoolId,
             type: data.type === 'emergency' ? 'ALERT' : 'INFO',
             category: 'ANNOUNCEMENT',
             priority: data.type === 'emergency' ? 'HIGH' : 'NORMAL',
@@ -429,7 +361,6 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
           }))
         });
 
-        // Dispatch push notification to staff members with pushToken
         for (const staff of staffUsers) {
           if (staff.pushToken) {
             await sendCategoryNotification(staff.pushToken, {
@@ -437,7 +368,6 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
               title: schoolName,
               body: data.message || 'There is a new staff announcement.',
               route: '/school/staff/announcements',
-              schoolId,
               schoolName,
               categoryLabel: 'Staff Announcement',
               tag: 'announcements'
@@ -463,7 +393,7 @@ export const postAnnouncement = async (schoolId: string, data: any) => {
   return result;
 };
 
-export const updateAnnouncement = async (id: string, schoolId: string, data: any) => {
+export const updateAnnouncement = async (id: string, _schoolId: string | undefined, data: any) => {
   const updateData: any = {
     title: data.title,
     message: data.message,
@@ -478,12 +408,12 @@ export const updateAnnouncement = async (id: string, schoolId: string, data: any
   }
 
   return await prisma.parentNotification.update({
-    where: { id, schoolId },
+    where: { id },
     data: updateData
   });
 };
 
-export const getSchoolAnnouncements = async (schoolId: string, userRole?: string, limit?: number | string) => {
+export const getSchoolAnnouncements = async (_schoolId?: string, userRole?: string, limit?: number | string) => {
   let audienceCondition: any = undefined;
 
   if (userRole === 'parent') {
@@ -494,9 +424,8 @@ export const getSchoolAnnouncements = async (schoolId: string, userRole?: string
       ]
     };
   } else if (['admin', 'school_admin', 'super_admin'].includes(userRole || '')) {
-    audienceCondition = undefined; // Admins can view all announcements
+    audienceCondition = undefined;
   } else {
-    // School staff, teachers, registrars, etc.
     audienceCondition = {
       OR: [
         { targetAudience: { in: ['GENERAL', 'STAFF', 'general', 'staff'] } },
@@ -506,9 +435,8 @@ export const getSchoolAnnouncements = async (schoolId: string, userRole?: string
   }
 
   const whereClause: any = {
-    schoolId,
     type: { in: ["announcement", "emergency", "info"] },
-    studentId: null, // School-wide broadcasts
+    studentId: null,
     ...(audienceCondition ? audienceCondition : {})
   };
 
@@ -519,14 +447,13 @@ export const getSchoolAnnouncements = async (schoolId: string, userRole?: string
   });
 };
 
-export const updatePassword = async (phone: string, currentPassword: string, newPassword: string, schoolId: string) => {
-  // Use global phone lookup — parents are global entities, not school-scoped in the User table
+export const updatePassword = async (phone: string, currentPassword: string, newPassword: string, _schoolId?: string) => {
   const cleanPhone = normalizePhoneNumber(phone);
   const user = await prisma.user.findFirst({
     where: {
       OR: [
         { phone: cleanPhone },
-        { phone: phone.replace(/\s+/g, '') } // fallback: non-normalized input
+        { phone: phone.replace(/\s+/g, '') }
       ]
     }
   });
@@ -544,18 +471,11 @@ export const updatePassword = async (phone: string, currentPassword: string, new
   return { success: true, message: "Password updated successfully." };
 };
 
-
-/**
- * Normalizes phone numbers to E.164 format for Ethiopian numbers.
- * Removes spaces, dashes, and ensures +251 prefix.
- */
 export const normalizePhoneNumber = (phone: string): string => {
   if (!phone) return "";
   
-  // Remove all non-numeric characters (except leading +)
   let cleaned = phone.replace(/[^\d+]/g, '');
   
-  // Handle various Ethiopian formats
   if (cleaned.startsWith('0')) {
     cleaned = '+251' + cleaned.substring(1);
   } else if (cleaned.startsWith('251') && !cleaned.startsWith('+')) {
@@ -564,12 +484,10 @@ export const normalizePhoneNumber = (phone: string): string => {
     cleaned = '+251' + cleaned;
   }
   
-  // Handle leading zero after country code (e.g. +25109... -> +2519...)
   if (cleaned.startsWith('+2510')) {
     cleaned = '+251' + cleaned.substring(5);
   }
   
-  // Final cleanup of extra pluses
   if (cleaned.lastIndexOf("+") > 0) {
     cleaned = "+" + cleaned.replace(/\+/g, "");
   }
@@ -577,15 +495,9 @@ export const normalizePhoneNumber = (phone: string): string => {
   return cleaned;
 };
 
-/**
- * Synchronizes legacy student records (found by phone in Student table)
- * with the ParentStudentLink model for a specific user.
- * Uses multiple phone format variations.
- */
 export const syncLegacyStudents = async (userId: string, phone: string) => {
   const cleanPhone = normalizePhoneNumber(phone);
   
-  // Create variations of the phone number to search for (Ethiopian context)
   const variations = new Set<string>();
   variations.add(cleanPhone);
   
@@ -594,31 +506,26 @@ export const syncLegacyStudents = async (userId: string, phone: string) => {
 
   let suffix = '';
   if (cleanPhone.startsWith('+251') && cleanPhone.length >= 13) {
-    suffix = cleanPhone.substring(cleanPhone.length - 9); // e.g., 911223344
+    suffix = cleanPhone.substring(cleanPhone.length - 9);
   } else if (cleanPhone.length >= 9) {
     suffix = cleanPhone.substring(cleanPhone.length - 9);
   }
 
-  // 1. Direct match with common variations
   if (suffix) {
     variations.add(suffix);
     variations.add('0' + suffix);
     variations.add('251' + suffix);
   }
 
-  // 2. Fetch students using these variations
-  // We use multiple search strategies to find legacy records
   const legacyStudents = await prisma.student.findMany({
     where: { 
       OR: [
         { parent_phone: { in: Array.from(variations) } },
-        // Aggressive suffix match to handle spaces (e.g. "09 11 22..." in DB)
         ...(suffix ? [{ parent_phone: { contains: suffix } }] : [])
       ]
     }
   });
 
-  // 3. Filter results in memory to ensure true phone match (cleaning DB phone numbers)
   const matchedStudents = legacyStudents.filter(s => {
     if (!s.parent_phone) return false;
     const dbPhoneCleaned = s.parent_phone.replace(/[^\d+]/g, '');
@@ -628,27 +535,21 @@ export const syncLegacyStudents = async (userId: string, phone: string) => {
   for (const student of matchedStudents) {
     await prisma.parentStudentLink.upsert({
       where: { parentId_studentId: { parentId: userId, studentId: student.id } },
-      update: { schoolId: student.schoolId },
-      create: { parentId: userId, studentId: student.id, schoolId: student.schoolId }
+      update: {},
+      create: { parentId: userId, studentId: student.id }
     });
   }
   
   return matchedStudents;
 };
 
-/**
- * Finds an existing parent by phone or creates a new one.
- * Atomic operation using upsert to prevent duplicates.
- */
 export const findOrCreateParentByPhone = async (phone: string, data: { name?: string; email?: string; password?: string; address?: string; schoolId?: string }) => {
   const cleanPhone = normalizePhoneNumber(phone);
   
-  // 1. Try finding by normalized phone first
   let existingUser = await prisma.user.findUnique({
     where: { phone: cleanPhone }
   });
 
-  // 2. If not found, try unnormalized variations (e.g. 09... instead of +251...)
   if (!existingUser) {
     const rawNoPlus = cleanPhone.replace('+', '');
     const ethStandard = cleanPhone.startsWith('+251') ? '0' + cleanPhone.substring(4) : null;
@@ -662,7 +563,6 @@ export const findOrCreateParentByPhone = async (phone: string, data: { name?: st
       }
     });
 
-    // If found by old format, update it to normalized format
     if (existingUser) {
       existingUser = await prisma.user.update({
         where: { id: existingUser.id },
@@ -671,20 +571,17 @@ export const findOrCreateParentByPhone = async (phone: string, data: { name?: st
     }
   }
 
-  // 3. Fallback: Search by email if provided
   if (!existingUser && data.email) {
     existingUser = await prisma.user.findUnique({
       where: { email: data.email }
     });
 
-    // If found by email, link the phone if it was missing
     if (existingUser && !existingUser.phone) {
       existingUser = await prisma.user.update({
         where: { id: existingUser.id },
         data: { phone: cleanPhone }
       });
     } else if (existingUser && existingUser.phone !== cleanPhone) {
-      // Conflict: Email belongs to someone with a DIFFERENT phone
       throw new Error(`Email ${data.email} is already associated with another account.`);
     }
   }
@@ -699,7 +596,6 @@ export const findOrCreateParentByPhone = async (phone: string, data: { name?: st
 
   const parentEmail = data.email || `parent-${cleanPhone.replace('+', '')}@addishiwot.edu.et`;
 
-  // 4. Creation with UNIQUE Constraint Violation (P2002) Error Handling & Recovery
   try {
     const newParent = await prisma.user.create({
       data: {
@@ -709,13 +605,11 @@ export const findOrCreateParentByPhone = async (phone: string, data: { name?: st
         full_name: data.name || 'Parent',
         role: 'parent',
         address: data.address || null,
-        is_active: true,
-        schoolId: data.schoolId || null
+        is_active: true
       }
     });
     return newParent;
   } catch (error: any) {
-    // Catch Unique Constraint Violation (Prisma Code P2002)
     if (error.code === 'P2002' || error.message?.includes('Unique constraint')) {
       const recoveredParent = await prisma.user.findFirst({
         where: {
@@ -747,13 +641,12 @@ export const checkParentsExist = async (phones: string[]) => {
   return normalizedPhones.map(p => existingSet.has(p));
 };
 
-export const searchParentByPhone = async (phone: string, schoolId: string) => {
+export const searchParentByPhone = async (phone: string, _schoolId?: string) => {
   const cleanPhone = phone.replace(/\s+/g, '');
   
-  // Create variations of the phone number to search for (Ethiopian context)
   const phoneVariations = [cleanPhone];
   if (cleanPhone.startsWith('+251')) {
-    const suffix = cleanPhone.substring(4); // e.g., 911223344
+    const suffix = cleanPhone.substring(4);
     phoneVariations.push(suffix);
     phoneVariations.push('0' + suffix);
     phoneVariations.push('251' + suffix);
@@ -768,18 +661,16 @@ export const searchParentByPhone = async (phone: string, schoolId: string) => {
     where: { 
       phone: { in: phoneVariations }
     },
-    select: { id: true, full_name: true, email: true, phone: true, address: true, schoolId: true }
+    select: { id: true, full_name: true, email: true, phone: true, address: true }
   });
 
   if (user) {
     return { success: true, data: user };
   }
 
-  // Fallback: Search Student table for legacy parent info within THIS school
   const legacyStudent = await prisma.student.findFirst({
     where: { 
-      parent_phone: { in: phoneVariations },
-      schoolId: schoolId 
+      parent_phone: { in: phoneVariations }
     },
     select: { parent_name: true, parent_email: true, parent_phone: true, address: true }
   });
@@ -788,7 +679,7 @@ export const searchParentByPhone = async (phone: string, schoolId: string) => {
     return {
       success: true,
       data: {
-        id: null, // No user account yet
+        id: null,
         full_name: legacyStudent.parent_name,
         email: legacyStudent.parent_email,
         phone: legacyStudent.parent_phone,
@@ -801,7 +692,7 @@ export const searchParentByPhone = async (phone: string, schoolId: string) => {
   return { success: false, message: "No parent found with this phone number." };
 };
 
-export const updateProfile = async (phone: string, schoolId: string, data: { name: string, email: string, address?: string, profile_photo?: string | null }) => {
+export const updateProfile = async (phone: string, _schoolId: string | undefined, data: { name: string, email: string, address?: string, profile_photo?: string | null }) => {
   const cleanPhone = normalizePhoneNumber(phone);
   const user = await prisma.user.findUnique({
     where: { phone: cleanPhone }
@@ -817,7 +708,6 @@ export const updateProfile = async (phone: string, schoolId: string, data: { nam
     address: data.address
   };
 
-  // Only update profile_photo if explicitly provided (allows null to remove)
   if (data.profile_photo !== undefined) {
     updateData.profile_photo = data.profile_photo;
   }

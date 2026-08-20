@@ -2,7 +2,7 @@ import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
 
 export function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3; // Earth's radius in meters
+  const R = 6371e3;
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
@@ -16,13 +16,11 @@ export function calculateDistanceMeters(lat1: number, lon1: number, lat2: number
   return Math.round(R * c);
 }
 
-export const resolveTeacherId = async (schoolId: string, rawTeacherId?: string | null): Promise<string | null> => {
+export const resolveTeacherId = async (_schoolId?: string, rawTeacherId?: string | null): Promise<string | null> => {
   if (!rawTeacherId) return null;
 
-  // 1. Try finding Teacher directly by id or user_id
   const teacher = await prisma.teacher.findFirst({
     where: {
-      schoolId,
       OR: [
         { id: rawTeacherId },
         { user_id: rawTeacherId }
@@ -31,10 +29,8 @@ export const resolveTeacherId = async (schoolId: string, rawTeacherId?: string |
   });
   if (teacher) return teacher.id;
 
-  // 2. Try finding User by id or teacher_id
   const user = await prisma.user.findFirst({
     where: {
-      schoolId,
       OR: [
         { id: rawTeacherId },
         { teacher_id: rawTeacherId }
@@ -49,13 +45,11 @@ export const resolveTeacherId = async (schoolId: string, rawTeacherId?: string |
     if (teacherFromUser) return teacherFromUser.id;
   }
 
-  // 3. If user is a teacher role but has no Teacher profile row yet, auto-create one
   if (user && user.role === 'teacher') {
     const newTeacher = await prisma.teacher.create({
       data: {
         name: user.full_name,
         email: user.email,
-        schoolId,
         phone: user.phone || null,
         user_id: user.id
       }
@@ -95,10 +89,6 @@ export const normalizeSession = (sess?: any): string | null => {
   return s;
 };
 
-/**
- * Shared geofence validation used by both student and staff attendance.
- * Returns verified flag and computed distance, or throws if strict-mode fails.
- */
 export function validateGeofence(
   data: { latitude?: number | null; longitude?: number | null; locationVerified?: boolean; locationDistance?: number | null },
   settings: { restrict_location?: boolean | null; allow_outside_attendance?: boolean | null; school_latitude?: number | null; school_longitude?: number | null; allowed_radius_meters?: number | null } | null
@@ -137,7 +127,7 @@ export function validateGeofence(
   return { locVerified, locDistance };
 }
 
-export const markAttendance = async (data: any, schoolId: string) => {
+export const markAttendance = async (data: any, _schoolId?: string) => {
   const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
   const session = normalizeSession(data.session);
 
@@ -145,33 +135,25 @@ export const markAttendance = async (data: any, schoolId: string) => {
     throw new Error("Student ID and Date are required");
   }
 
-  // Resolve valid teacherId foreign key (or null if marked by admin/non-teacher)
-  const resolvedTeacherId = await resolveTeacherId(schoolId, teacherId || userId);
+  const resolvedTeacherId = await resolveTeacherId(undefined, teacherId || userId);
 
-  // Ensure student belongs to this school and is actively enrolled
-  const student = await prisma.student.findFirst({
-    where: { id: studentId, schoolId }
+  const student = await prisma.student.findUnique({
+    where: { id: studentId }
   });
   if (!student) {
-    throw new Error("Student not found in this school");
+    throw new Error("Student not found");
   }
   if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
     throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
   }
 
-  // Fetch school settings for location restriction & edit permission checks
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+  const settings = await prisma.schoolSettings.findFirst();
 
-  // 1. Geofence & Location Restriction Verification
   const { locVerified, locDistance } = validateGeofence(data, settings);
-
-  // Standardize the day range in UTC
   const { dateStr, startDate, endDate } = normalizeDate(date);
 
-  // Find if a record already exists for this student on this day and session.
   const existing = await prisma.attendance.findFirst({
     where: {
-      schoolId,
       studentId,
       date: {
         gte: startDate,
@@ -184,7 +166,6 @@ export const markAttendance = async (data: any, schoolId: string) => {
     }
   });
 
-  // 2. Attendance Edit Permission Verification
   if (existing && userRole === 'teacher') {
     if (settings && settings.allow_attendance_editing === false) {
       const sessionFilter: any = session
@@ -193,7 +174,6 @@ export const markAttendance = async (data: any, schoolId: string) => {
 
       const approvedRequest = await prisma.attendanceEditRequest.findFirst({
         where: {
-          schoolId,
           status: 'APPROVED',
           isUsed: false,
           date: {
@@ -221,7 +201,6 @@ export const markAttendance = async (data: any, schoolId: string) => {
 
       await prisma.auditLog.create({
         data: {
-          schoolId,
           user_id: userId || teacherId || null,
           action: 'ATTENDANCE_EDIT_PERMITTED',
           entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -233,8 +212,7 @@ export const markAttendance = async (data: any, schoolId: string) => {
     }
   }
 
-  // Resolve active academic year and student's enrollment record
-  const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+  const activeAY = await academicYearService.getCurrentAcademicYear();
   const academicYearId = activeAY?.id || null;
   let academicYearRecordId: string | null = null;
   if (activeAY) {
@@ -264,7 +242,6 @@ export const markAttendance = async (data: any, schoolId: string) => {
     : await prisma.attendance.create({
         data: {
           studentId,
-          schoolId,
           teacherId: resolvedTeacherId,
           date: startDate,
           status,
@@ -279,10 +256,8 @@ export const markAttendance = async (data: any, schoolId: string) => {
         }
       });
 
-  // Audit log attendance operation
   await prisma.auditLog.create({
     data: {
-      schoolId,
       user_id: userId || teacherId || null,
       action: existing ? 'ATTENDANCE_UPDATED' : 'ATTENDANCE_MARKED',
       entity_type: 'ATTENDANCE',
@@ -300,17 +275,15 @@ export const markAttendance = async (data: any, schoolId: string) => {
     }
   }).catch(err => console.error('[AuditLog] Attendance error:', err));
 
-  // Intercept and create parent notification if status is Absent, Late, or Excused
-  await sendAttendanceParentNotification(student, status, dateStr, schoolId);
+  await sendAttendanceParentNotification(student, status, dateStr);
 
   return result;
 };
 
-export const getAttendance = async (filters: any, schoolId: string) => {
+export const getAttendance = async (filters: any, _schoolId?: string) => {
   const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate, academicYearId: filterAcademicYearId } = filters;
-  const where: any = { schoolId };
+  const where: any = {};
 
-  // Explicit academicYearId filter if supplied by caller
   if (filterAcademicYearId) {
     where.academicYearId = filterAcademicYearId;
   }
@@ -350,7 +323,7 @@ export const getAttendance = async (filters: any, schoolId: string) => {
   }
 
   if (grade || section) {
-    where.student = { schoolId };
+    where.student = {};
     if (grade) where.student.gradeId = grade;
     if (section) where.student.sectionId = section;
   }
@@ -369,9 +342,9 @@ export const getAttendance = async (filters: any, schoolId: string) => {
   });
 };
 
-export const getAttendanceByStudent = async (studentId: string, schoolId: string, filters: any = {}) => {
+export const getAttendanceByStudent = async (studentId: string, _schoolId?: string, filters: any = {}) => {
   const { session } = filters;
-  const where: any = { studentId, schoolId };
+  const where: any = { studentId };
 
   if (session !== undefined && session !== null) {
     const cleanSess = String(session).trim().toLowerCase();
@@ -394,9 +367,7 @@ export const getAttendanceByStudent = async (studentId: string, schoolId: string
   });
 };
 
-// ─── ATTENDANCE EDIT REQUESTS & AUDIT LOGS ──────────────────────────────────
-
-export const createEditRequest = async (schoolId: string, teacherId: string, data: any) => {
+export const createEditRequest = async (_schoolId: string | undefined, teacherId: string, data: any) => {
   const { studentId, gradeId, sectionId, date, session, reason } = data;
 
   if (!date) {
@@ -406,10 +377,9 @@ export const createEditRequest = async (schoolId: string, teacherId: string, dat
   const dateStr = typeof date === 'string' ? date.split("T")[0] : new Date(date).toISOString().split("T")[0];
   const parsedDate = new Date(`${dateStr}T00:00:00.000Z`);
 
-  // Ensure teacher record exists or resolve teacherId
   let resolvedTeacherId = teacherId;
   const teacherRecord = await prisma.teacher.findFirst({
-    where: { schoolId, OR: [{ id: teacherId }, { user_id: teacherId }] }
+    where: { OR: [{ id: teacherId }, { user_id: teacherId }] }
   });
   if (teacherRecord) {
     resolvedTeacherId = teacherRecord.id;
@@ -417,7 +387,6 @@ export const createEditRequest = async (schoolId: string, teacherId: string, dat
 
   const editRequest = await prisma.attendanceEditRequest.create({
     data: {
-      schoolId,
       teacherId: resolvedTeacherId,
       studentId: studentId || null,
       gradeId: gradeId || null,
@@ -435,7 +404,6 @@ export const createEditRequest = async (schoolId: string, teacherId: string, dat
 
   await prisma.auditLog.create({
     data: {
-      schoolId,
       user_id: teacherId,
       action: 'ATTENDANCE_EDIT_REQUEST_SUBMITTED',
       entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -447,9 +415,9 @@ export const createEditRequest = async (schoolId: string, teacherId: string, dat
   return editRequest;
 };
 
-export const getEditRequests = async (schoolId: string, filters: any = {}) => {
+export const getEditRequests = async (_schoolId?: string, filters: any = {}) => {
   const { teacherId, status } = filters;
-  const where: any = { schoolId };
+  const where: any = {};
 
   if (teacherId) {
     where.OR = [
@@ -472,9 +440,9 @@ export const getEditRequests = async (schoolId: string, filters: any = {}) => {
   });
 };
 
-export const approveEditRequest = async (requestId: string, adminUserId: string, schoolId: string, adminNote?: string) => {
-  const request = await prisma.attendanceEditRequest.findFirst({
-    where: { id: requestId, schoolId }
+export const approveEditRequest = async (requestId: string, adminUserId: string, _schoolId?: string, adminNote?: string) => {
+  const request = await prisma.attendanceEditRequest.findUnique({
+    where: { id: requestId }
   });
 
   if (!request) {
@@ -497,7 +465,6 @@ export const approveEditRequest = async (requestId: string, adminUserId: string,
 
   await prisma.auditLog.create({
     data: {
-      schoolId,
       user_id: adminUserId,
       action: 'ATTENDANCE_EDIT_REQUEST_APPROVED',
       entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -510,9 +477,9 @@ export const approveEditRequest = async (requestId: string, adminUserId: string,
   return updated;
 };
 
-export const rejectEditRequest = async (requestId: string, adminUserId: string, schoolId: string, adminNote?: string) => {
-  const request = await prisma.attendanceEditRequest.findFirst({
-    where: { id: requestId, schoolId }
+export const rejectEditRequest = async (requestId: string, adminUserId: string, _schoolId?: string, adminNote?: string) => {
+  const request = await prisma.attendanceEditRequest.findUnique({
+    where: { id: requestId }
   });
 
   if (!request) {
@@ -535,7 +502,6 @@ export const rejectEditRequest = async (requestId: string, adminUserId: string, 
 
   await prisma.auditLog.create({
     data: {
-      schoolId,
       user_id: adminUserId,
       action: 'ATTENDANCE_EDIT_REQUEST_REJECTED',
       entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -548,10 +514,9 @@ export const rejectEditRequest = async (requestId: string, adminUserId: string, 
   return updated;
 };
 
-export const getAttendanceAuditLogs = async (schoolId: string) => {
+export const getAttendanceAuditLogs = async (_schoolId?: string) => {
   return await prisma.auditLog.findMany({
     where: {
-      schoolId,
       entity_type: {
         in: ['ATTENDANCE', 'ATTENDANCE_EDIT_REQUEST']
       }
@@ -565,7 +530,7 @@ export const sendAttendanceParentNotification = async (
   student: { id: string; fullName: string; gender?: string | null },
   status: string,
   dateStr: string,
-  schoolId: string
+  _schoolId?: string
 ) => {
   if (!status) return;
   const statusLower = status.toLowerCase();
@@ -593,7 +558,6 @@ export const sendAttendanceParentNotification = async (
     });
 
     if (!parentLinks || parentLinks.length === 0) {
-      console.log(`[ParentNotification] No linked parent found for student ${student.fullName} (${student.id})`);
       return;
     }
 
@@ -613,7 +577,6 @@ export const sendAttendanceParentNotification = async (
     
     await prisma.parentNotification.create({
       data: {
-        schoolId,
         studentId: student.id,
         type,
         title,
@@ -623,19 +586,15 @@ export const sendAttendanceParentNotification = async (
     });
 
     const { sendCategoryNotification } = require('./notification.service');
-
-    const school = await prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { name: true }
-    });
-    const schoolName = school?.name || 'Addis Hiwot School';
+    const settings = await prisma.schoolSettings.findFirst();
+    const schoolName = settings?.school_name || 'Addis Hiwot School';
     const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
 
     for (const link of parentLinks) {
       if (link.parent && link.parent.pushToken) {
         if (link.parent.phone) {
           const prefs = await prisma.parentPreferences.findUnique({
-            where: { parentPhone_schoolId: { parentPhone: link.parent.phone, schoolId } }
+            where: { parentPhone: link.parent.phone }
           });
           if (prefs && !prefs.pushNotifications) {
             continue;
@@ -651,7 +610,6 @@ export const sendAttendanceParentNotification = async (
           body: parentSpecificMessage,
           route: `/parent/attendance`,
           studentId: student.id,
-          schoolId,
           schoolName,
           categoryLabel,
           tag: `attendance-${student.id}`
@@ -667,7 +625,7 @@ export const sendAttendanceParentNotification = async (
 
 export const bulkMarkAttendance = async (
   records: any[],
-  schoolId: string,
+  _schoolId?: string,
   meta: {
     userRole?: string;
     userId?: string;
@@ -676,7 +634,7 @@ export const bulkMarkAttendance = async (
     longitude?: number;
     locationVerified?: boolean;
     locationDistance?: number;
-  }
+  } = {}
 ) => {
   if (!Array.isArray(records) || records.length === 0) return [];
   if (records.length > 500) {
@@ -684,12 +642,9 @@ export const bulkMarkAttendance = async (
   }
 
   const { userRole, userId, teacherId } = meta;
-  const resolvedTeacherId = await resolveTeacherId(schoolId, teacherId || userId);
+  const resolvedTeacherId = await resolveTeacherId(undefined, teacherId || userId);
+  const settings = await prisma.schoolSettings.findFirst();
 
-  // Fetch school settings once
-  const settings = await prisma.schoolSettings.findUnique({ where: { schoolId } });
-
-  // Geofence check once
   let locVerified = meta.locationVerified ?? false;
   let locDistance: number | null = meta.locationDistance != null ? Number(meta.locationDistance) : null;
 
@@ -713,8 +668,6 @@ export const bulkMarkAttendance = async (
     }
   }
 
-  // Deduplicate incoming payload records by (studentId, dateStr, session)
-  // Preserves latest record in payload if duplicate student entries exist in same batch
   const dedupedMap = new Map<string, any>();
   for (const r of records) {
     if (!r.studentId) continue;
@@ -726,18 +679,16 @@ export const bulkMarkAttendance = async (
   const cleanRecords = Array.from(dedupedMap.values());
   if (cleanRecords.length === 0) return [];
 
-  // Batch query active enrolled students only
   const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
   const validStudents = await prisma.student.findMany({
-    where: { id: { in: studentIds }, schoolId, status: 'ACTIVE' },
+    where: { id: { in: studentIds }, status: 'ACTIVE' },
     select: { id: true, fullName: true, gender: true }
   });
   const studentMap = new Map(validStudents.map(s => [s.id, s]));
 
-  // Pre-fetch active Academic Year and all Student Academic Year Enrollment Records in bulk
-  const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+  const activeAY = await academicYearService.getCurrentAcademicYear();
   const activeAYId = activeAY?.id || null;
-  const enrollmentMap = new Map<string, string>(); // studentId -> studentAcademicYearRecordId
+  const enrollmentMap = new Map<string, string>();
   if (activeAYId) {
     const enrollments = await prisma.studentAcademicYearRecord.findMany({
       where: {
@@ -749,7 +700,6 @@ export const bulkMarkAttendance = async (
     enrollments.forEach(e => enrollmentMap.set(e.studentId, e.id));
   }
 
-  // Collect all unique date ranges present in the batch
   const dateRanges = new Map<string, { startDate: Date; endDate: Date }>();
   cleanRecords.forEach(r => {
     const { dateStr, startDate, endDate } = normalizeDate(r.date);
@@ -762,16 +712,13 @@ export const bulkMarkAttendance = async (
     date: { gte: r.startDate, lte: r.endDate }
   }));
 
-  // Batch query existing attendance records for the target students across all batch dates
   const existingRecords = await prisma.attendance.findMany({
     where: {
-      schoolId,
       studentId: { in: Array.from(studentMap.keys()) },
       OR: dateConditions.length > 0 ? dateConditions : undefined,
     }
   });
 
-  // Build composite lookup map: `${studentId}::${dateStr}::${normalizeSession(session) || '__daily__'}`
   const existingMap = new Map<string, any>();
   existingRecords.forEach(e => {
     const eDateStr = e.date ? e.date.toISOString().split("T")[0] : 'unknown';
@@ -779,7 +726,6 @@ export const bulkMarkAttendance = async (
     existingMap.set(`${e.studentId}::${eDateStr}::${sKey}`, e);
   });
 
-  // Edit Permission Verification for Bulk Updates
   const hasExistingUpdates = cleanRecords.some(r => {
     const { dateStr } = normalizeDate(r.date);
     const recSession = normalizeSession(r.session);
@@ -797,7 +743,6 @@ export const bulkMarkAttendance = async (
 
     const approvedRequest = await prisma.attendanceEditRequest.findFirst({
       where: {
-        schoolId,
         status: 'APPROVED',
         isUsed: false,
         date: {
@@ -818,7 +763,6 @@ export const bulkMarkAttendance = async (
       throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${sampleDateInfo.dateStr}${sessionLabel}.`);
     }
 
-    // Consume the approved permission
     await prisma.attendanceEditRequest.update({
       where: { id: approvedRequest.id },
       data: { isUsed: true }
@@ -826,7 +770,6 @@ export const bulkMarkAttendance = async (
 
     await prisma.auditLog.create({
       data: {
-        schoolId,
         user_id: userId || teacherId || null,
         action: 'ATTENDANCE_EDIT_PERMITTED',
         entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -836,7 +779,6 @@ export const bulkMarkAttendance = async (
     }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
   }
 
-  // Build atomic transaction queries — updates existing rows, creates missing rows
   const txOps: any[] = [];
 
   for (const record of cleanRecords) {
@@ -872,7 +814,6 @@ export const bulkMarkAttendance = async (
         prisma.attendance.create({
           data: {
             studentId: record.studentId,
-            schoolId,
             teacherId: resolvedTeacherId,
             date: startDate,
             status,
@@ -888,22 +829,14 @@ export const bulkMarkAttendance = async (
     }
   }
 
-  // Execute all upserts in a single DB transaction
   const results = await prisma.$transaction(txOps);
 
-  // Build status summary for admin notification
   const presentCount  = cleanRecords.filter(r => r.status?.toLowerCase() === 'present').length;
   const lateCount     = cleanRecords.filter(r => r.status?.toLowerCase() === 'late').length;
   const absentCount   = cleanRecords.filter(r => r.status?.toLowerCase() === 'absent').length;
   const excusedCount  = cleanRecords.filter(r => r.status?.toLowerCase() === 'excused').length;
 
-  // Determine grade/section from first valid student record
-  const firstStudent = cleanRecords.map(r => studentMap.get(r.studentId)).find(Boolean);
-  const gradeLabel   = firstStudent ? `${firstStudent.fullName.split(' ')[0]}'s class` : 'A class';
-
-  // Fire admin notification in background (does not block response)
   sendAdminAttendanceNotification({
-    schoolId,
     teacherId: resolvedTeacherId,
     dateStr: sampleDateInfo.dateStr,
     session: sampleSession,
@@ -916,21 +849,18 @@ export const bulkMarkAttendance = async (
     console.error('[BulkAttendance] Admin notification dispatch error:', err);
   });
 
-  // Asynchronously send parent notifications for absent, late, or excused students
   for (const record of cleanRecords) {
     const student = studentMap.get(record.studentId);
     if (student) {
       const recDateStr = normalizeDate(record.date).dateStr;
-      sendAttendanceParentNotification(student, record.status, recDateStr, schoolId).catch(err => {
+      sendAttendanceParentNotification(student, record.status, recDateStr).catch(err => {
         console.error(`[BulkAttendance] Parent notification dispatch error for student ${student.id}:`, err);
       });
     }
   }
 
-  // Background audit log
   prisma.auditLog.create({
     data: {
-      schoolId,
       user_id: userId || teacherId || null,
       action: 'BULK_ATTENDANCE_MARKED',
       entity_type: 'ATTENDANCE',
@@ -941,12 +871,8 @@ export const bulkMarkAttendance = async (
   return results;
 };
 
-/**
- * Notifies all school admins (with a registered push token) when a teacher submits attendance.
- * Sent asynchronously after the bulk upsert — never blocks the teacher's response.
- */
 export const sendAdminAttendanceNotification = async (params: {
-  schoolId: string;
+  schoolId?: string;
   teacherId: string | null;
   dateStr: string;
   session: string | null;
@@ -956,17 +882,15 @@ export const sendAdminAttendanceNotification = async (params: {
   absentCount: number;
   excusedCount: number;
 }) => {
-  const { schoolId, teacherId, dateStr, session, totalCount, presentCount, lateCount, absentCount, excusedCount } = params;
+  const { teacherId, dateStr, session, totalCount, presentCount, lateCount, absentCount, excusedCount } = params;
 
   try {
     const { sendCategoryNotification } = require('./notification.service');
 
-    // Fetch school name and all admin users with a push token in parallel
-    const [school, adminUsers, teacher] = await Promise.all([
-      prisma.school.findUnique({ where: { id: schoolId }, select: { name: true } }),
+    const [settings, adminUsers, teacher] = await Promise.all([
+      prisma.schoolSettings.findFirst(),
       prisma.user.findMany({
         where: {
-          schoolId,
           role: 'admin',
           pushToken: { not: null },
           is_active: true,
@@ -980,11 +904,10 @@ export const sendAdminAttendanceNotification = async (params: {
 
     if (!adminUsers || adminUsers.length === 0) return;
 
-    const schoolName  = school?.name || 'School';
+    const schoolName  = settings?.school_name || 'Addis Hiwot School';
     const teacherName = teacher?.name || 'A teacher';
     const sessionLabel = session ? ` (${session})` : '';
 
-    // Build compact status summary: e.g. "✅ 28  ⚠️ 2  ❌ 1"
     const parts: string[] = [];
     if (presentCount > 0) parts.push(`✅ ${presentCount} Present`);
     if (lateCount    > 0) parts.push(`⏰ ${lateCount} Late`);
@@ -1004,10 +927,9 @@ export const sendAdminAttendanceNotification = async (params: {
         title,
         body,
         route:         '/school/admin',
-        schoolId,
         schoolName,
         categoryLabel: 'Attendance Alert',
-        tag:           `attendance-admin-${schoolId}-${dateStr}`,
+        tag:           `attendance-admin-${dateStr}`,
       }).catch((err: any) => {
         console.error(`[AdminNotification] Push error for admin ${admin.id}:`, err);
         return null;
@@ -1016,7 +938,6 @@ export const sendAdminAttendanceNotification = async (params: {
       if (result === 'EXPIRED_TOKEN') expiredIds.push(admin.id);
     }
 
-    // Clear stale tokens
     if (expiredIds.length > 0) {
       prisma.user.updateMany({
         where: { id: { in: expiredIds } },
@@ -1027,4 +948,3 @@ export const sendAdminAttendanceNotification = async (params: {
     console.error('[AdminNotification] Failed to send admin attendance notification:', err);
   }
 };
-

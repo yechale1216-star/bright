@@ -11,14 +11,11 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
     role: string;
-    schoolId: string; // The internal UUID used for filtering
-    customSchoolId?: string; // The SCH-XXXX ID
   };
 }
 
 /**
  * Middleware to verify JWT and extract user context in Single-School mode.
- * Every request must pass through this or a public route.
  */
 export const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -31,7 +28,7 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
     '/health'
   ];
 
-  const url = req.originalUrl.split('?')[0]; // strip query string for comparison
+  const url = req.originalUrl.split('?')[0];
   if (publicPaths.some(path => url.startsWith(path))) {
     return next();
   }
@@ -50,17 +47,6 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
 
   try {
     const decoded = jwt.verify(token, getJwtSecret()) as any;
-    
-    // In Single-School architecture, fallback to the authoritative single school if missing
-    let schoolId = decoded.schoolId;
-    let customSchoolId = decoded.customSchoolId;
-
-    if (!schoolId) {
-      const singleSchool = await getSingleSchool();
-      schoolId = singleSchool.id;
-      customSchoolId = singleSchool.schoolId;
-    }
-
     let role = decoded.role;
 
     let requestedRole = req.headers['x-requested-role'] as string | undefined;
@@ -77,28 +63,24 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
       }
     }
 
-    if (schoolId) {
-      const cacheKey = `role:${decoded.id}:${schoolId}:${requestedRole || ''}`;
-      let contextRole = await cacheGet(cacheKey);
+    const cacheKey = `role:${decoded.id}:${requestedRole || ''}`;
+    let contextRole = await cacheGet(cacheKey);
 
-      if (!contextRole) {
-        contextRole = await resolveRoleInSchool(decoded.id, schoolId, requestedRole);
-        if (contextRole) {
-          await cacheSetEx(cacheKey, 300, contextRole); // 5 min TTL
-        }
-      }
-
+    if (!contextRole) {
+      contextRole = await resolveRoleInSchool(decoded.id, undefined, requestedRole);
       if (contextRole) {
-        role = contextRole;
+        await cacheSetEx(cacheKey, 300, contextRole);
       }
+    }
+
+    if (contextRole) {
+      role = contextRole;
     }
 
     req.user = {
       id: decoded.id,
       email: decoded.email,
       role: role || decoded.role,
-      schoolId: schoolId,
-      customSchoolId: customSchoolId,
     };
     
     next();

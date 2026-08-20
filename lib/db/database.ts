@@ -961,6 +961,14 @@ class Database extends BaseDatabase {
     }
     return result.data
   }
+
+  async getSystemRoles(includeInactive = false): Promise<any[]> {
+    const result = await apiFetch<{ success: boolean; data: any[] }>(
+      `${API_URL}/api/roles?includeInactive=${includeInactive}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    ).catch(() => ({ success: true, data: [] }))
+    return result.data || []
+  }
 }
 
 export const db = new Database()

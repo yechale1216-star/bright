@@ -1,27 +1,25 @@
 import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
 
-// Helpers for the rules
 const isP = (s: string | undefined): boolean => s?.toLowerCase() === 'present';
 const isL = (s: string | undefined): boolean => s?.toLowerCase() === 'late';
 const isE = (s: string | undefined): boolean => s?.toLowerCase() === 'excused';
 const isA = (s: string | undefined): boolean => s?.toLowerCase() === 'absent';
 const isAttendance = (s: string | undefined): boolean => isP(s) || isL(s);
 
-export const getAttendanceSummary = async (schoolId: string, filters: any) => {
+export const getAttendanceSummary = async (_schoolId: string | undefined, filters: any) => {
   const { startDate, endDate, academicYear, session, grade, section, stream, mode } = filters;
   const isFullDay = !session || session === 'total';
   const isSessionMode = mode === 'session_based';
 
-  const where: any = { schoolId };
+  const where: any = {};
 
-  // Scope to active academic year unless academicYear filter is 'all'
   if (!academicYear || academicYear === 'current' || academicYear === 'active') {
-    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAY = await academicYearService.getCurrentAcademicYear();
     if (activeAY) where.academicYearId = activeAY.id;
   } else if (academicYear && academicYear !== 'all') {
     const targetAY = await prisma.academicYear.findUnique({
-      where: { schoolId_name: { schoolId, name: academicYear } }
+      where: { name: academicYear }
     });
     if (targetAY) where.academicYearId = targetAY.id;
   }
@@ -40,8 +38,7 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
     where.session = null;
   }
 
-  // Filter attendance by student attributes if provided
-  const studentWhere: any = { schoolId };
+  const studentWhere: any = {};
   if (grade && grade !== 'all') studentWhere.grade = { name: grade };
   if (section && section !== 'all') studentWhere.section = { name: section };
   if (stream && stream !== 'all') studentWhere.stream = { name: stream };
@@ -62,7 +59,6 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
     allRecords.forEach(rec => {
       const recHasSession = !!rec.session;
       
-      // Strict mode isolation
       if (isSessionMode && !recHasSession) return;
       if (!isSessionMode && recHasSession) return;
 
@@ -85,7 +81,6 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
 
       if (m !== undefined || a !== undefined) {
         if (m !== undefined && a !== undefined) {
-          // Both sessions recorded
           if (isP(m) && isP(a)) present++;
           else if (isAttendance(m) && isAttendance(a)) late++;
           else if (isE(m) && isE(a)) excused++;
@@ -99,53 +94,52 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
       }
     });
 
-    const totalEntries = present + late + excused + absent;
-    const attendanceRate = totalEntries > 0
-      ? Math.round(((present + late + excused) / totalEntries) * 100)
-      : 0;
+    const totalRecorded = present + late + excused + absent;
 
     return {
       totalStudents,
+      totalRecorded,
       present,
       late,
       excused,
       absent,
-      attendanceRate
+      attendanceRate: totalRecorded > 0
+        ? Math.round(((present + late + excused) / totalRecorded) * 100)
+        : 0
     };
   } else {
-    // Single session view — fetch records and deduplicate by studentId + date to guarantee unique counts
-    const stats = {
-      totalStudents,
-      present: 0,
-      absent: 0,
-      late: 0,
-      excused: 0,
-      attendanceRate: 0
-    };
-
-    const allRecords = await prisma.attendance.findMany({
+    const records = await prisma.attendance.findMany({
       where,
-      select: { studentId: true, date: true, status: true },
-      orderBy: { updatedAt: 'desc' }
+      select: { studentId: true, status: true, date: true }
     });
 
-    const uniqueStudentDate = new Map<string, string>(); // `${studentId}||${dateStr}` -> status
-    allRecords.forEach(rec => {
-      const dateStr = rec.date.toISOString().split('T')[0];
-      const key = `${rec.studentId}||${dateStr}`;
-      if (!uniqueStudentDate.has(key)) {
-        uniqueStudentDate.set(key, rec.status.toLowerCase());
+    const byDateStudent: Record<string, string> = {};
+    records.forEach(r => {
+      const dateStr = r.date.toISOString().split('T')[0];
+      const key = `${r.studentId}||${dateStr}`;
+      if (!byDateStudent[key]) {
+        byDateStudent[key] = r.status.toLowerCase();
       }
     });
 
-    uniqueStudentDate.forEach(s => {
-      if (s === 'present') stats.present++;
-      else if (s === 'absent') stats.absent++;
-      else if (s === 'late') stats.late++;
-      else if (s === 'excused') stats.excused++;
+    const stats = {
+      totalStudents,
+      totalRecorded: Object.keys(byDateStudent).length,
+      present: 0,
+      late: 0,
+      excused: 0,
+      absent: 0,
+      attendanceRate: 0
+    };
+
+    Object.values(byDateStudent).forEach(status => {
+      if (status === 'present') stats.present++;
+      else if (status === 'late') stats.late++;
+      else if (status === 'excused') stats.excused++;
+      else if (status === 'absent') stats.absent++;
     });
 
-    const totalRecorded = stats.present + stats.absent + stats.late + stats.excused;
+    const totalRecorded = stats.present + stats.late + stats.excused + stats.absent;
     stats.attendanceRate = totalRecorded > 0
       ? Math.round(((stats.present + stats.late + stats.excused) / totalRecorded) * 100)
       : 0;
@@ -154,12 +148,12 @@ export const getAttendanceSummary = async (schoolId: string, filters: any) => {
   }
 };
 
-export const getGradeStats = async (schoolId: string, filters: any) => {
+export const getGradeStats = async (_schoolId: string | undefined, filters: any) => {
   const { startDate, endDate, session, grade, section, stream, mode } = filters;
   const isFullDay = !session || session === 'total';
   const isSessionMode = mode === 'session_based';
 
-  const where: any = { schoolId };
+  const where: any = {};
   if (startDate || endDate) {
     where.date = {};
     if (startDate) where.date.gte = new Date(startDate);
@@ -173,8 +167,7 @@ export const getGradeStats = async (schoolId: string, filters: any) => {
     where.session = null;
   }
 
-  // Filter by student attributes if provided
-  const studentWhere: any = { schoolId };
+  const studentWhere: any = {};
   if (grade && grade !== 'all') studentWhere.grade = { name: grade };
   if (section && section !== 'all') studentWhere.section = { name: section };
   if (stream && stream !== 'all') studentWhere.stream = { name: stream };
@@ -285,20 +278,19 @@ export const getGradeStats = async (schoolId: string, filters: any) => {
   });
 };
 
-export const getAttendanceTrends = async (schoolId: string, filters: any) => {
+export const getAttendanceTrends = async (_schoolId: string | undefined, filters: any) => {
   const { startDate, endDate, grade, section, stream, session, mode } = filters;
   const isFullDay = !session || session === 'total';
   const isSessionMode = mode === 'session_based';
 
-  const where: any = { schoolId };
+  const where: any = {};
   if (startDate || endDate) {
     where.date = {};
     if (startDate) where.date.gte = new Date(startDate);
     if (endDate) where.date.lte = new Date(endDate);
   }
 
-  // Filter records by student attributes if provided
-  const studentWhere: any = { schoolId };
+  const studentWhere: any = {};
   if (grade && grade !== 'all') studentWhere.grade = { name: grade };
   if (section && section !== 'all') studentWhere.section = { name: section };
   if (stream && stream !== 'all') studentWhere.stream = { name: stream };
@@ -362,12 +354,11 @@ export const getAttendanceTrends = async (schoolId: string, filters: any) => {
   }).sort((a, b) => a.date.localeCompare(b.date));
 };
 
-export const getDrillDownStats = async (schoolId: string, gradeId: string, filters: any) => {
+export const getDrillDownStats = async (_schoolId: string | undefined, gradeId: string, filters: any) => {
   const { startDate, endDate, sectionId, streamId, mode } = filters;
   const isSessionMode = mode === 'session_based';
   
   const where: any = { 
-    schoolId, 
     gradeId, 
     ...(sectionId && sectionId !== 'all' ? { sectionId } : {}), 
     ...(streamId && streamId !== 'all' ? { streamId } : {}) 
@@ -380,7 +371,6 @@ export const getDrillDownStats = async (schoolId: string, gradeId: string, filte
       stream: true,
       attendance: {
         where: { 
-          schoolId, 
           ...(startDate || endDate ? { 
             date: { 
               ...(startDate ? { gte: new Date(startDate) } : {}), 

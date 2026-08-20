@@ -16,24 +16,20 @@ export interface UpdateAcademicYearInput {
 
 export class AcademicYearService {
   /**
-   * Get all academic years for a school sorted by startDate descending
+   * Get all academic years sorted by startDate descending
    */
-  async getAcademicYears(schoolId: string) {
+  async getAcademicYears(_schoolId?: string) {
     let academicYears = await prisma.academicYear.findMany({
-      where: { schoolId },
       orderBy: { startDate: 'desc' },
     });
 
-    // Auto-create initial default academic years if school has none
     if (academicYears.length === 0) {
       const now = new Date();
       const currentYear = now.getFullYear();
       
-      // Default initial records (e.g. 2017 E.C. and 2018 E.C.)
       await prisma.$transaction([
         prisma.academicYear.create({
           data: {
-            schoolId,
             name: `${currentYear - 1}/${currentYear} E.C.`,
             startDate: new Date(`${currentYear - 1}-09-11`),
             endDate: new Date(`${currentYear}-07-07`),
@@ -42,7 +38,6 @@ export class AcademicYearService {
         }),
         prisma.academicYear.create({
           data: {
-            schoolId,
             name: `${currentYear}/${currentYear + 1} E.C.`,
             startDate: new Date(`${currentYear}-09-11`),
             endDate: new Date(`${currentYear + 1}-07-07`),
@@ -52,7 +47,6 @@ export class AcademicYearService {
       ]);
 
       academicYears = await prisma.academicYear.findMany({
-        where: { schoolId },
         orderBy: { startDate: 'desc' },
       });
     }
@@ -61,15 +55,15 @@ export class AcademicYearService {
   }
 
   /**
-   * Get the current active academic year for a school
+   * Get the current active academic year
    */
-  async getCurrentAcademicYear(schoolId: string) {
+  async getCurrentAcademicYear(_schoolId?: string) {
     let current = await prisma.academicYear.findFirst({
-      where: { schoolId, isCurrent: true },
+      where: { isCurrent: true },
     });
 
     if (!current) {
-      const allYears = await this.getAcademicYears(schoolId);
+      const allYears = await this.getAcademicYears();
       current = allYears.find(y => y.isCurrent) || allYears[0] || null;
     }
 
@@ -79,8 +73,9 @@ export class AcademicYearService {
   /**
    * Create a new academic year
    */
-  async createAcademicYear(schoolId: string, data: CreateAcademicYearInput) {
-    const { name, startDate, endDate, isCurrent } = data;
+  async createAcademicYear(_schoolId?: string, data?: any) {
+    const input: CreateAcademicYearInput = data;
+    const { name, startDate, endDate, isCurrent } = input;
 
     if (!name || !name.trim()) throw new Error('Academic year name is required');
     if (!startDate || !endDate) throw new Error('Start date and End date are required');
@@ -94,26 +89,22 @@ export class AcademicYearService {
 
     const trimmedName = name.trim();
 
-    // Check duplicate name for school
     const existing = await prisma.academicYear.findUnique({
-      where: { schoolId_name: { schoolId, name: trimmedName } },
+      where: { name: trimmedName },
     });
     if (existing) {
-      throw new Error(`Academic year "${trimmedName}" already exists for this school`);
+      throw new Error(`Academic year "${trimmedName}" already exists`);
     }
 
     return await prisma.$transaction(async (tx) => {
-      // If setting as current, reset other academic years' isCurrent to false
       if (isCurrent) {
         await tx.academicYear.updateMany({
-          where: { schoolId },
           data: { isCurrent: false },
         });
       }
 
       const newYear = await tx.academicYear.create({
         data: {
-          schoolId,
           name: trimmedName,
           startDate: start,
           endDate: end,
@@ -121,11 +112,10 @@ export class AcademicYearService {
         },
       });
 
-      // Update school settings if active
       if (isCurrent) {
         await tx.schoolSettings.upsert({
-          where: { schoolId },
-          create: { schoolId, academic_year: trimmedName },
+          where: { id: 'singleton' },
+          create: { id: 'singleton', academic_year: trimmedName },
           update: { academic_year: trimmedName },
         });
       }
@@ -137,9 +127,9 @@ export class AcademicYearService {
   /**
    * Update an existing academic year
    */
-  async updateAcademicYear(schoolId: string, id: string, data: UpdateAcademicYearInput) {
-    const yearRecord = await prisma.academicYear.findFirst({
-      where: { id, schoolId },
+  async updateAcademicYear(_schoolId: string | undefined, id: string, data: UpdateAcademicYearInput) {
+    const yearRecord = await prisma.academicYear.findUnique({
+      where: { id },
     });
     if (!yearRecord) throw new Error('Academic year record not found');
 
@@ -155,12 +145,10 @@ export class AcademicYearService {
     return await prisma.$transaction(async (tx) => {
       if (data.isCurrent === true) {
         await tx.academicYear.updateMany({
-          where: { schoolId },
           data: { isCurrent: false },
         });
         updatePayload.isCurrent = true;
       } else if (data.isCurrent === false && yearRecord.isCurrent) {
-        // Don't allow deactivating if it's the only one, or allow it
         updatePayload.isCurrent = false;
       }
 
@@ -171,8 +159,8 @@ export class AcademicYearService {
 
       if (updated.isCurrent) {
         await tx.schoolSettings.upsert({
-          where: { schoolId },
-          create: { schoolId, academic_year: updated.name },
+          where: { id: 'singleton' },
+          create: { id: 'singleton', academic_year: updated.name },
           update: { academic_year: updated.name },
         });
       }
@@ -182,31 +170,27 @@ export class AcademicYearService {
   }
 
   /**
-   * Set a specific academic year as the single active year for the school
+   * Set a specific academic year as the single active year
    */
-  async activateAcademicYear(schoolId: string, id: string) {
-    const target = await prisma.academicYear.findFirst({
-      where: { id, schoolId },
+  async activateAcademicYear(_schoolId: string | undefined, id: string) {
+    const target = await prisma.academicYear.findUnique({
+      where: { id },
     });
     if (!target) throw new Error('Academic year not found');
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Set all to false
       await tx.academicYear.updateMany({
-        where: { schoolId },
         data: { isCurrent: false },
       });
 
-      // 2. Set target to true
       const activeYear = await tx.academicYear.update({
         where: { id },
         data: { isCurrent: true },
       });
 
-      // 3. Keep SchoolSettings in sync
       await tx.schoolSettings.upsert({
-        where: { schoolId },
-        create: { schoolId, academic_year: activeYear.name },
+        where: { id: 'singleton' },
+        create: { id: 'singleton', academic_year: activeYear.name },
         update: { academic_year: activeYear.name },
       });
 
@@ -215,14 +199,13 @@ export class AcademicYearService {
   }
 
   /**
-   * Ensure there is an active academic year for the school; throws if none found.
-   * Use this in write-path service methods that must operate on a defined active year.
+   * Ensure there is an active academic year; throws if none found.
    */
-  async ensureActiveAcademicYear(schoolId: string) {
-    const active = await this.getCurrentAcademicYear(schoolId);
+  async ensureActiveAcademicYear(_schoolId?: string) {
+    const active = await this.getCurrentAcademicYear();
     if (!active) {
       throw new Error(
-        'No active academic year is configured for this school. Please activate an academic year before performing this operation.'
+        'No active academic year is configured. Please activate an academic year before performing this operation.'
       );
     }
     return active;
@@ -231,9 +214,9 @@ export class AcademicYearService {
   /**
    * Delete an academic year record
    */
-  async deleteAcademicYear(schoolId: string, id: string) {
-    const target = await prisma.academicYear.findFirst({
-      where: { id, schoolId },
+  async deleteAcademicYear(_schoolId: string | undefined, id: string) {
+    const target = await prisma.academicYear.findUnique({
+      where: { id },
     });
     if (!target) throw new Error('Academic year not found');
     if (target.isCurrent) throw new Error('Cannot delete the currently active academic year. Activate another academic year first.');

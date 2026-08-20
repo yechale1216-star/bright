@@ -9,14 +9,12 @@ const router = Router();
 router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const { category, priority, search, isRead } = req.query;
 
     const whereClause: any = {
       userId,
-      ...(schoolId ? { schoolId } : {}),
     };
 
     if (category && category !== 'ALL') {
@@ -42,7 +40,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     });
 
     const unreadCount = await (prisma as any).userNotification.count({
-      where: { userId, ...(schoolId ? { schoolId } : {}), isRead: false },
+      where: { userId, isRead: false },
     });
 
     res.status(200).json({ success: true, data: notifications, unreadCount });
@@ -58,11 +56,9 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
     }
 
     const { targetUserId, targetRole, studentId, title, message, category, priority, metadata } = req.body;
-    const schoolId = req.user?.schoolId;
 
     if (targetRole) {
       const result = await UnifiedNotificationService.broadcastRole({
-        schoolId,
         targetRole,
         title,
         message,
@@ -75,7 +71,6 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
 
     if (studentId) {
       const result = await UnifiedNotificationService.sendToParent({
-        schoolId,
         studentId,
         title,
         message,
@@ -89,7 +84,6 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
     if (targetUserId) {
       const result = await UnifiedNotificationService.sendToUser({
         userId: targetUserId,
-        schoolId,
         title,
         message,
         category,
@@ -127,11 +121,10 @@ router.patch('/:id/read', async (req: AuthenticatedRequest, res: Response, next:
 router.patch('/read-all', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     await (prisma as any).userNotification.updateMany({
-      where: { userId, ...(schoolId ? { schoolId } : {}), isRead: false },
+      where: { userId, isRead: false },
       data: { isRead: true },
     });
 
@@ -159,11 +152,10 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next: Nex
 router.delete('/clear-all', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     await (prisma as any).userNotification.deleteMany({
-      where: { userId, ...(schoolId ? { schoolId } : {}) },
+      where: { userId },
     });
 
     res.status(200).json({ success: true });

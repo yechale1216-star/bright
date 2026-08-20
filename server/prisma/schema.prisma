@@ -8,55 +8,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model School {
-  id                   String                  @id @default(uuid())
-  schoolId             String?                 @unique
-  name                 String
-  schoolEmail          String?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
-  attendance           Attendance[]
-  callHistories        CallHistory[]
-  callParticipants     CallParticipant[]
-  callSessions         CallSession[]
-  conversations        Conversation[]
-  grades               Grade[]
-  messages             Message[]
-  messageReactions     MessageReaction[]
-  messageReads         MessageRead[]
-  parentNotifications  ParentNotification[]
-  parentStudentLinks   ParentStudentLink[]
-  pendingRegistrations PendingRegistration[]
-  settings             SchoolSettings?
-  sections             Section[]
-  streams              Stream[]
-  students             Student[]
-  promotions           StudentPromotion[]
-  teachers             Teacher[]
-  assignments          TeacherAssignment[]
-  users                User[]
-  reports              AttendanceReport[]
-  auditLogs            AuditLog[]
-  supportTickets       SupportTicket[]
-  userNotifications    UserNotification[]
-  disciplines          StudentDiscipline[]
-  disciplineCategories DisciplineCategory[]
-  disciplineActions    DisciplineActionConfig[]
-  systemRoles          SystemRole[]
-  academicYears        AcademicYear[]
-  studentAcademicYearRecords StudentAcademicYearRecord[]
-  academicTerms        AcademicTerm[]
-  subjects             Subject[]
-  classrooms           Classroom[]
-  timetables           Timetable[]
-  timetablePeriods     TimetablePeriod[]
-  timetableSlots       TimetableSlot[]
-  attendanceEditRequests AttendanceEditRequest[]
-  staffAttendance      StaffAttendance[]
-  staffFaceEnrollments StaffFaceEnrollment[]
-  holidays             SchoolHoliday[]
-}
-
 model User {
   id                         String               @id @default(uuid())
   email                      String               @unique
@@ -66,7 +17,6 @@ model User {
   phone                      String?              @unique
   is_active                  Boolean              @default(true)
   teacher_id                 String?
-  schoolId                   String?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   experience_years           Int?
@@ -88,7 +38,6 @@ model User {
   messageReactions           MessageReaction[]
   messageReads               MessageRead[]
   parentStudents             ParentStudentLink[]
-  school                     School?              @relation(fields: [schoolId], references: [id])
   notifications              UserNotification[]
   reportedDisciplines        StudentDiscipline[]  @relation("ReportedBy")
   assignedDisciplines        StudentDiscipline[]  @relation("AssignedOfficer")
@@ -102,14 +51,12 @@ model User {
   enrolledFaces              StaffFaceEnrollment[] @relation("FaceEnrollmentAdmin")
 
   @@index([email])
-  @@index([schoolId])
 }
 
 model Teacher {
   id               String              @id @default(uuid())
   name             String
   email            String?             @unique
-  schoolId         String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   experience_years Int?
@@ -120,32 +67,26 @@ model Teacher {
   user_id          String?             @unique
   profile_photo    String?
   attendance       Attendance[]
-  school           School?             @relation(fields: [schoolId], references: [id])
   assignments      TeacherAssignment[]
   timetableSlots   TimetableSlot[]     @relation("AssignedTeacher")
   substituteSlots  TimetableSlot[]     @relation("SubstituteTeacher")
   attendanceEditRequests AttendanceEditRequest[]
-
-  @@index([schoolId])
 }
 
 model TeacherAssignment {
   id         String   @id @default(uuid())
   teacher_id String
-  schoolId   String?
   gradeId    String
   sectionId  String
   subject    String?
   streamId   String?
   createdAt  DateTime @default(now())
   grade      Grade    @relation(fields: [gradeId], references: [id])
-  school     School?  @relation(fields: [schoolId], references: [id])
   section    Section  @relation(fields: [sectionId], references: [id])
   stream     Stream?  @relation(fields: [streamId], references: [id])
   teacher    Teacher  @relation(fields: [teacher_id], references: [id])
 
-  @@unique([schoolId, gradeId, sectionId, streamId])
-  @@index([schoolId])
+  @@unique([gradeId, sectionId, streamId])
   @@index([teacher_id])
   @@index([gradeId])
   @@index([sectionId])
@@ -153,182 +94,154 @@ model TeacherAssignment {
 }
 
 model SchoolSettings {
-  id                   String   @id @default(uuid())
-  schoolId             String?  @unique
-  school_name          String?
-  school_phone         String?
-  school_address       String?
-  academic_year        String?
-  attendance_mode      String   @default("session_based")
-  attendance_ui_type   String   @default("card_based")
-  attendance_threshold Int      @default(75)
-  allow_late_mark      Boolean  @default(true)
-  email_notifications      Boolean  @default(true)
-  sms_notifications        Boolean  @default(false)
-  notification_time        String   @default("16:00")
-  allow_attendance_editing Boolean  @default(true)
-  restrict_location         Boolean  @default(false)
-  school_latitude           Float?
-  school_longitude          Float?
-  allowed_radius_meters     Int      @default(200)
-  allow_outside_attendance  Boolean  @default(true)
-  calendar_type             String   @default("ETHIOPIAN")
-  // Staff Attendance & Working Schedule Settings
-  staff_attendance_mode                 String   @default("daily") // "daily" | "session_based"
-  staff_sessions                        Json?    // Array of session configs: [{ id, name, startTime, endTime, lateGraceMinutes, earlyDepartureToleranceMinutes, isActive }]
+  id                                    String   @id @default("singleton")
+  school_name                           String?  @default("Addis Hiwot School")
+  school_phone                          String?
+  school_address                        String?
+  academic_year                         String?
+  attendance_mode                       String   @default("session_based")
+  attendance_ui_type                    String   @default("card_based")
+  attendance_threshold                  Int      @default(75)
+  allow_late_mark                       Boolean  @default(true)
+  email_notifications                   Boolean  @default(true)
+  sms_notifications                     Boolean  @default(false)
+  notification_time                     String   @default("16:00")
+  allow_attendance_editing              Boolean  @default(true)
+  restrict_location                     Boolean  @default(false)
+  school_latitude                       Float?
+  school_longitude                      Float?
+  allowed_radius_meters                 Int      @default(200)
+  allow_outside_attendance             Boolean  @default(true)
+  calendar_type                         String   @default("ETHIOPIAN")
+  staff_attendance_mode                 String   @default("daily")
+  staff_sessions                        Json?
   staff_working_days                    String   @default("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY")
-  staff_work_start_time                 String?  @default("08:00") // Expected start time (HH:MM)
-  staff_work_end_time                   String?  @default("17:00") // Expected end time (HH:MM)
-  staff_late_grace_minutes              Int      @default(15)      // Late grace period in minutes
-  staff_early_checkout_tolerance_minutes Int     @default(15)      // Early departure tolerance in minutes
-  staff_absence_cutoff_minutes          Int      @default(120)     // Cutoff minutes before auto-absent
-  staff_absence_cutoff_time             String?  @default("10:00") // Calculated/configured absence cutoff time (HH:MM)
-  staff_earliest_checkin_time           String?  @default("06:00") // Earliest allowed check-in
-  staff_latest_checkout_time            String?  @default("20:00") // Latest allowed check-out
-  staff_checkin_start   String?          // earliest allowed check-in e.g. "06:00"
-  staff_checkin_late    String?          // legacy fallback
-  staff_checkout_early  String?          // legacy fallback
-  staff_face_required   Boolean  @default(true)   // require face verification
-  staff_geo_required    Boolean  @default(true)   // require geofence for staff
-  allow_staff_checkin_after_cutoff Boolean @default(false) // whether staff can check in after absence cutoff
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  school_logo           String?
-  school                School?  @relation(fields: [schoolId], references: [id])
+  staff_work_start_time                 String?  @default("08:00")
+  staff_work_end_time                   String?  @default("17:00")
+  staff_late_grace_minutes              Int      @default(15)
+  staff_early_checkout_tolerance_minutes Int     @default(15)
+  staff_absence_cutoff_minutes          Int      @default(120)
+  staff_absence_cutoff_time             String?  @default("10:00")
+  staff_earliest_checkin_time           String?  @default("06:00")
+  staff_latest_checkout_time            String?  @default("20:00")
+  staff_checkin_start                   String?
+  staff_checkin_late                    String?
+  staff_checkout_early                  String?
+  staff_face_required                   Boolean  @default(true)
+  staff_geo_required                    Boolean  @default(true)
+  allow_staff_checkin_after_cutoff      Boolean  @default(false)
+  createdAt                             DateTime @default(now())
+  updatedAt                             DateTime @updatedAt
+  school_logo                           String?
 }
 
 model SchoolHoliday {
   id          String   @id @default(uuid())
-  schoolId    String
   name        String
   description String?
-  startDate   DateTime // UTC midnight
-  endDate     DateTime // UTC midnight
-  type        String   @default("PUBLIC_HOLIDAY") // PUBLIC_HOLIDAY | RELIGIOUS_HOLIDAY | SCHOOL_HOLIDAY | SPECIAL_CLOSURE | OTHER
+  startDate   DateTime
+  endDate     DateTime
+  type        String   @default("PUBLIC_HOLIDAY")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
-  @@index([schoolId, startDate, endDate])
-  @@index([schoolId, isActive])
+  @@index([startDate, endDate])
+  @@index([isActive])
   @@map("school_holidays")
 }
 
 model Grade {
-  id             String              @id @default(uuid())
-  schoolId       String?
-  name           String
-  school         School?             @relation(fields: [schoolId], references: [id])
-  students       Student[]
+  id                         String                      @id @default(uuid())
+  name                       String                      @unique
+  students                   Student[]
   studentAcademicYearRecords StudentAcademicYearRecord[]
-  fromPromotions StudentPromotion[]  @relation("FromGrade")
-  toPromotions   StudentPromotion[]  @relation("ToGrade")
-  assignments    TeacherAssignment[]
-  disciplines    StudentDiscipline[]
-  timetables     Timetable[]
-  timetableSlots TimetableSlot[]
-
-  @@unique([schoolId, name])
-  @@index([schoolId])
+  fromPromotions             StudentPromotion[]          @relation("FromGrade")
+  toPromotions               StudentPromotion[]          @relation("ToGrade")
+  assignments                TeacherAssignment[]
+  disciplines                StudentDiscipline[]
+  timetables                 Timetable[]
+  timetableSlots             TimetableSlot[]
 }
 
 model Section {
-  id             String              @id @default(uuid())
-  schoolId       String?
-  name           String
-  school         School?             @relation(fields: [schoolId], references: [id])
-  students       Student[]
+  id                         String                      @id @default(uuid())
+  name                       String                      @unique
+  students                   Student[]
   studentAcademicYearRecords StudentAcademicYearRecord[]
-  fromPromotions StudentPromotion[]  @relation("FromSection")
-  toPromotions   StudentPromotion[]  @relation("ToSection")
-  assignments    TeacherAssignment[]
-  disciplines    StudentDiscipline[]
-  timetables     Timetable[]
-  timetableSlots TimetableSlot[]
-
-  @@unique([schoolId, name])
-  @@index([schoolId])
+  fromPromotions             StudentPromotion[]          @relation("FromSection")
+  toPromotions               StudentPromotion[]          @relation("ToSection")
+  assignments                TeacherAssignment[]
+  disciplines                StudentDiscipline[]
+  timetables                 Timetable[]
+  timetableSlots             TimetableSlot[]
 }
 
 model Stream {
-  id             String              @id @default(uuid())
-  schoolId       String?
-  name           String
-  school         School?             @relation(fields: [schoolId], references: [id])
-  students       Student[]
+  id                         String                      @id @default(uuid())
+  name                       String                      @unique
+  students                   Student[]
   studentAcademicYearRecords StudentAcademicYearRecord[]
-  fromPromotions StudentPromotion[]  @relation("FromStream")
-  toPromotions   StudentPromotion[]  @relation("ToStream")
-  assignments    TeacherAssignment[]
-  disciplines    StudentDiscipline[]
-  timetables     Timetable[]
-  timetableSlots TimetableSlot[]
-
-  @@unique([schoolId, name])
-  @@index([schoolId])
+  fromPromotions             StudentPromotion[]          @relation("FromStream")
+  toPromotions               StudentPromotion[]          @relation("ToStream")
+  assignments                TeacherAssignment[]
+  disciplines                StudentDiscipline[]
+  timetables                 Timetable[]
+  timetableSlots             TimetableSlot[]
 }
 
 model Student {
-  id                  String               @id @default(uuid())
-  student_id          String
-  parent_email        String
-  parent_phone        String
-  parent_name         String
-  gender              String?
-  date_of_birth       String?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  fullName            String
-  status              String               @default("ACTIVE")
-  gradeId             String
-  schoolId            String?
-  sectionId           String
-  streamId            String?
-  address             String?
-  attendance          Attendance[]
-  parentNotifications ParentNotification[]
-  parentStudents      ParentStudentLink[]
-  disciplines         StudentDiscipline[]
-  grade               Grade                @relation(fields: [gradeId], references: [id])
-  school              School?              @relation(fields: [schoolId], references: [id])
-  section             Section              @relation(fields: [sectionId], references: [id])
-  stream              Stream?              @relation(fields: [streamId], references: [id])
-  promotions          StudentPromotion[]
-  academicRecords     StudentAcademicYearRecord[]
+  id                     String                      @id @default(uuid())
+  student_id             String                      @unique
+  parent_email           String
+  parent_phone           String
+  parent_name            String
+  gender                 String?
+  date_of_birth          String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+  fullName               String
+  status                 String                      @default("ACTIVE")
+  gradeId                String
+  sectionId              String
+  streamId               String?
+  address                String?
+  attendance             Attendance[]
+  parentNotifications    ParentNotification[]
+  parentStudents         ParentStudentLink[]
+  disciplines            StudentDiscipline[]
+  grade                  Grade                       @relation(fields: [gradeId], references: [id])
+  section                Section                     @relation(fields: [sectionId], references: [id])
+  stream                 Stream?                     @relation(fields: [streamId], references: [id])
+  promotions             StudentPromotion[]
+  academicRecords        StudentAcademicYearRecord[]
   attendanceEditRequests AttendanceEditRequest[]
 
-  @@unique([student_id, schoolId])
-  @@index([schoolId])
   @@index([gradeId])
   @@index([sectionId])
   @@index([streamId])
 }
 
 model StudentAcademicYearRecord {
-  id              String        @id @default(uuid())
-  schoolId        String
-  studentId       String
-  academicYearId  String
-  gradeId         String
-  sectionId       String
-  streamId        String?
-  status          String        @default("ACTIVE") // ACTIVE, PROMOTED, REPEATED, GRADUATED, TRANSFERRED, DROPPED
-  enrolledAt      DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String       @id @default(uuid())
+  studentId      String
+  academicYearId String
+  gradeId        String
+  sectionId      String
+  streamId       String?
+  status         String       @default("ACTIVE")
+  enrolledAt     DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  academicYear    AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  grade           Grade         @relation(fields: [gradeId], references: [id])
-  section         Section       @relation(fields: [sectionId], references: [id])
-  stream          Stream?       @relation(fields: [streamId], references: [id])
-  attendance      Attendance[]
-  disciplines     StudentDiscipline[]
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  grade        Grade        @relation(fields: [gradeId], references: [id])
+  section      Section      @relation(fields: [sectionId], references: [id])
+  stream       Stream?      @relation(fields: [streamId], references: [id])
+  attendance   Attendance[]
+  disciplines  StudentDiscipline[]
 
   @@unique([studentId, academicYearId])
-  @@index([schoolId])
   @@index([academicYearId])
   @@index([studentId])
   @@index([gradeId, sectionId])
@@ -338,7 +251,6 @@ model StudentAcademicYearRecord {
 
 model StudentPromotion {
   id               String   @id @default(uuid())
-  schoolId         String
   studentId        String
   academicYear     String
   fromGradeId      String
@@ -353,77 +265,68 @@ model StudentPromotion {
   fromGrade        Grade    @relation("FromGrade", fields: [fromGradeId], references: [id])
   fromSection      Section  @relation("FromSection", fields: [fromSectionId], references: [id])
   fromStream       Stream?  @relation("FromStream", fields: [fromStreamId], references: [id])
-  school           School   @relation(fields: [schoolId], references: [id])
   student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   toGrade          Grade?   @relation("ToGrade", fields: [toGradeId], references: [id])
   toSection        Section? @relation("ToSection", fields: [toSectionId], references: [id])
   toStream         Stream?  @relation("ToStream", fields: [toStreamId], references: [id])
 
-  @@index([schoolId])
   @@index([studentId])
   @@index([fromGradeId])
   @@index([toGradeId])
 }
 
 model Attendance {
-  id        String   @id @default(uuid())
-  studentId String
-  academicYearId String?
+  id                   String                     @id @default(uuid())
+  studentId            String
+  academicYearId       String?
   academicYearRecordId String?
-  date      DateTime @default(now())
-  status    String
-  session   String?
-  remarks          String?
-  latitude         Float?
-  longitude        Float?
-  locationVerified Boolean? @default(false)
-  locationDistance Float?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  schoolId         String?
-  teacherId        String?
-  school           School?  @relation(fields: [schoolId], references: [id])
-  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacher          Teacher? @relation(fields: [teacherId], references: [id])
-  academicYear     AcademicYear? @relation(fields: [academicYearId], references: [id])
-  academicYearRecord StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
+  date                 DateTime                   @default(now())
+  status               String
+  session              String?
+  remarks              String?
+  latitude             Float?
+  longitude            Float?
+  locationVerified     Boolean?                   @default(false)
+  locationDistance     Float?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  teacherId            String?
+  student              Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher              Teacher?                   @relation(fields: [teacherId], references: [id])
+  academicYear         AcademicYear?              @relation(fields: [academicYearId], references: [id])
+  academicYearRecord   StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
 
   @@unique([studentId, date, session])
   @@index([studentId])
-  @@index([schoolId])
   @@index([academicYearId])
   @@index([academicYearRecordId])
   @@index([date])
   @@index([session])
   @@index([status])
-  @@index([schoolId, date])
-  @@index([schoolId, date, status])
-  @@index([schoolId, academicYearId, date])
-  @@index([schoolId, teacherId, date])
+  @@index([date, status])
+  @@index([academicYearId, date])
+  @@index([teacherId, date])
 }
 
 model AttendanceEditRequest {
-  id               String    @id @default(uuid())
-  schoolId         String
-  teacherId        String
-  studentId        String?
-  gradeId          String?
-  sectionId        String?
-  date             DateTime
-  session          String?
-  reason           String?
-  status           String    @default("PENDING")
-  adminNote        String?
-  processedBy      String?
-  processedAt      DateTime?
-  isUsed           Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacher          Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  student          Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  id          String    @id @default(uuid())
+  teacherId   String
+  studentId   String?
+  gradeId     String?
+  sectionId   String?
+  date        DateTime
+  session     String?
+  reason      String?
+  status      String    @default("PENDING")
+  adminNote   String?
+  processedBy String?
+  processedAt DateTime?
+  isUsed      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  teacher     Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  student     Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
-  @@index([schoolId])
   @@index([teacherId])
   @@index([status])
   @@index([date])
@@ -432,7 +335,6 @@ model AttendanceEditRequest {
 
 model AuditLog {
   id          String   @id @default(uuid())
-  schoolId    String?
   user_id     String?
   action      String
   entity_type String
@@ -440,15 +342,12 @@ model AuditLog {
   old_values  Json?
   new_values  Json?
   created_at  DateTime @default(now())
-  school      School?  @relation(fields: [schoolId], references: [id])
 
-  @@index([schoolId])
   @@map("audit_logs")
 }
 
 model AttendanceReport {
   id                    String   @id @default(uuid())
-  schoolId              String?
   student_id            String
   class_id              String
   month                 Int
@@ -461,93 +360,77 @@ model AttendanceReport {
   attendance_percentage Decimal  @default(0.00) @db.Decimal(5, 2)
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
-  school                School?  @relation(fields: [schoolId], references: [id])
 
   @@unique([student_id, month, year])
-  @@index([schoolId])
   @@map("attendance_reports")
 }
 
 model ParentStudentLink {
   id               String   @id @default(uuid())
-  schoolId         String?
   parentId         String
   studentId        String
   relationshipType String?  @default("Guardian")
   createdAt        DateTime @default(now())
   parent           User     @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  school           School?  @relation(fields: [schoolId], references: [id])
   student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, studentId])
   @@index([parentId])
-  @@index([schoolId])
 }
 
 model ParentNotification {
   id             String   @id @default(uuid())
-  schoolId       String?
   studentId      String?
-  type           String   // absent, late, announcement, emergency, warning
-  category       String   @default("GENERAL") // ATTENDANCE, DISCIPLINE, ACADEMIC, ANNOUNCEMENT, SYSTEM
-  priority       String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  type           String
+  category       String   @default("GENERAL")
+  priority       String   @default("NORMAL")
   title          String
   message        String
-  targetRole     String?  // ALL_PARENTS, SPECIFIC_GRADE, etc.
-  targetAudience String?  @default("GENERAL") // GENERAL | PARENTS | STAFF
-  metadata       String?  // JSON stringified payload / deep links
+  targetRole     String?
+  targetAudience String?  @default("GENERAL")
+  metadata       String?
   isRead         Boolean  @default(false)
   createdAt      DateTime @default(now())
-  school         School?  @relation(fields: [schoolId], references: [id])
   student        Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
   @@index([studentId])
-  @@index([schoolId, createdAt])
-  @@index([schoolId, targetAudience])
+  @@index([createdAt])
+  @@index([targetAudience])
 }
 
 model ParentPreferences {
   id                 String   @id @default(uuid())
-  parentPhone        String
+  parentPhone        String   @unique
   emailNotifications Boolean  @default(true)
   smsNotifications   Boolean  @default(false)
   pushNotifications  Boolean  @default(true)
   updatedAt          DateTime @updatedAt
-  schoolId           String?
-
-  @@unique([parentPhone, schoolId])
 }
 
 model Conversation {
-  id                String               @id @default(uuid())
-  name              String?
-  isGroup           Boolean              @default(false)
-  avatar            String?
-  description       String?
-  groupType         String?              // GRADE | PARENT | TEACHER | STAFF | ANNOUNCEMENT | CUSTOM
-  isAnnouncement    Boolean              @default(false)
-  isSavedMessages   Boolean              @default(false)
-  savedMessagesFor  String?              // userId of the owner
-  createdBy         String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  schoolId          String?
-  school            School?              @relation(fields: [schoolId], references: [id])
-  members           ConversationMember[]
-  messages          Message[]
-  pinnedMessages    PinnedMessage[]
-  savedBookmarks    SavedBookmark[]
-
-  @@unique([savedMessagesFor, schoolId])
-  @@index([schoolId])
+  id               String               @id @default(uuid())
+  name             String?
+  isGroup          Boolean              @default(false)
+  avatar           String?
+  description      String?
+  groupType        String?
+  isAnnouncement   Boolean              @default(false)
+  isSavedMessages  Boolean              @default(false)
+  savedMessagesFor String?              @unique
+  createdBy        String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  members          ConversationMember[]
+  messages         Message[]
+  pinnedMessages   PinnedMessage[]
+  savedBookmarks   SavedBookmark[]
 }
 
 model ConversationMember {
   id             String       @id @default(uuid())
   conversationId String
   userId         String
-  role           String       @default("MEMBER") // OWNER | ADMIN | MEMBER
+  role           String       @default("MEMBER")
   isMuted        Boolean      @default(false)
   mutedUntil     DateTime?
   lastSeenAt     DateTime?
@@ -560,41 +443,37 @@ model ConversationMember {
   @@unique([conversationId, userId])
   @@index([conversationId])
   @@index([userId])
-  @@index([userId, conversationId])     // presence scoping: find all convs for a user
+  @@index([userId, conversationId])
 }
 
 model Message {
-  id               String            @id @default(uuid())
-  schoolId         String?
-  conversationId   String
-  senderId         String
-  content          String?
-  type             String            @default("TEXT")
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  editedAt         DateTime?
-  isDeleted        Boolean           @default(false)
-  replyToId        String?
-  forwardedFromId  String?
-  attachments      Json?
-  metadata         Json?
-  conversation     Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  replyTo          Message?          @relation("Replies", fields: [replyToId], references: [id])
-  replies          Message[]         @relation("Replies")
-  school           School?           @relation(fields: [schoolId], references: [id])
-  sender           User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  reactions        MessageReaction[]
-  readBy           MessageRead[]
-  pinnedIn         PinnedMessage[]
-  savedBookmarks   SavedBookmark[]
+  id              String            @id @default(uuid())
+  conversationId  String
+  senderId        String
+  content         String?
+  type            String            @default("TEXT")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  editedAt        DateTime?
+  isDeleted       Boolean           @default(false)
+  replyToId       String?
+  forwardedFromId String?
+  attachments     Json?
+  metadata        Json?
+  conversation    Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo         Message?          @relation("Replies", fields: [replyToId], references: [id])
+  replies         Message[]         @relation("Replies")
+  sender          User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reactions       MessageReaction[]
+  readBy          MessageRead[]
+  pinnedIn        PinnedMessage[]
+  savedBookmarks  SavedBookmark[]
 
   @@index([conversationId])
-  @@index([conversationId, createdAt])   // message pagination — avoids full-table sort
-  @@index([conversationId, createdAt, id]) // composite index for cursor-based pagination
-  @@index([schoolId, conversationId])    // tenant-scoped conversation message fetch
+  @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, id])
   @@index([senderId])
   @@index([createdAt])
-  @@index([schoolId])
 }
 
 model PinnedMessage {
@@ -628,7 +507,6 @@ model SavedBookmark {
 
 model UserBlock {
   id        String   @id @default(uuid())
-  schoolId  String?
   blockerId String
   blockedId String
   createdAt DateTime @default(now())
@@ -639,86 +517,72 @@ model UserBlock {
   @@unique([blockerId, blockedId])
   @@index([blockerId])
   @@index([blockedId])
-  @@index([schoolId])
   @@map("user_blocks")
 }
 
 model MessageRead {
   id        String   @id @default(uuid())
-  schoolId  String?
   messageId String
   userId    String
   readAt    DateTime @default(now())
   message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  school    School?  @relation(fields: [schoolId], references: [id])
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([messageId])
   @@index([userId])
-  @@index([schoolId])
 }
 
 model MessageReaction {
   id        String   @id @default(uuid())
-  schoolId  String?
   messageId String
   userId    String
   emoji     String
   createdAt DateTime @default(now())
   message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  school    School?  @relation(fields: [schoolId], references: [id])
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId, emoji])
   @@index([messageId])
   @@index([userId])
-  @@index([schoolId])
 }
 
 model CallSession {
   id               String            @id @default(uuid())
-  callId           String?           @unique // signaling callId from client
-  schoolId         String?
+  callId           String?           @unique
   conversationId   String?
   type             String            @default("VOICE")
   status           String            @default("ONGOING")
   startTime        DateTime          @default(now())
   answerTime       DateTime?
   endTime          DateTime?
-  duration         Int?              // seconds, filled on end
-  disconnectReason String?           // ENDED | CANCELLED | MISSED | DECLINED | FAILED | BUSY
-  networkQuality   String?           // GOOD | POOR | BAD (from initiator stats)
+  duration         Int?
+  disconnectReason String?
+  networkQuality   String?
   createdAt        DateTime          @default(now())
   history          CallHistory[]
   participants     CallParticipant[]
-  school           School?           @relation(fields: [schoolId], references: [id])
 
-  @@index([schoolId])
   @@index([callId])
 }
 
 model CallParticipant {
   id            String      @id @default(uuid())
-  schoolId      String?
   callSessionId String
   userId        String
   joinedAt      DateTime    @default(now())
   leftAt        DateTime?
   callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
-  school        School?     @relation(fields: [schoolId], references: [id])
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([callSessionId, userId])
-  @@index([schoolId])
 }
 
 model CallHistory {
   id               String      @id @default(uuid())
-  schoolId         String?
-  callId           String?     // matches CallSession.callId
-  userId           String      // caller
-  recipientId      String?     // callee
+  callId           String?
+  userId           String
+  recipientId      String?
   callSessionId    String
   type             String
   status           String
@@ -728,17 +592,14 @@ model CallHistory {
   disconnectReason String?
   createdAt        DateTime    @default(now())
   callSession      CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
-  school           School?     @relation(fields: [schoolId], references: [id])
   user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
   @@index([userId])
   @@index([callId])
 }
 
 model PendingRegistration {
   id            String   @id
-  schoolId      String?
   email         String   @unique
   password_hash String
   full_name     String
@@ -748,11 +609,9 @@ model PendingRegistration {
   token         String   @unique
   expires_at    DateTime
   createdAt     DateTime @default(now())
-  school        School?  @relation(fields: [schoolId], references: [id])
 
   @@index([email])
   @@index([token])
-  @@index([schoolId])
 }
 
 model PlatformConfig {
@@ -777,7 +636,6 @@ model PlatformConfig {
 model SupportTicket {
   id           String   @id @default(cuid())
   ticketNumber String   @unique
-  schoolId     String
   authorId     String?
   subject      String
   description  String
@@ -788,9 +646,7 @@ model SupportTicket {
   resolution   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
   @@index([status])
   @@map("support_tickets")
 }
@@ -808,7 +664,6 @@ model BroadcastLog {
 
 model SystemRole {
   id          String   @id @default(uuid())
-  schoolId    String?
   key         String
   name        String
   description String?
@@ -819,110 +674,96 @@ model SystemRole {
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  school      School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
   @@index([key])
   @@map("system_roles")
 }
 
-
-
 model UserNotification {
   id         String   @id @default(uuid())
-  schoolId   String?
   userId     String
-  type       String   // INFO, WARNING, ALERT, MESSAGE, SYSTEM
-  category   String   @default("GENERAL") // ATTENDANCE, DISCIPLINE, ACADEMIC, ANNOUNCEMENT, SYSTEM, MESSAGE
-  priority   String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  type       String
+  category   String   @default("GENERAL")
+  priority   String   @default("NORMAL")
   title      String
   message    String
-  targetRole String?  // ALL_TEACHERS, SCHOOL_ADMINS, etc.
-  metadata   String?  // JSON stringified payload
+  targetRole String?
+  metadata   String?
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
-  school     School?  @relation(fields: [schoolId], references: [id])
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
   @@index([userId])
-  @@index([schoolId, createdAt])
+  @@index([createdAt])
 }
 
 model DisciplineCategory {
   id          String              @id @default(uuid())
-  schoolId    String?
-  name        String
+  name        String              @unique
   description String?
   isDefault   Boolean             @default(false)
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
-  school      School?             @relation(fields: [schoolId], references: [id])
   disciplines StudentDiscipline[]
 
-  @@unique([schoolId, name])
-  @@index([schoolId])
   @@map("discipline_categories")
 }
 
 model StudentDiscipline {
-  id                        String               @id @default(uuid())
-  caseNumber                String?
-  schoolId                  String
-  studentId                 String
-  academicYearId            String?
-  academicYearRecordId      String?
-  gradeId                   String
-  sectionId                 String
-  streamId                  String?
-  date                      DateTime             @default(now())
-  time                      String?
-  categoryId                String?
-  categoryName              String
-  severity                  String               @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
-  title                     String
-  description               String
-  location                  String?
-  reportedById              String?
-  reportedByName            String?
-  assignedToId              String?
-  assignedToName            String?
-  witnesses                 Json?
-  evidence                  Json?                // Array of { url, name, type, size }
-  immediateAction           String?
-  investigationNotes        String?
-  findings                  String?
-  meetingNotes              String?
-  recommendedAction         String?
-  approvedAction            String?
-  actionDate                DateTime?
-  responsibleStaffName      String?
-  actionStatus              String?              @default("PENDING") // PENDING, APPROVED, IN_PROGRESS, COMPLETED
-  confidentialNotes         String?
-  parentNotified            Boolean              @default(false)
-  parentNotifiedAt          DateTime?
-  parentAcknowledged        Boolean              @default(false)
-  parentAcknowledgedAt      DateTime?
+  id                         String                     @id @default(uuid())
+  caseNumber                 String?
+  studentId                  String
+  academicYearId             String?
+  academicYearRecordId       String?
+  gradeId                    String
+  sectionId                  String
+  streamId                   String?
+  date                       DateTime                   @default(now())
+  time                       String?
+  categoryId                 String?
+  categoryName               String
+  severity                   String                     @default("LOW")
+  title                      String
+  description                String
+  location                   String?
+  reportedById               String?
+  reportedByName             String?
+  assignedToId               String?
+  assignedToName             String?
+  witnesses                  Json?
+  evidence                   Json?
+  immediateAction            String?
+  investigationNotes         String?
+  findings                   String?
+  meetingNotes               String?
+  recommendedAction          String?
+  approvedAction             String?
+  actionDate                 DateTime?
+  responsibleStaffName       String?
+  actionStatus               String?                    @default("PENDING")
+  confidentialNotes          String?
+  parentNotified             Boolean                    @default(false)
+  parentNotifiedAt           DateTime?
+  parentAcknowledged         Boolean                    @default(false)
+  parentAcknowledgedAt       DateTime?
   parentAcknowledgementNotes String?
-  followUpDate              DateTime?
-  resolutionNotes           String?
-  status                    String               @default("OPEN") // OPEN, UNDER_REVIEW, INVESTIGATION, ACTION_REQUIRED, RESOLVED, CLOSED
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime             @updatedAt
+  followUpDate               DateTime?
+  resolutionNotes            String?
+  status                     String                     @default("OPEN")
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
 
-  school                    School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student                   Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  academicYear              AcademicYear?        @relation(fields: [academicYearId], references: [id])
-  academicYearRecord        StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
-  grade                     Grade                @relation(fields: [gradeId], references: [id])
-  section                   Section              @relation(fields: [sectionId], references: [id])
-  stream                    Stream?              @relation(fields: [streamId], references: [id])
-  reportedBy                User?                @relation("ReportedBy", fields: [reportedById], references: [id])
-  assignedTo                User?                @relation("AssignedOfficer", fields: [assignedToId], references: [id])
-  category                  DisciplineCategory?  @relation(fields: [categoryId], references: [id])
-  followUps                 DisciplineFollowUp[]
+  student            Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear       AcademicYear?              @relation(fields: [academicYearId], references: [id])
+  academicYearRecord StudentAcademicYearRecord? @relation(fields: [academicYearRecordId], references: [id])
+  grade              Grade                      @relation(fields: [gradeId], references: [id])
+  section            Section                    @relation(fields: [sectionId], references: [id])
+  stream             Stream?                    @relation(fields: [streamId], references: [id])
+  reportedBy         User?                      @relation("ReportedBy", fields: [reportedById], references: [id])
+  assignedTo         User?                      @relation("AssignedOfficer", fields: [assignedToId], references: [id])
+  category           DisciplineCategory?        @relation(fields: [categoryId], references: [id])
+  followUps          DisciplineFollowUp[]
 
-  @@index([schoolId])
   @@index([studentId])
   @@index([academicYearId])
   @@index([academicYearRecordId])
@@ -933,23 +774,19 @@ model StudentDiscipline {
   @@index([date])
   @@index([caseNumber])
   @@index([assignedToId])
-  @@index([schoolId, academicYearId, status])
-  @@index([schoolId, academicYearId, date])
+  @@index([academicYearId, status])
+  @@index([academicYearId, date])
   @@map("student_disciplines")
 }
 
 model DisciplineActionConfig {
   id          String   @id @default(uuid())
-  schoolId    String?
-  name        String
+  name        String   @unique
   description String?
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  school      School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  @@unique([schoolId, name])
-  @@index([schoolId])
   @@map("discipline_action_configs")
 }
 
@@ -964,37 +801,32 @@ model DisciplineFollowUp {
   statusAfter  String?
   createdAt    DateTime          @default(now())
 
-  discipline   StudentDiscipline @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
-  author       User?             @relation(fields: [authorId], references: [id])
+  discipline StudentDiscipline @relation(fields: [disciplineId], references: [id], onDelete: Cascade)
+  author     User?             @relation(fields: [authorId], references: [id])
 
   @@index([disciplineId])
   @@map("discipline_followups")
 }
 
 model AcademicYear {
-  id          String         @id @default(uuid())
-  schoolId    String
-  name        String
-  startDate   DateTime
-  endDate     DateTime
-  isCurrent   Boolean        @default(false)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  terms       AcademicTerm[]
-  timetables  Timetable[]
+  id             String                      @id @default(uuid())
+  name           String                      @unique
+  startDate      DateTime
+  endDate        DateTime
+  isCurrent      Boolean                     @default(false)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  terms          AcademicTerm[]
+  timetables     Timetable[]
   studentRecords StudentAcademicYearRecord[]
-  attendance  Attendance[]
-  disciplines StudentDiscipline[]
+  attendance     Attendance[]
+  disciplines    StudentDiscipline[]
 
-  @@unique([schoolId, name])
-  @@index([schoolId])
   @@map("academic_years")
 }
 
 model AcademicTerm {
   id             String       @id @default(uuid())
-  schoolId       String
   academicYearId String
   name           String
   startDate      DateTime
@@ -1002,39 +834,32 @@ model AcademicTerm {
   isCurrent      Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   timetables     Timetable[]
 
   @@unique([academicYearId, name])
-  @@index([schoolId])
   @@index([academicYearId])
   @@map("academic_terms")
 }
 
 model Subject {
   id          String          @id @default(uuid())
-  schoolId    String
   name        String
-  code        String
+  code        String          @unique
   department  String?
   color       String          @default("#3b82f6")
   description String?
   isActive    Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  school      School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   slots       TimetableSlot[]
 
-  @@unique([schoolId, code])
-  @@index([schoolId])
   @@map("subjects")
 }
 
 model Classroom {
   id        String          @id @default(uuid())
-  schoolId  String
-  name      String
+  name      String          @unique
   code      String?
   building  String?
   floor     String?
@@ -1043,17 +868,13 @@ model Classroom {
   isActive  Boolean         @default(true)
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
-  school    School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   slots     TimetableSlot[]
 
-  @@unique([schoolId, name])
-  @@index([schoolId])
   @@map("classrooms")
 }
 
 model Timetable {
   id                 String          @id @default(uuid())
-  schoolId           String
   title              String
   academicYearId     String?
   termId             String?
@@ -1069,7 +890,6 @@ model Timetable {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   academicYear AcademicYear? @relation(fields: [academicYearId], references: [id])
   term         AcademicTerm? @relation(fields: [termId], references: [id])
   grade        Grade         @relation(fields: [gradeId], references: [id])
@@ -1078,7 +898,6 @@ model Timetable {
   createdBy    User?         @relation(fields: [createdById], references: [id])
   slots        TimetableSlot[]
 
-  @@index([schoolId])
   @@index([gradeId])
   @@index([sectionId])
   @@index([status])
@@ -1087,26 +906,21 @@ model Timetable {
 
 model TimetablePeriod {
   id           String          @id @default(uuid())
-  schoolId     String
   name         String
-  periodNumber Int
+  periodNumber Int             @unique
   startTime    String
   endTime      String
   isBreak      Boolean         @default(false)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
-  school       School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   slots        TimetableSlot[]
 
-  @@unique([schoolId, periodNumber])
-  @@index([schoolId])
   @@map("timetable_periods")
 }
 
 model TimetableSlot {
   id                  String           @id @default(uuid())
   timetableId         String
-  schoolId            String
   dayOfWeek           String
   periodId            String?
   periodNumber        Int
@@ -1125,7 +939,6 @@ model TimetableSlot {
   updatedAt           DateTime         @updatedAt
 
   timetable         Timetable        @relation(fields: [timetableId], references: [id], onDelete: Cascade)
-  school            School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   period            TimetablePeriod? @relation(fields: [periodId], references: [id])
   subject           Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher           Teacher?         @relation("AssignedTeacher", fields: [teacherId], references: [id])
@@ -1136,7 +949,6 @@ model TimetableSlot {
   stream            Stream?          @relation(fields: [streamId], references: [id])
 
   @@index([timetableId])
-  @@index([schoolId])
   @@index([teacherId])
   @@index([classroomId])
   @@index([dayOfWeek, periodNumber])
@@ -1144,31 +956,25 @@ model TimetableSlot {
   @@map("timetable_slots")
 }
 
-// ─── Staff Attendance ────────────────────────────────────────────────────────
-
 model StaffFaceEnrollment {
   id             String   @id @default(uuid())
-  schoolId       String
   userId         String   @unique
-  descriptor     Json     // 128-d Float32Array serialised as number[]
-  enrolledBy     String   // admin userId who enrolled
+  descriptor     Json
+  enrolledBy     String
   enrolledAt     DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user           User     @relation("FaceEnrollmentUser", fields: [userId], references: [id], onDelete: Cascade)
   enrolledByUser User     @relation("FaceEnrollmentAdmin", fields: [enrolledBy], references: [id])
 
-  @@index([schoolId])
   @@map("staff_face_enrollments")
 }
 
 model StaffAttendance {
   id                String    @id @default(uuid())
-  schoolId          String
   userId            String
-  date              DateTime  // UTC midnight of the attendance date
-  session           String?   @default("daily") // "daily" or session identifier ("morning", "afternoon", etc.)
-  status            String    // PRESENT | LATE | ABSENT | EARLY_DEPARTURE | LEAVE | PERMISSION
+  date              DateTime
+  session           String?   @default("daily")
+  status            String
   checkInTime       DateTime?
   checkOutTime      DateTime?
   checkInLatitude   Float?
@@ -1178,26 +984,22 @@ model StaffAttendance {
   geofenceVerified  Boolean   @default(false)
   geofenceDistance  Float?
   faceVerified      Boolean   @default(false)
-  faceConfidence    Float?    // 0.0..1.0  (1 - euclidean distance)
+  faceConfidence    Float?
   remarks           String?
-  markedAbsentBy    String?   // userId of admin if manually set absent
-  correctedBy       String?   // userId of admin who manually corrected
-  correctedAt       DateTime? // timestamp of last correction
-  previousStatus    String?   // original status before correction
-  previousCheckIn   DateTime? // original check-in before correction
-  correctionReason  String?   // mandatory reason text for manual changes
+  markedAbsentBy    String?
+  correctedBy       String?
+  correctedAt       DateTime?
+  previousStatus    String?
+  previousCheckIn   DateTime?
+  correctionReason  String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([schoolId, userId, date, session])
-  @@index([schoolId, date])
+  @@unique([userId, date, session])
   @@index([userId, date])
-  @@index([schoolId, date, session])
-  @@index([schoolId, status])
-  @@index([schoolId, userId])
+  @@index([date])
+  @@index([status])
   @@index([session])
   @@map("staff_attendance")
 }
-

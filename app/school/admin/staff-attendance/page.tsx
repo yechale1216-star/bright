@@ -63,7 +63,7 @@ const StaffFaceEnrollModal = dynamic(
   { ssr: false }
 )
 
-const ROLE_BADGES: Record<string, { label: string; color: string; dotColor: string }> = {
+const DEFAULT_ROLE_BADGES: Record<string, { label: string; color: string; dotColor: string }> = {
   admin: {
     label: "Admin",
     color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
@@ -223,6 +223,111 @@ export default function AdminStaffAttendanceDashboard() {
   // Load all users for leave dropdown
   const [allUsers, setAllUsers] = useState<any[]>([])
 
+  // Dynamic roles state (all system and created custom roles)
+  const [availableRoles, setAvailableRoles] = useState<any[]>([])
+
+  const loadRoles = useCallback(async () => {
+    try {
+      const rolesData = await db.getSystemRoles(true)
+      setAvailableRoles(rolesData || [])
+    } catch (err) {
+      console.error("Failed to load staff roles:", err)
+    }
+  }, [])
+
+  // Dynamically compute all unique staff roles from:
+  // 1. Configured system and custom roles from DB (/api/roles)
+  // 2. Any active roles found on loaded users / records
+  // 3. Fallback to default base staff roles
+  const dynamicRoleOptions = useMemo(() => {
+    const roleMap = new Map<string, { key: string; label: string; color?: string }>()
+
+    // 1. Add from DB roles (system + custom created roles)
+    availableRoles.forEach((r) => {
+      if (r.key && !["parent", "student"].includes(r.key)) {
+        roleMap.set(r.key, {
+          key: r.key,
+          label: r.name || r.key.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          color: r.color,
+        })
+      }
+    })
+
+    // 2. Ensure base default roles exist if not yet in roleMap
+    const baseDefaults: Array<{ key: string; label: string }> = [
+      { key: "teacher", label: "Teachers" },
+      { key: "registrar", label: "Registrars" },
+      { key: "discipline_officer", label: "Discipline Officers" },
+      { key: "staff", label: "General Staff" },
+      { key: "school_admin", label: "School Admins" },
+      { key: "admin", label: "Admins" },
+    ]
+
+    baseDefaults.forEach((def) => {
+      if (!roleMap.has(def.key)) {
+        roleMap.set(def.key, { key: def.key, label: def.label })
+      }
+    })
+
+    // 3. Include any roles that exist on loaded users/records that might not be in DB roles
+    allUsers.forEach((u) => {
+      if (u.role && !["parent", "student"].includes(u.role) && !roleMap.has(u.role)) {
+        roleMap.set(u.role, {
+          key: u.role,
+          label: u.role.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        })
+      }
+    })
+
+    records.forEach((r) => {
+      const uRole = r.user?.role
+      if (uRole && !["parent", "student"].includes(uRole) && !roleMap.has(uRole)) {
+        roleMap.set(uRole, {
+          key: uRole,
+          label: uRole.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        })
+      }
+    })
+
+    return Array.from(roleMap.values())
+  }, [availableRoles, allUsers, records])
+
+  // Get dynamic role badge info with color support
+  const getRoleBadge = useCallback(
+    (roleKey?: string) => {
+      if (!roleKey) {
+        return {
+          label: "Staff",
+          color: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/20",
+          dotColor: "bg-slate-400",
+          isHex: false,
+        }
+      }
+
+      if (DEFAULT_ROLE_BADGES[roleKey]) {
+        return { ...DEFAULT_ROLE_BADGES[roleKey], isHex: false }
+      }
+
+      const foundCustom = availableRoles.find((r) => r.key === roleKey)
+      if (foundCustom) {
+        return {
+          label: foundCustom.name || roleKey.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25",
+          dotColor: foundCustom.color || "#6366f1",
+          isHex: !!foundCustom.color && foundCustom.color.startsWith("#"),
+        }
+      }
+
+      return {
+        label: roleKey.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        color: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/20",
+        dotColor: "bg-slate-400",
+        isHex: false,
+      }
+    },
+    [availableRoles]
+  )
+
   const checkOfflineQueue = useCallback(async () => {
     try {
       const queue = await getOfflineStaffQueue()
@@ -321,11 +426,13 @@ export default function AdminStaffAttendanceDashboard() {
     fetchData()
     checkOfflineQueue()
     loadAllUsers()
+    loadRoles()
 
     const handleDataChanged = () => {
       fetchStats()
       fetchData()
       checkOfflineQueue()
+      loadRoles()
       if (activeTab === "reports") fetchReport()
     }
 
@@ -338,18 +445,23 @@ export default function AdminStaffAttendanceDashboard() {
         checkOfflineQueue()
         fetchData()
         fetchStats()
+        loadRoles()
       } catch (err) {
         console.error("Offline sync error:", err)
       }
     }
 
     window.addEventListener("staffAttendanceDataChanged", handleDataChanged)
+    window.addEventListener("userDataChanged", handleDataChanged)
+    window.addEventListener("roleDataChanged", handleDataChanged)
     window.addEventListener("online", handleOnline)
     return () => {
       window.removeEventListener("staffAttendanceDataChanged", handleDataChanged)
+      window.removeEventListener("userDataChanged", handleDataChanged)
+      window.removeEventListener("roleDataChanged", handleDataChanged)
       window.removeEventListener("online", handleOnline)
     }
-  }, [fetchStats, fetchData, checkOfflineQueue, loadAllUsers, activeTab, fetchReport])
+  }, [fetchStats, fetchData, checkOfflineQueue, loadAllUsers, loadRoles, activeTab, fetchReport])
 
   useEffect(() => {
     if (activeTab === "reports") {
@@ -959,11 +1071,11 @@ export default function AdminStaffAttendanceDashboard() {
                 className="h-9 px-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
               >
                 <option value="all">All Staff Roles</option>
-                <option value="teacher">Teachers</option>
-                <option value="registrar">Registrars</option>
-                <option value="discipline_officer">Discipline Officers</option>
-                <option value="staff">General Staff</option>
-                <option value="admin">Admins</option>
+                {dynamicRoleOptions.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
 
               {/* Status */}
@@ -1058,11 +1170,7 @@ export default function AdminStaffAttendanceDashboard() {
                   </thead>
                   <tbody className="divide-y divide-white/30 dark:divide-white/5">
                     {records.map((rec) => {
-                      const roleBadge = ROLE_BADGES[rec.user?.role] || {
-                        label: rec.user?.role || "Staff",
-                        color: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20",
-                        dotColor: "bg-slate-400",
-                      }
+                      const roleBadge = getRoleBadge(rec.user?.role)
                       const sessCfg = isSessionMode
                         ? staffSessions.find(
                             (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
@@ -1093,7 +1201,10 @@ export default function AdminStaffAttendanceDashboard() {
                           {/* Role */}
                           <td className="px-5 py-4">
                             <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold backdrop-blur-md", roleBadge.color)}>
-                              <span className={cn("w-1.5 h-1.5 rounded-full", roleBadge.dotColor)} />
+                              <span
+                                className={cn("w-1.5 h-1.5 rounded-full", !roleBadge.isHex ? roleBadge.dotColor : "")}
+                                style={roleBadge.isHex ? { backgroundColor: roleBadge.dotColor } : undefined}
+                              />
                               {roleBadge.label}
                             </span>
                           </td>
@@ -1250,10 +1361,11 @@ export default function AdminStaffAttendanceDashboard() {
                 className="h-10 px-3.5 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
               >
                 <option value="all">All Roles</option>
-                <option value="teacher">Teachers</option>
-                <option value="registrar">Registrars</option>
-                <option value="discipline_officer">Discipline Officers</option>
-                <option value="staff">General Staff</option>
+                {dynamicRoleOptions.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
 
               <Button
@@ -1356,8 +1468,8 @@ export default function AdminStaffAttendanceDashboard() {
                                 <span className="font-bold text-slate-900 dark:text-white">{item.user?.full_name}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3.5 text-xs capitalize text-slate-600 dark:text-slate-400">
-                              {item.user?.role?.replace("_", " ")}
+                            <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-400 font-semibold">
+                              {getRoleBadge(item.user?.role).label}
                             </td>
                             <td className="px-4 py-3.5 text-center font-bold">{item.totalRecords}</td>
                             <td className="px-4 py-3.5 text-center font-bold text-emerald-600">{item.present}</td>
@@ -1417,8 +1529,8 @@ export default function AdminStaffAttendanceDashboard() {
                   <div>
                     <p className="font-black text-sm text-slate-900 dark:text-white">{detailRecord.user?.full_name}</p>
                     <p className="text-slate-500">{detailRecord.user?.email}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold text-[11px] capitalize">
-                      {detailRecord.user?.role?.replace("_", " ")}
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold text-[11px]">
+                      {getRoleBadge(detailRecord.user?.role).label}
                     </span>
                   </div>
                 </div>
@@ -1751,7 +1863,7 @@ export default function AdminStaffAttendanceDashboard() {
                     <option value="">Select a staff member...</option>
                     {allUsers.map((u) => (
                       <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.role?.replace("_", " ")})
+                        {u.full_name} ({getRoleBadge(u.role).label})
                       </option>
                     ))}
                   </select>

@@ -4,10 +4,6 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const getStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const gradeId = req.query.gradeId as string | undefined;
@@ -15,20 +11,16 @@ export const getStudents = async (req: AuthenticatedRequest, res: Response, next
     const streamId = req.query.streamId as string | undefined;
     const academicYear = req.query.academicYear as string | undefined;
 
-    const students = await studentService.getAllStudents(schoolId, search, status, gradeId, sectionId, streamId, academicYear);
+    const students = await studentService.getAllStudents(undefined, search, status, gradeId, sectionId, streamId, academicYear);
     res.status(200).json({ success: true, data: students });
   } catch (error) {
     next(error);
   }
 };
 
-export const getNextStudentId = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const getNextStudentId = async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
-    const nextId = await studentService.getNextStudentId(schoolId);
+    const nextId = await studentService.getNextStudentId();
     res.status(200).json({ success: true, data: nextId });
   } catch (error) {
     next(error);
@@ -37,11 +29,7 @@ export const getNextStudentId = async (req: AuthenticatedRequest, res: Response,
 
 export const createStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
-    const student = await studentService.createStudent(req.body, schoolId);
+    const student = await studentService.createStudent(req.body);
     res.status(201).json({ success: true, data: student });
   } catch (error) {
     next(error);
@@ -50,11 +38,7 @@ export const createStudent = async (req: AuthenticatedRequest, res: Response, ne
 
 export const getStudentById = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
-    const student = await studentService.getStudentById(req.params.id, schoolId);
+    const student = await studentService.getStudentById(req.params.id);
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
@@ -66,11 +50,7 @@ export const getStudentById = async (req: AuthenticatedRequest, res: Response, n
 
 export const updateStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
-    const student = await studentService.updateStudent(req.params.id, req.body, schoolId);
+    const student = await studentService.updateStudent(req.params.id, req.body);
     res.status(200).json({ success: true, data: student });
   } catch (error) {
     next(error);
@@ -79,13 +59,7 @@ export const updateStudent = async (req: AuthenticatedRequest, res: Response, ne
 
 export const deleteStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    console.log(`[StudentController] Delete requested. StudentID: ${req.params.id}, SchoolID: ${schoolId}, UserRole: ${req.user?.role}`);
-    
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
-    await studentService.deleteStudent(req.params.id, schoolId);
+    await studentService.deleteStudent(req.params.id);
     res.status(200).json({ success: true, message: 'Student deleted successfully' });
   } catch (error) {
     next(error);
@@ -94,29 +68,23 @@ export const deleteStudent = async (req: AuthenticatedRequest, res: Response, ne
 
 export const getStudentsByParentPhone = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
-    const students = await studentService.getStudentsByParentPhone(req.params.phone, schoolId);
+    const students = await studentService.getStudentsByParentPhone(req.params.phone);
     res.status(200).json({ success: true, data: students });
   } catch (error) {
     next(error);
   }
 };
+
 export const bulkCreateStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res.status(401).json({ success: false, message: 'School ID context missing' });
-    }
     const { students } = req.body;
     if (!Array.isArray(students)) {
       return res.status(400).json({ success: false, message: 'Invalid data format. Expected an array of students.' });
     }
-    const results = await studentService.bulkUpsertStudents(students, schoolId);
+    const results = await studentService.bulkUpsertStudents(students);
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     next(error);
   }
 };
+

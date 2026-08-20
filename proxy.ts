@@ -6,16 +6,12 @@ const PUBLIC_ROOT_FILES = new Set([
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
+  "/addis-hiwot-logo.png",
   "/offline.html",
   "/browserconfig.xml",
   "/icon.svg",
   "/placeholder.svg",
   "/placeholder-logo.svg",
-  "/zetime-logo.png",
-  "/zetime_branding_professional.png",
-  "/ethiopian_admin_attendance.png",
-  "/ethiopian_admin_attendance_v2.png",
-  "/ethiopian_admin_attendance_v3.png",
   "/firebase-messaging-sw.js",
   "/firebase-cloud-messaging-push-scope"
 ])

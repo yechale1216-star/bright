@@ -251,11 +251,11 @@ const ALLOWED_SETTINGS_FIELDS = new Set([
   'allow_staff_checkin_after_cutoff',
 ]);
 
-export const getSettings = async (schoolId: string) => {
-  let settings = await prisma.schoolSettings.findUnique({ where: { schoolId: schoolId } });
+export const getSettings = async (_schoolId?: string) => {
+  let settings = await prisma.schoolSettings.findFirst();
   if (!settings) {
     settings = await prisma.schoolSettings.create({
-      data: { ...DEFAULT_SETTINGS, schoolId: schoolId } as any,
+      data: { id: 'singleton', ...DEFAULT_SETTINGS } as any,
     });
   }
 
@@ -264,7 +264,7 @@ export const getSettings = async (schoolId: string) => {
 
   // Ensure settings.academic_year reflects the currently active AcademicYear record
   const activeAY = await prisma.academicYear.findFirst({
-    where: { schoolId, isCurrent: true },
+    where: { isCurrent: true },
     select: { name: true }
   });
 
@@ -275,11 +275,10 @@ export const getSettings = async (schoolId: string) => {
   return settings;
 };
 
-export const updateSettings = async (schoolId: string, data: any) => {
+export const updateSettings = async (_schoolId?: string, data?: any) => {
   const rawData: any = { ...data };
 
   // ── Authoritative Validation Before Persistence ──
-  // 1. If staff_sessions is supplied, validate Morning & Afternoon rules
   if (rawData.staff_sessions !== undefined) {
     const sessions = sanitizeStaffSessions(rawData.staff_sessions);
     const morning = sessions.find(s => s.id === 'morning') || sessions[0];
@@ -293,7 +292,6 @@ export const updateSettings = async (schoolId: string, data: any) => {
     rawData.staff_sessions = sessions as any;
   }
 
-  // 2. If daily work schedule fields are supplied, validate Daily schedule rules
   const hasDailyFields =
     rawData.staff_work_start_time !== undefined ||
     rawData.staff_work_end_time !== undefined ||
@@ -302,7 +300,7 @@ export const updateSettings = async (schoolId: string, data: any) => {
     rawData.staff_absence_cutoff_time !== undefined;
 
   if (hasDailyFields) {
-    const existing = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+    const existing = await prisma.schoolSettings.findFirst();
     const mergedDaily = {
       ...(existing || DEFAULT_SETTINGS),
       ...rawData,
@@ -314,7 +312,6 @@ export const updateSettings = async (schoolId: string, data: any) => {
     }
   }
 
-  // Filter out any unexpected or relation fields to prevent Prisma validation errors
   const sanitizedData: any = {};
   for (const key of Object.keys(rawData)) {
     if (ALLOWED_SETTINGS_FIELDS.has(key)) {
@@ -322,55 +319,25 @@ export const updateSettings = async (schoolId: string, data: any) => {
     }
   }
 
-  let settings: any;
-  try {
-    settings = await prisma.schoolSettings.upsert({
-      where: { schoolId: schoolId },
-      create: { ...DEFAULT_SETTINGS, ...sanitizedData, schoolId: schoolId } as any,
-      update: sanitizedData,
-    });
-  } catch (err: any) {
-    if (err?.message && err.message.includes('Unknown argument')) {
-      const fallbackData = { ...sanitizedData };
-      delete fallbackData.staff_absence_cutoff_minutes;
-      delete fallbackData.staff_absence_cutoff_time;
-      const fallbackDefaults = { ...DEFAULT_SETTINGS };
-      delete (fallbackDefaults as any).staff_absence_cutoff_minutes;
-      delete (fallbackDefaults as any).staff_absence_cutoff_time;
-      settings = await prisma.schoolSettings.upsert({
-        where: { schoolId: schoolId },
-        create: { ...fallbackDefaults, ...fallbackData, schoolId: schoolId } as any,
-        update: fallbackData,
-      });
-    } else {
-      throw err;
-    }
-  }
+  const settings: any = await prisma.schoolSettings.upsert({
+    where: { id: 'singleton' },
+    create: { id: 'singleton', ...DEFAULT_SETTINGS, ...sanitizedData } as any,
+    update: sanitizedData,
+  });
 
-  // Ensure output returns sanitized fixed sessions
   settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions) as any;
 
-  // Keep School table in sync if name changed
-  if (data.school_name) {
-    await prisma.school.update({
-      where: { id: schoolId },
-      data: { name: data.school_name }
-    });
-  }
-
   // Keep AcademicYear table in sync if academic_year changed
-  if (data.academic_year) {
+  if (data?.academic_year) {
     const ayName = String(data.academic_year).trim();
     if (ayName) {
       await prisma.$transaction(async (tx) => {
         await tx.academicYear.updateMany({
-          where: { schoolId },
           data: { isCurrent: false },
         });
         await tx.academicYear.upsert({
-          where: { schoolId_name: { schoolId, name: ayName } },
+          where: { name: ayName },
           create: {
-            schoolId,
             name: ayName,
             startDate: new Date(),
             endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
@@ -384,3 +351,4 @@ export const updateSettings = async (schoolId: string, data: any) => {
 
   return settings;
 };
+

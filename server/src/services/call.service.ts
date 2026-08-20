@@ -2,7 +2,6 @@ import prisma from '../config/db';
 
 export interface LogCallParams {
   callId?: string;
-  schoolId: string;
   userId: string;       // caller
   recipientId: string;  // callee
   conversationId?: string;
@@ -15,21 +14,15 @@ export interface LogCallParams {
   networkQuality?: string;
 }
 
-/**
- * Create a complete call log entry including a CallSession record and
- * a CallHistory record for the initiating user. All new fields are stored.
- */
 export const logCall = async (params: LogCallParams) => {
   const now = new Date();
 
-  // Create (or upsert by callId) the session record
   let session;
   if (params.callId) {
     session = await prisma.callSession.upsert({
       where: { callId: params.callId },
       create: {
         callId: params.callId,
-        schoolId: params.schoolId,
         conversationId: params.conversationId,
         type: params.type,
         status: params.status,
@@ -41,8 +34,8 @@ export const logCall = async (params: LogCallParams) => {
         networkQuality: params.networkQuality,
         participants: {
           create: [
-            { userId: params.userId, schoolId: params.schoolId },
-            { userId: params.recipientId, schoolId: params.schoolId },
+            { userId: params.userId },
+            { userId: params.recipientId },
           ],
         },
       },
@@ -58,7 +51,6 @@ export const logCall = async (params: LogCallParams) => {
   } else {
     session = await prisma.callSession.create({
       data: {
-        schoolId: params.schoolId,
         conversationId: params.conversationId,
         type: params.type,
         status: params.status,
@@ -70,19 +62,17 @@ export const logCall = async (params: LogCallParams) => {
         networkQuality: params.networkQuality,
         participants: {
           create: [
-            { userId: params.userId, schoolId: params.schoolId },
-            { userId: params.recipientId, schoolId: params.schoolId },
+            { userId: params.userId },
+            { userId: params.recipientId },
           ],
         },
       },
     });
   }
 
-  // Log CallHistory for the caller
   const historyEntry = await prisma.callHistory.create({
     data: {
       callId: params.callId,
-      schoolId: params.schoolId,
       userId: params.userId,
       recipientId: params.recipientId,
       callSessionId: session.id,
@@ -110,14 +100,9 @@ export const logCall = async (params: LogCallParams) => {
   return historyEntry;
 };
 
-/**
- * Fetch call history for a user within their school,
- * ordered by most recent first.
- */
-export const getCallHistory = async (schoolId: string, userId?: string, limit = 100) => {
+export const getCallHistory = async (_schoolId?: string, userId?: string, limit = 100) => {
   const historyRecords = await prisma.callHistory.findMany({
     where: {
-      schoolId,
       ...(userId ? { OR: [{ userId }, { recipientId: userId }] } : {}),
     },
     include: {
@@ -138,7 +123,6 @@ export const getCallHistory = async (schoolId: string, userId?: string, limit = 
     take: limit,
   });
 
-  // Extract recipient IDs to resolve user names and phone numbers
   const recipientIds = Array.from(
     new Set(historyRecords.map((r) => r.recipientId).filter(Boolean))
   ) as string[];

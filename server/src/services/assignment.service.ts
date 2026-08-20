@@ -1,12 +1,11 @@
 import prisma from '../config/db';
 
-export const getAssignments = async (schoolId: string, teacherId?: string) => {
-  if (!schoolId) throw new Error('School ID is required');
-  const where: any = { schoolId };
+export const getAssignments = async (_schoolId?: string, teacherId?: string) => {
+  const where: any = {};
   if (teacherId) {
     let resolvedTeacherId = teacherId;
-    const user = await prisma.user.findFirst({ 
-      where: { id: teacherId, schoolId } 
+    const user = await prisma.user.findUnique({ 
+      where: { id: teacherId } 
     });
     if (user && user.teacher_id) {
       resolvedTeacherId = user.teacher_id;
@@ -24,25 +23,21 @@ export const getAssignments = async (schoolId: string, teacherId?: string) => {
   });
 };
 
-export const createAssignment = async (data: any, schoolId: string) => {
-  if (!schoolId) throw new Error('School ID is required');
+export const createAssignment = async (data: any, _schoolId?: string) => {
   let teacherId = data.teacher_id;
 
-  // Resolve User.id -> Teacher.id if a User ID was passed
-  const user = await prisma.user.findFirst({ 
-    where: { id: teacherId, schoolId } 
+  const user = await prisma.user.findUnique({ 
+    where: { id: teacherId } 
   });
   
   if (user) {
     if (user.teacher_id) {
       teacherId = user.teacher_id;
     } else if (user.role === 'teacher') {
-      // Lazy-create missing Teacher record for this user
       const newTeacher = await prisma.teacher.create({
         data: {
           name: user.full_name,
           email: user.email,
-          schoolId: schoolId,
           user_id: user.id,
           phone: user.phone || null,
           profile_photo: user.profile_photo || null,
@@ -56,42 +51,38 @@ export const createAssignment = async (data: any, schoolId: string) => {
     }
   }
 
-  // VALIDATION: Ensure Teacher, Grade, Section, and Stream belong to this school
-  const teacher = await prisma.teacher.findFirst({
-    where: { id: teacherId, schoolId }
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId }
   });
   if (!teacher) {
-    throw new Error("Teacher does not exist in this school context.");
+    throw new Error("Teacher does not exist.");
   }
 
-  const grade = await prisma.grade.findFirst({
-    where: { id: data.gradeId, schoolId }
+  const grade = await prisma.grade.findUnique({
+    where: { id: data.gradeId }
   });
   if (!grade) {
-    throw new Error("Grade does not exist in this school context.");
+    throw new Error("Grade does not exist.");
   }
 
-  const section = await prisma.section.findFirst({
-    where: { id: data.sectionId, schoolId }
+  const section = await prisma.section.findUnique({
+    where: { id: data.sectionId }
   });
   if (!section) {
-    throw new Error("Section does not exist in this school context.");
+    throw new Error("Section does not exist.");
   }
 
   if (data.streamId) {
-    const stream = await prisma.stream.findFirst({
-      where: { id: data.streamId, schoolId }
+    const stream = await prisma.stream.findUnique({
+      where: { id: data.streamId }
     });
     if (!stream) {
-      throw new Error("Stream does not exist in this school context.");
+      throw new Error("Stream does not exist.");
     }
   }
 
-  // HOMEROOM RULE: Check if this class/section already has ANY active homeroom teacher.
-  // One class = max one homeroom teacher. The same teacher MAY manage multiple classes.
   const existingClassAssignment = await prisma.teacherAssignment.findFirst({
     where: {
-      schoolId,
       gradeId: data.gradeId,
       sectionId: data.sectionId,
       streamId: data.streamId || null,
@@ -107,7 +98,6 @@ export const createAssignment = async (data: any, schoolId: string) => {
   return await prisma.teacherAssignment.create({
     data: {
       teacher_id: teacherId,
-      schoolId: schoolId,
       gradeId: data.gradeId,
       sectionId: data.sectionId,
       subject: data.subject || null,
@@ -117,60 +107,55 @@ export const createAssignment = async (data: any, schoolId: string) => {
   });
 };
 
-export const deleteAssignment = async (id: string, schoolId: string) => {
+export const deleteAssignment = async (id: string, _schoolId?: string) => {
   return await prisma.teacherAssignment.delete({ 
-    where: { id, schoolId } 
+    where: { id } 
   });
 };
 
-export const updateAssignment = async (id: string, data: any, schoolId: string) => {
+export const updateAssignment = async (id: string, data: any, _schoolId?: string) => {
   let teacherId = data.teacher_id;
 
-  // Resolve User.id -> Teacher.id if a User ID was passed
-  const user = await prisma.user.findFirst({ 
-    where: { id: teacherId, schoolId } 
+  const user = await prisma.user.findUnique({ 
+    where: { id: teacherId } 
   });
   if (user && user.teacher_id) {
     teacherId = user.teacher_id;
   }
 
-  // VALIDATION: Ensure Teacher, Grade, Section, and Stream belong to this school
-  const teacher = await prisma.teacher.findFirst({
-    where: { id: teacherId, schoolId }
+  const teacher = await prisma.teacher.findUnique({
+    where: { id: teacherId }
   });
   if (!teacher) {
-    throw new Error("Teacher does not exist in this school context.");
+    throw new Error("Teacher does not exist.");
   }
 
-  const grade = await prisma.grade.findFirst({
-    where: { id: data.gradeId, schoolId }
+  const grade = await prisma.grade.findUnique({
+    where: { id: data.gradeId }
   });
   if (!grade) {
-    throw new Error("Grade does not exist in this school context.");
+    throw new Error("Grade does not exist.");
   }
 
-  const section = await prisma.section.findFirst({
-    where: { id: data.sectionId, schoolId }
+  const section = await prisma.section.findUnique({
+    where: { id: data.sectionId }
   });
   if (!section) {
-    throw new Error("Section does not exist in this school context.");
+    throw new Error("Section does not exist.");
   }
 
   if (data.streamId) {
-    const stream = await prisma.stream.findFirst({
-      where: { id: data.streamId, schoolId }
+    const stream = await prisma.stream.findUnique({
+      where: { id: data.streamId }
     });
     if (!stream) {
-      throw new Error("Stream does not exist in this school context.");
+      throw new Error("Stream does not exist.");
     }
   }
 
-  // HOMEROOM RULE: Check if the target class already has a DIFFERENT active homeroom teacher.
-  // Excludes the current assignment being edited so editing the same class is allowed.
   const conflictingAssignment = await prisma.teacherAssignment.findFirst({
     where: {
       id: { not: id },
-      schoolId,
       gradeId: data.gradeId,
       sectionId: data.sectionId,
       streamId: data.streamId || null,
@@ -184,7 +169,7 @@ export const updateAssignment = async (id: string, data: any, schoolId: string) 
   }
 
   return await prisma.teacherAssignment.update({
-    where: { id, schoolId },
+    where: { id },
     data: {
       teacher_id: teacherId,
       gradeId: data.gradeId,

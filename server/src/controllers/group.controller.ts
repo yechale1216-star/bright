@@ -1,21 +1,19 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import prisma from '../config/db';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 // ── Create Group ─────────────────────────────────────────────────────────────
 export const createGroup = async (req: AuthenticatedRequest, res: Response) => {
   const { name, description, groupType, isAnnouncement, memberIds, avatar } = req.body;
-  const schoolId = req.user?.schoolId;
   const creatorId = req.user?.id;
 
-  if (!schoolId || !creatorId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!creatorId) return res.status(401).json({ error: 'Unauthorized' });
   if (!name?.trim()) return res.status(400).json({ error: 'Group name is required' });
 
   try {
-    // Ensure all members belong to this school
     const allMemberIds = Array.from(new Set([creatorId, ...(memberIds || [])]));
     const users = await prisma.user.findMany({
-      where: { id: { in: allMemberIds }, schoolId },
+      where: { id: { in: allMemberIds } },
       select: { id: true },
     });
     const validIds = new Set(users.map((u) => u.id));
@@ -29,7 +27,6 @@ export const createGroup = async (req: AuthenticatedRequest, res: Response) => {
         isAnnouncement: isAnnouncement || false,
         isGroup: true,
         avatar: avatar || null,
-        schoolId,
         createdBy: creatorId,
         members: {
           create: filteredIds.map((userId: string) => ({
@@ -57,14 +54,12 @@ export const createGroup = async (req: AuthenticatedRequest, res: Response) => {
 // ── Get Group Details ─────────────────────────────────────────────────────────
 export const getGroup = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const schoolId = req.user?.schoolId;
   const userId = req.user?.id;
 
   try {
     const group = await prisma.conversation.findFirst({
       where: {
         id,
-        schoolId,
         isGroup: true,
         members: { some: { userId } },
       },
@@ -106,7 +101,6 @@ export const getGroup = async (req: AuthenticatedRequest, res: Response) => {
 export const updateGroup = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { name, description, avatar, isAnnouncement } = req.body;
-  const schoolId = req.user?.schoolId;
   const userId = req.user?.id;
 
   try {
@@ -116,7 +110,7 @@ export const updateGroup = async (req: AuthenticatedRequest, res: Response) => {
     if (!member) return res.status(403).json({ error: 'Only admins can update group settings' });
 
     const updated = await prisma.conversation.update({
-      where: { id, schoolId },
+      where: { id },
       data: {
         ...(name ? { name: name.trim() } : {}),
         ...(description !== undefined ? { description } : {}),
@@ -135,7 +129,6 @@ export const updateGroup = async (req: AuthenticatedRequest, res: Response) => {
 // ── Delete Group ──────────────────────────────────────────────────────────────
 export const deleteGroup = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const schoolId = req.user?.schoolId;
   const userId = req.user?.id;
 
   try {
@@ -144,7 +137,7 @@ export const deleteGroup = async (req: AuthenticatedRequest, res: Response) => {
     });
     if (!member) return res.status(403).json({ error: 'Only group owner can delete the group' });
 
-    await prisma.conversation.delete({ where: { id, schoolId } });
+    await prisma.conversation.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting group:', error);
@@ -156,7 +149,6 @@ export const deleteGroup = async (req: AuthenticatedRequest, res: Response) => {
 export const addMembers = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { memberIds } = req.body;
-  const schoolId = req.user?.schoolId;
   const userId = req.user?.id;
 
   try {
@@ -165,22 +157,11 @@ export const addMembers = async (req: AuthenticatedRequest, res: Response) => {
     });
     if (!requester) return res.status(403).json({ error: 'Only admins can add members' });
 
-    // Validate new members belong to school
     const validUsers = await prisma.user.findMany({
-      where: { id: { in: memberIds }, schoolId },
+      where: { id: { in: memberIds } },
       select: { id: true },
     });
 
-    const toAdd = validUsers
-      .map((u) => u.id)
-      .filter(async (uid) => {
-        const existing = await prisma.conversationMember.findFirst({
-          where: { conversationId: id, userId: uid },
-        });
-        return !existing;
-      });
-
-    // Upsert to avoid duplicates
     for (const uid of validUsers.map((u) => u.id)) {
       await prisma.conversationMember.upsert({
         where: { conversationId_userId: { conversationId: id, userId: uid } },
@@ -210,18 +191,15 @@ export const addMembers = async (req: AuthenticatedRequest, res: Response) => {
 // ── Remove Member ─────────────────────────────────────────────────────────────
 export const removeMember = async (req: AuthenticatedRequest, res: Response) => {
   const { id, userId: targetUserId } = req.params;
-  const schoolId = req.user?.schoolId;
   const requesterId = req.user?.id;
 
   try {
-    // Can remove self, or admin/owner can remove others
     if (requesterId !== targetUserId) {
       const requester = await prisma.conversationMember.findFirst({
         where: { conversationId: id, userId: requesterId, role: { in: ['OWNER', 'ADMIN'] } },
       });
       if (!requester) return res.status(403).json({ error: 'Insufficient permissions' });
 
-      // Owners cannot be removed by admins
       const target = await prisma.conversationMember.findFirst({
         where: { conversationId: id, userId: targetUserId },
       });
@@ -242,7 +220,7 @@ export const removeMember = async (req: AuthenticatedRequest, res: Response) => 
 // ── Update Member Role ────────────────────────────────────────────────────────
 export const updateMemberRole = async (req: AuthenticatedRequest, res: Response) => {
   const { id, userId: targetUserId } = req.params;
-  const { role } = req.body; // 'ADMIN' | 'MEMBER'
+  const { role } = req.body;
   const requesterId = req.user?.id;
 
   if (!['ADMIN', 'MEMBER'].includes(role)) {
@@ -273,16 +251,14 @@ export const getGroupMedia = async (req: AuthenticatedRequest, res: Response) =>
   return getConversationShared(req, res);
 };
 
-
 // ── Pin/Unpin Message ─────────────────────────────────────────────────────────
 export const pinMessage = async (req: AuthenticatedRequest, res: Response) => {
   const { messageId } = req.params;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
   try {
-    const message = await prisma.message.findFirst({
-      where: { id: messageId, schoolId },
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
     });
     if (!message) return res.status(404).json({ error: 'Message not found' });
 
@@ -328,10 +304,9 @@ export const pinMessage = async (req: AuthenticatedRequest, res: Response) => {
 export const unpinMessage = async (req: AuthenticatedRequest, res: Response) => {
   const { messageId } = req.params;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
   try {
-    const message = await prisma.message.findFirst({ where: { id: messageId, schoolId } });
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
     if (!message) return res.status(404).json({ error: 'Message not found' });
 
     const conversation = await prisma.conversation.findUnique({
@@ -371,13 +346,12 @@ export const editMessage = async (req: AuthenticatedRequest, res: Response) => {
   const { messageId } = req.params;
   const { content } = req.body;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
   if (!content?.trim()) return res.status(400).json({ error: 'Content cannot be empty' });
 
   try {
     const message = await prisma.message.findFirst({
-      where: { id: messageId, schoolId, senderId: userId },
+      where: { id: messageId, senderId: userId },
     });
     if (!message) return res.status(404).json({ error: 'Message not found or not yours' });
 
@@ -397,15 +371,13 @@ export const editMessage = async (req: AuthenticatedRequest, res: Response) => {
 export const deleteMessage = async (req: AuthenticatedRequest, res: Response) => {
   const { messageId } = req.params;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
   try {
-    const message = await prisma.message.findFirst({
-      where: { id: messageId, schoolId },
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
     });
     if (!message) return res.status(404).json({ error: 'Message not found' });
 
-    // Allow sender to delete their own, admins can delete anyone's
     if (message.senderId !== userId) {
       const member = await prisma.conversationMember.findFirst({
         where: {
@@ -434,7 +406,6 @@ export const toggleReaction = async (req: AuthenticatedRequest, res: Response) =
   const { messageId } = req.params;
   const { emoji } = req.body;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
   if (!emoji) return res.status(400).json({ error: 'Emoji is required' });
 
@@ -449,7 +420,7 @@ export const toggleReaction = async (req: AuthenticatedRequest, res: Response) =
     }
 
     await prisma.messageReaction.create({
-      data: { messageId, userId: userId!, emoji, schoolId },
+      data: { messageId, userId: userId!, emoji },
     });
 
     res.json({ action: 'added', emoji });
@@ -461,7 +432,7 @@ export const toggleReaction = async (req: AuthenticatedRequest, res: Response) =
 
 // ── Mute/Unmute Member ────────────────────────────────────────────────────────
 export const toggleMute = async (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params; // conversationId
+  const { id } = req.params;
   const { muted, mutedUntil } = req.body;
   const userId = req.user?.id;
 
@@ -480,5 +451,3 @@ export const toggleMute = async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to update mute settings' });
   }
 };
-
-

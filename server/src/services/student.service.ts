@@ -1,5 +1,4 @@
 import prisma from '../config/db';
-import bcrypt from 'bcryptjs';
 import * as parentService from './parent.service';
 import { academicYearService } from './academic-year.service';
 
@@ -8,7 +7,7 @@ const mapStudentToFlat = (student: any) => {
   if (!student) return null;
   return {
     ...student,
-    name: student.fullName, // map back to 'name' for frontend
+    name: student.fullName,
     grade: student.grade?.name || '',
     section: student.section?.name || '',
     stream: student.stream?.name || null,
@@ -16,7 +15,7 @@ const mapStudentToFlat = (student: any) => {
 };
 
 export const getAllStudents = async (
-  schoolId: string, 
+  _schoolId?: string, 
   search?: string, 
   status?: string,
   gradeId?: string,
@@ -24,28 +23,21 @@ export const getAllStudents = async (
   streamId?: string,
   academicYear?: string
 ) => {
-  if (!schoolId) throw new Error('School ID is required');
-
-  // 1. Resolve active/target academic year
-  const currentAY = await academicYearService.getCurrentAcademicYear(schoolId);
+  const currentAY = await academicYearService.getCurrentAcademicYear();
   let targetAcademicYearName = academicYear?.trim();
   if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
     targetAcademicYearName = currentAY?.name || '';
   }
 
-  // 2. Try to find the AcademicYear record by name
   const targetAY = await prisma.academicYear.findUnique({
-    where: { schoolId_name: { schoolId, name: targetAcademicYearName } }
+    where: { name: targetAcademicYearName }
   }) || currentAY;
 
-  // 3. If we have an AcademicYear with StudentAcademicYearRecords, query through enrollments
   if (targetAY) {
     const enrollmentWhere: any = {
-      schoolId,
       academicYearId: targetAY.id,
     };
 
-    // Status filter on the enrollment record
     if (status && status.trim()) {
       const s = status.trim().toUpperCase();
       if (s !== 'ALL') {
@@ -55,7 +47,6 @@ export const getAllStudents = async (
       enrollmentWhere.status = 'ACTIVE';
     }
 
-    // Grade filter
     if (gradeId && gradeId.trim() && gradeId.trim() !== 'all' && gradeId.trim() !== 'All Grades') {
       const gTerm = gradeId.trim();
       const gNum = gTerm.replace(/[^\d]/g, '');
@@ -68,7 +59,6 @@ export const getAllStudents = async (
       };
     }
 
-    // Section filter
     if (sectionId && sectionId.trim() && sectionId.trim() !== 'all' && sectionId.trim() !== 'All Sections') {
       const secTerm = sectionId.trim();
       enrollmentWhere.section = {
@@ -79,7 +69,6 @@ export const getAllStudents = async (
       };
     }
 
-    // Stream filter
     if (streamId && streamId.trim() && streamId.trim() !== 'all' && streamId.trim() !== 'All Streams' && streamId.trim() !== 'none') {
       const strTerm = streamId.trim();
       enrollmentWhere.stream = {
@@ -90,7 +79,6 @@ export const getAllStudents = async (
       };
     }
 
-    // Search filter via student relation
     if (search && search.trim()) {
       const term = search.trim();
       enrollmentWhere.student = {
@@ -112,7 +100,6 @@ export const getAllStudents = async (
       orderBy: { student: { fullName: 'asc' } }
     });
 
-    // Map to the flat frontend format, using enrollment grade/section/stream
     return enrollments.map((enr: any) => ({
       ...enr.student,
       name: enr.student.fullName,
@@ -127,8 +114,7 @@ export const getAllStudents = async (
     }));
   }
 
-  // 4. Fallback: no academic year records found — query students directly (legacy path)
-  const where: any = { schoolId };
+  const where: any = {};
   if (status && status.trim()) {
     const s = status.trim().toUpperCase();
     if (s !== 'ALL') where.status = { equals: s, mode: 'insensitive' };
@@ -149,12 +135,10 @@ export const getAllStudents = async (
   return students.map(mapStudentToFlat);
 };
 
-
-export const getNextStudentId = async (schoolId: string) => {
+export const getNextStudentId = async (_schoolId?: string) => {
   const idPrefix = 'STU';
   const latestStudent = await prisma.student.findFirst({
     where: { 
-      schoolId,
       student_id: { startsWith: idPrefix }
     },
     orderBy: { student_id: 'desc' },
@@ -172,20 +156,12 @@ export const getNextStudentId = async (schoolId: string) => {
   return `${idPrefix}${nextSequence.toString().padStart(6, '0')}`;
 };
 
-export const createStudent = async (data: any, schoolId: string) => {
-  // Verify school exists
-  const school = await prisma.school.findUnique({ where: { id: schoolId } });
-  if (!school) {
-    console.error(`[StudentService] School not found for ID: "${schoolId}"`);
-    throw new Error('School context invalid - Please logout and login again (database was likely reset)');
-  }
-
+export const createStudent = async (data: any, _schoolId?: string) => {
   let studentId = data.student_id;
   if (!studentId) {
-    studentId = await getNextStudentId(schoolId);
+    studentId = await getNextStudentId();
   }
 
-  // Stream Validation (Ethiopian Standards)
   const gradeName = String(data.grade || '').trim();
   const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
   if (!isNaN(gradeNum)) {
@@ -193,11 +169,10 @@ export const createStudent = async (data: any, schoolId: string) => {
       throw new Error(`Stream selection (Natural/Social Science) is required for ${gradeName}.`);
     }
     if (gradeNum <= 10) {
-      data.stream = null; // Enforce no stream for Grades 1-10
+      data.stream = null;
     }
   }
 
-  // Create or connect relations with schoolId scoping
   const newStudent = await prisma.student.create({
     data: {
       fullName: data.name,
@@ -207,23 +182,22 @@ export const createStudent = async (data: any, schoolId: string) => {
       parent_name: data.parent_name || "",
       gender: data.gender,
       date_of_birth: data.date_of_birth,
-      school: { connect: { id: schoolId } },
       grade: {
         connectOrCreate: {
-          where: { schoolId_name: { schoolId, name: data.grade } },
-          create: { name: data.grade, schoolId }
+          where: { name: data.grade },
+          create: { name: data.grade }
         }
       },
       section: {
         connectOrCreate: {
-          where: { schoolId_name: { schoolId, name: data.section } },
-          create: { name: data.section, schoolId }
+          where: { name: data.section },
+          create: { name: data.section }
         }
       },
       stream: data.stream ? {
         connectOrCreate: {
-          where: { schoolId_name: { schoolId, name: data.stream } },
-          create: { name: data.stream, schoolId }
+          where: { name: data.stream },
+          create: { name: data.stream }
         }
       } : undefined
     },
@@ -234,14 +208,12 @@ export const createStudent = async (data: any, schoolId: string) => {
     }
   });
 
-  // Create StudentAcademicYearRecord for the active academic year
   try {
-    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAY = await academicYearService.getCurrentAcademicYear();
     if (activeAY) {
       await prisma.studentAcademicYearRecord.upsert({
         where: { studentId_academicYearId: { studentId: newStudent.id, academicYearId: activeAY.id } },
         create: {
-          schoolId,
           studentId: newStudent.id,
           academicYearId: activeAY.id,
           gradeId: newStudent.gradeId,
@@ -261,13 +233,11 @@ export const createStudent = async (data: any, schoolId: string) => {
     console.error('[StudentService] Failed to create StudentAcademicYearRecord:', err);
   }
 
-  // Handle Parent User Account creation or linking
   const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
     name: data.parent_name,
     email: data.parent_email,
     password: data.parent_password,
     address: data.parent_address,
-    schoolId: schoolId
   });
 
   await prisma.parentStudentLink.upsert({
@@ -279,20 +249,17 @@ export const createStudent = async (data: any, schoolId: string) => {
     },
     update: {
       relationshipType: data.relationshipType || 'Guardian',
-      schoolId: schoolId
     },
     create: {
       parentId: parent.id,
       studentId: newStudent.id,
-      schoolId: schoolId,
       relationshipType: data.relationshipType || 'Guardian'
     }
   });
 
-  // Notify all school_admin users for this school about the new enrollment
   try {
     const adminUsers = await prisma.user.findMany({
-      where: { schoolId, role: 'school_admin' },
+      where: { role: 'school_admin' },
       select: { id: true }
     });
 
@@ -300,7 +267,6 @@ export const createStudent = async (data: any, schoolId: string) => {
       await prisma.userNotification.createMany({
         data: adminUsers.map((admin: { id: string }) => ({
           userId: admin.id,
-          schoolId,
           title: '🎓 New Student Registered',
           message: `${newStudent.fullName} (${newStudent.student_id}) has been enrolled in ${newStudent.grade?.name || 'a grade'} by the registrar.`,
           type: 'NEW_STUDENT',
@@ -308,32 +274,25 @@ export const createStudent = async (data: any, schoolId: string) => {
         })),
         skipDuplicates: true,
       });
-      console.log(`[StudentService] Notified ${adminUsers.length} school admin(s) about new student enrollment: ${newStudent.fullName}`);
     }
   } catch (notifErr) {
-    // Non-blocking — student was created successfully, notification failure should not roll back
     console.error('[StudentService] Failed to send admin notification for new student:', notifErr);
   }
 
   return mapStudentToFlat(newStudent);
 };
-export const generateStudentId = async (schoolId: string): Promise<string> => {
-  return await getNextStudentId(schoolId);
+
+export const generateStudentId = async (_schoolId?: string): Promise<string> => {
+  return await getNextStudentId();
 };
 
-export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
-  if (!schoolId) throw new Error('School ID is required');
-
+export const bulkUpsertStudents = async (students: any[], _schoolId?: string) => {
   const results = { created: 0, updated: 0, errors: [] as string[] };
-
-  // Generate a base sequence for auto-generated IDs to avoid collisions during the same bulk operation
   let autoGenSequenceOffset = 0;
   const idPrefix = 'STU';
 
-  // Pre-calculate starting sequence if needed
   const latestStudent = await prisma.student.findFirst({
     where: {
-      schoolId: schoolId,
       student_id: { startsWith: idPrefix }
     },
     orderBy: { student_id: 'desc' },
@@ -348,21 +307,16 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
     }
   }
 
-  let createdCountInThisBatch = 0;
-
-  // Process in sequence to ensure stability and proper parent linking across siblings
   for (let i = 0; i < students.length; i++) {
     const data = students[i];
     try {
       let studentId = data.student_id ? String(data.student_id).trim() : null;
 
-      // Auto-generate ID if missing
       if (!studentId) {
         studentId = `${idPrefix}${(nextBaseSequence + autoGenSequenceOffset).toString().padStart(6, '0')}`;
         autoGenSequenceOffset++;
       }
 
-      // Stream Validation (Ethiopian Standards)
       const gradeName = String(data.grade).trim();
       const gradeNum = parseInt(gradeName);
       
@@ -371,41 +325,38 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
           throw new Error(`Stream selection (Natural/Social Science) is required for Grade ${gradeName}`);
         }
         if (gradeNum <= 10 && data.stream) {
-          data.stream = null; // Enforce no stream for Grades 1-10
+          data.stream = null;
         }
       }
       
-      // 1. Handle Relations (Grade, Section, Stream)
       const grade = await prisma.grade.upsert({
-        where: { schoolId_name: { schoolId, name: data.grade } },
+        where: { name: data.grade },
         update: {},
-        create: { name: data.grade, schoolId }
+        create: { name: data.grade }
       });
 
       const section = await prisma.section.upsert({
-        where: { schoolId_name: { schoolId, name: data.section } },
+        where: { name: data.section },
         update: {},
-        create: { name: data.section, schoolId }
+        create: { name: data.section }
       });
 
       let streamId: string | undefined = undefined;
       if (data.stream) {
         const stream = await prisma.stream.upsert({
-          where: { schoolId_name: { schoolId, name: data.stream } },
+          where: { name: data.stream },
           update: {},
-          create: { name: data.stream, schoolId }
+          create: { name: data.stream }
         });
         streamId = stream.id;
       }
 
       const existingStudent = await prisma.student.findUnique({
-        where: { student_id_schoolId: { student_id: studentId, schoolId } }
+        where: { student_id: studentId }
       });
 
-
-      // 2. Upsert Student
       const student = await prisma.student.upsert({
-        where: { student_id_schoolId: { student_id: studentId, schoolId } },
+        where: { student_id: studentId },
         update: {
           fullName: data.name,
           parent_email: data.parent_email || "",
@@ -427,7 +378,6 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
           gender: data.gender || null,
           date_of_birth: data.date_of_birth || null,
           address: data.address || null,
-          schoolId: schoolId,
           gradeId: grade.id,
           sectionId: section.id,
           streamId: streamId || null
@@ -438,17 +388,14 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
         results.updated++;
       } else {
         results.created++;
-        createdCountInThisBatch++;
       }
 
-      // 2b. Upsert StudentAcademicYearRecord for active year
       try {
-        const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+        const activeAY = await academicYearService.getCurrentAcademicYear();
         if (activeAY) {
           await prisma.studentAcademicYearRecord.upsert({
             where: { studentId_academicYearId: { studentId: student.id, academicYearId: activeAY.id } },
             create: {
-              schoolId,
               studentId: student.id,
               academicYearId: activeAY.id,
               gradeId: grade.id,
@@ -468,26 +415,22 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
         console.error(`[StudentService] Failed to upsert StudentAcademicYearRecord for student ${student.id}:`, err);
       }
 
-      // 3. Handle Parent Linking
       if (data.parent_phone) {
         const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
           name: data.parent_name,
           email: data.parent_email,
           password: data.parent_password,
           address: data.parent_address,
-          schoolId: schoolId
         });
 
         await prisma.parentStudentLink.upsert({
           where: { parentId_studentId: { parentId: parent.id, studentId: student.id } },
           update: {
             relationshipType: data.relationshipType || 'Guardian',
-            schoolId: schoolId
           },
           create: {
             parentId: parent.id,
             studentId: student.id,
-            schoolId: schoolId,
             relationshipType: data.relationshipType || 'Guardian'
           }
         });
@@ -497,11 +440,10 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
     }
   }
 
-  // Notify school admins with a summary if any new students were created in this batch
   if (results.created > 0) {
     try {
       const adminUsers = await prisma.user.findMany({
-        where: { schoolId, role: 'school_admin' },
+        where: { role: 'school_admin' },
         select: { id: true }
       });
 
@@ -509,7 +451,6 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
         await prisma.userNotification.createMany({
           data: adminUsers.map((admin: { id: string }) => ({
             userId: admin.id,
-            schoolId,
             title: '📋 Bulk Student Import Completed',
             message: `${results.created} new student${results.created !== 1 ? 's' : ''} enrolled via bulk import${results.updated > 0 ? `, ${results.updated} updated` : ''}${results.errors.length > 0 ? `, ${results.errors.length} error${results.errors.length !== 1 ? 's' : ''}` : ''}.`,
             type: 'NEW_STUDENT',
@@ -517,7 +458,6 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
           })),
           skipDuplicates: true,
         });
-        console.log(`[StudentService] Notified ${adminUsers.length} admin(s) about bulk import: ${results.created} created, ${results.updated} updated`);
       }
     } catch (notifErr) {
       console.error('[StudentService] Failed to send admin notification for bulk import:', notifErr);
@@ -527,9 +467,9 @@ export const bulkUpsertStudents = async (students: any[], schoolId: string) => {
   return results;
 };
 
-export const getStudentById = async (id: string, schoolId: string) => {
+export const getStudentById = async (id: string, _schoolId?: string) => {
   const student = await prisma.student.findFirst({
-    where: { id, schoolId },
+    where: { id },
     include: { 
       attendance: true,
       grade: true,
@@ -540,7 +480,7 @@ export const getStudentById = async (id: string, schoolId: string) => {
   return mapStudentToFlat(student);
 };
 
-export const updateStudent = async (id: string, data: any, schoolId: string) => {
+export const updateStudent = async (id: string, data: any, _schoolId?: string) => {
   const updateData: any = {};
   if (data.name) updateData.fullName = data.name;
   if (data.student_id) updateData.student_id = data.student_id;
@@ -553,45 +493,38 @@ export const updateStudent = async (id: string, data: any, schoolId: string) => 
   if (data.grade) {
     updateData.grade = {
       connectOrCreate: {
-        where: { schoolId_name: { schoolId, name: data.grade } },
-        create: { name: data.grade, schoolId }
+        where: { name: data.grade },
+        create: { name: data.grade }
       }
     };
   }
   if (data.section) {
     updateData.section = {
       connectOrCreate: {
-        where: { schoolId_name: { schoolId, name: data.section } },
-        create: { name: data.section, schoolId }
+        where: { name: data.section },
+        create: { name: data.section }
       }
     };
   }
 
-  // Stream: enforce grade-based rules
-  //   - If grade is known and <= 10: always disconnect stream
-  //   - If grade is >= 11 and stream is provided: connect/create
-  //   - If stream is explicitly empty/null/"" and grade provided: disconnect
   const gradeName = String(data.grade || '').trim();
   const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
 
   if (!isNaN(gradeNum) && gradeNum <= 10) {
-    // Grades 1-10 must NOT have a stream
     updateData.stream = { disconnect: true };
   } else if (data.stream) {
-    // Grade 11+ with explicit stream: connect or create
     updateData.stream = {
       connectOrCreate: {
-        where: { schoolId_name: { schoolId, name: data.stream } },
-        create: { name: data.stream, schoolId }
+        where: { name: data.stream },
+        create: { name: data.stream }
       }
     };
   } else if ('stream' in data && !data.stream) {
-    // Explicit stream removal (stream sent as '' or null)
     updateData.stream = { disconnect: true };
   }
 
   const updatedStudent = await prisma.student.update({ 
-    where: { id, schoolId }, 
+    where: { id }, 
     data: updateData,
     include: {
       grade: true,
@@ -600,15 +533,13 @@ export const updateStudent = async (id: string, data: any, schoolId: string) => 
     }
   });
 
-  // Sync StudentAcademicYearRecord for the active year if grade/section/stream changed
   if (data.grade || data.section || 'stream' in data) {
     try {
-      const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+      const activeAY = await academicYearService.getCurrentAcademicYear();
       if (activeAY) {
         await prisma.studentAcademicYearRecord.upsert({
           where: { studentId_academicYearId: { studentId: id, academicYearId: activeAY.id } },
           create: {
-            schoolId,
             studentId: id,
             academicYearId: activeAY.id,
             gradeId: updatedStudent.gradeId,
@@ -631,32 +562,29 @@ export const updateStudent = async (id: string, data: any, schoolId: string) => 
   return mapStudentToFlat(updatedStudent);
 };
 
-export const deleteStudent = async (id: string, schoolId: string) => {
-  // Try deleting by the primary UUID first
+export const deleteStudent = async (id: string, _schoolId?: string) => {
   let result = await prisma.student.deleteMany({ 
-    where: { id, schoolId } 
+    where: { id } 
   });
   
-  // If no record was deleted, try deleting by the custom 'student_id' field (like STU000001)
   if (result.count === 0) {
     result = await prisma.student.deleteMany({
       where: { 
         student_id: id,
-        schoolId: schoolId 
       }
     });
   }
   
   if (result.count === 0) {
-    throw new Error('Student not found. Ensure the ID is correct and you have permission to delete this record.');
+    throw new Error('Student not found.');
   }
   
   return result;
 };
 
-export const getStudentsByParentPhone = async (parentPhone: string, schoolId: string) => {
+export const getStudentsByParentPhone = async (parentPhone: string, _schoolId?: string) => {
   const students = await prisma.student.findMany({
-    where: { parent_phone: parentPhone, schoolId },
+    where: { parent_phone: parentPhone },
     include: {
       grade: true,
       section: true,

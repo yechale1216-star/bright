@@ -161,7 +161,7 @@ app.post('/api/calls/public-reject', async (req, res) => {
             }
           }
         },
-        select: { id: true, schoolId: true }
+        select: { id: true }
       });
 
       if (conversation) {
@@ -169,7 +169,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
           data: {
             conversationId: conversation.id,
             senderId: call.to, // the person who declined
-            schoolId: conversation.schoolId,
             content: 'Declined Call',
             type: call.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE',
             metadata: { reason: 'DECLINED' }
@@ -186,7 +185,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
             data: {
               conversationId: conversation.id,
               senderId: call.to,
-              schoolId: conversation.schoolId,
               content: message,
               type: 'TEXT'
             },
@@ -205,8 +203,8 @@ app.post('/api/calls/public-reject', async (req, res) => {
             await sendMessageNotification(callerUser.pushToken, {
               conversationId: conversation.id,
               senderId: call.to,
-              senderName: textMsg.sender.full_name,
-              senderAvatar: textMsg.sender.profile_photo || '',
+              senderName: textMsg.sender?.full_name || 'User',
+              senderAvatar: textMsg.sender?.profile_photo || '',
               messagePreview: textMsg.content || '',
               messageType: 'TEXT',
             });

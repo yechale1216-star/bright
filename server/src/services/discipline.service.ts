@@ -36,7 +36,6 @@ export const DEFAULT_DISCIPLINE_ACTIONS = [
  * Creates an audit log entry for discipline actions.
  */
 async function logDisciplineAudit(params: {
-  schoolId: string;
   userId?: string;
   action: string;
   entityId: string;
@@ -46,7 +45,6 @@ async function logDisciplineAudit(params: {
   try {
     await prisma.auditLog.create({
       data: {
-        schoolId: params.schoolId,
         user_id: params.userId || null,
         action: params.action,
         entity_type: 'DISCIPLINE',
@@ -64,17 +62,14 @@ async function logDisciplineAudit(params: {
  * Sends notifications to parents for a student discipline record.
  */
 async function notifyParentForDiscipline(params: {
-  schoolId: string;
   studentId: string;
   title: string;
   message: string;
   type?: string;
 }) {
   try {
-    // 1. Create ParentNotification record
     await prisma.parentNotification.create({
       data: {
-        schoolId: params.schoolId,
         studentId: params.studentId,
         title: params.title,
         message: params.message,
@@ -82,9 +77,8 @@ async function notifyParentForDiscipline(params: {
       }
     });
 
-    // 2. Find linked parents via ParentStudentLink
     const links = await prisma.parentStudentLink.findMany({
-      where: { schoolId: params.schoolId, studentId: params.studentId },
+      where: { studentId: params.studentId },
       include: { parent: true }
     });
 
@@ -92,7 +86,6 @@ async function notifyParentForDiscipline(params: {
       if (link.parent) {
         await prisma.userNotification.create({
           data: {
-            schoolId: params.schoolId,
             userId: link.parent.id,
             title: params.title,
             message: params.message,
@@ -109,27 +102,27 @@ async function notifyParentForDiscipline(params: {
 /**
  * Helper to fetch teacher homeroom assignments for permission checks.
  */
-async function getTeacherAssignments(userId: string, schoolId: string) {
+async function getTeacherAssignments(userId: string) {
   const teacher = await prisma.teacher.findFirst({
-    where: { user_id: userId, schoolId }
+    where: { user_id: userId }
   });
   if (!teacher) return [];
   return await prisma.teacherAssignment.findMany({
-    where: { teacher_id: teacher.id, schoolId }
+    where: { teacher_id: teacher.id }
   });
 }
 
 /**
  * Helper to generate a unique human-readable case number: DC-2026-0001
  */
-async function generateCaseNumber(schoolId: string): Promise<string> {
+async function generateCaseNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await prisma.studentDiscipline.count({ where: { schoolId } });
+  const count = await prisma.studentDiscipline.count();
   const seq = String(count + 1).padStart(4, '0');
   const candidate = `DC-${year}-${seq}`;
 
   const exists = await prisma.studentDiscipline.findFirst({
-    where: { schoolId, caseNumber: candidate }
+    where: { caseNumber: candidate }
   });
 
   if (exists) {
@@ -139,9 +132,6 @@ async function generateCaseNumber(schoolId: string): Promise<string> {
   return candidate;
 }
 
-/**
- * Ensures incident has a display caseNumber if missing (historical record compatibility).
- */
 function ensureCaseNumber(inc: any) {
   if (inc && !inc.caseNumber) {
     const yr = new Date(inc.createdAt || inc.date || Date.now()).getFullYear();
@@ -151,14 +141,10 @@ function ensureCaseNumber(inc: any) {
   return inc;
 }
 
-/**
- * Backend privacy sanitization to hide internal investigation and staff notes from Parents and Teachers.
- */
 function sanitizeIncidentForRole(incident: any, role: string) {
   if (!incident) return incident;
 
   if (role === 'parent') {
-    // Parents must only see official public information, NOT internal staff/investigation data
     const {
       investigationNotes,
       confidentialNotes,
@@ -169,27 +155,21 @@ function sanitizeIncidentForRole(incident: any, role: string) {
 
     return {
       ...publicData,
-      witnesses: undefined // Hide witness names from parent for privacy & protection
+      witnesses: undefined
     };
   }
 
   if (role === 'teacher') {
-    // Teachers see general info, but hide confidential notes unless they are assigned officer
     const { confidentialNotes, ...teacherData } = incident;
     return teacherData;
   }
 
-  // Admins & Discipline Officers see full details
   return incident;
 }
 
 export class DisciplineService {
-  /**
-   * Seed default categories for a school if none exist.
-   */
-  static async ensureDefaultCategories(schoolId: string) {
+  static async ensureDefaultCategories(_schoolId?: string) {
     const existing = await prisma.disciplineCategory.findMany({
-      where: { schoolId },
       select: { name: true }
     });
 
@@ -199,7 +179,6 @@ export class DisciplineService {
     if (missing.length > 0) {
       await prisma.disciplineCategory.createMany({
         data: missing.map(name => ({
-          schoolId,
           name,
           isDefault: true
         })),
@@ -208,22 +187,20 @@ export class DisciplineService {
     }
 
     return prisma.disciplineCategory.findMany({
-      where: { schoolId },
       orderBy: { name: 'asc' }
     });
   }
 
-  static async getCategories(schoolId: string) {
-    return this.ensureDefaultCategories(schoolId);
+  static async getCategories(_schoolId?: string) {
+    return this.ensureDefaultCategories();
   }
 
-  static async createCategory(schoolId: string, name: string, description?: string) {
+  static async createCategory(_schoolId: string | undefined, name: string, description?: string) {
     const trimmedName = name.trim();
     if (!trimmedName) throw new Error('Category name is required');
 
     const existing = await prisma.disciplineCategory.findFirst({
       where: {
-        schoolId,
         name: { equals: trimmedName, mode: 'insensitive' }
       }
     });
@@ -234,7 +211,6 @@ export class DisciplineService {
 
     return prisma.disciplineCategory.create({
       data: {
-        schoolId,
         name: trimmedName,
         description: description?.trim() || null,
         isDefault: false
@@ -242,18 +218,14 @@ export class DisciplineService {
     });
   }
 
-  static async deleteCategory(schoolId: string, categoryId: string) {
+  static async deleteCategory(_schoolId: string | undefined, categoryId: string) {
     return prisma.disciplineCategory.deleteMany({
-      where: { id: categoryId, schoolId, isDefault: false }
+      where: { id: categoryId, isDefault: false }
     });
   }
 
-  /**
-   * Configurable Disciplinary Actions
-   */
-  static async ensureDefaultActions(schoolId: string) {
+  static async ensureDefaultActions(_schoolId?: string) {
     const existing = await prisma.disciplineActionConfig.findMany({
-      where: { schoolId },
       select: { name: true }
     });
 
@@ -263,7 +235,6 @@ export class DisciplineService {
     if (missing.length > 0) {
       await prisma.disciplineActionConfig.createMany({
         data: missing.map(name => ({
-          schoolId,
           name,
           isDefault: true
         })),
@@ -272,22 +243,20 @@ export class DisciplineService {
     }
 
     return prisma.disciplineActionConfig.findMany({
-      where: { schoolId },
       orderBy: { name: 'asc' }
     });
   }
 
-  static async getActionsConfig(schoolId: string) {
-    return this.ensureDefaultActions(schoolId);
+  static async getActionsConfig(_schoolId?: string) {
+    return this.ensureDefaultActions();
   }
 
-  static async createActionConfig(schoolId: string, name: string, description?: string) {
+  static async createActionConfig(_schoolId: string | undefined, name: string, description?: string) {
     const trimmedName = name.trim();
     if (!trimmedName) throw new Error('Action name is required');
 
     const existing = await prisma.disciplineActionConfig.findFirst({
       where: {
-        schoolId,
         name: { equals: trimmedName, mode: 'insensitive' }
       }
     });
@@ -298,7 +267,6 @@ export class DisciplineService {
 
     return prisma.disciplineActionConfig.create({
       data: {
-        schoolId,
         name: trimmedName,
         description: description?.trim() || null,
         isDefault: false
@@ -306,17 +274,14 @@ export class DisciplineService {
     });
   }
 
-  static async deleteActionConfig(schoolId: string, actionId: string) {
+  static async deleteActionConfig(_schoolId: string | undefined, actionId: string) {
     return prisma.disciplineActionConfig.deleteMany({
-      where: { id: actionId, schoolId, isDefault: false }
+      where: { id: actionId, isDefault: false }
     });
   }
 
-  /**
-   * Create a new student discipline incident.
-   */
   static async createIncident(
-    user: { id: string; role: string; schoolId: string; email: string },
+    user: { id: string; role: string; email?: string; schoolId?: string },
     data: {
       studentId: string;
       date?: string | Date;
@@ -336,15 +301,13 @@ export class DisciplineService {
       assignedToName?: string;
     }
   ) {
-    const schoolId = user.schoolId;
-
-    const student = await prisma.student.findFirst({
-      where: { id: data.studentId, schoolId },
+    const student = await prisma.student.findUnique({
+      where: { id: data.studentId },
       include: { grade: true, section: true, stream: true }
     });
 
     if (!student) {
-      throw new Error('Student not found in this school');
+      throw new Error('Student not found');
     }
 
     if (student.status === 'GRADUATED') {
@@ -352,7 +315,7 @@ export class DisciplineService {
     }
 
     if (user.role === 'teacher') {
-      const assignments = await getTeacherAssignments(user.id, schoolId);
+      const assignments = await getTeacherAssignments(user.id);
       const isAssigned = assignments.some(
         a => a.gradeId === student.gradeId && a.sectionId === student.sectionId
       );
@@ -370,22 +333,21 @@ export class DisciplineService {
 
     let validCategoryId: string | null = null;
     if (data.categoryId) {
-      const catById = await prisma.disciplineCategory.findFirst({
-        where: { id: data.categoryId, schoolId }
+      const catById = await prisma.disciplineCategory.findUnique({
+        where: { id: data.categoryId }
       });
       if (catById) validCategoryId = catById.id;
     }
     if (!validCategoryId && data.categoryName) {
       const catByName = await prisma.disciplineCategory.findFirst({
-        where: { name: data.categoryName, schoolId }
+        where: { name: data.categoryName }
       });
       if (catByName) validCategoryId = catByName.id;
     }
 
-    const caseNumber = await generateCaseNumber(schoolId);
+    const caseNumber = await generateCaseNumber();
 
-    // Resolve active academic year and student enrollment record
-    const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAY = await academicYearService.getCurrentAcademicYear();
     const disciplineAcademicYearId = activeAY?.id || null;
     let disciplineAcademicYearRecordId: string | null = null;
     if (activeAY) {
@@ -399,7 +361,6 @@ export class DisciplineService {
     const incident = await prisma.studentDiscipline.create({
       data: {
         caseNumber,
-        schoolId,
         studentId: student.id,
         gradeId: student.gradeId,
         sectionId: student.sectionId,
@@ -448,7 +409,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId,
       userId: user.id,
       action: 'DISCIPLINE_CREATED',
       entityId: incident.id,
@@ -465,7 +425,6 @@ export class DisciplineService {
       const notifTitle = `Official Notice: Discipline Case #${caseNumber}`;
       const notifMsg = `Discipline record created for ${student.fullName} (${data.categoryName}, ${data.severity} severity). Tap to view details.`;
       await notifyParentForDiscipline({
-        schoolId,
         studentId: student.id,
         title: notifTitle,
         message: notifMsg
@@ -475,11 +434,8 @@ export class DisciplineService {
     return ensureCaseNumber(incident);
   }
 
-  /**
-   * Get incidents with multi-role access control, searching, filtering, and server-side pagination.
-   */
   static async getIncidents(
-    user: { id: string; role: string; schoolId: string },
+    user: { id: string; role: string; schoolId?: string },
     query: {
       page?: number;
       limit?: number;
@@ -501,16 +457,14 @@ export class DisciplineService {
       sortOrder?: 'asc' | 'desc';
     }
   ) {
-    const schoolId = user.schoolId;
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
     const skip = (page - 1) * limit;
 
-    const where: any = { schoolId };
+    const where: any = {};
 
-    // Scope to active academic year by default
     if (!(query as any).academicYearId) {
-      const activeAY = await academicYearService.getCurrentAcademicYear(schoolId);
+      const activeAY = await academicYearService.getCurrentAcademicYear();
       if (activeAY) {
         where.academicYearId = activeAY.id;
       }
@@ -519,7 +473,7 @@ export class DisciplineService {
     }
 
     if (user.role === 'teacher') {
-      const assignments = await getTeacherAssignments(user.id, schoolId);
+      const assignments = await getTeacherAssignments(user.id);
       if (assignments.length === 0) {
         return { items: [], total: 0, page, limit, totalPages: 0 };
       }
@@ -531,7 +485,7 @@ export class DisciplineService {
       where.OR = OR;
     } else if (user.role === 'parent') {
       const links = await prisma.parentStudentLink.findMany({
-        where: { parentId: user.id, schoolId },
+        where: { parentId: user.id },
         select: { studentId: true }
       });
       const studentIds = links.map(l => l.studentId);
@@ -624,15 +578,12 @@ export class DisciplineService {
     };
   }
 
-  /**
-   * Get single incident detail with security checks and privacy sanitization.
-   */
   static async getIncidentById(
-    user: { id: string; role: string; schoolId: string },
+    user: { id: string; role: string; schoolId?: string },
     incidentId: string
   ) {
-    const incident = await prisma.studentDiscipline.findFirst({
-      where: { id: incidentId, schoolId: user.schoolId },
+    const incident = await prisma.studentDiscipline.findUnique({
+      where: { id: incidentId },
       include: {
         student: true,
         grade: true,
@@ -650,7 +601,7 @@ export class DisciplineService {
     }
 
     if (user.role === 'teacher') {
-      const assignments = await getTeacherAssignments(user.id, user.schoolId);
+      const assignments = await getTeacherAssignments(user.id);
       const isAssigned = assignments.some(
         a => a.gradeId === incident.gradeId && a.sectionId === incident.sectionId
       );
@@ -659,14 +610,13 @@ export class DisciplineService {
       }
     } else if (user.role === 'parent') {
       const link = await prisma.parentStudentLink.findFirst({
-        where: { parentId: user.id, studentId: incident.studentId, schoolId: user.schoolId }
+        where: { parentId: user.id, studentId: incident.studentId }
       });
       if (!link) {
         throw new Error('Forbidden: You can only view discipline records for your linked child');
       }
 
       await logDisciplineAudit({
-        schoolId: user.schoolId,
         userId: user.id,
         action: 'DISCIPLINE_PARENT_VIEWED',
         entityId: incident.id
@@ -678,7 +628,6 @@ export class DisciplineService {
     if (isStaffOrAdmin) {
       const rawLogs = await prisma.auditLog.findMany({
         where: {
-          schoolId: user.schoolId,
           entity_type: 'DISCIPLINE',
           entity_id: incidentId
         },
@@ -710,11 +659,8 @@ export class DisciplineService {
     };
   }
 
-  /**
-   * Assign or Reassign a discipline case to an Officer.
-   */
   static async assignOfficer(
-    user: { id: string; role: string; schoolId: string; email: string },
+    user: { id: string; role: string; email?: string; schoolId?: string },
     incidentId: string,
     officerId: string,
     notes?: string
@@ -723,15 +669,15 @@ export class DisciplineService {
       throw new Error('Forbidden: Only authorized officers/admins can reassign cases');
     }
 
-    const incident = await prisma.studentDiscipline.findFirst({
-      where: { id: incidentId, schoolId: user.schoolId },
+    const incident = await prisma.studentDiscipline.findUnique({
+      where: { id: incidentId },
       include: { student: true }
     });
 
     if (!incident) throw new Error('Incident not found');
 
-    const officer = await prisma.user.findFirst({
-      where: { id: officerId, schoolId: user.schoolId }
+    const officer = await prisma.user.findUnique({
+      where: { id: officerId }
     });
 
     if (!officer) throw new Error('Discipline officer not found');
@@ -753,7 +699,7 @@ export class DisciplineService {
       data: {
         disciplineId: incidentId,
         authorId: user.id,
-        authorName: user.email,
+        authorName: user.email || 'Staff',
         note: notes || `Case assigned to Discipline Officer ${officer.full_name}.`,
         statusBefore: incident.status,
         statusAfter: updated.status
@@ -761,7 +707,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: 'DISCIPLINE_OFFICER_ASSIGNED',
       entityId: incidentId,
@@ -771,7 +716,6 @@ export class DisciplineService {
     try {
       await prisma.userNotification.create({
         data: {
-          schoolId: user.schoolId,
           userId: officer.id,
           title: `Discipline Case Assigned: #${updated.caseNumber || incidentId.slice(0, 6)}`,
           message: `You have been assigned to investigate discipline case for ${updated.student.fullName}.`,
@@ -785,11 +729,8 @@ export class DisciplineService {
     return ensureCaseNumber(updated);
   }
 
-  /**
-   * Update investigation findings and notes (Discipline Officer / Admin).
-   */
   static async updateInvestigation(
-    user: { id: string; role: string; schoolId: string; email: string },
+    user: { id: string; role: string; email?: string; schoolId?: string },
     incidentId: string,
     data: {
       investigationNotes?: string;
@@ -803,8 +744,8 @@ export class DisciplineService {
       throw new Error('Forbidden: Only authorized officers can record investigation notes');
     }
 
-    const incident = await prisma.studentDiscipline.findFirst({
-      where: { id: incidentId, schoolId: user.schoolId }
+    const incident = await prisma.studentDiscipline.findUnique({
+      where: { id: incidentId }
     });
 
     if (!incident) throw new Error('Incident not found');
@@ -828,7 +769,7 @@ export class DisciplineService {
       data: {
         disciplineId: incidentId,
         authorId: user.id,
-        authorName: user.email,
+        authorName: user.email || 'Staff',
         note: `Investigation updated. Findings: ${data.findings || 'Notes updated'}.`,
         statusBefore: incident.status,
         statusAfter: updated.status
@@ -836,7 +777,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: 'DISCIPLINE_INVESTIGATION_UPDATED',
       entityId: incidentId,
@@ -846,11 +786,8 @@ export class DisciplineService {
     return ensureCaseNumber(updated);
   }
 
-  /**
-   * Record or update Action Plan details.
-   */
   static async updateAction(
-    user: { id: string; role: string; schoolId: string; email: string },
+    user: { id: string; role: string; email?: string; schoolId?: string },
     incidentId: string,
     data: {
       recommendedAction?: string;
@@ -866,8 +803,8 @@ export class DisciplineService {
       throw new Error('Forbidden: Only authorized staff can update disciplinary actions');
     }
 
-    const incident = await prisma.studentDiscipline.findFirst({
-      where: { id: incidentId, schoolId: user.schoolId }
+    const incident = await prisma.studentDiscipline.findUnique({
+      where: { id: incidentId }
     });
 
     if (!incident) throw new Error('Incident not found');
@@ -892,7 +829,7 @@ export class DisciplineService {
       data: {
         disciplineId: incidentId,
         authorId: user.id,
-        authorName: user.email,
+        authorName: user.email || 'Staff',
         note: data.notes || `Disciplinary Action set: ${data.approvedAction || data.recommendedAction || 'Action updated'}.`,
         actionTaken: data.approvedAction || data.recommendedAction || null,
         statusBefore: incident.status,
@@ -901,7 +838,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: 'DISCIPLINE_ACTION_UPDATED',
       entityId: incidentId,
@@ -911,11 +847,8 @@ export class DisciplineService {
     return ensureCaseNumber(updated);
   }
 
-  /**
-   * Upgrade Student Discipline Profile View (Requirement #3 & #4).
-   */
   static async getStudentDisciplineProfile(
-    user: { id: string; role: string; schoolId: string },
+    user: { id: string; role: string; schoolId?: string },
     studentId: string,
     query: {
       page?: number;
@@ -928,10 +861,8 @@ export class DisciplineService {
       endDate?: string;
     }
   ) {
-    const schoolId = user.schoolId;
-
-    const student = await prisma.student.findFirst({
-      where: { id: studentId, schoolId },
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
       include: {
         grade: { select: { name: true } },
         section: { select: { name: true } },
@@ -944,7 +875,7 @@ export class DisciplineService {
     }
 
     if (user.role === 'teacher') {
-      const assignments = await getTeacherAssignments(user.id, schoolId);
+      const assignments = await getTeacherAssignments(user.id);
       const isAssigned = assignments.some(
         a => a.gradeId === student.gradeId && a.sectionId === student.sectionId
       );
@@ -953,7 +884,7 @@ export class DisciplineService {
       }
     } else if (user.role === 'parent') {
       const link = await prisma.parentStudentLink.findFirst({
-        where: { parentId: user.id, studentId, schoolId }
+        where: { parentId: user.id, studentId }
       });
       if (!link) {
         throw new Error('Forbidden: You can only view discipline profile for your linked child');
@@ -961,7 +892,7 @@ export class DisciplineService {
     }
 
     const allStudentCases = await prisma.studentDiscipline.findMany({
-      where: { schoolId, studentId },
+      where: { studentId },
       select: {
         id: true,
         status: true,
@@ -987,7 +918,7 @@ export class DisciplineService {
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 15));
     const skip = (page - 1) * limit;
 
-    const where: any = { schoolId, studentId };
+    const where: any = { studentId };
     if (query.severity) where.severity = query.severity.toUpperCase();
     if (query.status) where.status = query.status.toUpperCase();
     if (query.categoryName) where.categoryName = { equals: query.categoryName, mode: 'insensitive' };
@@ -1061,11 +992,8 @@ export class DisciplineService {
     };
   }
 
-  /**
-   * Update an existing discipline incident.
-   */
   static async updateIncident(
-    user: { id: string; role: string; schoolId: string; email: string },
+    user: { id: string; role: string; email?: string; schoolId?: string },
     incidentId: string,
     data: {
       title?: string;
@@ -1091,7 +1019,7 @@ export class DisciplineService {
       where: { id: user.id },
       select: { full_name: true }
     });
-    const authorName = reporterUser?.full_name || user.email;
+    const authorName = reporterUser?.full_name || user.email || 'Staff';
 
     const oldSeverity = existing.severity;
     const oldStatus = existing.status;
@@ -1137,7 +1065,6 @@ export class DisciplineService {
     }
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: updated.status === 'RESOLVED' ? 'DISCIPLINE_RESOLVED' : updated.status === 'CLOSED' ? 'DISCIPLINE_CLOSED' : 'DISCIPLINE_EDITED',
       entityId: updated.id,
@@ -1150,7 +1077,6 @@ export class DisciplineService {
       const notifTitle = `Discipline Update: #${updated.caseNumber || incidentId.slice(0, 6)}`;
       const notifMsg = `Incident "${updated.title}" for ${studentName} updated. Status: ${updated.status}, Severity: ${updated.severity}.`;
       await notifyParentForDiscipline({
-        schoolId: user.schoolId,
         studentId: updated.studentId,
         title: notifTitle,
         message: notifMsg
@@ -1164,13 +1090,13 @@ export class DisciplineService {
     return ensureCaseNumber(updated);
   }
 
-  static async deleteIncident(user: { id: string; role: string; schoolId: string }, incidentId: string) {
+  static async deleteIncident(user: { id: string; role: string; schoolId?: string }, incidentId: string) {
     if (user.role !== 'admin' && user.role !== 'school_admin' && user.role !== 'super_admin') {
       throw new Error('Forbidden: Only School Admin can delete discipline records');
     }
 
-    const existing = await prisma.studentDiscipline.findFirst({
-      where: { id: incidentId, schoolId: user.schoolId }
+    const existing = await prisma.studentDiscipline.findUnique({
+      where: { id: incidentId }
     });
 
     if (!existing) {
@@ -1182,7 +1108,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: 'DISCIPLINE_DELETED',
       entityId: incidentId,
@@ -1193,7 +1118,7 @@ export class DisciplineService {
   }
 
   static async acknowledgeIncident(
-    user: { id: string; role: string; schoolId: string },
+    user: { id: string; role: string; schoolId?: string },
     incidentId: string,
     notes?: string
   ) {
@@ -1213,7 +1138,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: 'DISCIPLINE_PARENT_ACKNOWLEDGED',
       entityId: incident.id,
@@ -1224,7 +1148,7 @@ export class DisciplineService {
   }
 
   static async addFollowUp(
-    user: { id: string; role: string; schoolId: string; email: string },
+    user: { id: string; role: string; email?: string; schoolId?: string },
     incidentId: string,
     data: { note: string; actionTaken?: string; status?: string }
   ) {
@@ -1234,7 +1158,7 @@ export class DisciplineService {
       where: { id: user.id },
       select: { full_name: true }
     });
-    const authorName = reporterUser?.full_name || user.email;
+    const authorName = reporterUser?.full_name || user.email || 'Staff';
 
     const statusBefore = incident.status;
     let statusAfter = incident.status;
@@ -1260,7 +1184,6 @@ export class DisciplineService {
     });
 
     await logDisciplineAudit({
-      schoolId: user.schoolId,
       userId: user.id,
       action: 'DISCIPLINE_FOLLOWUP_ADDED',
       entityId: incident.id,
@@ -1270,12 +1193,11 @@ export class DisciplineService {
     return followUp;
   }
 
-  static async getAnalytics(user: { id: string; role: string; schoolId: string }) {
-    const schoolId = user.schoolId;
-    const where: any = { schoolId };
+  static async getAnalytics(user: { id: string; role: string; schoolId?: string }) {
+    const where: any = {};
 
     if (user.role === 'teacher') {
-      const assignments = await getTeacherAssignments(user.id, schoolId);
+      const assignments = await getTeacherAssignments(user.id);
       if (assignments.length === 0) {
         return {
           total: 0, open: 0, openCases: 0, resolvedCases: 0, criticalCases: 0, thisMonth: 0,

@@ -18,10 +18,9 @@ export class PromotionService {
   /**
    * Get total student count grouped by grade, section, and stream for the preview
    */
-  async getPromotionPreview(schoolId: string) {
+  async getPromotionPreview(_schoolId?: string) {
     const students = await prisma.student.findMany({
       where: {
-        schoolId,
         status: 'ACTIVE',
       },
       include: {
@@ -60,15 +59,10 @@ export class PromotionService {
     });
 
     return Object.values(cohortsMap).sort((a, b) => {
-      // Sort by grade first
       const gradeA = parseInt(a.gradeName.replace(/[^\d]/g, '')) || 0;
       const gradeB = parseInt(b.gradeName.replace(/[^\d]/g, '')) || 0;
       if (gradeA !== gradeB) return gradeA - gradeB;
-      
-      // Then section
       if (a.sectionName !== b.sectionName) return a.sectionName.localeCompare(b.sectionName);
-      
-      // Then stream
       return (a.streamName || '').localeCompare(b.streamName || '');
     });
   }
@@ -76,10 +70,9 @@ export class PromotionService {
   /**
    * Get individual students for a specific grade, optionally filtered by section and stream
    */
-  async getStudentsByGrade(schoolId: string, gradeId: string, sectionId?: string, streamId?: string) {
+  async getStudentsByGrade(_schoolId: string | undefined, gradeId: string, sectionId?: string, streamId?: string) {
     const students = await prisma.student.findMany({
       where: {
-        schoolId,
         gradeId,
         ...(sectionId ? { sectionId } : {}),
         ...(streamId ? { streamId: streamId === 'none' ? null : streamId } : {}),
@@ -103,26 +96,21 @@ export class PromotionService {
   /**
    * Execute promotion for a list of students
    */
-  async promoteStudents(data: PromotionData, schoolId: string, promotedByUserId: string) {
+  async promoteStudents(data: PromotionData, _schoolId: string | undefined, promotedByUserId: string) {
     let { studentIds, gradeId, sectionId, streamId, toGradeId, toSectionId, toSectionName, toStreamId, academicYear, notes } = data;
 
-    // Resolve the target AcademicYear DB record from the name
     let targetAcademicYearRecord = await prisma.academicYear.findUnique({
-      where: { schoolId_name: { schoolId, name: academicYear } }
+      where: { name: academicYear }
     });
-    // If not found by exact name, fall back to the current active year
     if (!targetAcademicYearRecord) {
-      targetAcademicYearRecord = await academicYearService.getCurrentAcademicYear(schoolId);
+      targetAcademicYearRecord = await academicYearService.getCurrentAcademicYear();
     }
 
-    // Also resolve the source (current active) AY for marking source records
-    const sourceAcademicYearRecord = await academicYearService.getCurrentAcademicYear(schoolId);
+    const sourceAcademicYearRecord = await academicYearService.getCurrentAcademicYear();
 
-    // 1. If criteria provided, fetch student IDs
     if (!studentIds && (gradeId || sectionId || streamId)) {
       const students = await prisma.student.findMany({
         where: {
-          schoolId,
           ...(gradeId ? { gradeId } : {}),
           ...(sectionId ? { sectionId } : {}),
           ...(streamId ? { streamId: streamId === 'none' ? null : streamId } : {}),
@@ -137,23 +125,20 @@ export class PromotionService {
       throw new Error('No students selected for promotion');
     }
 
-    // 2. Stream Validation for Ethiopian Secondary Schools (Grade 10 -> 11)
     if (toGradeId && toGradeId !== 'GRADUATE') {
       const toGrade = await prisma.grade.findUnique({ where: { id: toGradeId } });
       const toGradeNum = parseInt((toGrade?.name || '').replace(/[^\d]/g, '')) || 0;
 
-      // If toStreamId is a name rather than a UUID, resolve/create it
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (toStreamId && !uuidRegex.test(toStreamId)) {
         const streamRecord = await prisma.stream.upsert({
-          where: { schoolId_name: { schoolId, name: toStreamId } },
-          create: { name: toStreamId, schoolId },
+          where: { name: toStreamId },
+          create: { name: toStreamId },
           update: {},
         });
         toStreamId = streamRecord.id;
       }
 
-      // If promoting to Grade 11 or 12, stream is REQUIRED unless student already has one (e.g. Gr 11 -> 12)
       if (toGradeNum >= 11 && !toStreamId) {
         const sampleStudent = studentIds.length > 0 ? await prisma.student.findUnique({ where: { id: studentIds[0] }, select: { streamId: true } }) : null;
         if (!sampleStudent?.streamId) {
@@ -161,18 +146,15 @@ export class PromotionService {
         }
       }
 
-      // If promoting to Grade <= 10, ensure stream is null
       if (toGradeNum > 0 && toGradeNum <= 10) {
         toStreamId = null as any;
       }
     }
 
-    // 3. Guard: Prevent duplicate promotions
     const existingPromotions = await prisma.studentPromotion.findMany({
       where: {
         studentId: { in: studentIds },
         academicYear,
-        schoolId,
       },
     });
 
@@ -185,9 +167,7 @@ export class PromotionService {
       }
     }
 
-    // 4. Atomic transaction with extended timeout for batch operations
     return await prisma.$transaction(async (tx) => {
-      // Pre-fetch/resolve grade, section, stream objects ONCE outside per-student processing
       let toGrade: { id: string; name: string } | null = null;
       if (toGradeId && toGradeId !== 'GRADUATE') {
         toGrade = await tx.grade.findUnique({ where: { id: toGradeId }, select: { id: true, name: true } });
@@ -196,35 +176,32 @@ export class PromotionService {
       const toGradeNum = toGrade ? parseInt((toGrade.name || '').replace(/[^\d]/g, '')) || 0 : 0;
       const isSecondary = toGradeNum >= 11;
 
-      // Resolve section once if toSectionName is provided
       let globalTargetSectionId = toSectionId || null;
       if (!globalTargetSectionId && toSectionName && toGradeId && toGradeId !== 'GRADUATE') {
         const section = await tx.section.upsert({
-          where: { schoolId_name: { name: toSectionName, schoolId } },
+          where: { name: toSectionName },
           update: {},
-          create: { name: toSectionName, schoolId },
+          create: { name: toSectionName },
         });
         globalTargetSectionId = section.id;
       }
 
       const targetStreamObj = toStreamId ? await tx.stream.findUnique({ where: { id: toStreamId }, select: { name: true } }) : null;
 
-      // Bulk fetch all targeted student records
       const students = await tx.student.findMany({
-        where: { id: { in: studentIds }, schoolId },
+        where: { id: { in: studentIds } },
         select: { id: true, gradeId: true, sectionId: true, streamId: true, fullName: true, section: { select: { name: true } } },
       });
 
       const results = [];
 
       for (const student of students) {
-        // Handle dynamic section resolution per student if globalTargetSectionId wasn't set
         let targetSectionId = globalTargetSectionId;
         if (!targetSectionId && student.section?.name && toGradeId && toGradeId !== 'GRADUATE') {
           const section = await tx.section.upsert({
-            where: { schoolId_name: { name: student.section.name, schoolId } },
+            where: { name: student.section.name },
             update: {},
-            create: { name: student.section.name, schoolId },
+            create: { name: student.section.name },
           });
           targetSectionId = section.id;
         }
@@ -232,10 +209,8 @@ export class PromotionService {
         const effectiveTargetSectionId = targetSectionId || student.sectionId;
         const effectiveTargetStreamId = toStreamId || (isSecondary ? student.streamId : null);
 
-        // Log the promotion
         const promotion = await tx.studentPromotion.create({
           data: {
-            schoolId,
             studentId: student.id,
             academicYear,
             fromGradeId: student.gradeId,
@@ -260,7 +235,6 @@ export class PromotionService {
             },
           });
 
-          // Mark source academic year record as PROMOTED
           if (sourceAcademicYearRecord) {
             await tx.studentAcademicYearRecord.updateMany({
               where: { studentId: student.id, academicYearId: sourceAcademicYearRecord.id },
@@ -268,7 +242,6 @@ export class PromotionService {
             }).catch(() => {});
           }
 
-          // Create StudentAcademicYearRecord for target academic year (prevent duplicates via upsert)
           if (targetAcademicYearRecord) {
             await tx.studentAcademicYearRecord.upsert({
               where: {
@@ -278,7 +251,6 @@ export class PromotionService {
                 }
               },
               create: {
-                schoolId,
                 studentId: student.id,
                 academicYearId: targetAcademicYearRecord.id,
                 gradeId: toGradeId,
@@ -295,14 +267,12 @@ export class PromotionService {
             });
           }
 
-          // Create parent notification
           const streamInfo = targetStreamObj ? ` (${targetStreamObj.name})` : '';
           const sectionName = toSectionName || student.section?.name || '';
           const sectionInfo = sectionName ? ` Sec ${sectionName}` : '';
 
           await tx.parentNotification.create({
             data: {
-              schoolId,
               studentId: student.id,
               type: 'PROMOTION',
               category: 'ACADEMIC',
@@ -319,7 +289,6 @@ export class PromotionService {
             },
           });
 
-          // Mark source academic year record as GRADUATED
           if (sourceAcademicYearRecord) {
             await tx.studentAcademicYearRecord.updateMany({
               where: { studentId: student.id, academicYearId: sourceAcademicYearRecord.id },
@@ -329,7 +298,6 @@ export class PromotionService {
 
           await tx.parentNotification.create({
             data: {
-              schoolId,
               studentId: student.id,
               type: 'GRADUATION',
               category: 'ACADEMIC',
@@ -353,18 +321,15 @@ export class PromotionService {
   /**
    * Get promotion history for a school
    */
-  async getPromotionHistory(schoolId: string, academicYear?: string) {
+  async getPromotionHistory(_schoolId?: string, academicYear?: string) {
     return await prisma.studentPromotion.findMany({
       where: {
-        schoolId,
         ...(academicYear ? { academicYear } : {}),
       },
       include: {
         student: {
           select: { fullName: true, student_id: true },
         },
-        // We'd ideally include names for fromGrade/toGrade but they are strings in the model
-        // We might need to join them manually or fetch references
       },
       orderBy: { promotedAt: 'desc' },
     });
@@ -373,17 +338,16 @@ export class PromotionService {
   /**
    * Rollback a promotion record
    */
-  async rollbackPromotion(promotionId: string, schoolId: string) {
+  async rollbackPromotion(promotionId: string, _schoolId?: string) {
     return await prisma.$transaction(async (tx) => {
       const promotion = await tx.studentPromotion.findUnique({
         where: { id: promotionId },
       });
 
-      if (!promotion || promotion.schoolId !== schoolId) {
+      if (!promotion) {
         throw new Error('Promotion record not found');
       }
 
-      // Revert student to previous state
       await tx.student.update({
         where: { id: promotion.studentId },
         data: {
@@ -394,7 +358,6 @@ export class PromotionService {
         },
       });
 
-      // Remove promotion record
       await tx.studentPromotion.delete({
         where: { id: promotionId },
       });

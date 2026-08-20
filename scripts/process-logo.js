@@ -58,9 +58,8 @@ async function processImage() {
 
   // Save circular version for web display
   const circularTargets = [
-    'c:/Users/PHOTO NATIONAL/zetimer/public/zetime-logo.png',
-    'c:/Users/PHOTO NATIONAL/zetimer/public/zetime_branding_professional.png',
-    'c:/Users/PHOTO NATIONAL/zetimer/out/zetime-logo.png'
+    'c:/Users/PHOTO NATIONAL/zetimer/public/addis-hiwot-logo.png',
+    'c:/Users/PHOTO NATIONAL/zetimer/out/addis-hiwot-logo.png'
   ];
 
   for (const target of solidTargets) {

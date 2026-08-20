@@ -9,9 +9,8 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 export const toggleBookmark = async (req: AuthenticatedRequest, res: Response) => {
   const { messageId } = req.params;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
-  if (!userId || !schoolId) {
+  if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -71,10 +70,9 @@ export const toggleBookmark = async (req: AuthenticatedRequest, res: Response) =
 export const getConversationBookmarks = async (req: AuthenticatedRequest, res: Response) => {
   const { conversationId } = req.params;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
   const { limit = '30', cursor } = req.query;
 
-  if (!userId || !schoolId) {
+  if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -146,3 +144,4 @@ export const getConversationBookmarks = async (req: AuthenticatedRequest, res: R
     return res.status(500).json({ error: 'Failed to fetch conversation bookmarks' });
   }
 };
+

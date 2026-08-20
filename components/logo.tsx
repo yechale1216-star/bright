@@ -39,7 +39,7 @@ export const Logo: React.FC<LogoProps> = ({
         ) : (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src="/zetime-logo.png"
+            src="/addis-hiwot-logo.png"
             alt="Addis Hiwot School Logo"
             width={dimensions[size].px}
             height={dimensions[size].px}

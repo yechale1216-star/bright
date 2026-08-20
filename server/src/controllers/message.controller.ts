@@ -1,14 +1,13 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import prisma from '../config/db';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const getConversations = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
   const { limit = '30', cursor } = req.query;
 
-  if (!schoolId) {
-    return res.status(401).json({ error: 'Unauthorized: School ID missing' });
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const take = Math.min(Math.max(Number(limit) || 30, 1), 50);
@@ -16,7 +15,6 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
   try {
     const conversations = await prisma.conversation.findMany({
       where: {
-        schoolId,
         members: {
           some: { userId },
         },
@@ -54,7 +52,6 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
           },
         },
         messages: {
-          where: { schoolId },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: {
@@ -72,13 +69,11 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
       orderBy: { updatedAt: 'desc' },
     });
 
-    // Calculate unread message count per conversation for the requesting user
     const conversationsWithUnread = await Promise.all(
       conversations.map(async (conv) => {
         const unreadCount = await prisma.message.count({
           where: {
             conversationId: conv.id,
-            schoolId,
             senderId: { not: userId },
             isDeleted: false,
             readBy: { none: { userId } },
@@ -98,14 +93,13 @@ export const getConversations = async (req: AuthenticatedRequest, res: Response)
 export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
   const { conversationId } = req.params;
   const { limit = '30', cursor } = req.query;
-  const schoolId = req.user?.schoolId;
   const userId = req.user?.id;
 
-  if (!schoolId || !userId) {
-    return res.status(401).json({ error: 'Unauthorized: School ID missing' });
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const take = Math.min(Math.max(Number(limit) || 30, 1), 50); // Default 30, cap at 50
+  const take = Math.min(Math.max(Number(limit) || 30, 1), 50);
 
   try {
     const [membership, messages] = await Promise.all([
@@ -114,7 +108,7 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
         select: { id: true, clearedAt: true },
       }),
       prisma.message.findMany({
-        where: { conversationId, schoolId },
+        where: { conversationId },
         take: take + 1,
         ...(cursor ? { skip: 1, cursor: { id: String(cursor) } } : {}),
         orderBy: { createdAt: 'desc' },
@@ -140,14 +134,12 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
             },
           },
           readBy: {
-            where: { schoolId },
             take: 20,
             select: {
               userId: true,
             },
           },
           reactions: {
-            where: { schoolId },
             select: {
               id: true,
               userId: true,
@@ -174,7 +166,6 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: 'Forbidden: You are not a member of this conversation' });
     }
 
-    // Filter out messages that were cleared by this user
     const clearedAt = membership.clearedAt;
     const visibleMessages = clearedAt
       ? messages.filter((m) => m.createdAt > clearedAt)
@@ -187,15 +178,14 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
     const formattedMessages = page.map((m) => {
       const isMe = m.senderId === userId;
       const isRead = isMe
-        ? m.readBy.some((r) => r.userId !== userId)
-        : m.readBy.some((r) => r.userId === userId);
+        ? (m as any).readBy?.some((r: any) => r.userId !== userId)
+        : (m as any).readBy?.some((r: any) => r.userId === userId);
       return {
         ...m,
         isRead,
       };
     });
 
-    // Return in chronological order (oldest first)
     res.status(200).json({
       messages: formattedMessages.reverse(),
       nextCursor,
@@ -208,13 +198,11 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// ── Toggle Mute / Unmute Conversation ─────────────────────────────────────────
 export const toggleMuteConversation = async (req: AuthenticatedRequest, res: Response) => {
   const { id: conversationId } = req.params;
   const userId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
-  if (!userId || !schoolId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const membership = await prisma.conversationMember.findFirst({
@@ -239,7 +227,6 @@ export const toggleMuteConversation = async (req: AuthenticatedRequest, res: Res
   }
 };
 
-// ── Get Mute Status ───────────────────────────────────────────────────────────
 export const getMuteStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { id: conversationId } = req.params;
   const userId = req.user?.id;
@@ -263,7 +250,6 @@ export const getMuteStatus = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-// ── Clear Chat History (per-user) ─────────────────────────────────────────────
 export const clearChatHistory = async (req: AuthenticatedRequest, res: Response) => {
   const { id: conversationId } = req.params;
   const userId = req.user?.id;
@@ -280,7 +266,6 @@ export const clearChatHistory = async (req: AuthenticatedRequest, res: Response)
       return res.status(403).json({ error: 'You are not a member of this conversation' });
     }
 
-    // Set clearedAt to NOW — getMessages will filter out all messages before this point
     await prisma.conversationMember.update({
       where: { id: membership.id },
       data: { clearedAt: new Date() },
@@ -293,27 +278,23 @@ export const clearChatHistory = async (req: AuthenticatedRequest, res: Response)
   }
 };
 
-// ── Block User ────────────────────────────────────────────────────────────────
 export const blockUser = async (req: AuthenticatedRequest, res: Response) => {
   const { targetUserId } = req.params;
   const blockerId = req.user?.id;
-  const schoolId = req.user?.schoolId;
 
   if (!blockerId) return res.status(401).json({ error: 'Unauthorized' });
   if (blockerId === targetUserId) return res.status(400).json({ error: 'Cannot block yourself' });
 
   try {
-    // Verify target user exists and belongs to same school
-    const target = await prisma.user.findFirst({
-      where: { id: targetUserId, schoolId },
+    const target = await prisma.user.findUnique({
+      where: { id: targetUserId },
       select: { id: true },
     });
     if (!target) return res.status(404).json({ error: 'User not found' });
 
-    // Upsert to prevent duplicate block records
     const block = await prisma.userBlock.upsert({
       where: { blockerId_blockedId: { blockerId, blockedId: targetUserId } },
-      create: { blockerId, blockedId: targetUserId, schoolId },
+      create: { blockerId, blockedId: targetUserId },
       update: {},
     });
 
@@ -324,7 +305,6 @@ export const blockUser = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// ── Unblock User ──────────────────────────────────────────────────────────────
 export const unblockUser = async (req: AuthenticatedRequest, res: Response) => {
   const { targetUserId } = req.params;
   const blockerId = req.user?.id;
@@ -343,7 +323,6 @@ export const unblockUser = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// ── Get Block Status ──────────────────────────────────────────────────────────
 export const getBlockStatus = async (req: AuthenticatedRequest, res: Response) => {
   const { targetUserId } = req.params;
   const userId = req.user?.id;
@@ -372,59 +351,27 @@ export const getBlockStatus = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
-
-
 export const createConversation = async (req: AuthenticatedRequest, res: Response) => {
   const { name, isGroup, memberIds, avatar } = req.body;
 
-  // Use x-school-id header as the authoritative school context.
-  // req.user.schoolId can fall back to the JWT's default school (which may be suspended/wrong)
-  // when tenantMiddleware cannot resolve the role for the /api/messages path.
-  const headerSchoolId = req.headers['x-school-id'] as string | undefined;
-  const schoolId = headerSchoolId || req.user?.schoolId;
-
-  if (!schoolId) {
-    return res.status(401).json({ error: 'Unauthorized: School ID missing' });
-  }
-
   try {
-    // Verify all members are either:
-    // a) Staff/Teachers/Admins in this school (via User.schoolId)
-    // b) Parents linked to this school (via ParentStudentLink)
-    // This handles the case of a parent (whose User.schoolId = SchoolA) messaging
-    // a teacher in SchoolB (their child's school).
-    const staffInSchool = await prisma.user.findMany({
+    const validUsers = await prisma.user.findMany({
       where: {
         id: { in: memberIds },
-        schoolId,
         is_active: true,
       },
       select: { id: true }
     });
 
-    const parentLinksInSchool = await prisma.parentStudentLink.findMany({
-      where: {
-        parentId: { in: memberIds },
-        schoolId,
-      },
-      select: { parentId: true }
-    });
-    const parentIds = new Set(parentLinksInSchool.map((l: any) => l.parentId));
-    const staffIds = new Set(staffInSchool.map((u: any) => u.id));
-
-    const validMemberIds: string[] = memberIds.filter((id: string) => staffIds.has(id) || parentIds.has(id));
-
-    if (validMemberIds.length !== memberIds.length) {
+    if (validUsers.length !== memberIds.length) {
       return res.status(403).json({ 
-        error: 'Forbidden: One or more users are not found in your school or are not authorized for communication' 
+        error: 'Forbidden: One or more users are not found or not active' 
       });
     }
 
-    // If not a group, check if a 1:1 conversation already exists in THIS school
     if (!isGroup && memberIds.length === 2) {
       const existingConversation = await prisma.conversation.findFirst({
         where: {
-          schoolId,
           isGroup: false,
           AND: [
             { members: { some: { userId: memberIds[0] } } },
@@ -443,7 +390,6 @@ export const createConversation = async (req: AuthenticatedRequest, res: Respons
         name,
         isGroup,
         avatar,
-        schoolId,
         members: {
           create: memberIds.map((userId: string) => ({
             userId,
@@ -477,15 +423,13 @@ export const createConversation = async (req: AuthenticatedRequest, res: Respons
 
 export const getConversationShared = async (req: AuthenticatedRequest, res: Response) => {
   const { conversationId } = req.params;
-  const schoolId = req.user?.schoolId;
-  const userId   = req.user?.id;
+  const userId = req.user?.id;
 
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     let targetConvId = conversationId;
 
-    // Verify membership or direct contact conversation
     const isMember = await prisma.conversationMember.findFirst({
       where: { conversationId: targetConvId, userId },
       select: { id: true },
@@ -509,7 +453,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
       targetConvId = directConv.id;
     }
 
-    // 1. Fetch Media & File messages
     const mediaAndFiles = await prisma.message.findMany({
       where: {
         conversationId: targetConvId,
@@ -526,8 +469,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
       },
     });
 
-
-    // 2. Fetch Text messages containing links
     const textMessages = await prisma.message.findMany({
       where: {
         conversationId: targetConvId,
@@ -549,7 +490,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
       },
     });
 
-    // 3. Fetch Saved Bookmarks for this conversation
     const savedBookmarks = await prisma.savedBookmark.findMany({
       where: { userId, conversationId: targetConvId },
       orderBy: { createdAt: 'desc' },
@@ -573,7 +513,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
       },
     });
 
-    // Categorize Media vs Files
     const media: any[] = [];
     const files: any[] = [];
 
@@ -608,7 +547,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
           attachments: rawAtts,
         });
       } else {
-        // File categorization
         const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
         let fileCategory = 'other';
         if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext) || mime.includes('pdf') || mime.includes('word') || mime.includes('text')) {
@@ -639,7 +577,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
       }
     }
 
-    // Extract Links from text messages
     const URL_REGEX = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
     const links: any[] = [];
     const seenUrls = new Set<string>();
@@ -675,7 +612,6 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
       }
     }
 
-    // Process Saved Bookmarks
     const saved = savedBookmarks
       .filter((b) => b.message && !b.message.isDeleted)
       .map((b) => ({
@@ -695,5 +631,3 @@ export const getConversationShared = async (req: AuthenticatedRequest, res: Resp
     return res.status(500).json({ error: 'Failed to fetch shared content' });
   }
 };
-
-
