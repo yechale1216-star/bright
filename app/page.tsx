@@ -1,33 +1,77 @@
-"use client"
+import type { Metadata } from "next"
+import HomeRedirect from "./home-redirect"
+import {
+  SITE_URL,
+  SITE_NAME,
+  SCHOOL_FULL_NAME,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_KEYWORDS,
+  DEFAULT_OG_IMAGE,
+  TWITTER_HANDLE,
+} from "@/lib/seo/metadata-constants"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-
-export default function Page() {
-  const router = useRouter()
-
-  useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : null
-    const userStr = typeof window !== "undefined" ? localStorage.getItem("attendance_current_user") : null
-
-    if (token && userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        if (user.role === "parent") {
-          router.replace("/parent/notifications")
-          return
-        }
-      } catch (e) {}
-    }
-    router.replace("/login")
-  }, [router])
-
-  return (
-    <div className="min-h-screen bg-[#070d1a] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-[#1a3a6b]/30 border-t-[#1a3a6b] rounded-full animate-spin" />
-        <p className="text-xs font-bold text-slate-400">Loading Addis Hiwot...</p>
-      </div>
-    </div>
-  )
+/**
+ * Root page metadata for https://ahs.pro.et/
+ *
+ * This is the only publicly indexed URL for the Addis Hiwot school portal.
+ * The page itself redirects authenticated users to their dashboard and
+ * unauthenticated users to /login, but the metadata is what Google indexes.
+ */
+export const metadata: Metadata = {
+  title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
+  description: DEFAULT_DESCRIPTION,
+  keywords: DEFAULT_KEYWORDS,
+  authors: [{ name: SCHOOL_FULL_NAME }, { name: "Ethio Nova" }],
+  alternates: {
+    canonical: SITE_URL,
+    languages: {
+      "en-US": SITE_URL,
+      "am-ET": SITE_URL,
+    },
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
+    description: DEFAULT_DESCRIPTION,
+    url: SITE_URL,
+    locale: "en_US",
+    alternateLocale: ["am_ET"],
+    images: [
+      {
+        url: `${SITE_URL}${DEFAULT_OG_IMAGE}`,
+        width: 1200,
+        height: 630,
+        alt: `${SITE_NAME} — School Attendance & Parent Notification System, Addis Ababa`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: TWITTER_HANDLE,
+    creator: TWITTER_HANDLE,
+    title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
+    description: DEFAULT_DESCRIPTION,
+    images: [`${SITE_URL}${DEFAULT_OG_IMAGE}`],
+  },
 }
+
+/**
+ * Server component wrapper for the root route.
+ * Renders the client-side redirect logic via <HomeRedirect>.
+ */
+export default function Page() {
+  return <HomeRedirect />
+}
+

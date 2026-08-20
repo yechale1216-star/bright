@@ -2,12 +2,18 @@ import type { Metadata } from "next"
 
 // ── Site-wide constants & Canonical URL Helper ──────────────────────────────────
 function resolveSiteUrl(): string {
+  // Priority order:
+  // 1. NEXT_PUBLIC_SITE_URL — explicitly set canonical production URL (preferred)
+  // 2. VERCEL_PROJECT_PRODUCTION_URL — Vercel automatically sets this for the production deployment
+  // 3. Hardcoded canonical production domain as a safe fallback
+  //
+  // NOTE: NEXT_PUBLIC_APP_URL is intentionally excluded — in this project it
+  // resolves to the backend API server URL, not the frontend canonical URL.
   const rawUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "https://zetime.pro.et")
+      : "https://ahs.pro.et")
   // Strip trailing slashes to ensure uniform canonical URLs
   return rawUrl.replace(/\/+$/, "")
 }

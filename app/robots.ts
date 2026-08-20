@@ -27,22 +27,24 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: [
           "/",
-          "/login",
+          // Allow static assets required for page rendering
           "/manifest.json",
           "/icon-192.png",
           "/icon-512.png",
           "/addis-hiwot-logo.png",
-          "/zetime-logo.png",
           "/fonts/",
         ],
         disallow: [
+          // Private application portals — authenticated users only
           "/school/",
           "/parent/",
           "/api/",
           "/reset-password/",
           "/setup/",
           "/auth/",
-          "/_next/",
+          // NOTE: /_next/ is intentionally NOT disallowed.
+          // Googlebot requires access to Next.js JS/CSS chunks to render pages.
+          // Blocking /_next/ prevents proper page indexing (Google renders JavaScript).
         ],
       },
     ],

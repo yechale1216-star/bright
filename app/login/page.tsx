@@ -6,6 +6,7 @@ export const metadata = createPageMetadata({
   description:
     "Sign in to your Addis Hiwot account to access school attendance management, parent communication portals, and administrative tools.",
   path: "/login",
+  noIndex: true, // Login/authentication pages must not appear in search results
 })
 
 export default function Page() {

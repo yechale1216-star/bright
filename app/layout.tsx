@@ -45,7 +45,7 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — School Attendance Management & Communication System`,
+    default: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
     template: `%s | ${SITE_NAME}`,
   },
   description: DEFAULT_DESCRIPTION,
@@ -74,10 +74,12 @@ export const metadata: Metadata = {
     telephone: false,
   },
   alternates: {
-    canonical: "/",
+    // Use the absolute URL so the canonical is always https://ahs.pro.et/ —
+    // never a relative path that could resolve against a wrong base.
+    canonical: SITE_URL,
     languages: {
-      "en-US": "/",
-      "am-ET": "/",
+      "en-US": SITE_URL,
+      "am-ET": SITE_URL,
     },
   },
   robots: {
@@ -94,17 +96,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — School Attendance Management & Communication System`,
+    title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
     description: DEFAULT_DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
     alternateLocale: ["am_ET"],
     images: [
       {
-        url: DEFAULT_OG_IMAGE,
+        url: `${SITE_URL}${DEFAULT_OG_IMAGE}`,
         width: 1200,
         height: 630,
-        alt: `${SITE_NAME} — School Attendance Management & Communication System`,
+        alt: `${SITE_NAME} — School Attendance & Parent Notification System, Addis Ababa`,
       },
     ],
   },
@@ -112,9 +114,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: TWITTER_HANDLE,
     creator: TWITTER_HANDLE,
-    title: `${SITE_NAME} — School Attendance Management & Communication System`,
+    title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
     description: DEFAULT_DESCRIPTION,
-    images: [DEFAULT_OG_IMAGE],
+    images: [`${SITE_URL}${DEFAULT_OG_IMAGE}`],
   },
   verification: {
     google: "h_87sQ6J11rElUbRMtvQghzY0vY_0rvLaBytdcLdjwQ",
