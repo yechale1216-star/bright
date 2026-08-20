@@ -474,6 +474,7 @@ export interface CheckInButtonState {
   canCheckIn: boolean
   isBeforeEarliest: boolean
   isAfterCutoff: boolean
+  isAfterCheckout: boolean
   buttonText: string
   helperText?: string
   badgeVariant?: "default" | "secondary" | "destructive" | "outline"
@@ -481,7 +482,11 @@ export interface CheckInButtonState {
 
 /**
  * Computes whether the staff check-in button is active or inactive,
- * respecting earliestCheckinTime and absenceCutoffTime gates.
+ * strictly following admin-configured attendance time rules:
+ * 1. Before Earliest Time -> Inactive ("Check-in opens at [time]")
+ * 2. After Checkout Time -> Always Inactive ("Check-in closed for today.")
+ * 3. After Cutoff Time (when allowCheckinAfterCutoff is false) -> Inactive ("Check-in closed for today.")
+ * 4. During Allowed Window -> Active ("Check In Now")
  */
 export function getCheckInButtonState(
   record?: any,
@@ -495,6 +500,7 @@ export function getCheckInButtonState(
       canCheckIn: false,
       isBeforeEarliest: false,
       isAfterCutoff: false,
+      isAfterCheckout: false,
       buttonText: "Already Checked In",
       helperText: "Check-in recorded for today",
     }
@@ -514,53 +520,76 @@ export function getCheckInButtonState(
   }
 
   let earliestCheckIn = "06:00"
+  let expectedStartTime = "08:00"
+  let expectedEndTime = "17:00"
   let absenceCutoffTime = "10:00"
   let allowCheckinAfterCutoff = false
 
   if (sessionConfig) {
-    earliestCheckIn = sessionConfig.earliestCheckinTime || sessionConfig.earliestCheckInTime || addMinutesToHHMM(sessionConfig.startTime || "08:00", -60)
+    expectedStartTime = sessionConfig.startTime || "08:00"
+    expectedEndTime = sessionConfig.endTime || "12:30"
+    earliestCheckIn = sessionConfig.earliestCheckinTime || sessionConfig.earliestCheckInTime || addMinutesToHHMM(expectedStartTime, -60)
     const absenceMins = sessionConfig.absenceCutoffMinutes ?? 90
-    absenceCutoffTime = sessionConfig.absenceCutoffTime || addMinutesToHHMM(sessionConfig.startTime || "08:00", absenceMins)
+    absenceCutoffTime = sessionConfig.absenceCutoffTime || addMinutesToHHMM(expectedStartTime, absenceMins)
     allowCheckinAfterCutoff = sessionConfig.allowCheckinAfterCutoff ?? settings?.allowStaffCheckinAfterCutoff ?? settings?.allow_staff_checkin_after_cutoff ?? false
   } else if (settings) {
+    expectedStartTime = settings.staffWorkStartTime || settings.staff_work_start_time || "08:00"
+    expectedEndTime = settings.staffWorkEndTime || settings.staff_work_end_time || "17:00"
     earliestCheckIn = settings.staffEarliestCheckinTime || settings.staff_earliest_checkin_time || "06:00"
-    const start = settings.staffWorkStartTime || settings.staff_work_start_time || "08:00"
     const mins = settings.staffAbsenceCutoffMinutes ?? settings.staff_absence_cutoff_minutes ?? 120
-    absenceCutoffTime = settings.staffAbsenceCutoffTime || settings.staff_absence_cutoff_time || addMinutesToHHMM(start, mins)
+    absenceCutoffTime = settings.staffAbsenceCutoffTime || settings.staff_absence_cutoff_time || addMinutesToHHMM(expectedStartTime, mins)
     allowCheckinAfterCutoff = settings.allowStaffCheckinAfterCutoff ?? settings.allow_staff_checkin_after_cutoff ?? false
   }
 
-  // 2. Gate 1: Before Earliest Check-In Time
+  // 2. Rule 1: Before Earliest Check-In Time
   if (earliestCheckIn && isHHMMBefore(currentTimeHHMM, earliestCheckIn)) {
     return {
       canCheckIn: false,
       isBeforeEarliest: true,
       isAfterCutoff: false,
-      buttonText: `Check-In Opens at ${formatCivilTime(earliestCheckIn)}`,
+      isAfterCheckout: false,
+      buttonText: `Check-in opens at ${formatCivilTime(earliestCheckIn)}`,
       helperText: `Check-in opens at ${formatCivilTime(earliestCheckIn)}. Current time: ${formatCivilTime(currentTimeHHMM)}.`,
       badgeVariant: "secondary",
     }
   }
 
-  // 3. Gate 2: After Absence Cutoff Time when post-cutoff check-in is disallowed
+  // 3. Rule 3: After Checkout Time — Final Check-in Lock (Regardless of allowCheckinAfterCutoff)
+  if (expectedEndTime && (isHHMMAfter(currentTimeHHMM, expectedEndTime) || currentTimeHHMM === expectedEndTime)) {
+    return {
+      canCheckIn: false,
+      isBeforeEarliest: false,
+      isAfterCutoff: true,
+      isAfterCheckout: true,
+      buttonText: "Check-in closed for today.",
+      helperText: `Check-in closed for today. Expected checkout time (${formatCivilTime(expectedEndTime)}) has passed.`,
+      badgeVariant: "destructive",
+    }
+  }
+
+  // 4. Rule 2: After Absence Cutoff Time when post-cutoff check-in is disallowed
   if (!allowCheckinAfterCutoff && absenceCutoffTime && isHHMMAfter(currentTimeHHMM, absenceCutoffTime)) {
     return {
       canCheckIn: false,
       isBeforeEarliest: false,
       isAfterCutoff: true,
-      buttonText: "Check-In Closed",
-      helperText: `Absence cutoff elapsed at ${formatCivilTime(absenceCutoffTime)}. Check-in is closed.`,
+      isAfterCheckout: false,
+      buttonText: "Check-in closed for today.",
+      helperText: `Check-in closed for today. Absence cutoff elapsed at ${formatCivilTime(absenceCutoffTime)}.`,
       badgeVariant: "destructive",
     }
   }
 
-  // 4. Check-In is Open
+  // 5. Allowed Check-in Window is Open
   return {
     canCheckIn: true,
     isBeforeEarliest: false,
     isAfterCutoff: false,
+    isAfterCheckout: false,
     buttonText: "Check In Now",
-    helperText: `Check-in window open until ${formatCivilTime(absenceCutoffTime)}`,
+    helperText: allowCheckinAfterCutoff
+      ? `Check-in open (late check-in permitted until checkout at ${formatCivilTime(expectedEndTime)})`
+      : `Check-in window open until ${formatCivilTime(absenceCutoffTime)}`,
     badgeVariant: "default",
   }
 }

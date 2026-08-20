@@ -317,6 +317,7 @@ export async function checkIn(userId: string, schoolId: string, data: {
 
   // ── Resolve session key and thresholds based on mode ──
   let sessionKey: string;
+  let expectedEndTime: string;
   let lateCutoffTime: string;
   let earliestCheckIn: string;
   let absenceCutoffTime: string;
@@ -329,6 +330,7 @@ export async function checkIn(userId: string, schoolId: string, data: {
     if (!sess) throw new Error(`Session "${data.session}" is not configured or is inactive.`);
     sessionKey = sess.id.toLowerCase();
     const thresholds = computeSessionThresholds(sess);
+    expectedEndTime = thresholds.expectedEndTime || sess.endTime;
     lateCutoffTime = thresholds.lateCutoffTime;
     earliestCheckIn = thresholds.earliestCheckIn;
     absenceCutoffTime = thresholds.absenceCutoffTime;
@@ -337,20 +339,26 @@ export async function checkIn(userId: string, schoolId: string, data: {
     // Daily mode
     sessionKey = 'daily';
     const schedule = computeWorkingScheduleThresholds(settings);
+    expectedEndTime = schedule.expectedEndTime;
     lateCutoffTime = schedule.lateCutoffTime;
     earliestCheckIn = schedule.earliestCheckIn;
     absenceCutoffTime = schedule.absenceCutoffTime;
     allowCheckinAfterCutoff = (settings as any)?.allow_staff_checkin_after_cutoff ?? false;
   }
 
-  // 1. Earliest check-in gate: Check-in button is inactive / rejected until earliestCheckIn
+  // 1. Earliest check-in gate: Check-in is inactive / rejected until earliestCheckIn
   if (earliestCheckIn && isTimeBefore(currentTimeHHMM, earliestCheckIn)) {
     throw new Error(`Check-in is not open yet. Earliest allowed check-in is ${formatCivilTime(earliestCheckIn)}.`);
   }
 
-  // 2. Absence cutoff gate: If admin does not allow post-cutoff check-in, reject check-in
+  // 2. Checkout Time — Final Check-in Lock (Regardless of allowCheckinAfterCutoff)
+  if (expectedEndTime && (isTimeAfter(currentTimeHHMM, expectedEndTime) || currentTimeHHMM === expectedEndTime)) {
+    throw new Error(`Check-in closed for today. The checkout time (${formatCivilTime(expectedEndTime)}) has passed.`);
+  }
+
+  // 3. Absence cutoff gate: If admin does not allow post-cutoff check-in, reject check-in
   if (!allowCheckinAfterCutoff && absenceCutoffTime && isTimeAfter(currentTimeHHMM, absenceCutoffTime)) {
-    throw new Error(`Check-in is closed. The absence cutoff time (${formatCivilTime(absenceCutoffTime)}) has passed.`);
+    throw new Error(`Check-in closed for today. The absence cutoff time (${formatCivilTime(absenceCutoffTime)}) has passed.`);
   }
 
   // Determine status & remarks based on working day calendar rules

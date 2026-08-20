@@ -576,18 +576,19 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
     })
 
     test("Check-in button is INACTIVE after absence cutoff when allowCheckinAfterCutoff is false (e.g. 10:00 AM > 09:30 AM)", () => {
-      // 10:00 AM in Africa/Addis_Ababa = 07:00 UTC
+      // 10:00 AM in Africa/Addis_Ababa = 07:00 UTC (before 12:30 checkout)
       const mockTimeLate = new Date("2026-08-20T07:00:00.000Z")
       const state = getCheckInButtonState(null, mockSettings, mockSession, mockTimeLate)
 
       expect(state.canCheckIn).toBe(false)
       expect(state.isBeforeEarliest).toBe(false)
       expect(state.isAfterCutoff).toBe(true)
-      expect(state.buttonText).toBe("Check-In Closed")
+      expect(state.isAfterCheckout).toBe(false)
+      expect(state.buttonText).toBe("Check-in closed for today.")
       expect(state.helperText).toContain("Absence cutoff elapsed")
     })
 
-    test("Check-in button is ACTIVE after absence cutoff when allowCheckinAfterCutoff is true", () => {
+    test("Check-in button is ACTIVE after absence cutoff when allowCheckinAfterCutoff is true but before checkout time (e.g. 10:00 AM < 12:30 PM)", () => {
       const permissiveSession = { ...mockSession, allowCheckinAfterCutoff: true }
       // 10:00 AM in Africa/Addis_Ababa = 07:00 UTC
       const mockTimeLate = new Date("2026-08-20T07:00:00.000Z")
@@ -596,7 +597,20 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(state.canCheckIn).toBe(true)
       expect(state.isBeforeEarliest).toBe(false)
       expect(state.isAfterCutoff).toBe(false)
+      expect(state.isAfterCheckout).toBe(false)
       expect(state.buttonText).toBe("Check In Now")
+    })
+
+    test("Check-in button is ALWAYS INACTIVE after checkout time, regardless of allowCheckinAfterCutoff (e.g. 13:00 PM > 12:30 PM)", () => {
+      const permissiveSession = { ...mockSession, allowCheckinAfterCutoff: true }
+      // 01:00 PM in Africa/Addis_Ababa = 10:00 UTC (past 12:30 PM session end)
+      const mockTimePastCheckout = new Date("2026-08-20T10:00:00.000Z")
+      const state = getCheckInButtonState(null, mockSettings, permissiveSession, mockTimePastCheckout)
+
+      expect(state.canCheckIn).toBe(false)
+      expect(state.isAfterCheckout).toBe(true)
+      expect(state.buttonText).toBe("Check-in closed for today.")
+      expect(state.helperText).toContain("Expected checkout time (12:30 PM) has passed")
     })
 
     test("Check-in button is INACTIVE when staff has already checked in", () => {
