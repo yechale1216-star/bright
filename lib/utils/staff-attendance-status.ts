@@ -97,7 +97,7 @@ export function getHHMMFromDate(dateInput?: string | Date | null): string {
   }
 }
 
-import { formatEthiopianTime, toEthiopianTime } from "@/lib/utils/ethiopian-time"
+import { formatEthiopianTime, formatCivilFullDateTime } from "@/lib/utils/ethiopian-time"
 
 /**
  * Formats a Date or ISO string into Ethiopian Clock format (e.g. "2:15 Ethiopian").
@@ -109,22 +109,16 @@ export function formatAttendanceTime(dateInput?: string | Date | null): string {
 }
 
 /**
- * Formats a Date or ISO string into a full datetime string in Ethiopian Calendar and Clock.
- * Used for fullDateTimeStr tooltip/title attributes.
+ * Formats a Date or ISO string into a full datetime string in Africa/Addis_Ababa timezone.
+ * Displays date + 12-hour AM/PM time. Used for fullDateTimeStr tooltip/title attributes.
+ * Example: "Aug 20, 2026 • 8:30 AM"
  */
 function formatFullDateTimeET(dateInput?: string | Date | null): string | undefined {
   if (!dateInput) return undefined
   try {
-    const et = toEthiopianTime(dateInput)
     const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
     if (isNaN(d.getTime())) return undefined
-    const datePart = d.toLocaleDateString("en-US", {
-      timeZone: "Africa/Addis_Ababa",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-    return `${datePart} • ${et.timeString} (${et.periodLabelAm})`
+    return formatCivilFullDateTime(d)
   } catch {
     return undefined
   }

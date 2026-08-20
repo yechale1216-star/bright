@@ -1,47 +1,44 @@
 /**
- * Central Ethiopian Time / Clock Utility
- * 
- * Provides bijective, mathematically precise conversions between Western 24h canonical
- * time (in Africa/Addis_Ababa timezone) and the traditional 12-hour Ethiopian Clock.
- * 
- * Ethiopian Day Cycle:
- * - 06:00 Western = 12:00 Ethiopian (ጠዋት / Morning / Day)
- * - 08:00 Western = 2:00 Ethiopian (ጠዋት / Morning / Day)
- * - 12:00 Western = 6:00 Ethiopian (ከሰዓት / Afternoon / Day)
- * - 13:30 Western = 7:30 Ethiopian (ከሰዓት / Afternoon / Day)
- * - 17:00 Western = 11:00 Ethiopian (ከሰዓት / Afternoon / Day)
- * - 18:00 Western = 12:00 Ethiopian (ማታ / Evening / Night)
- * - 20:00 Western = 2:00 Ethiopian (ማታ / Evening / Night)
- * - 00:00 Western = 6:00 Ethiopian (ሌሊት / Midnight / Night)
+ * Civil Time Display Utility — Africa/Addis_Ababa
+ *
+ * Replaces the old traditional Ethiopian 6-hour clock display layer.
+ * All user-facing times are now displayed in standard 12-hour AM/PM format.
+ *
+ * Architecture:
+ *   UTC timestamp (persistence)
+ *         ↓
+ *   Africa/Addis_Ababa (school local time)
+ *         ↓
+ *   School business logic (late/early/absent thresholds)
+ *         ↓
+ *   12-hour AM/PM (user-facing display)
+ *
+ * IMPORTANT: Do NOT apply any ±6 hour offset.
+ * Africa/Addis_Ababa is the standard civil timezone (UTC+3, no DST).
+ * 8:00 AM civil = 8:00 AM displayed. Not "2:00 Ethiopian".
  */
 
 export const ETHIOPIA_TIMEZONE = "Africa/Addis_Ababa";
 
-export type EthiopianTimePeriod = "morning" | "afternoon" | "evening" | "night";
-
-export interface EthiopianTimeStructure {
-  ethHour: number;        // 1 to 12
-  ethMinute: number;      // 0 to 59
-  minuteStr: string;      // "00" to "59"
-  period: EthiopianTimePeriod; // "morning" | "afternoon" | "evening" | "night"
-  periodLabelEn: string;  // "Morning" | "Afternoon" | "Evening" | "Night"
-  periodLabelAm: string;  // "ጠዋት" | "ከሰዓት" | "ማታ" | "ሌሊት"
-  timeString: string;     // "2:00 Ethiopian"
-  timeWithPeriod: string; // "2:00 ጠዋት" or "2:00 Morning"
-  canonicalHHMM: string;  // "08:00" (Western 24-hour canonical)
-}
+// ─── Core helpers ─────────────────────────────────────────────────────────────
 
 /**
- * Extracts hour (0-23) and minute (0-59) in Africa/Addis_Ababa timezone from Date or string.
+ * Extracts hour (0-23) and minute (0-59) in Africa/Addis_Ababa timezone
+ * from a Date object, ISO string, epoch number, or "HH:MM" string.
  */
-export function getAddisAbabaTimeParts(dateInput?: Date | string | number | null): { hour: number; minute: number } {
+export function getAddisAbabaTimeParts(
+  dateInput?: Date | string | number | null
+): { hour: number; minute: number } {
   if (!dateInput) {
-    const now = new Date();
-    return getAddisAbabaTimeParts(now);
+    return getAddisAbabaTimeParts(new Date());
   }
 
-  // If input is already HH:MM format string (e.g. "08:00" or "13:30")
-  if (typeof dateInput === "string" && /^\d{1,2}:\d{2}(:\d{2})?$/.test(dateInput.trim())) {
+  // If input is already an HH:MM (or HH:MM:SS) time-only string, parse directly.
+  // These values represent local school times — no timezone conversion needed.
+  if (
+    typeof dateInput === "string" &&
+    /^\d{1,2}:\d{2}(:\d{2})?$/.test(dateInput.trim())
+  ) {
     const [h, m] = dateInput.trim().split(":").map(Number);
     return {
       hour: isNaN(h) ? 8 : Math.max(0, Math.min(23, h)),
@@ -65,69 +62,200 @@ export function getAddisAbabaTimeParts(dateInput?: Date | string | number | null
     for (const part of parts) {
       if (part.type === "hour") {
         hour = parseInt(part.value, 10);
-        if (hour === 24) hour = 0;
+        if (hour === 24) hour = 0; // Intl may return 24 for midnight
       } else if (part.type === "minute") {
         minute = parseInt(part.value, 10);
       }
     }
     return { hour, minute };
   } catch {
+    // Fallback: UTC+3 arithmetic (Africa/Addis_Ababa has no DST)
     const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
-    const utcHours = d.getUTCHours();
-    const utcMinutes = d.getUTCMinutes();
-    const eatHour = (utcHours + 3) % 24;
-    return { hour: eatHour, minute: utcMinutes };
+    const eatHour = (d.getUTCHours() + 3) % 24;
+    return { hour: eatHour, minute: d.getUTCMinutes() };
   }
 }
 
 /**
- * Converts Western 24h HH:MM or Date/ISO timestamp to full Ethiopian Time Structure.
+ * Converts a 24-hour hour + minute to 12-hour AM/PM components.
+ *
+ * Correct handling of edge cases:
+ *   hour=0  → 12 AM  (midnight)
+ *   hour=11 → 11 AM
+ *   hour=12 → 12 PM  (noon)
+ *   hour=13 → 1 PM
+ *   hour=23 → 11 PM
  */
-export function toEthiopianTime(dateInput?: Date | string | number | null): EthiopianTimeStructure {
-  const { hour: wHour, minute: wMinute } = getAddisAbabaTimeParts(dateInput);
+export function to12HourParts(
+  hour24: number,
+  minute: number
+): {
+  hour12: number;
+  minute: number;
+  period: "AM" | "PM";
+  minuteStr: string;
+} {
+  const period: "AM" | "PM" = hour24 < 12 ? "AM" : "PM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return {
+    hour12,
+    minute,
+    period,
+    minuteStr: String(minute).padStart(2, "0"),
+  };
+}
 
-  // Determine Ethiopian 12-hour clock value
-  let ethHour: number;
-  if (wHour >= 6) {
-    ethHour = wHour - 6;
-  } else {
-    ethHour = wHour + 6;
-  }
-  if (ethHour === 0) {
-    ethHour = 12;
-  }
+// ─── Primary display functions ────────────────────────────────────────────────
 
-  // Determine Ethiopian period
+/**
+ * Formats a Date, ISO timestamp, or "HH:MM" string to 12-hour AM/PM format
+ * in Africa/Addis_Ababa timezone.
+ *
+ * Examples:
+ *   "08:00"                    → "8:00 AM"
+ *   "13:30"                    → "1:30 PM"
+ *   "00:00"                    → "12:00 AM"
+ *   "12:00"                    → "12:00 PM"
+ *   "2026-08-20T05:30:00.000Z" → "8:30 AM"  (UTC+3)
+ *
+ * Returns "—" if input is null, undefined, or invalid.
+ */
+export function formatCivilTime(
+  dateInput?: Date | string | number | null
+): string {
+  if (!dateInput) return "—";
+  try {
+    const { hour, minute } = getAddisAbabaTimeParts(dateInput);
+    const { hour12, minuteStr, period } = to12HourParts(hour, minute);
+    return `${hour12}:${minuteStr} ${period}`;
+  } catch {
+    return "—";
+  }
+}
+
+/**
+ * Formats a canonical "HH:MM" 24-hour string to 12-hour AM/PM display string.
+ * Intended for displaying configured school times (start time, end time, cutoffs).
+ *
+ * Examples:
+ *   "08:00" → "8:00 AM"
+ *   "12:00" → "12:00 PM"
+ *   "13:00" → "1:00 PM"
+ *   "17:30" → "5:30 PM"
+ */
+export function formatHHMMAs12h(hhMM?: string | null): string {
+  if (!hhMM || !hhMM.includes(":")) return "—";
+  return formatCivilTime(hhMM);
+}
+
+/**
+ * Formats a full datetime (Date or ISO string) to a human-readable string
+ * in Africa/Addis_Ababa timezone with 12-hour AM/PM time.
+ *
+ * Example: "Aug 20, 2026 • 8:30 AM"
+ */
+export function formatCivilFullDateTime(
+  dateInput?: Date | string | number | null
+): string {
+  if (!dateInput) return "—";
+  try {
+    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    if (isNaN(d.getTime())) return "—";
+
+    const datePart = d.toLocaleDateString("en-US", {
+      timeZone: ETHIOPIA_TIMEZONE,
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    const timePart = formatCivilTime(d);
+    return `${datePart} • ${timePart}`;
+  } catch {
+    return "—";
+  }
+}
+
+// ─── Backward-compatible aliases ──────────────────────────────────────────────
+// These allow existing callers to keep compiling without any import changes.
+// They now produce 12-hour AM/PM output instead of Ethiopian clock output.
+
+/** @deprecated Use formatCivilTime(). Now displays 12-hour AM/PM civil time. */
+export const formatEthiopianTime = formatCivilTime;
+
+/** @deprecated Use formatCivilFullDateTime(). Now displays 12-hour AM/PM civil time. */
+export const formatEthiopianFullDateTime = formatCivilFullDateTime;
+
+/**
+ * Formats a time with a 24h canonical hint in parentheses.
+ * Example: "8:00 AM (08:00)"
+ * @deprecated Use formatCivilTime() for clean display.
+ */
+export function formatEthiopianTimeWithSubtitle(
+  dateInput?: Date | string | number | null
+): string {
+  if (!dateInput) return "—";
+  try {
+    const { hour, minute } = getAddisAbabaTimeParts(dateInput);
+    const canonical = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    return `${formatCivilTime(dateInput)} (${canonical})`;
+  } catch {
+    return "—";
+  }
+}
+
+// ─── Stub types for backward compatibility ────────────────────────────────────
+// Kept so that any code importing these types continues to compile.
+
+export type EthiopianTimePeriod = "morning" | "afternoon" | "evening" | "night";
+
+export interface EthiopianTimeStructure {
+  /** Now: civil 12-hour value (1-12). Previously: Ethiopian clock hour. */
+  ethHour: number;
+  ethMinute: number;
+  minuteStr: string;
+  period: EthiopianTimePeriod;
+  periodLabelEn: string;
+  periodLabelAm: string;
+  /** Now: "8:30 AM". Previously: "2:30 Ethiopian". */
+  timeString: string;
+  timeWithPeriod: string;
+  canonicalHHMM: string;
+}
+
+/**
+ * Returns a time structure with civil 12-hour AM/PM values.
+ * The field names are preserved for backward compatibility but the values
+ * now reflect civil time — no 6-hour Ethiopian clock offset is applied.
+ *
+ * @deprecated Use formatCivilTime() or to12HourParts() directly.
+ */
+export function toEthiopianTime(
+  dateInput?: Date | string | number | null
+): EthiopianTimeStructure {
+  const { hour, minute } = getAddisAbabaTimeParts(dateInput);
+  const { hour12, minuteStr, period: ampm } = to12HourParts(hour, minute);
+  const canonicalHHMM = `${String(hour).padStart(2, "0")}:${minuteStr}`;
+
+  // Map civil hour to time-of-day period labels
   let period: EthiopianTimePeriod;
   let periodLabelEn: string;
   let periodLabelAm: string;
-
-  if (wHour >= 6 && wHour < 12) {
-    period = "morning";
-    periodLabelEn = "Morning";
-    periodLabelAm = "ጠዋት";
-  } else if (wHour >= 12 && wHour < 18) {
-    period = "afternoon";
-    periodLabelEn = "Afternoon";
-    periodLabelAm = "ከሰዓት";
-  } else if (wHour >= 18 && wHour < 24) {
-    period = "evening";
-    periodLabelEn = "Evening";
-    periodLabelAm = "ማታ";
+  if (hour >= 5 && hour < 12) {
+    period = "morning"; periodLabelEn = "Morning"; periodLabelAm = "ጠዋት";
+  } else if (hour >= 12 && hour < 17) {
+    period = "afternoon"; periodLabelEn = "Afternoon"; periodLabelAm = "ከሰዓት";
+  } else if (hour >= 17 && hour < 21) {
+    period = "evening"; periodLabelEn = "Evening"; periodLabelAm = "ማታ";
   } else {
-    period = "night";
-    periodLabelEn = "Night";
-    periodLabelAm = "ሌሊት";
+    period = "night"; periodLabelEn = "Night"; periodLabelAm = "ሌሊት";
   }
 
-  const minuteStr = String(wMinute).padStart(2, "0");
-  const timeString = `${ethHour}:${minuteStr} Ethiopian`;
-  const timeWithPeriod = `${ethHour}:${minuteStr} ${periodLabelAm}`;
-  const canonicalHHMM = `${String(wHour).padStart(2, "0")}:${minuteStr}`;
+  const timeString = `${hour12}:${minuteStr} ${ampm}`;
+  const timeWithPeriod = `${hour12}:${minuteStr} ${periodLabelAm}`;
 
   return {
-    ethHour,
-    ethMinute: wMinute,
+    ethHour: hour12,
+    ethMinute: minute,
     minuteStr,
     period,
     periodLabelEn,
@@ -139,104 +267,16 @@ export function toEthiopianTime(dateInput?: Date | string | number | null): Ethi
 }
 
 /**
- * Converts Ethiopian Clock structure back to Western 24h "HH:MM" format.
- * Guarantees mathematical precision for saving to settings / database.
+ * @deprecated No longer needed. The EthiopianTimeInput component now works
+ * directly with AM/PM and canonical HH:MM — no 6-hour conversion required.
+ * This stub is kept to prevent compile errors in any remaining imports.
  */
 export function ethiopianToWesternHHMM(
-  ethHour: number,
-  ethMinute: number,
-  period: EthiopianTimePeriod = "morning"
+  _ethHour: number,
+  _ethMinute: number,
+  _period: EthiopianTimePeriod = "morning"
 ): string {
-  const validHour = Math.max(1, Math.min(12, Number(ethHour) || 12));
-  const validMinute = Math.max(0, Math.min(59, Number(ethMinute) || 0));
-
-  let wHour: number;
-
-  switch (period) {
-    case "morning": // 06:00 to 11:59 W (Ethiopian 12:00 to 5:59)
-      wHour = validHour === 12 ? 6 : validHour + 6;
-      break;
-
-    case "afternoon": // 12:00 to 17:59 W (Ethiopian 6:00 to 11:59)
-      if (validHour >= 6 && validHour <= 11) {
-        wHour = validHour + 6;
-      } else if (validHour === 12) {
-        wHour = 12; // 12:00 noon
-      } else {
-        wHour = validHour + 12; // e.g. 1 -> 13, 2 -> 14, etc.
-      }
-      break;
-
-    case "evening": // 18:00 to 23:59 W (Ethiopian 12:00 to 5:59)
-      wHour = validHour === 12 ? 18 : validHour + 18;
-      break;
-
-    case "night": // 00:00 to 05:59 W (Ethiopian 6:00 to 11:59)
-      if (validHour >= 6 && validHour <= 11) {
-        wHour = validHour - 6; // 6 -> 0 (midnight), 7 -> 1, 11 -> 5
-      } else if (validHour === 12) {
-        wHour = 0; // midnight
-      } else {
-        wHour = validHour; // 1 -> 1, 2 -> 2, etc.
-      }
-      break;
-
-    default:
-      wHour = validHour === 12 ? 6 : validHour + 6;
-  }
-
-  // Ensure wHour is strictly 0..23
-  wHour = (wHour + 24) % 24;
-
-  return `${String(wHour).padStart(2, "0")}:${String(validMinute).padStart(2, "0")}`;
-}
-
-/**
- * Format a Date, timestamp, or HH:MM string to "H:MM Ethiopian" format.
- * Returns "—" if input is null or empty.
- */
-export function formatEthiopianTime(
-  dateInput?: Date | string | number | null,
-  options?: { showPeriod?: boolean; lang?: "en" | "am" }
-): string {
-  if (!dateInput) return "—";
-  try {
-    const et = toEthiopianTime(dateInput);
-    if (options?.showPeriod) {
-      return options.lang === "am" ? et.timeWithPeriod : `${et.ethHour}:${et.minuteStr} ${et.periodLabelEn}`;
-    }
-    return et.timeString;
-  } catch {
-    return "—";
-  }
-}
-
-/**
- * Formats a canonical HH:MM or timestamp with Ethiopian time and subtle Western indicator.
- * Example: "2:00 Ethiopian (08:00)"
- */
-export function formatEthiopianTimeWithSubtitle(dateInput?: Date | string | number | null): string {
-  if (!dateInput) return "—";
-  try {
-    const et = toEthiopianTime(dateInput);
-    return `${et.timeString} (${et.canonicalHHMM})`;
-  } catch {
-    return "—";
-  }
-}
-
-/**
- * Formats full datetime combining Ethiopian Calendar Date and Ethiopian Clock Time.
- * Example: "መስከረም 15 ቀን 2017 ዓ.ም 2:15 ጠዋት"
- */
-export function formatEthiopianFullDateTime(dateInput?: Date | string | number | null): string {
-  if (!dateInput) return "—";
-  try {
-    const et = toEthiopianTime(dateInput);
-    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
-    const dateStr = d.toLocaleDateString("en-CA", { timeZone: ETHIOPIA_TIMEZONE });
-    return `${dateStr} ${et.timeWithPeriod}`;
-  } catch {
-    return "—";
-  }
+  // This function was part of the old Ethiopian 6-hour clock layer.
+  // It is no longer used by the AM/PM time input component.
+  return "08:00";
 }
