@@ -1,4 +1,10 @@
 import prisma from '../config/db';
+import {
+  validateAllScheduleSettings,
+  validateSessionSchedule,
+  validateDailySchedule,
+  ValidationError,
+} from '../utils/schedule-validation';
 
 export interface FixedStaffSession {
   id: 'morning' | 'afternoon';
@@ -11,7 +17,17 @@ export interface FixedStaffSession {
   absenceCutoffTime: string;
   earliestCheckinTime: string;
   latestCheckoutTime: string;
+  allowCheckinAfterCutoff?: boolean;
   isActive: boolean;
+}
+
+export class ScheduleValidationError extends Error {
+  public errors: ValidationError[];
+  constructor(message: string, errors: ValidationError[]) {
+    super(message);
+    this.name = 'ScheduleValidationError';
+    this.errors = errors;
+  }
 }
 
 export const DEFAULT_FIXED_STAFF_SESSIONS: FixedStaffSession[] = [
@@ -26,6 +42,7 @@ export const DEFAULT_FIXED_STAFF_SESSIONS: FixedStaffSession[] = [
     absenceCutoffTime: '09:30',
     earliestCheckinTime: '06:00',
     latestCheckoutTime: '13:30',
+    allowCheckinAfterCutoff: false,
     isActive: true,
   },
   {
@@ -39,6 +56,7 @@ export const DEFAULT_FIXED_STAFF_SESSIONS: FixedStaffSession[] = [
     absenceCutoffTime: '15:00',
     earliestCheckinTime: '12:30',
     latestCheckoutTime: '18:30',
+    allowCheckinAfterCutoff: false,
     isActive: true,
   },
 ];
@@ -114,7 +132,6 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
     let absenceCutoffTime: string;
     if (typeof raw?.absenceCutoffTime === 'string' && /^\d{2}:\d{2}$/.test(raw.absenceCutoffTime)) {
       absenceCutoffTime = raw.absenceCutoffTime;
-      // Derive minutes if valid
       const diff = getMinutesDiff(absenceCutoffTime, startTime);
       if (diff > 0) {
         absenceCutoffMinutes = diff;
@@ -133,6 +150,8 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
       ? raw.latestCheckoutTime
       : (typeof raw?.latestCheckOutTime === 'string' && /^\d{2}:\d{2}$/.test(raw.latestCheckOutTime) ? raw.latestCheckOutTime : fallback.latestCheckoutTime);
 
+    const allowCheckinAfterCutoff = raw?.allowCheckinAfterCutoff === true;
+
     return {
       id: key,
       name,
@@ -144,6 +163,7 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
       absenceCutoffTime,
       earliestCheckinTime,
       latestCheckoutTime,
+      allowCheckinAfterCutoff,
       isActive: raw?.isActive !== false,
     };
   };
@@ -189,6 +209,7 @@ const DEFAULT_SETTINGS = {
   staff_latest_checkout_time: '20:00',
   staff_face_required: true,
   staff_geo_required: true,
+  allow_staff_checkin_after_cutoff: false,
 };
 
 const ALLOWED_SETTINGS_FIELDS = new Set([
@@ -227,12 +248,12 @@ const ALLOWED_SETTINGS_FIELDS = new Set([
   'staff_checkout_early',
   'staff_face_required',
   'staff_geo_required',
+  'allow_staff_checkin_after_cutoff',
 ]);
 
 export const getSettings = async (schoolId: string) => {
   let settings = await prisma.schoolSettings.findUnique({ where: { schoolId: schoolId } });
   if (!settings) {
-    // Auto-create defaults on first access
     settings = await prisma.schoolSettings.create({
       data: { ...DEFAULT_SETTINGS, schoolId: schoolId } as any,
     });
@@ -255,10 +276,42 @@ export const getSettings = async (schoolId: string) => {
 };
 
 export const updateSettings = async (schoolId: string, data: any) => {
-  // If staff_sessions was provided, sanitize and enforce the 2 fixed sessions
   const rawData: any = { ...data };
+
+  // ── Authoritative Validation Before Persistence ──
+  // 1. If staff_sessions is supplied, validate Morning & Afternoon rules
   if (rawData.staff_sessions !== undefined) {
-    rawData.staff_sessions = sanitizeStaffSessions(rawData.staff_sessions) as any;
+    const sessions = sanitizeStaffSessions(rawData.staff_sessions);
+    const morning = sessions.find(s => s.id === 'morning') || sessions[0];
+    const afternoon = sessions.find(s => s.id === 'afternoon') || sessions[1];
+    
+    const sessionValidation = validateSessionSchedule(morning, afternoon);
+    if (!sessionValidation.isValid) {
+      const firstError = sessionValidation.errors[0]?.message || 'Invalid session configuration';
+      throw new ScheduleValidationError(firstError, sessionValidation.errors);
+    }
+    rawData.staff_sessions = sessions as any;
+  }
+
+  // 2. If daily work schedule fields are supplied, validate Daily schedule rules
+  const hasDailyFields =
+    rawData.staff_work_start_time !== undefined ||
+    rawData.staff_work_end_time !== undefined ||
+    rawData.staff_late_grace_minutes !== undefined ||
+    rawData.staff_early_checkout_tolerance_minutes !== undefined ||
+    rawData.staff_absence_cutoff_time !== undefined;
+
+  if (hasDailyFields) {
+    const existing = await prisma.schoolSettings.findUnique({ where: { schoolId } });
+    const mergedDaily = {
+      ...(existing || DEFAULT_SETTINGS),
+      ...rawData,
+    };
+    const dailyValidation = validateDailySchedule(mergedDaily);
+    if (!dailyValidation.isValid) {
+      const firstError = dailyValidation.errors[0]?.message || 'Invalid daily schedule configuration';
+      throw new ScheduleValidationError(firstError, dailyValidation.errors);
+    }
   }
 
   // Filter out any unexpected or relation fields to prevent Prisma validation errors
@@ -277,7 +330,6 @@ export const updateSettings = async (schoolId: string, data: any) => {
       update: sanitizedData,
     });
   } catch (err: any) {
-    // If running server has old Prisma client in memory before restart, strip newer fields gracefully
     if (err?.message && err.message.includes('Unknown argument')) {
       const fallbackData = { ...sanitizedData };
       delete fallbackData.staff_absence_cutoff_minutes;
@@ -332,4 +384,3 @@ export const updateSettings = async (schoolId: string, data: any) => {
 
   return settings;
 };
-

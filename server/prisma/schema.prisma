@@ -190,6 +190,7 @@ model SchoolSettings {
   staff_checkout_early  String?          // legacy fallback
   staff_face_required   Boolean  @default(true)   // require face verification
   staff_geo_required    Boolean  @default(true)   // require geofence for staff
+  allow_staff_checkin_after_cutoff Boolean @default(false) // whether staff can check in after absence cutoff
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   school_logo           String?

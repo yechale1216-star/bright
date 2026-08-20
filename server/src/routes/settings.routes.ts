@@ -21,7 +21,16 @@ router.put('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     if (!schoolId) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const settings = await settingsService.updateSettings(schoolId, req.body);
     res.status(200).json({ success: true, data: settings });
-  } catch (error) { next(error); }
+  } catch (error: any) {
+    if (error instanceof settingsService.ScheduleValidationError) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+        errors: error.errors,
+      });
+    }
+    next(error);
+  }
 });
 
 // ─── Holiday & Non-Working Days Routes ────────────────────────────────────────

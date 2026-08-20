@@ -81,10 +81,10 @@ export function isHHMMBefore(timeA: string, timeB: string): boolean {
 /**
  * Extracts HH:MM in 24-hour format from a Date or ISO string.
  */
-export function getHHMMFromDate(dateInput?: string | Date | null): string {
+export function getHHMMFromDate(dateInput?: string | Date | number | null): string {
   if (!dateInput) return ""
   try {
-    const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
+    const d = typeof dateInput === "number" || typeof dateInput === "string" ? new Date(dateInput) : dateInput
     if (isNaN(d.getTime())) return ""
     return d.toLocaleTimeString("en-US", {
       hour12: false,
@@ -97,7 +97,7 @@ export function getHHMMFromDate(dateInput?: string | Date | null): string {
   }
 }
 
-import { formatEthiopianTime, formatCivilFullDateTime } from "@/lib/utils/ethiopian-time"
+import { formatEthiopianTime, formatCivilTime, formatCivilFullDateTime } from "@/lib/utils/ethiopian-time"
 
 /**
  * Formats a Date or ISO string into Ethiopian Clock format (e.g. "2:15 Ethiopian").
@@ -467,5 +467,100 @@ export function getStaffAttendanceDisplay(
     geofenceVerified: !!record?.geofenceVerified,
     latenessMinutes: checkIn.latenessMinutes,
     latenessFormatted: checkIn.latenessFormatted,
+  }
+}
+
+export interface CheckInButtonState {
+  canCheckIn: boolean
+  isBeforeEarliest: boolean
+  isAfterCutoff: boolean
+  buttonText: string
+  helperText?: string
+  badgeVariant?: "default" | "secondary" | "destructive" | "outline"
+}
+
+/**
+ * Computes whether the staff check-in button is active or inactive,
+ * respecting earliestCheckinTime and absenceCutoffTime gates.
+ */
+export function getCheckInButtonState(
+  record?: any,
+  settings?: any,
+  sessionConfig?: any,
+  dateInput?: Date | string | number | null
+): CheckInButtonState {
+  // 1. If already checked in for this session/day
+  if (record && record.checkInTime) {
+    return {
+      canCheckIn: false,
+      isBeforeEarliest: false,
+      isAfterCutoff: false,
+      buttonText: "Already Checked In",
+      helperText: "Check-in recorded for today",
+    }
+  }
+
+  // Get current time in Africa/Addis_Ababa
+  let currentTimeHHMM: string
+  if (dateInput) {
+    currentTimeHHMM = getHHMMFromDate(dateInput)
+  } else {
+    currentTimeHHMM = new Date().toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Africa/Addis_Ababa",
+    })
+  }
+
+  let earliestCheckIn = "06:00"
+  let absenceCutoffTime = "10:00"
+  let allowCheckinAfterCutoff = false
+
+  if (sessionConfig) {
+    earliestCheckIn = sessionConfig.earliestCheckinTime || sessionConfig.earliestCheckInTime || addMinutesToHHMM(sessionConfig.startTime || "08:00", -60)
+    const absenceMins = sessionConfig.absenceCutoffMinutes ?? 90
+    absenceCutoffTime = sessionConfig.absenceCutoffTime || addMinutesToHHMM(sessionConfig.startTime || "08:00", absenceMins)
+    allowCheckinAfterCutoff = sessionConfig.allowCheckinAfterCutoff ?? settings?.allowStaffCheckinAfterCutoff ?? settings?.allow_staff_checkin_after_cutoff ?? false
+  } else if (settings) {
+    earliestCheckIn = settings.staffEarliestCheckinTime || settings.staff_earliest_checkin_time || "06:00"
+    const start = settings.staffWorkStartTime || settings.staff_work_start_time || "08:00"
+    const mins = settings.staffAbsenceCutoffMinutes ?? settings.staff_absence_cutoff_minutes ?? 120
+    absenceCutoffTime = settings.staffAbsenceCutoffTime || settings.staff_absence_cutoff_time || addMinutesToHHMM(start, mins)
+    allowCheckinAfterCutoff = settings.allowStaffCheckinAfterCutoff ?? settings.allow_staff_checkin_after_cutoff ?? false
+  }
+
+  // 2. Gate 1: Before Earliest Check-In Time
+  if (earliestCheckIn && isHHMMBefore(currentTimeHHMM, earliestCheckIn)) {
+    return {
+      canCheckIn: false,
+      isBeforeEarliest: true,
+      isAfterCutoff: false,
+      buttonText: `Check-In Opens at ${formatCivilTime(earliestCheckIn)}`,
+      helperText: `Check-in opens at ${formatCivilTime(earliestCheckIn)}. Current time: ${formatCivilTime(currentTimeHHMM)}.`,
+      badgeVariant: "secondary",
+    }
+  }
+
+  // 3. Gate 2: After Absence Cutoff Time when post-cutoff check-in is disallowed
+  if (!allowCheckinAfterCutoff && absenceCutoffTime && isHHMMAfter(currentTimeHHMM, absenceCutoffTime)) {
+    return {
+      canCheckIn: false,
+      isBeforeEarliest: false,
+      isAfterCutoff: true,
+      buttonText: "Check-In Closed",
+      helperText: `Absence cutoff elapsed at ${formatCivilTime(absenceCutoffTime)}. Check-in is closed.`,
+      badgeVariant: "destructive",
+    }
+  }
+
+  // 4. Check-In is Open
+  return {
+    canCheckIn: true,
+    isBeforeEarliest: false,
+    isAfterCutoff: false,
+    buttonText: "Check In Now",
+    helperText: `Check-in window open until ${formatCivilTime(absenceCutoffTime)}`,
+    badgeVariant: "default",
   }
 }

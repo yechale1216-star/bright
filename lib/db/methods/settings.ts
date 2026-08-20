@@ -36,6 +36,7 @@ export function defaultSettings() {
     staffLatestCheckoutTime: "20:00",
     staffFaceRequired: true,
     staffGeoRequired: true,
+    allowStaffCheckinAfterCutoff: false,
   }
 }
 
@@ -82,6 +83,7 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
       staffLatestCheckoutTime: s.staff_latest_checkout_time || "20:00",
       staffFaceRequired: s.staff_face_required ?? true,
       staffGeoRequired: s.staff_geo_required ?? true,
+      allowStaffCheckinAfterCutoff: s.allow_staff_checkin_after_cutoff ?? false,
     }
 
     if (settingsData.schoolLogo && schoolId) {

@@ -46,6 +46,7 @@ import {
   getStaffAttendanceDisplay,
   getStaffCheckInStatus,
   getStaffCheckOutStatus,
+  getCheckInButtonState,
   addMinutesToHHMM,
 } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
@@ -683,34 +684,57 @@ export function StaffAttendance() {
               })()}
 
               {/* Action Buttons */}
-              <div className="space-y-2 pt-2">
-                <Button
-                  onClick={() => startAttendanceWorkflow("checkin")}
-                  disabled={!!todayRecord?.checkInTime || verificationStep !== "idle"}
-                  className="w-full h-12 text-base font-bold gap-2 shadow-md bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <LogIn className="w-5 h-5" />
-                  {todayRecord?.checkInTime
-                    ? `Checked In ✓`
-                    : isSessionMode
-                    ? `Record ${staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase())?.name || "Session"}`
-                    : "Staff Check-In"}
-                </Button>
+              {(() => {
+                const currentSess = isSessionMode
+                  ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+                  : undefined
+                const btnState = getCheckInButtonState(todayRecord, settings, currentSess)
 
-                <Button
-                  onClick={() => startAttendanceWorkflow("checkout")}
-                  disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle"}
-                  variant="outline"
-                  className="w-full h-12 text-base font-bold gap-2 border-primary/40 hover:bg-primary/5"
-                >
-                  <LogOut className="w-5 h-5" />
-                  {todayRecord?.checkOutTime
-                    ? "Checked Out ✓"
-                    : isSessionMode
-                    ? `Session Departure`
-                    : "Staff Check-Out"}
-                </Button>
-              </div>
+                return (
+                  <div className="space-y-2 pt-2">
+                    <Button
+                      onClick={() => startAttendanceWorkflow("checkin")}
+                      disabled={!btnState.canCheckIn || verificationStep !== "idle"}
+                      className={`w-full h-12 text-base font-bold gap-2 shadow-md transition-all ${
+                        btnState.canCheckIn
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                      }`}
+                    >
+                      <LogIn className="w-5 h-5" />
+                      {todayRecord?.checkInTime
+                        ? `Checked In ✓`
+                        : btnState.buttonText}
+                    </Button>
+
+                    {/* Contextual helper text explaining why check-in is disabled */}
+                    {!btnState.canCheckIn && !todayRecord?.checkInTime && btnState.helperText && (
+                      <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
+                        btnState.isBeforeEarliest
+                          ? "bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300"
+                          : "bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300"
+                      }`}>
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>{btnState.helperText}</span>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={() => startAttendanceWorkflow("checkout")}
+                      disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle"}
+                      variant="outline"
+                      className="w-full h-12 text-base font-bold gap-2 border-primary/40 hover:bg-primary/5"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      {todayRecord?.checkOutTime
+                        ? "Checked Out ✓"
+                        : isSessionMode
+                        ? `Session Departure`
+                        : "Staff Check-Out"}
+                    </Button>
+                  </div>
+                )
+              })()}
 
               {/* Security indicators */}
               <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground border-t">

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -40,12 +40,24 @@ import {
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
+  AlertCircle,
+  AlertTriangle,
+  Save,
 } from "lucide-react"
 import { EthiopianTimeInput } from "@/components/ui/ethiopian-time-input"
-import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
+import { formatEthiopianTime, formatHHMMAs12h } from "@/lib/utils/ethiopian-time"
+import {
+  validateAllScheduleSettings,
+  validateSessionSchedule,
+  validateDailySchedule,
+  addMinutesToHHMM,
+  getMinutesDiff,
+  timeToMinutes,
+  ValidationError,
+  ValidationResult,
+} from "@/lib/utils/schedule-validation"
 import { cn } from "@/lib/utils/utils"
 
-// ── Fixed Session Type (Strictly Morning and Afternoon) ──
 export interface StaffSession {
   id: "morning" | "afternoon"
   name: "Morning" | "Afternoon"
@@ -57,6 +69,7 @@ export interface StaffSession {
   absenceCutoffTime: string
   earliestCheckinTime: string
   latestCheckoutTime: string
+  allowCheckinAfterCutoff?: boolean
   isActive: boolean
 }
 
@@ -72,6 +85,7 @@ export const DEFAULT_FIXED_SESSIONS: StaffSession[] = [
     absenceCutoffTime: "09:30",
     earliestCheckinTime: "06:00",
     latestCheckoutTime: "13:30",
+    allowCheckinAfterCutoff: false,
     isActive: true,
   },
   {
@@ -85,27 +99,10 @@ export const DEFAULT_FIXED_SESSIONS: StaffSession[] = [
     absenceCutoffTime: "15:00",
     earliestCheckinTime: "12:30",
     latestCheckoutTime: "18:30",
+    allowCheckinAfterCutoff: false,
     isActive: true,
   },
 ]
-
-function addMinutesToHHMM(timeHHMM: string, minutes: number): string {
-  if (!timeHHMM || !timeHHMM.includes(":")) return "08:00"
-  const [h, m] = timeHHMM.split(":").map(Number)
-  let total = (isNaN(h) ? 8 : h) * 60 + (isNaN(m) ? 0 : m) + minutes
-  if (total < 0) total = 0
-  if (total >= 24 * 60) total = 24 * 60 - 1
-  const newH = Math.floor(total / 60)
-  const newM = total % 60
-  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`
-}
-
-function getMinutesDiff(timeA: string, timeB: string): number {
-  if (!timeA || !timeB || !timeA.includes(":") || !timeB.includes(":")) return 0
-  const [hA, mA] = timeA.split(":").map(Number)
-  const [hB, mB] = timeB.split(":").map(Number)
-  return (hA * 60 + mA) - (hB * 60 + mB)
-}
 
 function parseSessionsFromSettings(raw: any): StaffSession[] {
   let arr: any[] = []
@@ -118,17 +115,11 @@ function parseSessionsFromSettings(raw: any): StaffSession[] {
     }
   }
 
-  const findRaw = (key: "morning" | "afternoon") => {
-    return arr.find(
-      (s: any) =>
-        s &&
-        ((s.id && String(s.id).toLowerCase().trim() === key) ||
-          (s.name && String(s.name).toLowerCase().trim() === key))
-    )
-  }
+  const find = (key: "morning" | "afternoon") =>
+    arr.find((s: any) => s && (s.id === key || s.name?.toLowerCase() === key))
 
-  const morningRaw = findRaw("morning")
-  const afternoonRaw = findRaw("afternoon")
+  const morningRaw = find("morning")
+  const afternoonRaw = find("afternoon")
 
   const merge = (
     key: "morning" | "afternoon",
@@ -137,16 +128,33 @@ function parseSessionsFromSettings(raw: any): StaffSession[] {
     fallback: StaffSession
   ): StaffSession => {
     const startTime = r?.startTime || fallback.startTime
-    const lateGraceMinutes = r?.lateGraceMinutes != null ? Number(r.lateGraceMinutes) : fallback.lateGraceMinutes
-    const earlyDepartureToleranceMinutes =
-      r?.earlyDepartureToleranceMinutes != null ? Number(r.earlyDepartureToleranceMinutes) : fallback.earlyDepartureToleranceMinutes
-    let absenceCutoffMinutes =
-      r?.absenceCutoffMinutes != null ? Number(r.absenceCutoffMinutes) : fallback.absenceCutoffMinutes
-    let absenceCutoffTime = r?.absenceCutoffTime || addMinutesToHHMM(startTime, absenceCutoffMinutes)
+    const lateGraceMinutes =
+      Number.isFinite(Number(r?.lateGraceMinutes)) && Number(r.lateGraceMinutes) >= 0
+        ? Math.floor(Number(r.lateGraceMinutes))
+        : fallback.lateGraceMinutes
 
-    if (r?.absenceCutoffTime && !r?.absenceCutoffMinutes) {
-      const diff = getMinutesDiff(r.absenceCutoffTime, startTime)
-      if (diff > 0) absenceCutoffMinutes = diff
+    const earlyDepartureToleranceMinutes =
+      Number.isFinite(Number(r?.earlyDepartureToleranceMinutes)) &&
+      Number(r.earlyDepartureToleranceMinutes) >= 0
+        ? Math.floor(Number(r.earlyDepartureToleranceMinutes))
+        : fallback.earlyDepartureToleranceMinutes
+
+    let absenceCutoffMinutes =
+      Number.isFinite(Number(r?.absenceCutoffMinutes)) && Number(r.absenceCutoffMinutes) >= 0
+        ? Math.floor(Number(r.absenceCutoffMinutes))
+        : fallback.absenceCutoffMinutes
+
+    let absenceCutoffTime: string
+    if (typeof r?.absenceCutoffTime === "string" && r.absenceCutoffTime.includes(":")) {
+      absenceCutoffTime = r.absenceCutoffTime
+      const diff = getMinutesDiff(absenceCutoffTime, startTime)
+      if (diff > 0) {
+        absenceCutoffMinutes = diff
+      } else {
+        absenceCutoffTime = addMinutesToHHMM(startTime, absenceCutoffMinutes)
+      }
+    } else {
+      absenceCutoffTime = addMinutesToHHMM(startTime, absenceCutoffMinutes)
     }
 
     const earliestCheckinTime =
@@ -165,6 +173,7 @@ function parseSessionsFromSettings(raw: any): StaffSession[] {
       absenceCutoffTime,
       earliestCheckinTime,
       latestCheckoutTime,
+      allowCheckinAfterCutoff: r?.allowCheckinAfterCutoff === true,
       isActive: r?.isActive !== false,
     }
   }
@@ -193,6 +202,17 @@ const HOLIDAY_TYPES = [
   { value: "OTHER", label: "Other Non-Working Day", color: "bg-slate-500/10 text-slate-600 border-slate-500/20" },
 ]
 
+// ── Inline Field Error Component ──
+function FieldError({ error }: { error?: string }) {
+  if (!error) return null
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5 p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-[11px] font-semibold leading-tight animate-in fade-in slide-in-from-top-1 duration-150">
+      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+      <span>{error}</span>
+    </div>
+  )
+}
+
 export function StaffScheduleSettingsTab({
   settings,
   setSettings,
@@ -214,7 +234,7 @@ export function StaffScheduleSettingsTab({
   const [sessions, setSessions] = useState<StaffSession[]>(() => parseSessionsFromSettings(settings?.staffSessions))
   const [expandedSessions, setExpandedSessions] = useState<{ morning: boolean; afternoon: boolean }>({
     morning: true,
-    afternoon: false,
+    afternoon: true,
   })
 
   const toggleSessionExpand = (id: "morning" | "afternoon") => {
@@ -234,6 +254,11 @@ export function StaffScheduleSettingsTab({
     setSettings((prev: any) => ({ ...prev, staffSessions: updated }))
   }
 
+  // Live validation computation
+  const validationResult: ValidationResult = useMemo(() => {
+    return validateAllScheduleSettings(settings, sessions)
+  }, [settings, sessions])
+
   // Update field for a specific fixed session with bidirectional absence sync
   const updateSessionField = (id: "morning" | "afternoon", field: keyof StaffSession, value: any) => {
     const updated = sessions.map((s) => {
@@ -244,7 +269,7 @@ export function StaffScheduleSettingsTab({
       if (field === "startTime") {
         copy.absenceCutoffTime = addMinutesToHHMM(value, s.absenceCutoffMinutes)
       } else if (field === "absenceCutoffMinutes") {
-        const mins = Number(value) || 0
+        const mins = Math.max(0, Number(value) || 0)
         copy.absenceCutoffMinutes = mins
         copy.absenceCutoffTime = addMinutesToHHMM(s.startTime, mins)
       } else if (field === "absenceCutoffTime") {
@@ -260,6 +285,44 @@ export function StaffScheduleSettingsTab({
       return copy
     })
     persistSessions(updated)
+  }
+
+  // Update Daily mode field with bidirectional absence sync
+  const updateDailyField = (field: string, value: any) => {
+    setSettings((prev: any) => {
+      const copy = { ...prev, [field]: value }
+      const startTime = field === "staffWorkStartTime" ? value : prev.staffWorkStartTime || "08:00"
+
+      if (field === "staffWorkStartTime") {
+        const mins = Number(prev.staffAbsenceCutoffMinutes) || 120
+        copy.staffAbsenceCutoffTime = addMinutesToHHMM(value, mins)
+      } else if (field === "staffAbsenceCutoffMinutes") {
+        const mins = Math.max(0, Number(value) || 0)
+        copy.staffAbsenceCutoffMinutes = mins
+        copy.staffAbsenceCutoffTime = addMinutesToHHMM(startTime, mins)
+      } else if (field === "staffAbsenceCutoffTime") {
+        copy.staffAbsenceCutoffTime = value
+        const diff = getMinutesDiff(value, startTime)
+        if (diff > 0) {
+          copy.staffAbsenceCutoffMinutes = diff
+        } else {
+          copy.staffAbsenceCutoffMinutes = 0
+        }
+      }
+
+      return copy
+    })
+  }
+
+  // Guarded save button action
+  const handleSaveWithValidation = async () => {
+    const res = validateAllScheduleSettings(settings, sessions)
+    if (!res.isValid) {
+      const firstError = res.errors[0]?.message || "Please resolve schedule validation errors before saving."
+      notifications.error("Validation Error", firstError)
+      return
+    }
+    await onSaveSettings()
   }
 
   useEffect(() => {
@@ -328,24 +391,24 @@ export function StaffScheduleSettingsTab({
     notifications.info("Preset Applied", `Working days set to ${days.join(", ")}`)
   }
 
-  // Daily Mode dynamic threshold calculations (returning Ethiopian Clock strings for display)
+  // Daily Mode dynamic threshold calculations (display strings)
   const computeDailyLateCutoff = () => {
     const start = settings.staffWorkStartTime || "08:00"
     const grace = parseInt(settings.staffLateGraceMinutes || "15", 10) || 0
-    return formatEthiopianTime(addMinutesToHHMM(start, grace))
+    return formatHHMMAs12h(addMinutesToHHMM(start, grace))
   }
 
   const computeDailyEarlyCutoff = () => {
     const end = settings.staffWorkEndTime || "17:00"
     const tol = parseInt(settings.staffEarlyCheckoutToleranceMinutes || "15", 10) || 0
-    return formatEthiopianTime(addMinutesToHHMM(end, -tol))
+    return formatHHMMAs12h(addMinutesToHHMM(end, -tol))
   }
 
   const computeDailyAbsenceCutoff = () => {
-    if (settings.staffAbsenceCutoffTime) return formatEthiopianTime(settings.staffAbsenceCutoffTime)
+    if (settings.staffAbsenceCutoffTime) return formatHHMMAs12h(settings.staffAbsenceCutoffTime)
     const start = settings.staffWorkStartTime || "08:00"
     const mins = parseInt(settings.staffAbsenceCutoffMinutes ?? "120", 10) || 120
-    return formatEthiopianTime(addMinutesToHHMM(start, mins))
+    return formatHHMMAs12h(addMinutesToHHMM(start, mins))
   }
 
   // Holiday Modal Handlers
@@ -404,15 +467,17 @@ export function StaffScheduleSettingsTab({
 
       if (editingHoliday) {
         await db.updateHoliday(editingHoliday.id, payload)
-        notifications.success("Updated", "Holiday updated successfully.")
+        notifications.success("Holiday Updated", `"${payload.name}" updated successfully.`)
       } else {
         await db.addHoliday(payload)
-        notifications.success("Added", "Holiday / Non-working day added successfully.")
+        notifications.success("Holiday Added", `"${payload.name}" added to calendar.`)
       }
 
       setModalOpen(false)
       loadHolidays()
+      window.dispatchEvent(new Event("holidaysDataChanged"))
     } catch (err: any) {
+      console.error("Failed to save holiday:", err)
       notifications.error("Error", err.message || "Failed to save holiday.")
     } finally {
       setIsSubmittingHoliday(false)
@@ -420,195 +485,169 @@ export function StaffScheduleSettingsTab({
   }
 
   const handleDeleteHoliday = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete the holiday '${name}'?`)) return
+    if (!confirm(`Are you sure you want to delete "${name}"?`)) return
     try {
       await db.deleteHoliday(id)
-      notifications.success("Deleted", "Holiday deleted successfully.")
+      notifications.success("Holiday Deleted", `"${name}" removed.`)
       loadHolidays()
+      window.dispatchEvent(new Event("holidaysDataChanged"))
     } catch (err: any) {
+      console.error("Failed to delete holiday:", err)
       notifications.error("Error", err.message || "Failed to delete holiday.")
     }
   }
 
-  const handleToggleHolidayStatus = async (h: any) => {
-    try {
-      await db.updateHoliday(h.id, { isActive: !h.isActive })
-      notifications.info("Status Updated", `Holiday is now ${!h.isActive ? "Active" : "Inactive"}.`)
-      loadHolidays()
-    } catch (err: any) {
-      notifications.error("Error", err.message || "Failed to update holiday status.")
-    }
-  }
+  const isSessionBased = (settings.staffAttendanceMode || "daily") === "session_based"
+  const morningSession = sessions[0] || DEFAULT_FIXED_SESSIONS[0]
+  const afternoonSession = sessions[1] || DEFAULT_FIXED_SESSIONS[1]
 
-  const morningSession = sessions.find((s) => s.id === "morning") || DEFAULT_FIXED_SESSIONS[0]
-  const afternoonSession = sessions.find((s) => s.id === "afternoon") || DEFAULT_FIXED_SESSIONS[1]
-
-  const isSessionMode = settings.staffAttendanceMode === "session_based"
+  const errors = validationResult.errorMap
 
   return (
     <div className="space-y-8">
-      {/* ─── SECTION 0: STAFF ATTENDANCE MODE ──────────────────────────── */}
-      <Card className="border-border shadow-sm">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Global Validation Warning Banner */}
+      {!validationResult.isValid && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 text-rose-800 dark:text-rose-200 space-y-2">
+          <div className="flex items-center gap-2 font-bold text-sm">
+            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+            <span>Schedule Configuration Requires Attention</span>
+          </div>
+          <p className="text-xs text-rose-700 dark:text-rose-300">
+            Please resolve the following issue{validationResult.errors.length > 1 ? "s" : ""} before saving settings:
+          </p>
+          <ul className="list-disc list-inside text-xs space-y-1 text-rose-700 dark:text-rose-300">
+            {validationResult.errors.map((e, idx) => (
+              <li key={idx}><strong>{e.message}</strong></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ─── SECTION 1: ATTENDANCE TRACKING MODE ──────────────────────────── */}
+      <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b border-border/40 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <Layers className="w-4 h-4" />
+            </div>
             <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-primary" />
-                Staff Attendance Mode
-              </CardTitle>
-              <CardDescription>
-                Choose between single daily check-in/out or fixed Morning and Afternoon session-based attendance.
+              <CardTitle className="text-base font-bold">Staff Attendance Mode</CardTitle>
+              <CardDescription className="text-xs">
+                Select between a single full-day schedule or dual morning & afternoon shifts.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Daily Mode */}
-            <button
-              type="button"
-              onClick={() => setSettings((prev: any) => ({ ...prev, staffAttendanceMode: "daily" }))}
-              className={`flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all ${
-                !isSessionMode
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border hover:border-primary/40 bg-card"
-              }`}
+            {/* Daily Mode Card */}
+            <div
+              onClick={() => setSettings({ ...settings, staffAttendanceMode: "daily" })}
+              className={cn(
+                "p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3",
+                !isSessionBased
+                  ? "border-primary bg-primary/5 shadow-xs"
+                  : "border-border hover:border-border/80 bg-card/40 opacity-70 hover:opacity-100"
+              )}
             >
-              <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                !isSessionMode ? "border-primary" : "border-muted-foreground"
-              }`}>
-                {!isSessionMode && (
-                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", !isSessionBased ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">Daily Mode</h4>
+                    <p className="text-[11px] text-muted-foreground">Single Check-In & Check-Out per day</p>
+                  </div>
+                </div>
+                {!isSessionBased && (
+                  <Badge className="bg-primary text-white text-[10px] font-bold">Active</Badge>
                 )}
               </div>
-              <div>
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  <LayoutList className="w-4 h-4 text-primary" />
-                  Daily Attendance
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Staff check in once per day and check out once per day. Lateness and early departure are calculated against daily working hours.
-                </p>
-              </div>
-            </button>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Staff check in once in the morning and out in the evening. Status is evaluated against one unified schedule.
+              </p>
+            </div>
 
-            {/* Session-Based Mode */}
-            <button
-              type="button"
-              onClick={() => setSettings((prev: any) => ({ ...prev, staffAttendanceMode: "session_based" }))}
-              className={`flex items-start gap-4 p-5 rounded-xl border-2 text-left transition-all ${
-                isSessionMode
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border hover:border-primary/40 bg-card"
-              }`}
+            {/* Session-Based Mode Card */}
+            <div
+              onClick={() => setSettings({ ...settings, staffAttendanceMode: "session_based" })}
+              className={cn(
+                "p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3",
+                isSessionBased
+                  ? "border-primary bg-primary/5 shadow-xs"
+                  : "border-border hover:border-border/80 bg-card/40 opacity-70 hover:opacity-100"
+              )}
             >
-              <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                isSessionMode ? "border-primary" : "border-muted-foreground"
-              }`}>
-                {isSessionMode && (
-                  <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", isSessionBased ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
+                    <LayoutList className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">Session-Based Mode</h4>
+                    <p className="text-[11px] text-muted-foreground">Morning & Afternoon Shifts</p>
+                  </div>
+                </div>
+                {isSessionBased && (
+                  <Badge className="bg-primary text-white text-[10px] font-bold">Active</Badge>
                 )}
               </div>
-              <div>
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  <Layers className="w-4 h-4 text-primary" />
-                  Session-Based Attendance (Fixed: Morning & Afternoon)
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Staff mark attendance separately for fixed <strong>Morning</strong> and <strong>Afternoon</strong> sessions. Each session operates completely independently.
-                </p>
-              </div>
-            </button>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Independent tracking for Morning and Afternoon sessions with separate check-in windows, cutoffs, and metrics.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ─── SECTION 1: WORKING SCHEDULE & HOURS ────────────────────────── */}
-      <Card className="border-border shadow-sm">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                {isSessionMode ? "Staff Working Days & Session Rules" : "Staff Working Hours & Shift Rules"}
-              </CardTitle>
-              <CardDescription>
-                {isSessionMode
-                  ? "Configure official school working days and independent Morning & Afternoon session thresholds."
-                  : "Configure official school working days, check-in/out times, and arrival/departure thresholds."}
-              </CardDescription>
+      {/* ─── SECTION 2: SCHEDULE CONFIGURATION ────────────────────────────── */}
+      <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b border-border/40 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold">
+                  {isSessionBased ? "Morning & Afternoon Session Schedules" : "Daily Working Schedule & Thresholds"}
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {isSessionBased
+                    ? "Configure official arrival, departure, late grace, and absence cutoffs for Morning and Afternoon."
+                    : "Configure official arrival, departure, late grace, and absence cutoffs for standard full-day shifts."}
+                </CardDescription>
+              </div>
             </div>
+            <Badge variant="outline" className="text-xs font-mono font-medium">
+              Africa/Addis_Ababa (12h AM/PM)
+            </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Working Days (Common to both modes) */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <Label className="text-sm font-semibold">Official Working Days</Label>
-                <p className="text-xs text-muted-foreground">Select the days of the week staff are expected on campus.</p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("mon-fri")} className="text-xs h-7 px-2">
-                  Mon - Fri
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("mon-sat")} className="text-xs h-7 px-2">
-                  Mon - Sat
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("all")} className="text-xs h-7 px-2">
-                  All 7 Days
-                </Button>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-              {ALL_WEEKDAYS.map((w) => {
-                const isSelected = currentWorkingDays.includes(w.key)
-                const isWeekend = w.key === "SATURDAY" || w.key === "SUNDAY"
-                return (
-                  <button
-                    key={w.key}
-                    type="button"
-                    onClick={() => toggleWorkingDay(w.key)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all text-center ${
-                      isSelected
-                        ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                    }`}
-                  >
-                    <span className="text-xs uppercase tracking-wider">{w.short}</span>
-                    <span className="text-[10px] opacity-70 mt-0.5">
-                      {isSelected ? "Working" : isWeekend ? "Off" : "Off"}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* ─── MODE-ISOLATED CONTENT ─────────────────────────────────── */}
-          {isSessionMode ? (
+        <CardContent className="p-6 space-y-6">
+          {isSessionBased ? (
             /* ══════ SESSION-BASED MODE: MORNING & AFTERNOON CARDS ══════ */
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-primary" />
-                    Fixed Session Configurations
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Configure independent attendance times and thresholds for Morning and Afternoon sessions.
-                  </p>
+              {/* Cross-session Error Banner */}
+              {(errors["sessions.order"] || errors["sessions.overlap"]) && (
+                <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="text-xs font-bold space-y-0.5">
+                    {errors["sessions.order"] && <p>{errors["sessions.order"]}</p>}
+                    {errors["sessions.overlap"] && <p>{errors["sessions.overlap"]}</p>}
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-xs px-2.5 py-1 font-semibold gap-1 bg-muted/50 border-border">
-                  <Lock className="w-3 h-3 text-muted-foreground" /> Exactly 2 Fixed Sessions
-                </Badge>
-              </div>
+              )}
 
               {/* ── 1. MORNING SESSION CARD ── */}
-              <div className="rounded-2xl border-2 border-amber-500/30 bg-gradient-to-b from-amber-500/5 to-transparent overflow-hidden transition-all shadow-xs">
+              <div className={cn(
+                "rounded-2xl border-2 overflow-hidden transition-all shadow-xs",
+                errors["morning.startTime"] || errors["morning.endTime"] || errors["morning.lateGraceMinutes"] || errors["morning.earlyDepartureToleranceMinutes"] || errors["morning.absenceCutoffTime"]
+                  ? "border-rose-500/50 bg-rose-500/5"
+                  : "border-amber-500/30 bg-gradient-to-b from-amber-500/5 to-transparent"
+              )}>
                 {/* Clickable Card Header */}
                 <div
                   role="button"
@@ -635,7 +674,7 @@ export function StaffScheduleSettingsTab({
                       {/* Quick Summary Chips */}
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-muted-foreground">
                         <span className="font-mono font-bold text-foreground">
-                          🕒 {formatEthiopianTime(morningSession.startTime)} – {formatEthiopianTime(morningSession.endTime)}
+                          🕒 {formatHHMMAs12h(morningSession.startTime)} – {formatHHMMAs12h(morningSession.endTime)}
                         </span>
                         <span>•</span>
                         <span className="text-emerald-600 dark:text-emerald-400 font-medium">
@@ -643,7 +682,7 @@ export function StaffScheduleSettingsTab({
                         </span>
                         <span>•</span>
                         <span className="text-rose-600 dark:text-rose-400 font-medium">
-                          Cutoff: {formatEthiopianTime(morningSession.absenceCutoffTime)}
+                          Cutoff: {formatHHMMAs12h(morningSession.absenceCutoffTime)}
                         </span>
                       </div>
                     </div>
@@ -676,7 +715,7 @@ export function StaffScheduleSettingsTab({
                   </div>
                 </div>
 
-                {/* 8 Configuration Fields for Morning (Shown when expanded) */}
+                {/* 8 Configuration Fields for Morning */}
                 {expandedSessions.morning && (
                   <div className="p-5 pt-3 border-t border-amber-500/20 space-y-5 bg-background/50">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -686,10 +725,9 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={morningSession.startTime}
                           onChange={(val) => updateSessionField("morning", "startTime", val)}
-                          allowedPeriods={["morning", "afternoon"]}
-                          helperText="Official morning arrival time (ጠዋት)"
                           className="mt-1"
                         />
+                        <FieldError error={errors["morning.startTime"]} />
                       </div>
 
                       {/* Field 2: Late Grace */}
@@ -698,14 +736,15 @@ export function StaffScheduleSettingsTab({
                         <Input
                           type="number"
                           min="0"
-                          max="120"
+                          max="180"
                           value={morningSession.lateGraceMinutes}
                           onChange={(e) => updateSessionField("morning", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                          className="mt-1 font-mono"
+                          className={cn("mt-1 font-mono", errors["morning.lateGraceMinutes"] && "border-rose-500")}
                         />
                         <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                          Late after {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}
+                          Late after {formatHHMMAs12h(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}
                         </p>
+                        <FieldError error={errors["morning.lateGraceMinutes"]} />
                       </div>
 
                       {/* Field 3: End Time */}
@@ -714,10 +753,9 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={morningSession.endTime}
                           onChange={(val) => updateSessionField("morning", "endTime", val)}
-                          allowedPeriods={["morning", "afternoon"]}
-                          helperText="Official morning departure time"
                           className="mt-1"
                         />
+                        <FieldError error={errors["morning.endTime"]} />
                       </div>
 
                       {/* Field 4: Early Checkout Tolerance */}
@@ -726,14 +764,15 @@ export function StaffScheduleSettingsTab({
                         <Input
                           type="number"
                           min="0"
-                          max="120"
+                          max="180"
                           value={morningSession.earlyDepartureToleranceMinutes}
                           onChange={(e) => updateSessionField("morning", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                          className="mt-1 font-mono"
+                          className={cn("mt-1 font-mono", errors["morning.earlyDepartureToleranceMinutes"] && "border-rose-500")}
                         />
                         <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                          Early departure before {formatEthiopianTime(addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes))}
+                          Early departure before {formatHHMMAs12h(addMinutesToHHMM(morningSession.endTime, -morningSession.earlyDepartureToleranceMinutes))}
                         </p>
+                        <FieldError error={errors["morning.earlyDepartureToleranceMinutes"]} />
                       </div>
                     </div>
 
@@ -744,12 +783,12 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={morningSession.absenceCutoffTime}
                           onChange={(val) => updateSessionField("morning", "absenceCutoffTime", val)}
-                          allowedPeriods={["morning", "afternoon"]}
                           className="mt-1"
                         />
                         <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                          Auto-marked Absent after {formatEthiopianTime(morningSession.absenceCutoffTime)}
+                          Auto-marked Absent after {formatHHMMAs12h(morningSession.absenceCutoffTime)}
                         </p>
+                        <FieldError error={errors["morning.absenceCutoffTime"]} />
                       </div>
 
                       {/* Field 6: Absence Cutoff Minutes */}
@@ -757,13 +796,14 @@ export function StaffScheduleSettingsTab({
                         <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
                         <Input
                           type="number"
-                          min="15"
+                          min="5"
                           max="360"
                           value={morningSession.absenceCutoffMinutes}
                           onChange={(e) => updateSessionField("morning", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                          className="mt-1 font-mono"
+                          className={cn("mt-1 font-mono", errors["morning.absenceCutoffMinutes"] && "border-rose-500")}
                         />
-                        <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">Synchronized with cutoff time</p>
+                        <FieldError error={errors["morning.absenceCutoffMinutes"]} />
                       </div>
 
                       {/* Field 7: Earliest Allowed Check-in */}
@@ -772,10 +812,10 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={morningSession.earliestCheckinTime}
                           onChange={(val) => updateSessionField("morning", "earliestCheckinTime", val)}
-                          allowedPeriods={["night", "morning"]}
                           helperText="Check-in blocked before this time"
                           className="mt-1"
                         />
+                        <FieldError error={errors["morning.earliestCheckinTime"]} />
                       </div>
 
                       {/* Field 8: Latest Allowed Check-out */}
@@ -784,10 +824,10 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={morningSession.latestCheckoutTime}
                           onChange={(val) => updateSessionField("morning", "latestCheckoutTime", val)}
-                          allowedPeriods={["afternoon", "evening"]}
                           helperText="Maximum allowed shift boundary"
                           className="mt-1"
                         />
+                        <FieldError error={errors["morning.latestCheckoutTime"]} />
                       </div>
                     </div>
 
@@ -795,33 +835,60 @@ export function StaffScheduleSettingsTab({
                     <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
                       <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <Sun className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Morning Session Lifecycle Timeline (Ethiopian Clock):</span>
+                        <span>Morning Session Lifecycle Timeline (12h AM/PM):</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
                         <div className="p-2 rounded-lg bg-background/80 border border-border">
                           <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                          <span className="opacity-80">Before {formatEthiopianTime(morningSession.startTime)}</span>
+                          <span className="opacity-80">Before {formatHHMMAs12h(morningSession.earliestCheckinTime)}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                           <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                          <span className="opacity-80">{formatEthiopianTime(morningSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}</span>
+                          <span className="opacity-80">{formatHHMMAs12h(morningSession.startTime)} – {formatHHMMAs12h(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                           <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                          <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))} – {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
+                          <span className="opacity-80">{formatHHMMAs12h(addMinutesToHHMM(morningSession.startTime, morningSession.lateGraceMinutes))} – {formatHHMMAs12h(morningSession.absenceCutoffTime)}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
                           <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                          <span className="opacity-80">After {formatEthiopianTime(morningSession.absenceCutoffTime)}</span>
+                          <span className="opacity-80">After {formatHHMMAs12h(morningSession.absenceCutoffTime)}</span>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Allow Check-In After Cutoff Toggle */}
+                    <div className={cn(
+                      "flex items-center justify-between p-3.5 rounded-xl border transition-colors",
+                      morningSession.allowCheckinAfterCutoff
+                        ? "bg-emerald-500/10 border-emerald-500/30"
+                        : "bg-rose-500/10 border-rose-500/20"
+                    )}>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-bold text-foreground">Allow Staff Check-In After Absence Cutoff</p>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {morningSession.allowCheckinAfterCutoff
+                            ? `Enabled — Staff may still check in after ${formatHHMMAs12h(morningSession.absenceCutoffTime)} (recorded as Late).`
+                            : `Disabled — Check-in button locks at ${formatHHMMAs12h(morningSession.absenceCutoffTime)}. Absent is auto-marked.`}
+                        </p>
+                      </div>
+                      <Switch
+                        id="morningAllowCheckinAfterCutoff"
+                        checked={!!morningSession.allowCheckinAfterCutoff}
+                        onCheckedChange={(checked) => updateSessionField("morning", "allowCheckinAfterCutoff", checked)}
+                      />
                     </div>
                   </div>
                 )}
               </div>
 
               {/* ── 2. AFTERNOON SESSION CARD ── */}
-              <div className="rounded-2xl border-2 border-indigo-500/30 bg-gradient-to-b from-indigo-500/5 to-transparent overflow-hidden transition-all shadow-xs">
+              <div className={cn(
+                "rounded-2xl border-2 overflow-hidden transition-all shadow-xs",
+                errors["afternoon.startTime"] || errors["afternoon.endTime"] || errors["afternoon.lateGraceMinutes"] || errors["afternoon.earlyDepartureToleranceMinutes"] || errors["afternoon.absenceCutoffTime"]
+                  ? "border-rose-500/50 bg-rose-500/5"
+                  : "border-indigo-500/30 bg-gradient-to-b from-indigo-500/5 to-transparent"
+              )}>
                 {/* Clickable Card Header */}
                 <div
                   role="button"
@@ -848,7 +915,7 @@ export function StaffScheduleSettingsTab({
                       {/* Quick Summary Chips */}
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-muted-foreground">
                         <span className="font-mono font-bold text-foreground">
-                          🕒 {formatEthiopianTime(afternoonSession.startTime)} – {formatEthiopianTime(afternoonSession.endTime)}
+                          🕒 {formatHHMMAs12h(afternoonSession.startTime)} – {formatHHMMAs12h(afternoonSession.endTime)}
                         </span>
                         <span>•</span>
                         <span className="text-emerald-600 dark:text-emerald-400 font-medium">
@@ -856,7 +923,7 @@ export function StaffScheduleSettingsTab({
                         </span>
                         <span>•</span>
                         <span className="text-rose-600 dark:text-rose-400 font-medium">
-                          Cutoff: {formatEthiopianTime(afternoonSession.absenceCutoffTime)}
+                          Cutoff: {formatHHMMAs12h(afternoonSession.absenceCutoffTime)}
                         </span>
                       </div>
                     </div>
@@ -889,7 +956,7 @@ export function StaffScheduleSettingsTab({
                   </div>
                 </div>
 
-                {/* 8 Configuration Fields for Afternoon (Shown when expanded) */}
+                {/* 8 Configuration Fields for Afternoon */}
                 {expandedSessions.afternoon && (
                   <div className="p-5 pt-3 border-t border-indigo-500/20 space-y-5 bg-background/50">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -899,10 +966,9 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={afternoonSession.startTime}
                           onChange={(val) => updateSessionField("afternoon", "startTime", val)}
-                          allowedPeriods={["afternoon", "evening"]}
-                          helperText="Official afternoon arrival time (ከሰዓት)"
                           className="mt-1"
                         />
+                        <FieldError error={errors["afternoon.startTime"]} />
                       </div>
 
                       {/* Field 2: Late Grace */}
@@ -911,14 +977,15 @@ export function StaffScheduleSettingsTab({
                         <Input
                           type="number"
                           min="0"
-                          max="120"
+                          max="180"
                           value={afternoonSession.lateGraceMinutes}
                           onChange={(e) => updateSessionField("afternoon", "lateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                          className="mt-1 font-mono"
+                          className={cn("mt-1 font-mono", errors["afternoon.lateGraceMinutes"] && "border-rose-500")}
                         />
                         <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                          Late after {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}
+                          Late after {formatHHMMAs12h(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}
                         </p>
+                        <FieldError error={errors["afternoon.lateGraceMinutes"]} />
                       </div>
 
                       {/* Field 3: End Time */}
@@ -927,10 +994,9 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={afternoonSession.endTime}
                           onChange={(val) => updateSessionField("afternoon", "endTime", val)}
-                          allowedPeriods={["afternoon", "evening"]}
-                          helperText="Official afternoon departure time"
                           className="mt-1"
                         />
+                        <FieldError error={errors["afternoon.endTime"]} />
                       </div>
 
                       {/* Field 4: Early Checkout Tolerance */}
@@ -939,14 +1005,15 @@ export function StaffScheduleSettingsTab({
                         <Input
                           type="number"
                           min="0"
-                          max="120"
+                          max="180"
                           value={afternoonSession.earlyDepartureToleranceMinutes}
                           onChange={(e) => updateSessionField("afternoon", "earlyDepartureToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                          className="mt-1 font-mono"
+                          className={cn("mt-1 font-mono", errors["afternoon.earlyDepartureToleranceMinutes"] && "border-rose-500")}
                         />
                         <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                          Early departure before {formatEthiopianTime(addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes))}
+                          Early departure before {formatHHMMAs12h(addMinutesToHHMM(afternoonSession.endTime, -afternoonSession.earlyDepartureToleranceMinutes))}
                         </p>
+                        <FieldError error={errors["afternoon.earlyDepartureToleranceMinutes"]} />
                       </div>
                     </div>
 
@@ -957,12 +1024,12 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={afternoonSession.absenceCutoffTime}
                           onChange={(val) => updateSessionField("afternoon", "absenceCutoffTime", val)}
-                          allowedPeriods={["afternoon", "evening"]}
                           className="mt-1"
                         />
                         <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
-                          Auto-marked Absent after {formatEthiopianTime(afternoonSession.absenceCutoffTime)}
+                          Auto-marked Absent after {formatHHMMAs12h(afternoonSession.absenceCutoffTime)}
                         </p>
+                        <FieldError error={errors["afternoon.absenceCutoffTime"]} />
                       </div>
 
                       {/* Field 6: Absence Cutoff Minutes */}
@@ -970,13 +1037,14 @@ export function StaffScheduleSettingsTab({
                         <Label className="text-xs font-semibold">Absence Cutoff (Minutes from Start)</Label>
                         <Input
                           type="number"
-                          min="15"
+                          min="5"
                           max="360"
                           value={afternoonSession.absenceCutoffMinutes}
                           onChange={(e) => updateSessionField("afternoon", "absenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
-                          className="mt-1 font-mono"
+                          className={cn("mt-1 font-mono", errors["afternoon.absenceCutoffMinutes"] && "border-rose-500")}
                         />
-                        <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">Synchronized with cutoff time</p>
+                        <FieldError error={errors["afternoon.absenceCutoffMinutes"]} />
                       </div>
 
                       {/* Field 7: Earliest Allowed Check-in */}
@@ -985,10 +1053,10 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={afternoonSession.earliestCheckinTime}
                           onChange={(val) => updateSessionField("afternoon", "earliestCheckinTime", val)}
-                          allowedPeriods={["morning", "afternoon"]}
                           helperText="Check-in blocked before this time"
                           className="mt-1"
                         />
+                        <FieldError error={errors["afternoon.earliestCheckinTime"]} />
                       </div>
 
                       {/* Field 8: Latest Allowed Check-out */}
@@ -997,10 +1065,10 @@ export function StaffScheduleSettingsTab({
                         <EthiopianTimeInput
                           value={afternoonSession.latestCheckoutTime}
                           onChange={(val) => updateSessionField("afternoon", "latestCheckoutTime", val)}
-                          allowedPeriods={["evening", "night"]}
                           helperText="Maximum allowed shift boundary"
                           className="mt-1"
                         />
+                        <FieldError error={errors["afternoon.latestCheckoutTime"]} />
                       </div>
                     </div>
 
@@ -1008,36 +1076,51 @@ export function StaffScheduleSettingsTab({
                     <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
                       <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <Sunset className="w-3.5 h-3.5 text-indigo-500" />
-                        <span>Afternoon Session Lifecycle Timeline (Ethiopian Clock):</span>
+                        <span>Afternoon Session Lifecycle Timeline (12h AM/PM):</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
                         <div className="p-2 rounded-lg bg-background/80 border border-border">
                           <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                          <span className="opacity-80">Before {formatEthiopianTime(afternoonSession.startTime)}</span>
+                          <span className="opacity-80">Before {formatHHMMAs12h(afternoonSession.earliestCheckinTime)}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                           <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                          <span className="opacity-80">{formatEthiopianTime(afternoonSession.startTime)} – {formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}</span>
+                          <span className="opacity-80">{formatHHMMAs12h(afternoonSession.startTime)} – {formatHHMMAs12h(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                           <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
-                          <span className="opacity-80">{formatEthiopianTime(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))} – {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
+                          <span className="opacity-80">{formatHHMMAs12h(addMinutesToHHMM(afternoonSession.startTime, afternoonSession.lateGraceMinutes))} – {formatHHMMAs12h(afternoonSession.absenceCutoffTime)}</span>
                         </div>
                         <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
                           <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                          <span className="opacity-80">After {formatEthiopianTime(afternoonSession.absenceCutoffTime)}</span>
+                          <span className="opacity-80">After {formatHHMMAs12h(afternoonSession.absenceCutoffTime)}</span>
                         </div>
                       </div>
                     </div>
+
+                    {/* Allow Check-In After Cutoff Toggle (Afternoon) */}
+                    <div className={cn(
+                      "flex items-center justify-between p-3.5 rounded-xl border transition-colors",
+                      afternoonSession.allowCheckinAfterCutoff
+                        ? "bg-emerald-500/10 border-emerald-500/30"
+                        : "bg-rose-500/10 border-rose-500/20"
+                    )}>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-bold text-foreground">Allow Staff Check-In After Absence Cutoff</p>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {afternoonSession.allowCheckinAfterCutoff
+                            ? `Enabled — Staff may still check in after ${formatHHMMAs12h(afternoonSession.absenceCutoffTime)} (recorded as Late).`
+                            : `Disabled — Check-in button locks at ${formatHHMMAs12h(afternoonSession.absenceCutoffTime)}. Absent is auto-marked.`}
+                        </p>
+                      </div>
+                      <Switch
+                        id="afternoonAllowCheckinAfterCutoff"
+                        checked={!!afternoonSession.allowCheckinAfterCutoff}
+                        onCheckedChange={(checked) => updateSessionField("afternoon", "allowCheckinAfterCutoff", checked)}
+                      />
+                    </div>
                   </div>
                 )}
-              </div>
-
-              <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-center gap-2">
-                <Info className="w-4 h-4 text-primary shrink-0" />
-                <span>
-                  Morning and Afternoon sessions function independently. Changes will be persisted when saving settings.
-                </span>
               </div>
             </div>
           ) : (
@@ -1051,11 +1134,10 @@ export function StaffScheduleSettingsTab({
                   </Label>
                   <EthiopianTimeInput
                     value={settings.staffWorkStartTime || "08:00"}
-                    onChange={(val) => setSettings({ ...settings, staffWorkStartTime: val })}
-                    allowedPeriods={["morning", "afternoon"]}
-                    helperText="Official daily arrival time"
+                    onChange={(val) => updateDailyField("staffWorkStartTime", val)}
                     className="mt-1"
                   />
+                  <FieldError error={errors["daily.staffWorkStartTime"]} />
                 </div>
 
                 <div>
@@ -1066,14 +1148,15 @@ export function StaffScheduleSettingsTab({
                     id="staffLateGraceMinutes"
                     type="number"
                     min="0"
-                    max="120"
+                    max="180"
                     value={settings.staffLateGraceMinutes ?? 15}
-                    onChange={(e) => setSettings({ ...settings, staffLateGraceMinutes: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(e) => updateDailyField("staffLateGraceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                    className={cn("mt-1 font-mono", errors["daily.staffLateGraceMinutes"] && "border-rose-500")}
                   />
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
                     Late after {computeDailyLateCutoff()}
                   </p>
+                  <FieldError error={errors["daily.staffLateGraceMinutes"]} />
                 </div>
 
                 <div>
@@ -1082,11 +1165,10 @@ export function StaffScheduleSettingsTab({
                   </Label>
                   <EthiopianTimeInput
                     value={settings.staffWorkEndTime || "17:00"}
-                    onChange={(val) => setSettings({ ...settings, staffWorkEndTime: val })}
-                    allowedPeriods={["afternoon", "evening"]}
-                    helperText="Official daily departure time"
+                    onChange={(val) => updateDailyField("staffWorkEndTime", val)}
                     className="mt-1"
                   />
+                  <FieldError error={errors["daily.staffWorkEndTime"]} />
                 </div>
 
                 <div>
@@ -1097,14 +1179,15 @@ export function StaffScheduleSettingsTab({
                     id="staffEarlyCheckoutToleranceMinutes"
                     type="number"
                     min="0"
-                    max="120"
+                    max="180"
                     value={settings.staffEarlyCheckoutToleranceMinutes ?? 15}
-                    onChange={(e) => setSettings({ ...settings, staffEarlyCheckoutToleranceMinutes: e.target.value })}
-                    className="mt-1 font-mono"
+                    onChange={(e) => updateDailyField("staffEarlyCheckoutToleranceMinutes", Math.max(0, parseInt(e.target.value) || 0))}
+                    className={cn("mt-1 font-mono", errors["daily.staffEarlyCheckoutToleranceMinutes"] && "border-rose-500")}
                   />
                   <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
                     Early departure before {computeDailyEarlyCutoff()}
                   </p>
+                  <FieldError error={errors["daily.staffEarlyCheckoutToleranceMinutes"]} />
                 </div>
               </div>
 
@@ -1115,13 +1198,13 @@ export function StaffScheduleSettingsTab({
                   </Label>
                   <EthiopianTimeInput
                     value={settings.staffAbsenceCutoffTime || "10:00"}
-                    onChange={(val) => setSettings({ ...settings, staffAbsenceCutoffTime: val })}
-                    allowedPeriods={["morning", "afternoon"]}
+                    onChange={(val) => updateDailyField("staffAbsenceCutoffTime", val)}
                     className="mt-1"
                   />
                   <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1">
                     Auto-marked Absent after {computeDailyAbsenceCutoff()}
                   </p>
+                  <FieldError error={errors["daily.staffAbsenceCutoffTime"]} />
                 </div>
 
                 <div>
@@ -1131,13 +1214,13 @@ export function StaffScheduleSettingsTab({
                   <Input
                     id="staffAbsenceCutoffMinutes"
                     type="number"
-                    min="30"
+                    min="5"
                     max="360"
                     value={settings.staffAbsenceCutoffMinutes ?? 120}
-                    onChange={(e) => setSettings({ ...settings, staffAbsenceCutoffMinutes: e.target.value })}
+                    onChange={(e) => updateDailyField("staffAbsenceCutoffMinutes", Math.max(0, parseInt(e.target.value) || 0))}
                     className="mt-1 font-mono"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1">Unchecked staff become Absent</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">Synchronized with cutoff time</p>
                 </div>
 
                 <div>
@@ -1146,11 +1229,10 @@ export function StaffScheduleSettingsTab({
                   </Label>
                   <EthiopianTimeInput
                     value={settings.staffEarliestCheckinTime || "06:00"}
-                    onChange={(val) => setSettings({ ...settings, staffEarliestCheckinTime: val })}
-                    allowedPeriods={["night", "morning"]}
-                    helperText="Check-in blocked before this time"
+                    onChange={(val) => updateDailyField("staffEarliestCheckinTime", val)}
                     className="mt-1"
                   />
+                  <FieldError error={errors["daily.staffEarliestCheckinTime"]} />
                 </div>
 
                 <div>
@@ -1159,178 +1241,270 @@ export function StaffScheduleSettingsTab({
                   </Label>
                   <EthiopianTimeInput
                     value={settings.staffLatestCheckoutTime || "20:00"}
-                    onChange={(val) => setSettings({ ...settings, staffLatestCheckoutTime: val })}
-                    allowedPeriods={["evening", "night"]}
-                    helperText="Maximum allowed shift boundary"
+                    onChange={(val) => updateDailyField("staffLatestCheckoutTime", val)}
                     className="mt-1"
                   />
+                  <FieldError error={errors["daily.staffLatestCheckoutTime"]} />
                 </div>
               </div>
 
-              {/* Attendance Lifecycle Explanation Banner */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/5 via-sky-500/5 to-emerald-500/5 border border-indigo-500/20 space-y-2">
+              {/* Daily Mode Lifecycle Timeline Banner */}
+              <div className="p-3.5 rounded-xl bg-slate-500/10 border border-slate-500/20 space-y-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                  <Clock className="w-4 h-4 text-indigo-500" />
-                  <span>Daily Attendance Automatic Lifecycle Timeline (Ethiopian Clock):</span>
+                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  <span>Daily Attendance Lifecycle Timeline (12h AM/PM):</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
-                  <div className="p-2 rounded-xl bg-slate-500/10 border border-slate-500/20">
+                  <div className="p-2 rounded-lg bg-background/80 border border-border">
                     <span className="font-bold text-slate-600 dark:text-slate-400 block">1. Not Started</span>
-                    <span className="opacity-80">Before {formatEthiopianTime(settings.staffWorkStartTime || "08:00")}</span>
+                    <span className="opacity-80">Before {formatHHMMAs12h(settings.staffWorkStartTime || "08:00")}</span>
                   </div>
-                  <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time Check-In</span>
-                    <span className="opacity-80">{formatEthiopianTime(settings.staffWorkStartTime || "08:00")} – {computeDailyLateCutoff()}</span>
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="font-bold text-emerald-700 dark:text-emerald-300 block">2. On Time</span>
+                    <span className="opacity-80">{formatHHMMAs12h(settings.staffWorkStartTime || "08:00")} – {computeDailyLateCutoff()}</span>
                   </div>
-                  <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                    <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late Check-In</span>
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <span className="font-bold text-amber-700 dark:text-amber-300 block">3. Late</span>
                     <span className="opacity-80">{computeDailyLateCutoff()} – {computeDailyAbsenceCutoff()}</span>
                   </div>
-                  <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                    <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Automatic Absent</span>
-                    <span className="opacity-80">After {computeDailyAbsenceCutoff()} (Unrecorded)</span>
+                  <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                    <span className="font-bold text-rose-700 dark:text-rose-300 block">4. Auto-Absent</span>
+                    <span className="opacity-80">After {computeDailyAbsenceCutoff()}</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">
-                  * Staff with approved Leave or Permission are never automatically marked Absent. Holidays & non-working days are strictly excluded.
-                </p>
+              </div>
+
+              {/* Global Daily Mode: Allow Check-In After Cutoff */}
+              <div className={cn(
+                "flex items-center justify-between p-3.5 rounded-xl border transition-colors",
+                settings.allowStaffCheckinAfterCutoff
+                  ? "bg-emerald-500/10 border-emerald-500/30"
+                  : "bg-rose-500/10 border-rose-500/20"
+              )}>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-foreground">Allow Staff Check-In After Absence Cutoff</p>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    {settings.allowStaffCheckinAfterCutoff
+                      ? `Enabled — Staff may still check in after ${computeDailyAbsenceCutoff()} (recorded as Late).`
+                      : `Disabled — Check-in button locks at ${computeDailyAbsenceCutoff()}. Absent is auto-marked.`}
+                  </p>
+                </div>
+                <Switch
+                  id="globalAllowCheckinAfterCutoff"
+                  checked={!!settings.allowStaffCheckinAfterCutoff}
+                  onCheckedChange={(checked) => setSettings((prev: any) => ({ ...prev, allowStaffCheckinAfterCutoff: checked }))}
+                />
               </div>
             </div>
           )}
 
-          <Separator />
-
-          {/* Verification Requirements */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/40 border">
-              <div className="pr-4">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  Staff Face Recognition Required
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Require camera facial verification for staff check-in and check-out.
-                </p>
-              </div>
-              <Switch
-                checked={settings.staffFaceRequired !== false}
-                onCheckedChange={(checked) => setSettings({ ...settings, staffFaceRequired: checked })}
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/40 border">
-              <div className="pr-4">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  Staff Geofencing Location Required
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Verify staff GPS location matches school coordinates before allowing attendance.
-                </p>
-              </div>
-              <Switch
-                checked={settings.staffGeoRequired !== false}
-                onCheckedChange={(checked) => setSettings({ ...settings, staffGeoRequired: checked })}
-              />
-            </div>
+          {/* Direct Save Button Inside Tab */}
+          <div className="pt-4 border-t border-border/40 flex justify-end">
+            <Button
+              onClick={handleSaveWithValidation}
+              disabled={isSaving || !validationResult.isValid}
+              className={cn(
+                "h-11 px-6 rounded-2xl font-black text-xs uppercase tracking-wider gap-2 shadow-md transition-all",
+                !validationResult.isValid
+                  ? "bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed"
+                  : "bg-primary text-white hover:bg-primary/90 shadow-primary/20"
+              )}
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSaving ? "Saving..." : "Save Schedule Settings"}</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* ─── SECTION 2: HOLIDAYS & NON-WORKING DAYS ────────────────────────── */}
-      <Card className="border-border shadow-sm">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <CalendarOff className="w-5 h-5 text-amber-500" />
-                School Holidays & Non-Working Days Calendar
-              </CardTitle>
-              <CardDescription>
-                Configure public, religious, and custom school closure dates where attendance is not required.
-              </CardDescription>
+      {/* ─── SECTION 3: WORKING DAYS SELECTION ────────────────────────────── */}
+      <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b border-border/40 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <CalendarDays className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold">Standard Working Days</CardTitle>
+                <CardDescription className="text-xs">
+                  Days of the week when staff attendance is strictly expected and absences are marked.
+                </CardDescription>
+              </div>
             </div>
+
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-muted-foreground font-semibold mr-1">Presets:</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => applyPreset("mon-fri")}
+                className="h-7 px-2 text-[11px] rounded-lg"
+              >
+                Mon–Fri
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => applyPreset("mon-sat")}
+                className="h-7 px-2 text-[11px] rounded-lg"
+              >
+                Mon–Sat
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => applyPreset("all")}
+                className="h-7 px-2 text-[11px] rounded-lg"
+              >
+                All 7 Days
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+            {ALL_WEEKDAYS.map((w) => {
+              const isSelected = currentWorkingDays.includes(w.key)
+              const isWeekend = w.key === "SATURDAY" || w.key === "SUNDAY"
+              return (
+                <div
+                  key={w.key}
+                  onClick={() => toggleWorkingDay(w.key)}
+                  className={cn(
+                    "p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-center select-none space-y-1.5",
+                    isSelected
+                      ? "border-primary bg-primary/10 text-primary shadow-xs"
+                      : "border-border/60 bg-muted/20 text-muted-foreground hover:border-border hover:bg-muted/40"
+                  )}
+                >
+                  <div className="flex items-center justify-center">
+                    {isSelected ? (
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-muted-foreground/40" />
+                    )}
+                  </div>
+                  <p className="font-bold text-xs text-foreground">{w.label}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">
+                    {isWeekend ? "Weekend" : "Weekday"}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-[11px] text-muted-foreground leading-relaxed">
+            💡 <strong>Calendar Behavior:</strong> On unselected non-working days or weekends, staff can still clock in for overtime or special duty without penalty, but auto-absences will <strong>never</strong> be marked.
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── SECTION 4: SCHOOL HOLIDAYS & SPECIAL CLOSURES ────────────────── */}
+      <Card className="rounded-3xl border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b border-border/40 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                <CalendarOff className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold">School Holidays & Special Closures</CardTitle>
+                <CardDescription className="text-xs">
+                  Official national, religious, or administrative school holidays when staff are excused.
+                </CardDescription>
+              </div>
+            </div>
+
             <Button
               onClick={handleOpenAddHoliday}
-              className="bg-primary text-white font-bold text-xs uppercase tracking-wider h-10 px-5 rounded-xl flex items-center gap-2 shadow-sm"
+              size="sm"
+              className="h-9 px-4 rounded-xl text-xs font-bold gap-1.5 bg-primary text-white shadow-xs"
             >
               <Plus className="w-4 h-4" />
-              Add Holiday / Closure
+              <span>Add Holiday / Closure</span>
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+
+        <CardContent className="p-6">
           {loadingHolidays ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              Loading holidays and working calendar...
+            <div className="py-12 text-center text-muted-foreground text-xs font-medium">
+              Loading holidays...
             </div>
           ) : holidays.length === 0 ? (
-            <div className="p-8 text-center border-2 border-dashed border-border rounded-2xl">
-              <CalendarDays className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="font-bold text-sm text-foreground">No Custom Holidays Configured</p>
-              <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 mb-4">
-                Staff will follow the standard weekly working schedule. Add public holidays, religious feasts, or term breaks to prevent false absence tracking.
+            <div className="py-12 text-center rounded-2xl border-2 border-dashed border-border/60 bg-muted/10 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground">
+                <CalendarOff className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-foreground">No Holidays Configured Yet</p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Add national, religious, or school holidays so attendance is excused automatically.
               </p>
-              <Button onClick={handleOpenAddHoliday} variant="outline" size="sm" className="rounded-xl">
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add First Holiday
+              <Button
+                onClick={handleOpenAddHoliday}
+                size="sm"
+                variant="outline"
+                className="h-8 px-3 rounded-xl text-xs font-bold gap-1 mt-2"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add First Holiday</span>
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
+            <div className="overflow-x-auto rounded-xl border border-border/50">
+              <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-border/80 text-[11px] font-black uppercase text-muted-foreground tracking-wider">
-                    <th className="py-3 px-4">Holiday / Reason</th>
-                    <th className="py-3 px-4">Type</th>
+                  <tr className="bg-muted/40 border-b border-border/50 text-[11px] uppercase font-bold text-muted-foreground">
+                    <th className="py-3 px-4">Holiday Name</th>
+                    <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Date Range</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/50">
+                <tbody className="divide-y divide-border/40 font-medium">
                   {holidays.map((h) => {
-                    const typeConfig = HOLIDAY_TYPES.find((t) => t.value === h.type) || HOLIDAY_TYPES[0]
-                    const sDate = h.startDate ? new Date(h.startDate).toISOString().split("T")[0] : ""
-                    const eDate = h.endDate ? new Date(h.endDate).toISOString().split("T")[0] : ""
+                    const sDate = h.startDate ? new Date(h.startDate).toISOString().split("T")[0] : "—"
+                    const eDate = h.endDate ? new Date(h.endDate).toISOString().split("T")[0] : sDate
                     const isMultiDay = sDate !== eDate
+                    const catObj = HOLIDAY_TYPES.find((t) => t.value === h.type) || HOLIDAY_TYPES[0]
 
                     return (
-                      <tr key={h.id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={h.id} className="hover:bg-muted/20 transition-colors">
                         <td className="py-3.5 px-4">
-                          <div className="font-semibold text-foreground">{h.name}</div>
+                          <span className="font-bold text-foreground block">{h.name}</span>
                           {h.description && (
-                            <div className="text-xs text-muted-foreground truncate max-w-xs">{h.description}</div>
+                            <span className="text-[11px] text-muted-foreground line-clamp-1">
+                              {h.description}
+                            </span>
                           )}
                         </td>
                         <td className="py-3.5 px-4">
-                          <Badge variant="outline" className={`text-[10px] font-bold ${typeConfig.color}`}>
-                            {typeConfig.label}
+                          <Badge variant="outline" className={cn("text-[10px] font-semibold", catObj.color)}>
+                            {catObj.label}
                           </Badge>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-mono text-xs font-medium">
-                            {isMultiDay ? `${sDate} to ${eDate}` : sDate}
-                          </div>
-                          {isMultiDay && (
-                            <span className="text-[10px] text-muted-foreground">Multi-day closure</span>
-                          )}
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-foreground">
+                          {isMultiDay ? `${sDate} → ${eDate}` : sDate}
                         </td>
                         <td className="py-3.5 px-4">
-                          <button
-                            onClick={() => handleToggleHolidayStatus(h)}
-                            className="flex items-center gap-1.5 text-xs font-semibold"
-                          >
-                            {h.isActive ? (
-                              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 className="w-4 h-4" /> Active
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-muted-foreground">
-                                <XCircle className="w-4 h-4" /> Inactive
-                              </span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] font-bold",
+                              h.isActive
+                                ? "text-emerald-600 border-emerald-500/30 bg-emerald-500/10"
+                                : "text-slate-400 border-slate-400/30"
                             )}
-                          </button>
+                          >
+                            {h.isActive ? "Active" : "Disabled"}
+                          </Badge>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -1338,15 +1512,15 @@ export function StaffScheduleSettingsTab({
                               variant="ghost"
                               size="sm"
                               onClick={() => handleOpenEditHoliday(h)}
-                              className="h-8 w-8 p-0"
+                              className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
                             >
-                              <Edit2 className="w-4 h-4 text-muted-foreground" />
+                              <Edit2 className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteHoliday(h.id, h.name)}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                              className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-500/10"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>

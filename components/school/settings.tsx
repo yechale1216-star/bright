@@ -25,6 +25,7 @@ import { useCalendar } from "@/lib/context/calendar-context"
 
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
 import { StaffScheduleSettingsTab } from "@/components/school/staff-schedule-settings-tab"
+import { validateAllScheduleSettings } from "@/lib/utils/schedule-validation"
 
 export function Settings() {
   const { calendarPreference, setCalendarPreference } = useCalendar()
@@ -190,6 +191,15 @@ export function Settings() {
         schoolLogo: schoolInfo.schoolLogo,
       }
 
+      // Validate schedule settings prior to sending to backend
+      const validationRes = validateAllScheduleSettings(updatedSettings)
+      if (!validationRes.isValid) {
+        const firstError = validationRes.errors[0]?.message || "Invalid schedule configuration."
+        notifications.error("Validation Error", firstError)
+        setIsSaving(false)
+        return
+      }
+
       console.log("Calling db.updateSettings with:", updatedSettings)
       // updateSettings() now returns the server-confirmed mapped settings object directly.
       // We use it to update React state without an extra getSettings() round-trip,
@@ -203,10 +213,10 @@ export function Settings() {
       notifications.success("Settings Saved", "All settings have been updated successfully.")
 
       console.log("Save settings completed successfully")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving settings:", error)
-      notifications.error("Error", "Failed to save settings")
-
+      const errorMsg = error?.message || "Failed to save settings"
+      notifications.error("Error", errorMsg)
     } finally {
       setIsSaving(false)
     }

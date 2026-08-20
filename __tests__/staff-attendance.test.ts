@@ -4,6 +4,7 @@ import {
   getStaffCheckInStatus,
   getStaffCheckOutStatus,
   getStaffAttendanceDisplay,
+  getCheckInButtonState,
 } from "../lib/utils/staff-attendance-status"
 
 describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
@@ -522,6 +523,92 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkIn.status).toBe("ABSENT")
       expect(display.checkIn.label).toBe("ABSENT")
       expect(display.checkIn.titleLabel).toBe("Absent")
+    })
+  })
+
+  describe("6. Check-In Button State & Cutoff Enforcements", () => {
+    const mockSettings = {
+      staffWorkStartTime: "08:00",
+      staffWorkEndTime: "17:00",
+      staffLateGraceMinutes: 15,
+      staffEarlyCheckoutToleranceMinutes: 15,
+      staffAbsenceCutoffTime: "10:00",
+      staffEarliestCheckinTime: "06:00",
+      allowStaffCheckinAfterCutoff: false,
+    }
+
+    const mockSession = {
+      id: "morning",
+      name: "Morning",
+      startTime: "08:00",
+      endTime: "12:30",
+      lateGraceMinutes: 15,
+      earlyDepartureToleranceMinutes: 10,
+      absenceCutoffMinutes: 90,
+      absenceCutoffTime: "09:30",
+      earliestCheckinTime: "06:00",
+      latestCheckoutTime: "13:30",
+      allowCheckinAfterCutoff: false,
+      isActive: true,
+    }
+
+    test("Check-in button is INACTIVE before earliest allowed check-in time (e.g. 05:30 < 06:00)", () => {
+      // 05:30 AM in Africa/Addis_Ababa = 02:30 UTC
+      const mockTimeEarly = new Date("2026-08-20T02:30:00.000Z")
+      const state = getCheckInButtonState(null, mockSettings, mockSession, mockTimeEarly)
+
+      expect(state.canCheckIn).toBe(false)
+      expect(state.isBeforeEarliest).toBe(true)
+      expect(state.isAfterCutoff).toBe(false)
+      expect(state.buttonText).toContain("6:00 AM")
+      expect(state.helperText).toContain("opens at 6:00 AM")
+    })
+
+    test("Check-in button is ACTIVE during valid check-in window (e.g. 08:15 AM)", () => {
+      // 08:15 AM in Africa/Addis_Ababa = 05:15 UTC
+      const mockTimeValid = new Date("2026-08-20T05:15:00.000Z")
+      const state = getCheckInButtonState(null, mockSettings, mockSession, mockTimeValid)
+
+      expect(state.canCheckIn).toBe(true)
+      expect(state.isBeforeEarliest).toBe(false)
+      expect(state.isAfterCutoff).toBe(false)
+      expect(state.buttonText).toBe("Check In Now")
+    })
+
+    test("Check-in button is INACTIVE after absence cutoff when allowCheckinAfterCutoff is false (e.g. 10:00 AM > 09:30 AM)", () => {
+      // 10:00 AM in Africa/Addis_Ababa = 07:00 UTC
+      const mockTimeLate = new Date("2026-08-20T07:00:00.000Z")
+      const state = getCheckInButtonState(null, mockSettings, mockSession, mockTimeLate)
+
+      expect(state.canCheckIn).toBe(false)
+      expect(state.isBeforeEarliest).toBe(false)
+      expect(state.isAfterCutoff).toBe(true)
+      expect(state.buttonText).toBe("Check-In Closed")
+      expect(state.helperText).toContain("Absence cutoff elapsed")
+    })
+
+    test("Check-in button is ACTIVE after absence cutoff when allowCheckinAfterCutoff is true", () => {
+      const permissiveSession = { ...mockSession, allowCheckinAfterCutoff: true }
+      // 10:00 AM in Africa/Addis_Ababa = 07:00 UTC
+      const mockTimeLate = new Date("2026-08-20T07:00:00.000Z")
+      const state = getCheckInButtonState(null, mockSettings, permissiveSession, mockTimeLate)
+
+      expect(state.canCheckIn).toBe(true)
+      expect(state.isBeforeEarliest).toBe(false)
+      expect(state.isAfterCutoff).toBe(false)
+      expect(state.buttonText).toBe("Check In Now")
+    })
+
+    test("Check-in button is INACTIVE when staff has already checked in", () => {
+      const existingRecord = {
+        id: "rec_done",
+        checkInTime: "2026-08-20T05:00:00.000Z",
+      }
+      const mockTimeValid = new Date("2026-08-20T05:15:00.000Z")
+      const state = getCheckInButtonState(existingRecord, mockSettings, mockSession, mockTimeValid)
+
+      expect(state.canCheckIn).toBe(false)
+      expect(state.buttonText).toBe("Already Checked In")
     })
   })
 })

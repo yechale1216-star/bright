@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import { validateGeofence } from './attendance.service';
 import { isDateWorkingDay, addMinutesToTime } from './holiday.service';
+import { formatCivilTime } from '../utils/ethiopian-time';
 
 /**
  * Normalizes date to UTC midnight for Africa/Addis_Ababa or standard date string
@@ -44,7 +45,7 @@ export function isTimeBefore(currentHHMM: string, targetHHMM: string): boolean {
 }
 
 /**
- * Dynamically computes staff working schedule cutoffs from school settings
+ * Dynamically computes staff working schedule cutoffs from school settings with runtime safety checks.
  */
 export function computeWorkingScheduleThresholds(settings?: any): {
   earliestCheckIn: string;
@@ -56,19 +57,46 @@ export function computeWorkingScheduleThresholds(settings?: any): {
   absenceCutoffTime: string;
   workingDays: string[];
 } {
-  const earliestCheckIn = settings?.staff_earliest_checkin_time || settings?.staff_checkin_start || '06:00';
-  const expectedStartTime = settings?.staff_work_start_time || '08:00';
-  const lateGrace = settings?.staff_late_grace_minutes ?? 15;
+  let expectedStartTime = settings?.staff_work_start_time || '08:00';
+  let expectedEndTime = settings?.staff_work_end_time || '17:00';
+
+  // Runtime safety: ensure startTime < endTime
+  const [sH, sM] = expectedStartTime.split(':').map(Number);
+  const [eH, eM] = expectedEndTime.split(':').map(Number);
+  const startMins = (isNaN(sH) ? 8 : sH) * 60 + (isNaN(sM) ? 0 : sM);
+  const endMins = (isNaN(eH) ? 17 : eH) * 60 + (isNaN(eM) ? 0 : eM);
+
+  if (startMins >= endMins) {
+    console.warn(`[StaffAttendance] Corrupted daily schedule detected: start ${expectedStartTime} >= end ${expectedEndTime}. Falling back to default 08:00 - 17:00.`);
+    expectedStartTime = '08:00';
+    expectedEndTime = '17:00';
+  }
+
+  const duration = Math.max(1, endMins - startMins);
+  const rawLateGrace = settings?.staff_late_grace_minutes ?? 15;
+  const lateGrace = Math.min(duration - 1, Math.max(0, Number(rawLateGrace) || 15));
   const lateCutoffTime = settings?.staff_checkin_late || addMinutesToTime(expectedStartTime, lateGrace);
 
-  const expectedEndTime = settings?.staff_work_end_time || '17:00';
-  const earlyTolerance = settings?.staff_early_checkout_tolerance_minutes ?? 15;
+  const rawEarlyTol = settings?.staff_early_checkout_tolerance_minutes ?? 15;
+  const earlyTolerance = Math.min(duration - 1, Math.max(0, Number(rawEarlyTol) || 15));
   const earlyDepartureCutoffTime = settings?.staff_checkout_early || addMinutesToTime(expectedEndTime, -earlyTolerance);
-  const latestCheckOut = settings?.staff_latest_checkout_time || '20:00';
 
-  // Absence cutoff: configured time, or start time + cutoff minutes (default 120 mins)
-  const absenceCutoffMinutes = settings?.staff_absence_cutoff_minutes ?? settings?.staffAbsenceCutoffMinutes ?? 120;
-  const absenceCutoffTime = settings?.staff_absence_cutoff_time || settings?.staffAbsenceCutoffTime || addMinutesToTime(expectedStartTime, absenceCutoffMinutes);
+  let earliestCheckIn = settings?.staff_earliest_checkin_time || settings?.staff_checkin_start || '06:00';
+  if (isTimeAfter(earliestCheckIn, expectedStartTime)) {
+    earliestCheckIn = addMinutesToTime(expectedStartTime, -60);
+  }
+
+  let latestCheckOut = settings?.staff_latest_checkout_time || '20:00';
+  if (isTimeBefore(latestCheckOut, expectedEndTime)) {
+    latestCheckOut = addMinutesToTime(expectedEndTime, 60);
+  }
+
+  // Absence cutoff: configured time, or start time + cutoff minutes (clamped within [start, end])
+  const absenceCutoffMinutes = Math.min(duration, Math.max(1, Number(settings?.staff_absence_cutoff_minutes ?? 120) || 120));
+  let absenceCutoffTime = settings?.staff_absence_cutoff_time || settings?.staffAbsenceCutoffTime || addMinutesToTime(expectedStartTime, absenceCutoffMinutes);
+  if (isTimeBefore(absenceCutoffTime, expectedStartTime) || isTimeAfter(absenceCutoffTime, expectedEndTime)) {
+    absenceCutoffTime = addMinutesToTime(expectedStartTime, Math.min(duration, Math.max(15, absenceCutoffMinutes)));
+  }
 
   const workingDaysStr = settings?.staff_working_days || 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY';
   const workingDays = workingDaysStr.split(',').map((d: string) => d.trim().toUpperCase()).filter(Boolean);
@@ -98,6 +126,7 @@ export interface StaffSession {
   absenceCutoffTime?: string;
   earliestCheckinTime?: string;
   latestCheckoutTime?: string;
+  allowCheckinAfterCutoff?: boolean;
   isActive: boolean;
 }
 
@@ -161,7 +190,7 @@ export function findSession(sessions: StaffSession[], sessionId: string): StaffS
 }
 
 /**
- * Compute schedule thresholds for a specific session.
+ * Compute schedule thresholds for a specific session with runtime validation and safety bounds.
  */
 export function computeSessionThresholds(session: StaffSession): {
   expectedStartTime: string;
@@ -172,17 +201,52 @@ export function computeSessionThresholds(session: StaffSession): {
   earliestCheckIn: string;
   latestCheckOut: string;
 } {
-  const lateCutoffTime = addMinutesToTime(session.startTime, session.lateGraceMinutes ?? 15);
-  const absenceMinutes = session.absenceCutoffMinutes ?? ((session.lateGraceMinutes ?? 15) + 60);
-  const absenceCutoffTime = session.absenceCutoffTime || addMinutesToTime(session.startTime, absenceMinutes);
-  const earliestCheckIn = session.earliestCheckinTime || addMinutesToTime(session.startTime, -60);
-  const latestCheckOut = session.latestCheckoutTime || addMinutesToTime(session.endTime, 90);
+  let startTime = session.startTime || (session.id === 'afternoon' ? '13:30' : '08:00');
+  let endTime = session.endTime || (session.id === 'afternoon' ? '17:00' : '12:30');
+
+  const [sH, sM] = startTime.split(':').map(Number);
+  const [eH, eM] = endTime.split(':').map(Number);
+  const startMins = (isNaN(sH) ? 8 : sH) * 60 + (isNaN(sM) ? 0 : sM);
+  const endMins = (isNaN(eH) ? 12 : eH) * 60 + (isNaN(eM) ? 30 : eM);
+
+  if (startMins >= endMins) {
+    console.warn(`[StaffAttendance] Corrupted session ${session.id} detected: start ${startTime} >= end ${endTime}. Falling back to default.`);
+    const fallback = session.id === 'afternoon' ? DEFAULT_STAFF_SESSIONS[1] : DEFAULT_STAFF_SESSIONS[0];
+    startTime = fallback.startTime;
+    endTime = fallback.endTime;
+  }
+
+  const [fsH, fsM] = startTime.split(':').map(Number);
+  const [feH, feM] = endTime.split(':').map(Number);
+  const duration = Math.max(1, (feH * 60 + feM) - (fsH * 60 + fsM));
+
+  const lateGrace = Math.min(duration - 1, Math.max(0, Number(session.lateGraceMinutes ?? 15) || 15));
+  const lateCutoffTime = addMinutesToTime(startTime, lateGrace);
+
+  const earlyTol = Math.min(duration - 1, Math.max(0, Number(session.earlyDepartureToleranceMinutes ?? 10) || 10));
+  const earlyDepartureCutoffTime = addMinutesToTime(endTime, -earlyTol);
+
+  const absenceMinutes = Math.min(duration, Math.max(1, Number(session.absenceCutoffMinutes ?? 90) || 90));
+  let absenceCutoffTime = session.absenceCutoffTime || addMinutesToTime(startTime, absenceMinutes);
+  if (isTimeBefore(absenceCutoffTime, startTime) || isTimeAfter(absenceCutoffTime, endTime)) {
+    absenceCutoffTime = addMinutesToTime(startTime, Math.min(duration, Math.max(15, absenceMinutes)));
+  }
+
+  let earliestCheckIn = session.earliestCheckinTime || addMinutesToTime(startTime, -60);
+  if (isTimeAfter(earliestCheckIn, startTime)) {
+    earliestCheckIn = addMinutesToTime(startTime, -60);
+  }
+
+  let latestCheckOut = session.latestCheckoutTime || addMinutesToTime(endTime, 60);
+  if (isTimeBefore(latestCheckOut, endTime)) {
+    latestCheckOut = addMinutesToTime(endTime, 60);
+  }
 
   return {
-    expectedStartTime: session.startTime,
+    expectedStartTime: startTime,
     lateCutoffTime,
-    expectedEndTime: session.endTime,
-    earlyDepartureCutoffTime: addMinutesToTime(session.endTime, -(session.earlyDepartureToleranceMinutes ?? 10)),
+    expectedEndTime: endTime,
+    earlyDepartureCutoffTime,
     absenceCutoffTime,
     earliestCheckIn,
     latestCheckOut,
@@ -255,6 +319,8 @@ export async function checkIn(userId: string, schoolId: string, data: {
   let sessionKey: string;
   let lateCutoffTime: string;
   let earliestCheckIn: string;
+  let absenceCutoffTime: string;
+  let allowCheckinAfterCutoff = false;
 
   if (attendanceMode === 'session_based') {
     if (!data.session) throw new Error('Session is required when staff attendance mode is session-based.');
@@ -264,18 +330,27 @@ export async function checkIn(userId: string, schoolId: string, data: {
     sessionKey = sess.id.toLowerCase();
     const thresholds = computeSessionThresholds(sess);
     lateCutoffTime = thresholds.lateCutoffTime;
-    earliestCheckIn = thresholds.earliestCheckIn; // can check in from session earliest checkin time
+    earliestCheckIn = thresholds.earliestCheckIn;
+    absenceCutoffTime = thresholds.absenceCutoffTime;
+    allowCheckinAfterCutoff = sess.allowCheckinAfterCutoff ?? (settings as any)?.allow_staff_checkin_after_cutoff ?? false;
   } else {
     // Daily mode
     sessionKey = 'daily';
     const schedule = computeWorkingScheduleThresholds(settings);
     lateCutoffTime = schedule.lateCutoffTime;
     earliestCheckIn = schedule.earliestCheckIn;
+    absenceCutoffTime = schedule.absenceCutoffTime;
+    allowCheckinAfterCutoff = (settings as any)?.allow_staff_checkin_after_cutoff ?? false;
   }
 
-  // Earliest check-in guard
+  // 1. Earliest check-in gate: Check-in button is inactive / rejected until earliestCheckIn
   if (earliestCheckIn && isTimeBefore(currentTimeHHMM, earliestCheckIn)) {
-    throw new Error(`Check-in is not allowed before ${earliestCheckIn}. Current time: ${currentTimeHHMM}`);
+    throw new Error(`Check-in is not open yet. Earliest allowed check-in is ${formatCivilTime(earliestCheckIn)}.`);
+  }
+
+  // 2. Absence cutoff gate: If admin does not allow post-cutoff check-in, reject check-in
+  if (!allowCheckinAfterCutoff && absenceCutoffTime && isTimeAfter(currentTimeHHMM, absenceCutoffTime)) {
+    throw new Error(`Check-in is closed. The absence cutoff time (${formatCivilTime(absenceCutoffTime)}) has passed.`);
   }
 
   // Determine status & remarks based on working day calendar rules
