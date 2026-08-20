@@ -139,14 +139,15 @@ export function getStaffCheckInStatus(
   const rawStatus = (record?.status || "").toUpperCase()
 
   // 1. Resolve schedule threshold parameters
-  const expectedStartTime = sessionConfig?.startTime || settings?.staffWorkStartTime || settings?.staff_work_start_time || "08:00"
+  const expectedStartTime = sessionConfig?.startTime || (sessionConfig?.id === "afternoon" ? "13:30" : (settings?.staffWorkStartTime || settings?.staff_work_start_time || "08:00"))
   const graceMinutes = sessionConfig?.lateGraceMinutes ?? settings?.staffLateGraceMinutes ?? settings?.staff_late_grace_minutes ?? 15
   const lateCutoff = sessionConfig?.startTime
     ? addMinutesToHHMM(sessionConfig.startTime, graceMinutes)
     : settings?.staffCheckinLate || settings?.staff_checkin_late || addMinutesToHHMM(expectedStartTime, graceMinutes)
 
-  const absenceCutoffMinutes = sessionConfig?.absenceCutoffMinutes ?? settings?.staffAbsenceCutoffMinutes ?? settings?.staff_absence_cutoff_minutes ?? 120
-  const absenceCutoff = sessionConfig?.absenceCutoffTime || settings?.staffAbsenceCutoffTime || settings?.staff_absence_cutoff_time || addMinutesToHHMM(expectedStartTime, absenceCutoffMinutes)
+  const absenceCutoffMinutes = sessionConfig?.absenceCutoffMinutes ?? (sessionConfig ? 90 : (settings?.staffAbsenceCutoffMinutes ?? settings?.staff_absence_cutoff_minutes ?? 120))
+  const absenceCutoff = sessionConfig?.absenceCutoffTime
+    || (sessionConfig?.startTime ? addMinutesToHHMM(sessionConfig.startTime, absenceCutoffMinutes) : (settings?.staffAbsenceCutoffTime || settings?.staff_absence_cutoff_time || addMinutesToHHMM(expectedStartTime, absenceCutoffMinutes)))
 
   // Current time in Africa/Addis_Ababa
   const now = new Date()
@@ -191,22 +192,8 @@ export function getStaffCheckInStatus(
         dotColor: "bg-purple-500",
       }
     }
-    if (rawStatus === "ABSENT") {
-      return {
-        status: "ABSENT",
-        label: "ABSENT",
-        titleLabel: "Absent",
-        timeStr: "—",
-        hasTime: false,
-        badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
-        badgeBg: "bg-rose-500/15",
-        badgeText: "text-rose-700 dark:text-rose-300",
-        badgeBorder: "border-rose-500/30",
-        dotColor: "bg-rose-500",
-      }
-    }
 
-    // Lifecycle check when unrecorded:
+    // Lifecycle check when unrecorded or placeholder absent:
     if (isToday) {
       if (isHHMMBefore(currentTimeHHMM, expectedStartTime)) {
         return {
@@ -332,20 +319,6 @@ export function getStaffCheckOutStatus(
   // 1. Not checked out yet
   if (!hasCheckOut) {
     if (!hasCheckIn) {
-      if (rawStatus === "ABSENT") {
-        return {
-          status: "ABSENT",
-          label: "ABSENT",
-          titleLabel: "Absent",
-          timeStr: "—",
-          hasTime: false,
-          badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
-          badgeBg: "bg-rose-500/15",
-          badgeText: "text-rose-700 dark:text-rose-300",
-          badgeBorder: "border-rose-500/30",
-          dotColor: "bg-rose-500",
-        }
-      }
       if (rawStatus === "LEAVE") {
         return {
           status: "LEAVE",
@@ -372,6 +345,21 @@ export function getStaffCheckOutStatus(
           badgeText: "text-purple-700 dark:text-purple-300",
           badgeBorder: "border-purple-500/30",
           dotColor: "bg-purple-500",
+        }
+      }
+
+      if (rawStatus === "ABSENT") {
+        return {
+          status: "ABSENT",
+          label: "ABSENT",
+          titleLabel: "Absent",
+          timeStr: "—",
+          hasTime: false,
+          badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+          badgeBg: "bg-rose-500/15",
+          badgeText: "text-rose-700 dark:text-rose-300",
+          badgeBorder: "border-rose-500/30",
+          dotColor: "bg-rose-500",
         }
       }
     }

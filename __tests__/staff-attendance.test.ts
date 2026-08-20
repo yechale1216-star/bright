@@ -524,6 +524,30 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkIn.label).toBe("ABSENT")
       expect(display.checkIn.titleLabel).toBe("Absent")
     })
+
+    test("Session Isolation: Afternoon session displays 'PENDING' when Morning cutoff has passed and Afternoon cutoff has not", () => {
+      const afternoonSession = {
+        id: "afternoon",
+        name: "Afternoon",
+        startTime: "13:30",
+        endTime: "17:00",
+        lateGraceMinutes: 10,
+        earlyDepartureToleranceMinutes: 10,
+        absenceCutoffMinutes: 90,
+        absenceCutoffTime: "15:00",
+        earliestCheckinTime: "12:30",
+        latestCheckoutTime: "18:30",
+        isActive: true,
+      }
+
+      // No record yet for afternoon on today
+      const record = null
+      const display = getStaffAttendanceDisplay(record, mockSettings, afternoonSession)
+
+      // When afternoon cutoff has not elapsed, Check-In must be NOT_STARTED or PENDING (never falsely marked ABSENT from morning)
+      expect(["NOT_STARTED", "PENDING"]).toContain(display.checkIn.status)
+      expect(display.checkOut.status).toBe("NOT_CHECKED_OUT")
+    })
   })
 
   describe("6. Check-In Button State & Cutoff Enforcements", () => {

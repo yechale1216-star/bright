@@ -87,8 +87,8 @@ export function StaffAttendance() {
   const isSessionMode = settings?.staffAttendanceMode === "session_based"
   const staffSessions = useMemo(() => {
     const defaults = [
-      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
-      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "09:30", earliestCheckinTime: "06:00", latestCheckoutTime: "13:30", isActive: true },
+      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "15:00", earliestCheckinTime: "12:30", latestCheckoutTime: "18:30", isActive: true },
     ]
     if (!settings?.staffSessions) return defaults
     try {
@@ -140,7 +140,7 @@ export function StaffAttendance() {
     }
     const todayRecs = myHistory.filter((r) => r.date?.split("T")[0] === selectedDate)
     if (isSessionMode) {
-      const sessRec = todayRecs.find((r) => (r.session || "morning").toLowerCase() === selectedSession.toLowerCase())
+      const sessRec = todayRecs.find((r) => r.session?.toLowerCase() === selectedSession.toLowerCase())
       setTodayRecord(sessRec || null)
     } else {
       const dailyRec = todayRecs.find((r) => !r.session || r.session === "daily") || todayRecs[0]
@@ -545,7 +545,10 @@ export function StaffAttendance() {
                   <div className="grid grid-cols-2 gap-1.5 p-1 bg-muted/60 rounded-xl border border-border/40">
                     {staffSessions.map((sess: any) => {
                       const isSelected = selectedSession.toLowerCase() === sess.id.toLowerCase()
-                      const sessRec = myHistory.find((r) => r.date?.split("T")[0] === selectedDate && (r.session || "morning").toLowerCase() === sess.id.toLowerCase())
+                      const sessRec = myHistory.find(
+                        (r) => r.date?.split("T")[0] === selectedDate && r.session?.toLowerCase() === sess.id.toLowerCase()
+                      )
+                      const sessDisplay = getStaffAttendanceDisplay(sessRec, settings, sess)
                       return (
                         <button
                           key={sess.id}
@@ -561,11 +564,21 @@ export function StaffAttendance() {
                           <span className="text-[10px] opacity-80 font-mono font-normal">
                             {formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)}
                           </span>
-                          {sessRec?.status && (
-                            <span className="text-[9px] font-bold uppercase mt-0.5 px-1 rounded bg-black/20 text-white">
-                              {sessRec.status}
-                            </span>
-                          )}
+                          <span className={`text-[9px] font-bold uppercase mt-0.5 px-1.5 py-0.5 rounded ${
+                            sessDisplay.checkIn.status === 'NOT_STARTED'
+                              ? 'bg-black/20 text-white/80'
+                              : sessDisplay.checkIn.status === 'PENDING'
+                              ? 'bg-sky-500/30 text-sky-100 border border-sky-400/40'
+                              : sessDisplay.checkIn.status === 'ON_TIME' || sessDisplay.checkIn.status === 'PRESENT'
+                              ? 'bg-emerald-500/30 text-emerald-100 border border-emerald-400/40'
+                              : sessDisplay.checkIn.status === 'LATE'
+                              ? 'bg-amber-500/30 text-amber-100 border border-amber-400/40'
+                              : sessDisplay.checkIn.status === 'ABSENT'
+                              ? 'bg-rose-500/30 text-rose-100 border border-rose-400/40'
+                              : 'bg-black/20 text-white'
+                          }`}>
+                            {sessDisplay.checkIn.titleLabel}
+                          </span>
                         </button>
                       )
                     })}
