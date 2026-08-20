@@ -183,11 +183,51 @@ const DEFAULT_SETTINGS = {
   staff_work_end_time: '17:00',
   staff_late_grace_minutes: 15,
   staff_early_checkout_tolerance_minutes: 15,
+  staff_absence_cutoff_minutes: 120,
+  staff_absence_cutoff_time: '10:00',
   staff_earliest_checkin_time: '06:00',
   staff_latest_checkout_time: '20:00',
   staff_face_required: true,
   staff_geo_required: true,
 };
+
+const ALLOWED_SETTINGS_FIELDS = new Set([
+  'school_name',
+  'school_phone',
+  'school_address',
+  'academic_year',
+  'calendar_type',
+  'attendance_mode',
+  'attendance_ui_type',
+  'attendance_threshold',
+  'allow_late_mark',
+  'email_notifications',
+  'sms_notifications',
+  'notification_time',
+  'school_logo',
+  'allow_attendance_editing',
+  'restrict_location',
+  'school_latitude',
+  'school_longitude',
+  'allowed_radius_meters',
+  'allow_outside_attendance',
+  'staff_attendance_mode',
+  'staff_sessions',
+  'staff_working_days',
+  'staff_work_start_time',
+  'staff_work_end_time',
+  'staff_late_grace_minutes',
+  'staff_early_checkout_tolerance_minutes',
+  'staff_absence_cutoff_minutes',
+  'staff_absence_cutoff_time',
+  'staff_earliest_checkin_time',
+  'staff_latest_checkout_time',
+  'staff_checkin_start',
+  'staff_checkin_late',
+  'staff_checkout_early',
+  'staff_face_required',
+  'staff_geo_required',
+]);
 
 export const getSettings = async (schoolId: string) => {
   let settings = await prisma.schoolSettings.findUnique({ where: { schoolId: schoolId } });
@@ -216,16 +256,44 @@ export const getSettings = async (schoolId: string) => {
 
 export const updateSettings = async (schoolId: string, data: any) => {
   // If staff_sessions was provided, sanitize and enforce the 2 fixed sessions
-  const sanitizedData: any = { ...data };
-  if (sanitizedData.staff_sessions !== undefined) {
-    sanitizedData.staff_sessions = sanitizeStaffSessions(sanitizedData.staff_sessions) as any;
+  const rawData: any = { ...data };
+  if (rawData.staff_sessions !== undefined) {
+    rawData.staff_sessions = sanitizeStaffSessions(rawData.staff_sessions) as any;
   }
 
-  const settings = await prisma.schoolSettings.upsert({
-    where: { schoolId: schoolId },
-    create: { ...DEFAULT_SETTINGS, ...sanitizedData, schoolId: schoolId } as any,
-    update: sanitizedData,
-  });
+  // Filter out any unexpected or relation fields to prevent Prisma validation errors
+  const sanitizedData: any = {};
+  for (const key of Object.keys(rawData)) {
+    if (ALLOWED_SETTINGS_FIELDS.has(key)) {
+      sanitizedData[key] = rawData[key];
+    }
+  }
+
+  let settings: any;
+  try {
+    settings = await prisma.schoolSettings.upsert({
+      where: { schoolId: schoolId },
+      create: { ...DEFAULT_SETTINGS, ...sanitizedData, schoolId: schoolId } as any,
+      update: sanitizedData,
+    });
+  } catch (err: any) {
+    // If running server has old Prisma client in memory before restart, strip newer fields gracefully
+    if (err?.message && err.message.includes('Unknown argument')) {
+      const fallbackData = { ...sanitizedData };
+      delete fallbackData.staff_absence_cutoff_minutes;
+      delete fallbackData.staff_absence_cutoff_time;
+      const fallbackDefaults = { ...DEFAULT_SETTINGS };
+      delete (fallbackDefaults as any).staff_absence_cutoff_minutes;
+      delete (fallbackDefaults as any).staff_absence_cutoff_time;
+      settings = await prisma.schoolSettings.upsert({
+        where: { schoolId: schoolId },
+        create: { ...fallbackDefaults, ...fallbackData, schoolId: schoolId } as any,
+        update: fallbackData,
+      });
+    } else {
+      throw err;
+    }
+  }
 
   // Ensure output returns sanitized fixed sessions
   settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions) as any;

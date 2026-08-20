@@ -181,6 +181,8 @@ model SchoolSettings {
   staff_work_end_time                   String?  @default("17:00") // Expected end time (HH:MM)
   staff_late_grace_minutes              Int      @default(15)      // Late grace period in minutes
   staff_early_checkout_tolerance_minutes Int     @default(15)      // Early departure tolerance in minutes
+  staff_absence_cutoff_minutes          Int      @default(120)     // Cutoff minutes before auto-absent
+  staff_absence_cutoff_time             String?  @default("10:00") // Calculated/configured absence cutoff time (HH:MM)
   staff_earliest_checkin_time           String?  @default("06:00") // Earliest allowed check-in
   staff_latest_checkout_time            String?  @default("20:00") // Latest allowed check-out
   staff_checkin_start   String?          // earliest allowed check-in e.g. "06:00"
