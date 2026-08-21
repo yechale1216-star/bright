@@ -56,8 +56,11 @@ export function StaffDashboard() {
   const { formatDate } = useCalendar()
   const { settings } = useSchoolSettings()
 
-  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
+  const getTodayStr = useCallback(() => {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
+  }, [])
 
+  const [todayStr, setTodayStr] = useState<string>(getTodayStr)
   const [todayRecord, setTodayRecord] = useState<any>(null)
   const [calendarStatus, setCalendarStatus] = useState<any>(null)
   const [announcements, setAnnouncements] = useState<any[]>([])
@@ -166,72 +169,70 @@ export function StaffDashboard() {
     }
   }
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true)
+  // Request ID and in-flight guard to prevent race conditions & out-of-order state overwrites
+  const loadRequestIdRef = useRef(0)
+
+  const loadData = useCallback(async (options?: { silent?: boolean }) => {
+    const currentReqId = ++loadRequestIdRef.current
+    if (!options?.silent) {
+      setIsLoading(true)
+    }
+
+    const currentToday = getTodayStr()
+    setTodayStr(currentToday)
+
     try {
-      // 0. Check today's working calendar status
-      try {
-        const cal = await db.isDateWorkingDay(todayStr)
-        setCalendarStatus(cal)
-      } catch (calErr) {
-        console.warn("Could not fetch calendar status:", calErr)
-      }
-
-      // 1. Fetch staff's attendance records — filtered to the configured attendance mode
-      const myAtt = await db.getMyStaffAttendance({
-        mode: isSessionMode ? "session_based" : "daily",
-      })
-      setAllAttendance(myAtt || [])
-
-      // 2. Fetch biometric enrollment descriptor
-      const descriptorData = await db.getStaffFaceDescriptor()
-      if (descriptorData?.descriptor) {
-        setEnrolledDescriptor(descriptorData.descriptor)
-      } else {
-        setEnrolledDescriptor(null)
-      }
-
-      // 3. Fetch announcements / notices
-      try {
-        const annRes = await fetch(`/api/announcements?limit=3`, {
+      // Parallel fetch with settled handling so a single failed request never breaks others
+      const [calRes, myAttRes, descRes, annRes, notifRes] = await Promise.allSettled([
+        db.isDateWorkingDay(currentToday),
+        db.getMyStaffAttendance({
+          mode: isSessionMode ? "session_based" : "daily",
+        }),
+        db.getStaffFaceDescriptor(),
+        fetch(`/api/announcements?limit=3`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
             "x-school-id": user?.schoolId || "",
             "x-requested-role": "staff",
           },
-        })
-        const annData = await annRes.json()
-        if (annData.success && Array.isArray(annData.data)) {
-          setAnnouncements(annData.data.slice(0, 3))
-        }
-      } catch {
-        /* ignore */
-      }
-
-      // 4. Fetch notifications
-      try {
-        const notifRes = await fetch(`/api/notifications?limit=3`, {
+        }).then((r) => r.json()),
+        fetch(`/api/notifications?limit=3`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
             "x-school-id": user?.schoolId || "",
             "x-requested-role": "staff",
           },
-        })
-        const notifData = await notifRes.json()
-        if (notifData.success && Array.isArray(notifData.data)) {
-          setRecentNotifications(notifData.data.slice(0, 3))
-        }
-      } catch {
-        /* ignore */
+        }).then((r) => r.json()),
+      ])
+
+      // Ignore if a newer request was dispatched while this was fetching
+      if (currentReqId !== loadRequestIdRef.current) return
+
+      if (calRes.status === "fulfilled") {
+        setCalendarStatus(calRes.value)
+      }
+      if (myAttRes.status === "fulfilled") {
+        setAllAttendance(myAttRes.value || [])
+      }
+      if (descRes.status === "fulfilled") {
+        setEnrolledDescriptor(descRes.value?.descriptor || null)
+      }
+      if (annRes.status === "fulfilled" && annRes.value?.success && Array.isArray(annRes.value.data)) {
+        setAnnouncements(annRes.value.data.slice(0, 3))
+      }
+      if (notifRes.status === "fulfilled" && notifRes.value?.success && Array.isArray(notifRes.value.data)) {
+        setRecentNotifications(notifRes.value.data.slice(0, 3))
       }
     } catch (err) {
-      console.error("Staff dashboard load error:", err)
+      console.error("[StaffDashboard] Error loading attendance data:", err)
     } finally {
-      setIsLoading(false)
+      if (currentReqId === loadRequestIdRef.current) {
+        setIsLoading(false)
+      }
     }
-  }, [todayStr, user?.schoolId])
+  }, [getTodayStr, isSessionMode, user?.schoolId, user?.id])
 
   useEffect(() => {
     if (!allAttendance.length) {
@@ -253,11 +254,38 @@ export function StaffDashboard() {
     checkOffline()
 
     const handleChanged = () => {
-      loadData()
+      loadData({ silent: true })
       checkOffline()
     }
+
+    // Visibility change listener (Android WebView resume & browser tab focus)
+    let lastResumeTime = 0
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now()
+        // Throttle auto-refresh to at most once every 3 seconds
+        if (now - lastResumeTime > 3000) {
+          lastResumeTime = now
+          loadData({ silent: true })
+          checkOffline()
+        }
+      }
+    }
+
+    const handleOnline = () => {
+      loadData({ silent: true })
+      checkOffline()
+    }
+
     window.addEventListener("staffAttendanceDataChanged", handleChanged)
-    return () => window.removeEventListener("staffAttendanceDataChanged", handleChanged)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("online", handleOnline)
+
+    return () => {
+      window.removeEventListener("staffAttendanceDataChanged", handleChanged)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("online", handleOnline)
+    }
   }, [loadData, checkOffline])
 
   // Live timer for active check-in duration
@@ -374,10 +402,12 @@ export function StaffDashboard() {
 
     try {
       const sessPayload = isSessionMode ? selectedSession : "daily"
+      let returnedRecord: any = null
+
       if (type === "checkin") {
-        await db.staffCheckIn(
+        returnedRecord = await db.staffCheckIn(
           {
-            date: todayStr,
+            date: getTodayStr(),
             session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
@@ -385,9 +415,9 @@ export function StaffDashboard() {
           location
         )
       } else {
-        await db.staffCheckOut(
+        returnedRecord = await db.staffCheckOut(
           {
-            date: todayStr,
+            date: getTodayStr(),
             session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
@@ -396,13 +426,32 @@ export function StaffDashboard() {
         )
       }
 
+      // ── Immediate authoritative state update ──────────────────────────────
+      // Apply the server-returned record directly without waiting for refetch,
+      // so the UI reflects the correct status (On Time, Late, Checked Out, etc.)
+      // as soon as the mutation succeeds.
+      if (returnedRecord) {
+        setAllAttendance((prev) => {
+          const existing = prev.findIndex((r) => r.id === returnedRecord.id)
+          if (existing !== -1) {
+            const updated = [...prev]
+            updated[existing] = returnedRecord
+            return updated
+          }
+          return [...prev, returnedRecord]
+        })
+        setTodayRecord(returnedRecord)
+      }
+
       setVerificationStep("success")
       setStepMessage(
         type === "checkin"
           ? "✓ Check-In Verified\nAttendance recorded successfully"
           : "✓ Check-Out Verified\nAttendance recorded successfully"
       )
-      await loadData()
+
+      // Background silent refetch to confirm state with backend
+      loadData({ silent: true })
 
       setTimeout(() => {
         setIsVerificationModalOpen(false)

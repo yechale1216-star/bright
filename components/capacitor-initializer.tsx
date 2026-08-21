@@ -175,6 +175,7 @@ export function CapacitorInitializer() {
             // Dispatch events to active components to force reloading from network
             window.dispatchEvent(new CustomEvent('studentDataChanged'));
             window.dispatchEvent(new CustomEvent('attendanceDataChanged'));
+            window.dispatchEvent(new CustomEvent('staffAttendanceDataChanged'));
             window.dispatchEvent(new CustomEvent('settingsDataChanged'));
             window.dispatchEvent(new CustomEvent('teacherDataChanged'));
             window.dispatchEvent(new CustomEvent('userDataChanged'));

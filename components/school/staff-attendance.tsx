@@ -31,6 +31,7 @@ import {
 } from "lucide-react"
 import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
+import { useAuth } from "@/lib/context/auth-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { resolveLocationData, GeofenceLocationData } from "@/lib/utils/geofence"
@@ -63,6 +64,7 @@ type VerificationStep =
 export function StaffAttendance() {
   const { formatDate } = useCalendar()
   const { settings } = useSchoolSettings()
+  const { user: authUser, sessionReady } = useAuth()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -113,6 +115,9 @@ export function StaffAttendance() {
   const [allStaffAttendance, setAllStaffAttendance] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  // Request ID to prevent out-of-order state updates from concurrent fetches
+  const loadRequestIdRef = useRef(0)
+
   // Verification workflow states
   const [actionType, setActionType] = useState<"checkin" | "checkout">("checkin")
   const [verificationStep, setVerificationStep] = useState<VerificationStep>("idle")
@@ -148,47 +153,19 @@ export function StaffAttendance() {
     }
   }, [myHistory, selectedDate, selectedSession, isSessionMode])
 
-  // 1. Initial user & data load
+  // 1. Sync currentUser from auth context whenever sessionReady or authUser changes.
+  //    This resolves the mount-time race where authService.getCurrentUser() returns null
+  //    during authentication restoration (critical for Capacitor Android resume).
   useEffect(() => {
-    const user = authService.getCurrentUser()
+    if (!sessionReady) return
+    const user = authUser || authService.getCurrentUser()
     setCurrentUser(user)
     const adminRole = user?.role === "admin" || user?.role === "school_admin"
     setIsAdmin(adminRole)
     if (adminRole) {
       setActiveTab("admin_overview")
     }
-
-    loadInitialData(user)
-    checkOfflineQueue()
-
-    // Listen for events
-    const handleDataChanged = () => {
-      loadInitialData(user)
-      checkOfflineQueue()
-    }
-
-    const handleOnline = async () => {
-      console.log("[StaffAttendance] Network online, flushing staff offline queue...")
-      try {
-        const res = await flushOfflineStaffQueue()
-        if (res.synced > 0) {
-          notifications.success("Sync Complete", `Synchronized ${res.synced} offline staff check-ins.`)
-        }
-        await checkOfflineQueue()
-        loadInitialData(user)
-      } catch (err) {
-        console.error("Auto offline sync failed:", err)
-      }
-    }
-
-    window.addEventListener("staffAttendanceDataChanged", handleDataChanged)
-    window.addEventListener("online", handleOnline)
-
-    return () => {
-      window.removeEventListener("staffAttendanceDataChanged", handleDataChanged)
-      window.removeEventListener("online", handleOnline)
-    }
-  }, [selectedDate])
+  }, [authUser, sessionReady])
 
   const checkOfflineQueue = useCallback(async () => {
     try {
@@ -199,9 +176,10 @@ export function StaffAttendance() {
     }
   }, [])
 
-  const loadInitialData = async (user?: any) => {
-    setIsLoading(true)
-    const activeUser = user || currentUser
+  const loadInitialData = useCallback(async (opts?: { silent?: boolean }) => {
+    const currentReqId = ++loadRequestIdRef.current
+    if (!opts?.silent) setIsLoading(true)
+    const activeUser = authUser || authService.getCurrentUser()
     try {
       // 0. Load working calendar status for selected date
       try {
@@ -234,11 +212,63 @@ export function StaffAttendance() {
         setAllStaffAttendance(allAtt)
       }
     } catch (err: any) {
-      console.error("Failed to load staff attendance data:", err)
+      console.error("[StaffAttendance] Failed to load attendance data:", err)
     } finally {
-      setIsLoading(false)
+      if (currentReqId === loadRequestIdRef.current) {
+        setIsLoading(false)
+      }
     }
-  }
+  }, [authUser, selectedDate, isSessionMode])
+
+  // 2. Load data when auth is ready or selectedDate changes.
+  //    Also subscribe to resume/visibility/online events.
+  useEffect(() => {
+    if (!sessionReady) return
+
+    loadInitialData()
+    checkOfflineQueue()
+
+    const handleDataChanged = () => {
+      loadInitialData({ silent: true })
+      checkOfflineQueue()
+    }
+
+    const handleOnline = async () => {
+      console.log("[StaffAttendance] Network online, flushing staff offline queue...")
+      try {
+        const res = await flushOfflineStaffQueue()
+        if (res.synced > 0) {
+          notifications.success("Sync Complete", `Synchronized ${res.synced} offline staff check-ins.`)
+        }
+        await checkOfflineQueue()
+        loadInitialData({ silent: true })
+      } catch (err) {
+        console.error("Auto offline sync failed:", err)
+      }
+    }
+
+    let lastResumeTime = 0
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now()
+        if (now - lastResumeTime > 3000) {
+          lastResumeTime = now
+          loadInitialData({ silent: true })
+          checkOfflineQueue()
+        }
+      }
+    }
+
+    window.addEventListener("staffAttendanceDataChanged", handleDataChanged)
+    window.addEventListener("online", handleOnline)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("staffAttendanceDataChanged", handleDataChanged)
+      window.removeEventListener("online", handleOnline)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [loadInitialData, checkOfflineQueue, sessionReady])
 
   // 2. Start Check-In / Check-Out Workflow
   const startAttendanceWorkflow = async (type: "checkin" | "checkout") => {
@@ -340,8 +370,10 @@ export function StaffAttendance() {
     // Online submission
     try {
       const sessPayload = isSessionMode ? selectedSession : "daily"
+      let returnedRecord: any = null
+
       if (type === "checkin") {
-        await db.staffCheckIn(
+        returnedRecord = await db.staffCheckIn(
           {
             date: selectedDate,
             session: sessPayload,
@@ -351,7 +383,7 @@ export function StaffAttendance() {
           location
         )
       } else {
-        await db.staffCheckOut(
+        returnedRecord = await db.staffCheckOut(
           {
             date: selectedDate,
             session: sessPayload,
@@ -362,13 +394,31 @@ export function StaffAttendance() {
         )
       }
 
+      // ── Immediate authoritative state update ──────────────────────────────
+      // Apply the server-returned record directly so UI shows the correct
+      // status (On Time, Late, Checked Out) without waiting for a refetch.
+      if (returnedRecord) {
+        setMyHistory((prev) => {
+          const existing = prev.findIndex((r) => r.id === returnedRecord.id)
+          if (existing !== -1) {
+            const updated = [...prev]
+            updated[existing] = returnedRecord
+            return updated
+          }
+          return [...prev, returnedRecord]
+        })
+        setTodayRecord(returnedRecord)
+      }
+
       setVerificationStep("success")
       setStepMessage(
         type === "checkin"
           ? "✓ Check-In Verified\nAttendance recorded successfully"
           : "✓ Check-Out Verified\nAttendance recorded successfully"
       )
-      await loadInitialData()
+
+      // Background silent refetch confirms state with backend
+      loadInitialData({ silent: true })
 
       setTimeout(() => {
         setIsVerificationModalOpen(false)

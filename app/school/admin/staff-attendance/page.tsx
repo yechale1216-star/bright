@@ -455,11 +455,26 @@ export default function AdminStaffAttendanceDashboard() {
     window.addEventListener("userDataChanged", handleDataChanged)
     window.addEventListener("roleDataChanged", handleDataChanged)
     window.addEventListener("online", handleOnline)
+
+    let lastAdminResumeTime = 0
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now()
+        if (now - lastAdminResumeTime > 3000) {
+          lastAdminResumeTime = now
+          fetchData()
+          fetchStats()
+        }
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
     return () => {
       window.removeEventListener("staffAttendanceDataChanged", handleDataChanged)
       window.removeEventListener("userDataChanged", handleDataChanged)
       window.removeEventListener("roleDataChanged", handleDataChanged)
       window.removeEventListener("online", handleOnline)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [fetchStats, fetchData, checkOfflineQueue, loadAllUsers, loadRoles, activeTab, fetchReport])
 
