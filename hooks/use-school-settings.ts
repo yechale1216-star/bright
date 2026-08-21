@@ -1,45 +1,78 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { db } from "@/lib/db/database"
 import { useAuth } from "@/lib/context/auth-context"
 import { queryCache } from "@/lib/utils/query-cache"
 
 export function useSchoolSettings() {
-  const { user: authUser } = useAuth()
-  const confirmedSchoolId = authUser?.schoolId || ""
+  const { user: authUser, sessionReady } = useAuth()
+  
+  const getSchoolId = useCallback(() => {
+    if (authUser?.schoolId) return authUser.schoolId
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = localStorage.getItem("attendance_current_user")
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser)
+          if (parsed?.schoolId) return parsed.schoolId
+        }
+        return localStorage.getItem("x-school-id") || ""
+      } catch {
+        return ""
+      }
+    }
+    return ""
+  }, [authUser?.schoolId])
 
-  // Seed state synchronously from query cache (0ms load on warm runs)
+  const confirmedSchoolId = getSchoolId()
+
   const [settings, setSettings] = useState<any>(() => {
     if (!confirmedSchoolId) return null
     return queryCache.get<any>(`settings_${confirmedSchoolId}`) ?? null
   })
   const [isLoading, setIsLoading] = useState(!settings)
 
-  useEffect(() => {
-    if (!confirmedSchoolId) {
-      setIsLoading(false)
-      return
-    }
-
-    // If we already have cached settings in state, don't show a loading spinner
-    const cached = queryCache.get<any>(`settings_${confirmedSchoolId}`)
-    if (cached && !settings) setSettings(cached)
-
-    const loadSettings = async () => {
-      try {
-        if (!cached) setIsLoading(true)
-        const currentSettings = await db.getSettings()
+  const loadSettings = useCallback(async () => {
+    try {
+      const currentSettings = await db.getSettings()
+      if (currentSettings) {
         setSettings(currentSettings)
-      } catch (error) {
-        console.error("Error loading school settings:", error)
-      } finally {
-        setIsLoading(false)
       }
+    } catch (error) {
+      console.error("[useSchoolSettings] Error loading school settings:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const cached = confirmedSchoolId ? queryCache.get<any>(`settings_${confirmedSchoolId}`) : null
+    if (cached) {
+      setSettings(cached)
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
     }
 
     loadSettings()
-  }, [confirmedSchoolId])
 
-  return { settings, isLoading }
+    const handleSettingsChanged = () => {
+      loadSettings()
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("settingsDataChanged", handleSettingsChanged)
+      window.addEventListener("schoolSettingsUpdated", handleSettingsChanged)
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("settingsDataChanged", handleSettingsChanged)
+        window.removeEventListener("schoolSettingsUpdated", handleSettingsChanged)
+      }
+    }
+  }, [confirmedSchoolId, sessionReady, loadSettings])
+
+  return { settings, isLoading, reloadSettings: loadSettings }
 }

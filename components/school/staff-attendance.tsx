@@ -86,15 +86,16 @@ export function StaffAttendance() {
   } | null>(null)
 
   // Session-based mode config
-  const isSessionMode = settings?.staffAttendanceMode === "session_based"
+  const isSessionMode = (settings?.staffAttendanceMode || settings?.staff_attendance_mode) === "session_based"
   const staffSessions = useMemo(() => {
     const defaults = [
       { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "09:30", earliestCheckinTime: "06:00", latestCheckoutTime: "13:30", isActive: true },
       { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "15:00", earliestCheckinTime: "12:30", latestCheckoutTime: "18:30", isActive: true },
     ]
-    if (!settings?.staffSessions) return defaults
+    const rawSessions = settings?.staffSessions ?? settings?.staff_sessions
+    if (!rawSessions) return defaults
     try {
-      const arr = typeof settings.staffSessions === "string" ? JSON.parse(settings.staffSessions) : settings.staffSessions
+      const arr = typeof rawSessions === "string" ? JSON.parse(rawSessions) : rawSessions
       if (Array.isArray(arr) && arr.length > 0) {
         const morning = arr.find((s: any) => s && (s.id === "morning" || s.name?.toLowerCase() === "morning")) || defaults[0]
         const afternoon = arr.find((s: any) => s && (s.id === "afternoon" || s.name?.toLowerCase() === "afternoon")) || defaults[1]
@@ -105,7 +106,7 @@ export function StaffAttendance() {
       }
     } catch (_) {}
     return defaults
-  }, [settings?.staffSessions])
+  }, [settings?.staffSessions, settings?.staff_sessions])
 
   const [selectedSession, setSelectedSession] = useState<string>("morning")
 
@@ -288,14 +289,15 @@ export function StaffAttendance() {
           schoolLatitude: settings?.schoolLatitude,
           schoolLongitude: settings?.schoolLongitude,
           allowedRadiusMeters: settings?.allowedRadiusMeters,
-          staffGeoRequired: settings?.staff_geo_required,
+          staffGeoRequired: (settings?.staffGeoRequired ?? settings?.staff_geo_required) !== false,
         },
         { isStaff: true, suppressSuccessToast: true }
       )
       setCapturedLocation(location)
 
       // Step 2: Face Verification Check
-      if (settings?.staff_face_required !== false) {
+      const isFaceRequired = (settings?.staffFaceRequired ?? settings?.staff_face_required) !== false
+      if (isFaceRequired) {
         let activeDescriptor = enrolledDescriptor
         if (!activeDescriptor || activeDescriptor.length !== 128) {
           const desc = await db.getStaffFaceDescriptor()
@@ -1401,25 +1403,44 @@ export function StaffAttendance() {
               <div className="text-center py-6 space-y-3">
                 <XCircle className="w-12 h-12 text-rose-500 mx-auto" />
                 <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{stepMessage}</p>
-                <Button
-                  variant="outline"
-                  onClick={() => startAttendanceWorkflow(actionType)}
-                  className="gap-2 mt-2"
-                >
-                  <RefreshCw className="w-4 h-4" /> Try Again
-                </Button>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+                  {(stepMessage.includes("enroll") || stepMessage.includes("registered") || stepMessage.includes("biometric")) && (
+                    <Button
+                      variant="default"
+                      onClick={() => {
+                        setIsVerificationModalOpen(false)
+                        setIsFaceEnrollModalOpen(true)
+                      }}
+                      className="gap-2 w-full sm:w-auto bg-primary font-bold shadow-md"
+                    >
+                      <Camera className="w-4 h-4" /> Register Face Biometrics
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => startAttendanceWorkflow(actionType)}
+                    className="gap-2 w-full sm:w-auto"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Try Again
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ─── ADMIN FACE ENROLLMENT MODAL ─── */}
-      {isAdmin && (
+      {/* ─── FACE ENROLLMENT MODAL (Self & Admin) ─── */}
+      {currentUser?.id && (
         <StaffFaceEnrollModal
           open={isFaceEnrollModalOpen}
           onOpenChange={setIsFaceEnrollModalOpen}
-          onEnrolled={() => loadInitialData()}
+          preselectedUserId={currentUser.id}
+          preselectedUserName={currentUser.name || "Staff Member"}
+          onEnrolled={() => {
+            loadInitialData()
+            notifications.success("Biometrics Active", "Your face has been registered for automatic attendance.")
+          }}
         />
       )}
     </div>
