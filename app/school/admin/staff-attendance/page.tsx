@@ -175,7 +175,7 @@ export default function AdminStaffAttendanceDashboard() {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("ALL")
-  const [sessionFilter, setSessionFilter] = useState("all")
+  const [sessionFilter, setSessionFilter] = useState("morning")
   const [geoFilter, setGeoFilter] = useState<string>("all")
 
   // Data states
@@ -339,7 +339,7 @@ export default function AdminStaffAttendanceDashboard() {
   const fetchStats = useCallback(async () => {
     setStatsLoading(true)
     try {
-      const sess = sessionFilter !== "all" ? sessionFilter : undefined
+      const sess = isSessionMode ? sessionFilter : undefined
       const s = await db.getStaffAttendanceStats(selectedDate, sess)
       setStats(s)
     } catch (err) {
@@ -357,8 +357,8 @@ export default function AdminStaffAttendanceDashboard() {
         mode: isSessionMode ? "session_based" : "daily",
         role: roleFilter !== "all" ? roleFilter : undefined,
         status: statusFilter !== "ALL" ? statusFilter : undefined,
-        // Only pass session filter when in session-based mode
-        session: isSessionMode && sessionFilter !== "all" ? sessionFilter : undefined,
+        // Always pass session filter when in session-based mode
+        session: isSessionMode ? sessionFilter : undefined,
         search: search.trim() || undefined,
         geofenceVerified: geoFilter === "verified" ? true : geoFilter === "unverified" ? false : undefined,
       }
@@ -389,8 +389,8 @@ export default function AdminStaffAttendanceDashboard() {
         role: roleFilter !== "all" ? roleFilter : undefined,
         // Pass active mode so the backend strictly filters by mode
         mode: isSessionMode ? "session_based" : "daily",
-        // In session-based mode, pass session filter if one is selected
-        session: isSessionMode && sessionFilter !== "all" ? sessionFilter : undefined,
+        // In session-based mode, always pass the selected session
+        session: isSessionMode ? sessionFilter : undefined,
       })
       setReportData(r)
     } catch (err) {
@@ -1076,7 +1076,32 @@ export default function AdminStaffAttendanceDashboard() {
             </div>
 
             {/* Sub-Filters: Role, Status, Session, Geofence, Face */}
-            <div className={`grid grid-cols-2 ${isSessionMode ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800/60`}>
+            <div className="flex flex-col gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+              {/* Session Filter Tabs — full-width row, visible in session mode only */}
+              {isSessionMode && (
+                <div className="flex items-center gap-2 w-full">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0 hidden sm:block">Session</span>
+                  <div className="flex flex-1 gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-white/40 dark:border-white/10">
+                    {staffSessions.map((sess: any) => (
+                      <button
+                        key={sess.id}
+                        type="button"
+                        onClick={() => setSessionFilter(sess.id)}
+                        className={cn(
+                          "flex-1 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5",
+                          sessionFilter === sess.id
+                            ? "bg-primary text-white shadow-md shadow-primary/30 scale-[1.02]"
+                            : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                        )}
+                      >
+                        {sess.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Second row: Role, Status, Geofence */}
+            <div className={`grid grid-cols-2 ${isSessionMode ? "sm:grid-cols-3" : "sm:grid-cols-4"} gap-2.5`}>
               {/* Role */}
               <select
                 value={roleFilter}
@@ -1106,39 +1131,6 @@ export default function AdminStaffAttendanceDashboard() {
                 <option value="PERMISSION">Permission</option>
               </select>
 
-              {/* Session Filter Tabs (visible in Session-Based mode) */}
-              {isSessionMode && (
-                <div className="flex items-center gap-1 p-1 rounded-xl bg-white/70 dark:bg-slate-950/70 border border-white/40 dark:border-white/10 h-9">
-                  <button
-                    type="button"
-                    onClick={() => setSessionFilter("all")}
-                    className={cn(
-                      "h-7 px-3 rounded-lg text-[11px] font-bold transition-all",
-                      sessionFilter === "all"
-                        ? "bg-primary text-white shadow-sm shadow-primary/30"
-                        : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
-                    )}
-                  >
-                    All
-                  </button>
-                  {staffSessions.map((sess: any) => (
-                    <button
-                      key={sess.id}
-                      type="button"
-                      onClick={() => setSessionFilter(sess.id)}
-                      className={cn(
-                        "h-7 px-3 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap",
-                        sessionFilter === sess.id
-                          ? "bg-primary text-white shadow-sm shadow-primary/30"
-                          : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
-                      )}
-                    >
-                      {sess.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {/* Geofence */}
               <select
                 value={geoFilter}
@@ -1149,6 +1141,7 @@ export default function AdminStaffAttendanceDashboard() {
                 <option value="verified">GPS: Verified Campus</option>
                 <option value="unverified">GPS: Unverified / Outside</option>
               </select>
+            </div>
             </div>
           </div>
 
