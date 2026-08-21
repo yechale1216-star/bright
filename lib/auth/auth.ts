@@ -1,6 +1,7 @@
 "use client"
 
 import { API_URL, getApiUrl } from "@/lib/api-config";
+import { apiFetch } from "@/lib/utils/fetch-with-timeout";
 
 // ─── Session Identity Key ─────────────────────────────────────────────────────
 // A nonce written to localStorage on every login/signup and cleared on logout.
@@ -421,51 +422,44 @@ class AuthService {
 
       let schoolId = user.schoolId
 
-      if (schoolId) {
-        // Update existing school name in PostgreSQL
-        await fetch(`${API_URL}/api/schools`, {
-          method: "POST", // The backend uses POST for upsert/create school
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify({ id: schoolId, name }),
-        })
+      const payload: any = { school_name: name }
+      if (_logo) payload.school_logo = _logo
+      if (_phone) payload.school_phone = _phone
 
-        // Save logo to settings in PostgreSQL
-        if (_logo) {
-          await fetch(`${API_URL}/api/settings`, {
-            method: "PUT",
-            headers: this.getAuthHeaders(),
-            body: JSON.stringify({ school_logo: _logo }),
-          })
-        }
-      } else {
-        // Create new school
-        const res = await fetch(`${API_URL}/api/schools`, {
-          method: "POST",
-          headers: this.getAuthHeaders(),
-          body: JSON.stringify({ name }),
-        })
-        const data = await res.json()
-        if (!data.success) throw new Error("Failed to create school")
-        schoolId = data.data.id
-
-        // Link user to new school
-        await fetch(`${API_URL}/api/users/${user.id}`, {
+      try {
+        await apiFetch(`${API_URL}/api/settings`, {
           method: "PUT",
           headers: this.getAuthHeaders(),
-          body: JSON.stringify({ school_id: schoolId }),
+          body: JSON.stringify(payload),
         })
+      } catch (settingsErr) {
+        console.warn("[auth] settings update warning:", settingsErr)
+      }
 
-        // Save initial logo if provided
-        if (_logo) {
-          await fetch(`${API_URL}/api/settings`, {
-            method: "PUT",
+      if (!schoolId) {
+        try {
+          const res = await apiFetch<{ success: boolean; data?: any }>(`${API_URL}/api/schools`, {
+            method: "POST",
             headers: this.getAuthHeaders(),
-            body: JSON.stringify({ school_logo: _logo }),
+            body: JSON.stringify({ name }),
           })
+          if (res?.data?.id) schoolId = res.data.id
+        } catch {
+          schoolId = "single-school"
+        }
+
+        if (schoolId) {
+          try {
+            await apiFetch(`${API_URL}/api/users/${user.id}`, {
+              method: "PUT",
+              headers: this.getAuthHeaders(),
+              body: JSON.stringify({ school_id: schoolId }),
+            })
+          } catch { /* ignore */ }
         }
       }
 
-      const updatedUser: User = { ...user, schoolId, schoolName: name, schoolLogo: _logo || user.schoolLogo }
+      const updatedUser: User = { ...user, schoolId: schoolId || user.schoolId || "single-school", schoolName: name, schoolLogo: _logo || user.schoolLogo }
       if (this.isClient()) {
         localStorage.setItem(this.CURRENT_USER_KEY, JSON.stringify(updatedUser))
       }

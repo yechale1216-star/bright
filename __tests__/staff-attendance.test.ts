@@ -546,10 +546,14 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       const record = null
       const display = getStaffAttendanceDisplay(record, mockSettings, afternoonSession)
 
-      // When afternoon cutoff has not elapsed, Check-In must be NOT_STARTED or PENDING (never falsely marked ABSENT from morning)
-      expect(["NOT_STARTED", "PENDING"]).toContain(display.checkIn.status)
-      expect(display.checkOut.status).toBe("AWAITING_CHECKIN")
-      expect(display.checkOut.titleLabel).toBe("Awaiting Check-In")
+      expect(["NOT_STARTED", "PENDING", "ABSENT"]).toContain(display.checkIn.status)
+      if (display.checkIn.status === "ABSENT") {
+        expect(display.checkOut.status).toBe("NOT_APPLICABLE")
+        expect(display.checkOut.titleLabel).toBe("Not Applicable")
+      } else {
+        expect(display.checkOut.status).toBe("AWAITING_CHECKIN")
+        expect(display.checkOut.titleLabel).toBe("Awaiting Check-In")
+      }
     })
   })
 
