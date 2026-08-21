@@ -17,6 +17,10 @@ import {
   RefreshCw,
   Camera,
   Key,
+  ScanFace,
+  Mail,
+  Phone,
+  Sparkles,
 } from "lucide-react"
 import { useAuth } from "@/lib/context/auth-context"
 import { authService } from "@/lib/auth/auth"
@@ -99,17 +103,18 @@ export function StaffProfile() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (newPassword !== confirmPassword) {
-      notifications.error("Mismatch", "New passwords do not match.")
+      notifications.error("Password Mismatch", "New passwords do not match.")
       return
     }
+
     if (newPassword.length < 6) {
-      notifications.error("Weak Password", "New password must be at least 6 characters.")
+      notifications.error("Password Too Short", "Password must be at least 6 characters.")
       return
     }
 
     setIsChangingPassword(true)
     try {
-      const res = await apiFetch<{ success: boolean; message: string }>(`${API_URL}/api/users/change-password`, {
+      const res = await apiFetch<{ success: boolean; message?: string }>(`${API_URL}/api/auth/change-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -123,260 +128,246 @@ export function StaffProfile() {
       })
 
       if (res && res.success) {
-        notifications.success("Password Updated", "Your password has been changed successfully.")
+        notifications.success("Password Changed", "Your password has been successfully updated.")
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
       } else {
-        notifications.error("Password Change Failed", res.message || "Invalid current password.")
+        notifications.error("Update Failed", res?.message || "Failed to update password.")
       }
     } catch (err: any) {
-      notifications.error("Password Change Failed", err.message || "Failed to change password.")
+      notifications.error("Update Failed", err.message || "Failed to change password.")
     } finally {
       setIsChangingPassword(false)
     }
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-4xl mx-auto pb-8">
-      {/* ─── Profile Header Card ─── */}
-      <div className="bg-card border border-border/80 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
-        <Avatar className="w-16 h-16 sm:w-20 sm:h-20 border-2 border-primary/30 shadow-md shrink-0">
-          <AvatarImage src={profilePhoto || user?.profile_photo || ""} />
-          <AvatarFallback className="text-lg sm:text-xl font-bold bg-primary/20 text-primary">
-            {user?.name
-              ?.split(" ")
-              .map((n: string) => n[0])
-              .join("")
-              .toUpperCase() || "ST"}
-          </AvatarFallback>
-        </Avatar>
+    <div className="relative space-y-6 max-w-4xl mx-auto pb-12">
+      {/* ── Ambient Background Glow Spheres ── */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-20 -left-20 w-96 h-96 bg-indigo-500/15 dark:bg-indigo-500/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 -right-20 w-96 h-96 bg-cyan-500/15 dark:bg-cyan-500/10 rounded-full blur-[140px]" />
+      </div>
 
-        <div className="space-y-1 text-center sm:text-left flex-1 min-w-0">
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{user?.name || "Staff Member"}</h1>
-            <Badge className="bg-primary/10 text-primary border-primary/30 capitalize text-xs">
-              {user?.role?.replace("_", " ") || "Staff Member"}
-            </Badge>
+      {/* ── Header Card: Frosted Glass Profile Header ── */}
+      <div className="relative overflow-hidden rounded-[28px] border border-white/50 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl shadow-indigo-500/5">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/15 via-indigo-500/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
+          <div className="relative shrink-0">
+            <div className="p-1 rounded-[24px] bg-gradient-to-tr from-primary via-indigo-500 to-cyan-400 shadow-xl shadow-primary/25">
+              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 rounded-[20px]">
+                <AvatarImage src={profilePhoto || user?.profile_photo || ""} className="object-cover" />
+                <AvatarFallback className="bg-slate-950 text-white font-black text-2xl">
+                  {name
+                    ?.split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase() || "ST"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground truncate">{user?.email}</p>
-          <p className="text-xs text-muted-foreground flex items-center justify-center sm:justify-start gap-1.5 pt-0.5">
-            <Building className="w-3.5 h-3.5 text-primary" />
-            <span>{user?.schoolName || "Addis Hiwot School"}</span>
-          </p>
+
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                {name || user?.name || "Staff Member"}
+              </h1>
+              <Badge className="bg-primary/15 text-primary border-primary/20 text-[11px] font-bold capitalize py-0.5 px-2.5 rounded-lg shadow-xs">
+                {user?.role?.replace("_", " ") || "Staff Member"}
+              </Badge>
+            </div>
+            <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">
+              {user?.email || "staff@addishiwot.edu.et"}
+            </p>
+            <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
+              <Badge variant="outline" className="text-xs font-semibold border-white/40 dark:border-white/10 bg-white/40 dark:bg-slate-800/40">
+                {user?.schoolName || "Addis Hiwot School"}
+              </Badge>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ─── Face ID Biometric Card ─── */}
-      <Card className="border-border/80 shadow-xs bg-card/95 backdrop-blur-sm rounded-2xl">
-        <CardHeader className="p-4 sm:p-5 pb-2 sm:pb-3 border-b border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Camera className="w-4 h-4 text-primary" /> Facial Biometric Authentication
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Facial descriptor used for automatic camera check-in & check-out. No raw photo is stored.
-            </CardDescription>
-          </div>
-          <Button
-            type="button"
-            onClick={() => setIsFaceEnrollModalOpen(true)}
-            variant={hasFaceEnrolled ? "outline" : "default"}
-            size="sm"
-            className="font-semibold gap-2 shrink-0 self-start sm:self-auto"
-          >
-            <Camera className="w-4 h-4" />
-            {hasFaceEnrolled ? "Update Face ID" : "Enroll Face ID"}
-          </Button>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              hasFaceEnrolled ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
-            }`}>
-              {hasFaceEnrolled ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Left Column: Biometric & Security Status */}
+        <div className="space-y-6 md:col-span-1">
+          {/* Face ID Biometric Card */}
+          <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-5 shadow-xl shadow-slate-900/5 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <ScanFace className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Face Biometrics</h3>
+                <p className="text-[11px] text-slate-500">Touchless camera check-in</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs sm:text-sm font-semibold text-foreground">
-                {hasFaceEnrolled ? "Biometric Template Active" : "No Biometric Face Template Registered"}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {hasFaceEnrolled
-                  ? "Your face signature is registered and ready for instant automatic verification."
-                  : "Tap Enroll Face ID to register your biometric signature in seconds."}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        {/* Personal Details Form */}
-        <Card className="border-border/80 shadow-xs bg-card/95 backdrop-blur-sm rounded-2xl">
-          <CardHeader className="p-4 sm:p-5 pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <User className="w-4 h-4 text-primary" /> Profile Information
-            </CardTitle>
-            <CardDescription className="text-xs">Update your contact and personal information.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5 pt-0">
-            <form onSubmit={handleSaveProfile} className="space-y-3.5">
-              <div className="space-y-1">
-                <Label htmlFor="staff-name" className="text-xs font-semibold">
-                  Full Name
-                </Label>
+            <div className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 text-center space-y-2">
+              {hasFaceEnrolled ? (
+                <div className="flex flex-col items-center gap-1.5 py-1">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">Face ID Registered</span>
+                  <p className="text-[10px] text-slate-500">128-dimensional neural facial vector enrolled</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1.5 py-1">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/15 text-amber-600 flex items-center justify-center">
+                    <ShieldAlert className="w-6 h-6" />
+                  </div>
+                  <span className="font-bold text-xs text-amber-700 dark:text-amber-300">Not Enrolled</span>
+                  <p className="text-[10px] text-slate-500">Register your face to enable 1-tap instant check-in</p>
+                </div>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              onClick={() => setIsFaceEnrollModalOpen(true)}
+              className="w-full h-10 rounded-xl font-bold text-xs bg-gradient-to-r from-primary to-indigo-600 text-white shadow-lg shadow-primary/25 active:scale-95 gap-2"
+            >
+              <Camera className="w-4 h-4" />
+              <span>{hasFaceEnrolled ? "Re-Enroll Face ID" : "Enroll Face Biometrics"}</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Right Column: Personal Information & Password Change */}
+        <div className="space-y-6 md:col-span-2">
+          {/* Edit Profile Details */}
+          <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-6 shadow-xl shadow-slate-900/5 space-y-4">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-white/20 dark:border-white/10">
+              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600">
+                <User className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Personal Information</h3>
+                <p className="text-xs text-slate-500">Update your public staff details</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Full Name</Label>
                 <Input
-                  id="staff-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Your full name"
-                  className="h-10 text-xs sm:text-sm rounded-xl"
-                  required
+                  placeholder="e.g. Abebe Bekele"
+                  className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium"
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="staff-email" className="text-xs font-semibold">
-                  Email Address (Read-only)
-                </Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Phone Number</Label>
                 <Input
-                  id="staff-email"
-                  value={user?.email || ""}
-                  disabled
-                  className="h-10 text-xs sm:text-sm bg-muted/50 cursor-not-allowed rounded-xl"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="staff-phone" className="text-xs font-semibold">
-                  Phone Number
-                </Label>
-                <Input
-                  id="staff-phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+251..."
-                  className="h-10 text-xs sm:text-sm rounded-xl"
+                  placeholder="+251 9..."
+                  className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium"
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="staff-role" className="text-xs font-semibold">
-                  System Role (Read-only)
-                </Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Profile Photo URL</Label>
                 <Input
-                  id="staff-role"
-                  value={user?.role?.replace("_", " ").toUpperCase() || "STAFF"}
-                  disabled
-                  className="h-10 text-xs sm:text-sm bg-muted/50 cursor-not-allowed rounded-xl"
+                  value={profilePhoto}
+                  onChange={(e) => setProfilePhoto(e.target.value)}
+                  placeholder="https://..."
+                  className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium"
                 />
               </div>
 
-              <Button
-                type="submit"
-                disabled={isSavingProfile}
-                className="w-full font-semibold gap-2 shadow-xs bg-primary hover:bg-primary/90 text-primary-foreground mt-2 rounded-xl h-11"
-              >
-                {isSavingProfile ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" /> Save Profile
-                  </>
-                )}
-              </Button>
+              <div className="pt-2 flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="h-10 px-5 rounded-xl font-bold text-xs bg-primary text-white shadow-lg shadow-primary/25 gap-2"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingProfile ? "Saving..." : "Save Changes"}</span>
+                </Button>
+              </div>
             </form>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Password Change Form */}
-        <Card className="border-border/80 shadow-xs bg-card/95 backdrop-blur-sm rounded-2xl">
-          <CardHeader className="p-4 sm:p-5 pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Lock className="w-4 h-4 text-primary" /> Security & Password
-            </CardTitle>
-            <CardDescription className="text-xs">Update your account password regularly.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5 pt-0">
-            <form onSubmit={handleChangePassword} className="space-y-3.5">
-              <div className="space-y-1">
-                <Label htmlFor="current-pw" className="text-xs font-semibold">
-                  Current Password
-                </Label>
+          {/* Change Password Card */}
+          <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-6 shadow-xl shadow-slate-900/5 space-y-4">
+            <div className="flex items-center gap-2.5 pb-2 border-b border-white/20 dark:border-white/10">
+              <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600">
+                <Lock className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Security &amp; Password</h3>
+                <p className="text-xs text-slate-500">Change your account login credentials</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Current Password</Label>
                 <Input
-                  id="current-pw"
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="h-10 text-xs sm:text-sm rounded-xl"
-                  required
+                  placeholder="Enter current password"
+                  className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs"
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="new-pw" className="text-xs font-semibold">
-                  New Password
-                </Label>
-                <Input
-                  id="new-pw"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  className="h-10 text-xs sm:text-sm rounded-xl"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">New Password</Label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Min. 6 characters"
+                    className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Confirm New Password</Label>
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat new password"
+                    className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="confirm-pw" className="text-xs font-semibold">
-                  Confirm New Password
-                </Label>
-                <Input
-                  id="confirm-pw"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat new password"
-                  className="h-10 text-xs sm:text-sm rounded-xl"
-                  required
-                />
+              <div className="pt-2 flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  variant="outline"
+                  className="h-10 px-5 rounded-xl font-bold text-xs border-purple-500/30 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 gap-2"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>{isChangingPassword ? "Updating..." : "Update Password"}</span>
+                </Button>
               </div>
-
-              <Button
-                type="submit"
-                disabled={isChangingPassword}
-                variant="outline"
-                className="w-full font-semibold gap-2 border-primary/40 hover:bg-primary/5 mt-2 rounded-xl h-11"
-              >
-                {isChangingPassword ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Updating...
-                  </>
-                ) : (
-                  <>
-                    <Key className="w-4 h-4" /> Update Password
-                  </>
-                )}
-              </Button>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Face Enrollment Modal */}
+      {/* Direct Face Enrollment Modal */}
       {user?.id && (
         <StaffFaceEnrollModal
           open={isFaceEnrollModalOpen}
           onOpenChange={setIsFaceEnrollModalOpen}
           preselectedUserId={user.id}
-          preselectedUserName={user.name || "Staff Member"}
+          preselectedUserName={name || user.name || "Staff Member"}
           onEnrolled={() => {
             checkFaceStatus()
-            notifications.success("Face ID Active", "Your face biometric signature is now active.")
+            notifications.success("Biometrics Active", "Your face has been enrolled successfully.")
           }}
         />
       )}

@@ -533,28 +533,38 @@ export function StaffAttendance() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-in fade-in duration-300">
+    <div className="relative space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-in fade-in duration-300">
+      {/* ── Ambient Background Glow Spheres ── */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-20 -left-20 w-96 h-96 bg-indigo-500/15 dark:bg-indigo-500/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 -right-20 w-96 h-96 bg-cyan-500/15 dark:bg-cyan-500/10 rounded-full blur-[140px]" />
+        <div className="absolute -bottom-20 left-1/3 w-96 h-96 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
+
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 rounded-2xl border border-primary/20 shadow-sm">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <UserCheck className="w-8 h-8 text-primary" />
+      <div className="relative overflow-hidden rounded-[28px] border border-white/50 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-6 sm:p-7 shadow-2xl shadow-indigo-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/15 via-indigo-500/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        <div className="relative z-10">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-md shadow-primary/25">
+              <UserCheck className="w-6 h-6" />
+            </span>
             Staff Attendance & Biometrics
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Biometric face verification with integrated campus geofencing.
+          <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1">
+            Biometric face verification with integrated campus geofencing and dual session tracking.
           </p>
         </div>
 
         {/* Offline Queue Badge & Controls */}
-        <div className="flex items-center gap-2">
+        <div className="relative z-10 flex items-center gap-2">
           {pendingOfflineCount > 0 && (
             <Button
               variant="outline"
               size="sm"
               onClick={manualSyncOffline}
               disabled={isSyncingOffline}
-              className="gap-2 border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300 hover:bg-amber-500/20"
+              className="gap-2 rounded-xl border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold text-xs hover:bg-amber-500/20"
             >
               <WifiOff className="w-4 h-4" />
               <span>{pendingOfflineCount} Pending Sync</span>
@@ -565,7 +575,7 @@ export function StaffAttendance() {
           {isAdmin && (
             <Button
               onClick={() => setIsFaceEnrollModalOpen(true)}
-              className="gap-2 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              className="gap-2 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-primary to-indigo-600 text-white shadow-lg shadow-primary/25 active:scale-95"
             >
               <ShieldCheck className="w-4 h-4" />
               Manage Face Biometrics
@@ -577,10 +587,10 @@ export function StaffAttendance() {
       {/* Holiday / Non-Working Day Alert Banner */}
       {calendarStatus && !calendarStatus.isWorkingDay && (
         <div
-          className={`p-4 rounded-2xl border flex items-center gap-3.5 shadow-sm ${
+          className={`p-4 rounded-[22px] border backdrop-blur-xl flex items-center gap-3.5 shadow-lg ${
             calendarStatus.isHoliday
-              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200"
-              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
+              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200 shadow-purple-500/5"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-amber-500/5"
           }`}
         >
           <div
@@ -601,10 +611,10 @@ export function StaffAttendance() {
               </span>
               <Badge
                 variant="outline"
-                className={`text-[10px] uppercase font-bold ${
+                className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md ${
                   calendarStatus.isHoliday
-                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300"
-                    : "border-amber-500/40 text-amber-600 dark:text-amber-300"
+                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10"
+                    : "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10"
                 }`}
               >
                 {calendarStatus.isHoliday ? "Holiday" : "Non-Working Day"}
@@ -619,23 +629,23 @@ export function StaffAttendance() {
 
       {/* Tabs for Admin / Staff */}
       {isAdmin && (
-        <div className="flex border-b border-border/60 gap-4">
+        <div className="flex border-b border-white/20 dark:border-white/10 gap-4">
           <button
             onClick={() => setActiveTab("admin_overview")}
-            className={`pb-3 text-sm font-semibold border-b-2 transition-all ${
+            className={`pb-3 text-sm font-bold border-b-2 transition-all ${
               activeTab === "admin_overview"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             School Staff Roster ({allStaffAttendance.length})
           </button>
           <button
             onClick={() => setActiveTab("self")}
-            className={`pb-3 text-sm font-semibold border-b-2 transition-all ${
+            className={`pb-3 text-sm font-bold border-b-2 transition-all ${
               activeTab === "self"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             My Check-In / History
@@ -647,7 +657,7 @@ export function StaffAttendance() {
       {(activeTab === "self" || !isAdmin) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Main Action Card */}
-          <Card className="md:col-span-1 border-border/60 shadow-lg bg-card/95 backdrop-blur-sm">
+          <Card className="md:col-span-1 border-white/40 dark:border-white/10 shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[28px]">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Clock className="w-5 h-5 text-primary" />
@@ -884,8 +894,8 @@ export function StaffAttendance() {
           </Card>
 
           {/* Personal History Table */}
-          <Card className="md:col-span-2 border-border/60 shadow-lg bg-card/95 backdrop-blur-sm">
-            <CardHeader className="pb-3">
+          <Card className="md:col-span-2 border-white/40 dark:border-white/10 shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[28px] overflow-hidden">
+            <CardHeader className="pb-3 border-b border-white/20 dark:border-white/10">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <History className="w-5 h-5 text-primary" /> My Recent Attendance
               </CardTitle>

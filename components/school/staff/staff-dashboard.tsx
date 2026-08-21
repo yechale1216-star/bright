@@ -31,6 +31,9 @@ import {
   AlertCircle,
   Sparkles,
   RefreshCw,
+  ScanFace,
+  MapPin,
+  CalendarDays,
 } from "lucide-react"
 import { useAuth } from "@/lib/context/auth-context"
 import { useCalendar } from "@/lib/context/calendar-context"
@@ -38,7 +41,7 @@ import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { StaffFaceEnrollModal } from "@/components/school/staff-face-enroll"
-import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
+import { getStaffAttendanceDisplay, addMinutesToHHMM } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 
 export function StaffDashboard() {
@@ -66,8 +69,8 @@ export function StaffDashboard() {
   const isSessionMode = (settings?.staffAttendanceMode || settings?.staff_attendance_mode) === "session_based"
   const staffSessions = useMemo(() => {
     const defaults = [
-      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
-      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, isActive: true },
+      { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "09:30", earliestCheckinTime: "06:00", latestCheckoutTime: "13:30", isActive: true },
+      { id: "afternoon", name: "Afternoon", startTime: "13:30", endTime: "17:00", lateGraceMinutes: 10, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "15:00", earliestCheckinTime: "12:30", latestCheckoutTime: "18:30", isActive: true },
     ]
     const rawSessions = settings?.staffSessions ?? settings?.staff_sessions
     if (!rawSessions) return defaults
@@ -130,7 +133,6 @@ export function StaffDashboard() {
     setTodayStr(currentToday)
 
     try {
-      // Parallel fetch with settled handling so a single failed request never breaks others
       const [calRes, myAttRes, descRes, annRes, notifRes] = await Promise.allSettled([
         db.isDateWorkingDay(currentToday),
         db.getMyStaffAttendance({
@@ -155,7 +157,6 @@ export function StaffDashboard() {
         }).then((r) => r.json()),
       ])
 
-      // Ignore if a newer request was dispatched while this was fetching
       if (currentReqId !== loadRequestIdRef.current) return
 
       if (calRes.status === "fulfilled") {
@@ -189,7 +190,6 @@ export function StaffDashboard() {
     }
     const todayRecs = allAttendance.filter((r) => r.date?.split("T")[0] === todayStr)
     if (isSessionMode) {
-      // Pick most relevant active or recent session
       const morningRec = todayRecs.find((r) => (r.session || "morning").toLowerCase() === "morning")
       const afternoonRec = todayRecs.find((r) => (r.session || "").toLowerCase() === "afternoon")
       setTodayRecord(afternoonRec || morningRec || todayRecs[0] || null)
@@ -206,7 +206,6 @@ export function StaffDashboard() {
       loadData({ silent: true })
     }
 
-    // Visibility change listener (Android WebView resume & browser tab focus)
     let lastResumeTime = 0
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -298,27 +297,25 @@ export function StaffDashboard() {
   if (isLoading) {
     return (
       <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-6 animate-pulse">
-        {/* Hero Header Skeleton */}
-        <div className="rounded-2xl sm:rounded-3xl bg-card/70 border border-border/60 p-4 sm:p-6 space-y-4">
+        <div className="rounded-[28px] bg-white/40 dark:bg-slate-900/40 border border-white/20 dark:border-white/10 p-6 space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-muted/70 shrink-0" />
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <div className="w-16 h-16 rounded-2xl bg-muted/60 shrink-0" />
               <div className="space-y-2 flex-1">
-                <div className="h-3.5 w-28 bg-muted/60 rounded-md" />
-                <div className="h-6 w-48 bg-muted/80 rounded-md" />
-                <div className="h-3 w-36 bg-muted/50 rounded-md" />
+                <div className="h-4 w-32 bg-muted/60 rounded-md" />
+                <div className="h-7 w-48 bg-muted/80 rounded-md" />
+                <div className="h-3.5 w-40 bg-muted/50 rounded-md" />
               </div>
             </div>
-            <div className="w-full sm:w-44 h-10 bg-muted/50 rounded-xl" />
+            <div className="w-full sm:w-44 h-11 bg-muted/50 rounded-xl" />
           </div>
         </div>
 
-        {/* 4 Cards Skeleton */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-4 rounded-2xl bg-card/70 border border-border/60 space-y-2.5">
+            <div key={i} className="p-5 rounded-[24px] bg-white/40 dark:bg-slate-900/40 border border-white/20 dark:border-white/10 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-muted/60" />
+                <div className="w-9 h-9 rounded-xl bg-muted/60" />
                 <div className="w-16 h-4 bg-muted/40 rounded" />
               </div>
               <div className="h-6 w-24 bg-muted/80 rounded" />
@@ -326,82 +323,83 @@ export function StaffDashboard() {
             </div>
           ))}
         </div>
-
-        {/* Action Shortcut Cards Skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-2xl bg-card/70 border border-border/60 p-3.5" />
-          ))}
-        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto pb-8">
-      {/* ─── 1. WELCOME & PROFILE BANNER ─── */}
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-primary/15 via-card to-background border border-border/80 p-4 sm:p-6 shadow-sm">
-        {/* Subtle decorative glow */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+    <div className="relative space-y-6 max-w-5xl mx-auto pb-10">
+      {/* ── Ambient Background Glow Spheres ── */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-20 -left-20 w-96 h-96 bg-indigo-500/15 dark:bg-indigo-500/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 -right-20 w-96 h-96 bg-cyan-500/15 dark:bg-cyan-500/10 rounded-full blur-[140px]" />
+        <div className="absolute -bottom-20 left-1/3 w-96 h-96 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
 
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* ─── 1. HERO BANNER: GLASSMORPHIC WELCOME & PROFILE ─── */}
+      <div className="relative overflow-hidden rounded-[28px] border border-white/50 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-5 sm:p-7 shadow-2xl shadow-indigo-500/5">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/15 via-indigo-500/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           {/* Staff Profile Info */}
-          <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 w-full sm:w-auto">
+          <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
             <div className="relative shrink-0">
-              <Avatar className="w-14 h-14 sm:w-16 sm:h-16 border-2 border-primary/30 shadow-md">
-                <AvatarImage src={user?.profile_photo || ""} />
-                <AvatarFallback className="bg-primary/20 text-primary font-bold text-lg">
-                  {user?.name
-                    ?.split(" ")
-                    .map((n: string) => n[0])
-                    .join("")
-                    .toUpperCase() || "ST"}
-                </AvatarFallback>
-              </Avatar>
+              <div className="p-1 rounded-[22px] bg-gradient-to-tr from-primary via-indigo-500 to-cyan-400 shadow-lg shadow-primary/20">
+                <Avatar className="w-14 h-14 sm:w-16 sm:h-16 rounded-[18px]">
+                  <AvatarImage src={user?.profile_photo || ""} className="object-cover" />
+                  <AvatarFallback className="bg-slate-950 text-white font-black text-base sm:text-lg">
+                    {user?.name
+                      ?.split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .toUpperCase() || "ST"}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
               <span
-                className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-background ${
-                  isCheckedIn && !isCheckedOut ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/50"
+                className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${
+                  isCheckedIn && !isCheckedOut ? "bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse" : "bg-slate-400"
                 }`}
                 title={isCheckedIn && !isCheckedOut ? "Active on duty" : "Not checked in"}
               />
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <GreetingIcon className={`w-3.5 h-3.5 ${greeting.color}`} />
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <GreetingIcon className={`w-4 h-4 ${greeting.color}`} />
                 <span>{greeting.text},</span>
               </div>
-              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground truncate">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">
                 {user?.name || "Staff Member"}
               </h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px] sm:text-xs font-semibold capitalize py-0 px-2">
-                  {user?.role?.replace("_", " ") || "Staff Member"}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <Badge className="bg-primary/10 hover:bg-primary/15 text-primary border-primary/20 text-[11px] font-bold capitalize py-0.5 px-2.5 rounded-lg shadow-xs">
+                  {user?.role?.replace("_", " ") || "Staff"}
                 </Badge>
-                <span className="text-[11px] text-muted-foreground truncate hidden sm:inline">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate hidden sm:inline">
                   {user?.schoolName || "Addis Hiwot School"}
                 </span>
-                <span className="text-[11px] text-muted-foreground font-medium">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   &bull; {formatDate(todayStr)}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Quick Status Badges & Enrollment */}
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2.5 sm:pt-0 border-border/40">
+          {/* Quick Status Badges & Refresh */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-white/20 dark:border-white/10">
             {enrolledDescriptor ? (
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 gap-1.5 py-1 px-2.5 text-xs">
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                <span className="font-semibold">Face ID Active</span>
+              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 gap-1.5 py-1.5 px-3 text-xs rounded-xl shadow-xs">
+                <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-bold">Face ID Active</span>
               </Badge>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsFaceEnrollModalOpen(true)}
-                className="flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors shadow-xs"
+                className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-xs active:scale-95"
               >
-                <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                <ScanFace className="w-4 h-4 shrink-0" />
                 <span>Enroll Face ID</span>
               </button>
             )}
@@ -410,370 +408,403 @@ export function StaffDashboard() {
               variant="outline"
               size="sm"
               onClick={() => loadData()}
-              className="h-8 px-2.5 rounded-xl border-border text-xs gap-1.5"
+              className="h-9 px-3 rounded-xl border-white/40 dark:border-white/10 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md text-xs font-bold gap-1.5 shadow-xs hover:bg-white/70"
             >
-              <RefreshCw className="w-3 h-3 text-muted-foreground" />
+              <RefreshCw className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         </div>
       </div>
 
-      {/* ─── Holiday / Non-Working Day Banner ─── */}
+      {/* ─── Holiday / Non-Working Day Glass Banner ─── */}
       {calendarStatus && !calendarStatus.isWorkingDay && (
         <div
-          className={`p-3.5 sm:p-4 rounded-2xl border flex items-center gap-3 shadow-xs ${
+          className={`p-4 rounded-[22px] border backdrop-blur-xl flex items-center gap-3.5 shadow-lg ${
             calendarStatus.isHoliday
-              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200"
-              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200"
+              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200 shadow-purple-500/5"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-amber-500/5"
           }`}
         >
           <div
-            className={`p-2 rounded-xl shrink-0 ${
+            className={`p-2.5 rounded-xl shrink-0 shadow-sm ${
               calendarStatus.isHoliday
                 ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
                 : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
             }`}
           >
-            {calendarStatus.isHoliday ? <CalendarOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {calendarStatus.isHoliday ? <CalendarOff className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-xs sm:text-sm truncate">
+              <span className="font-bold text-sm truncate">
                 {calendarStatus.isHoliday
                   ? `Holiday: ${calendarStatus.holidayName}`
                   : calendarStatus.reason || "Scheduled Non-Working Day"}
               </span>
               <Badge
                 variant="outline"
-                className={`text-[9px] uppercase font-bold px-1.5 py-0 ${
+                className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md ${
                   calendarStatus.isHoliday
-                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300"
-                    : "border-amber-500/40 text-amber-600 dark:text-amber-300"
+                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10"
+                    : "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10"
                 }`}
               >
-                {calendarStatus.isHoliday ? "Holiday" : "Off Day"}
+                {calendarStatus.isHoliday ? "Official Holiday" : "Non-Working Day"}
               </Badge>
             </div>
-            <p className="text-[11px] opacity-80 line-clamp-1">
-              Attendance is optional today. Absences will not be marked.
+            <p className="text-xs opacity-80 mt-0.5">
+              Attendance is optional today. Staff are not marked absent or penalized.
             </p>
           </div>
         </div>
       )}
 
-      {/* ─── 2. TODAY AT A GLANCE (FOUR STATUS CARDS) ─── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
-              <span>Today at a Glance</span>
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Current attendance &amp; daily work status from server
-            </p>
-          </div>
-          <Link
-            href="/school/staff/attendance"
-            className="text-xs font-bold text-primary hover:underline flex items-center gap-1 group"
-          >
-            <span>Open Attend Page</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-        </div>
-
-        {/* Four Status Cards Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Card 1: Attendance Status */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Attendance
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                <UserCheck className="w-4 h-4" />
-              </div>
+      {/* ─── 2. WORKING HOURS & SCHEDULE BANNER (SESSION / DAILY) ─── */}
+      <div className="p-4 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <Clock className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-lg sm:text-xl font-black text-foreground block truncate">
-                {attendanceDisplay.checkIn.titleLabel}
-              </span>
-              <div className="mt-1">
-                <Badge className={`text-[9px] font-bold uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
-                  {attendanceDisplay.overallStatus.replace("_", " ")}
-                </Badge>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Check-In Time */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Check-In Time
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                <LogIn className="w-4 h-4" />
-              </div>
-            </div>
-            <div>
-              <span className="text-lg sm:text-xl font-black font-mono text-foreground block truncate">
-                {attendanceDisplay.checkIn.timeStr}
-              </span>
-              <span className="text-[11px] text-muted-foreground block truncate mt-0.5">
-                {isCheckedIn ? "Server-recorded arrival" : "Not recorded yet"}
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Check-Out Time */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Check-Out Time
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                <LogOut className="w-4 h-4" />
-              </div>
-            </div>
-            <div>
-              <span className="text-lg sm:text-xl font-black font-mono text-foreground block truncate">
-                {attendanceDisplay.checkOut.timeStr}
-              </span>
-              <span className="text-[11px] text-muted-foreground block truncate mt-0.5">
-                {isCheckedOut ? "Server-recorded departure" : "Not recorded yet"}
-              </span>
-            </div>
-          </div>
-
-          {/* Card 4: Work Status */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between gap-3 hover:border-primary/40 transition-colors">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Work Status
-              </span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
-                <Activity className="w-4 h-4" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${workStatus.dotColor} shrink-0`} />
-                <span className="text-base sm:text-lg font-bold text-foreground truncate">
-                  {workStatus.label}
-                </span>
-              </div>
-              <span className="text-[11px] text-muted-foreground block truncate mt-0.5">
-                {workStatus.subtitle}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Dedicated Attend Page Action Banner */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-card via-card to-primary/5 border border-border/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-bold text-foreground">
-                Need to record your arrival or departure?
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Use the dedicated Attend page for facial biometric scan and GPS check-in/out.
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Configured Work Hours</span>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {isSessionMode ? "Session-Based Tracking (Morning & Afternoon)" : "Daily Single Shift"}
               </p>
             </div>
           </div>
-          <Link href="/school/staff/attendance" className="w-full sm:w-auto shrink-0">
-            <Button className="w-full sm:w-auto font-bold gap-2 rounded-xl h-11 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md">
-              <UserCheck className="w-4 h-4" />
-              <span>Go to Attend Page</span>
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
+
+          {isSessionMode ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {staffSessions.map((sess: any) => {
+                const cutoff = sess?.absenceCutoffTime || (sess ? addMinutesToHHMM(sess.startTime, sess.absenceCutoffMinutes ?? 90) : "09:30")
+                return (
+                  <div
+                    key={sess.id}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-950/60 border border-white/50 dark:border-white/10 text-xs shadow-xs"
+                  >
+                    <span className="font-bold text-slate-900 dark:text-white">{sess.name}:</span>
+                    <span className="font-mono text-slate-600 dark:text-slate-300">
+                      {formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                      +{sess.lateGraceMinutes ?? 15}m Grace
+                    </span>
+                    <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                      Cutoff: {formatEthiopianTime(cutoff)}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            (() => {
+              const startTime = settings?.staffWorkStartTime || "08:00"
+              const endTime = settings?.staffWorkEndTime || "17:00"
+              const cutoff = settings?.staffAbsenceCutoffTime || addMinutesToHHMM(startTime, settings?.staffAbsenceCutoffMinutes ?? 120)
+              return (
+                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-950/60 border border-white/50 dark:border-white/10 text-xs shadow-xs">
+                  <span className="font-bold text-slate-900 dark:text-white">Shift:</span>
+                  <span className="font-mono text-slate-600 dark:text-slate-300">
+                    {formatEthiopianTime(startTime)} - {formatEthiopianTime(endTime)}
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                    +{settings?.staffLateGraceMinutes ?? 15}m Grace
+                  </span>
+                  <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                    Cutoff: {formatEthiopianTime(cutoff)}
+                  </span>
+                </div>
+              )
+            })()
+          )}
         </div>
       </div>
 
-      {/* ─── 3. MONTHLY ATTENDANCE PERFORMANCE SUMMARY ─── */}
-      <div className="space-y-2.5">
-        <div className="px-1">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Monthly Overview
+      {/* ─── 3. FOUR STATUS METRIC CARDS ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Attendance Status */}
+        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Attendance</span>
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-xs">
+              <UserCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white block truncate tracking-tight">
+              {attendanceDisplay.checkIn.titleLabel}
+            </span>
+            <div className="mt-1.5">
+              <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                {attendanceDisplay.overallStatus.replace("_", " ")}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Check-In Time */}
+        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Check-In</span>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 shadow-xs">
+              <LogIn className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
+              {attendanceDisplay.checkIn.timeStr}
+            </span>
+            <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+              {isCheckedIn ? "Verified arrival" : "Pending check-in"}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Check-Out Time */}
+        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Check-Out</span>
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 shadow-xs">
+              <LogOut className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
+              {attendanceDisplay.checkOut.timeStr}
+            </span>
+            <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+              {isCheckedOut ? "Verified departure" : "Pending departure"}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Work Status */}
+        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Status</span>
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 shadow-xs">
+              <Activity className="w-4 h-4" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${workStatus.dotColor} shrink-0`} />
+              <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                {workStatus.label}
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+              {workStatus.subtitle}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 4. DEDICATED ATTENDANCE CTA BANNER ─── */}
+      <div className="relative overflow-hidden rounded-[26px] border border-white/40 dark:border-white/10 bg-gradient-to-r from-primary/10 via-indigo-500/5 to-cyan-500/10 backdrop-blur-2xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-primary/25 shrink-0">
+            <Clock className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              Ready to record your arrival or departure?
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Instant 1-tap facial biometric scan and GPS geofence campus verification.
+            </p>
+          </div>
+        </div>
+        <Link href="/school/staff/attendance" className="w-full sm:w-auto shrink-0">
+          <Button className="w-full sm:w-auto font-black text-xs uppercase tracking-wider gap-2 rounded-xl h-11 px-6 bg-gradient-to-r from-primary to-indigo-600 text-white shadow-lg shadow-primary/25 active:scale-95">
+            <UserCheck className="w-4 h-4" />
+            <span>Open Attendance Portal</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
+      </div>
+
+      {/* ─── 5. MONTHLY PERFORMANCE & PUNCTUALITY METRICS ─── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
+            Monthly Punctuality &amp; Attendance Performance
           </h2>
         </div>
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-          <div className="p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col items-center text-center">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-1">
-              <UserCheck className="w-4 h-4" />
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 mb-2">
+              <UserCheck className="w-5 h-5" />
             </div>
-            <span className="text-base sm:text-xl font-extrabold text-foreground">{monthlyStats.presentCount}</span>
-            <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">Days Present</span>
+            <span className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">{monthlyStats.presentCount}</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">Days Present</span>
           </div>
 
-          <div className="p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col items-center text-center">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-1">
-              <TrendingUp className="w-4 h-4" />
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary mb-2">
+              <TrendingUp className="w-5 h-5" />
             </div>
-            <span className="text-base sm:text-xl font-extrabold text-foreground">{monthlyStats.onTimeRate}%</span>
-            <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">Punctuality</span>
+            <span className="text-xl sm:text-3xl font-black text-primary tracking-tight">{monthlyStats.onTimeRate}%</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">On-Time Rate</span>
           </div>
 
-          <div className="p-3 sm:p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col items-center text-center">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-1">
-              <Clock className="w-4 h-4" />
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 mb-2">
+              <Clock className="w-5 h-5" />
             </div>
-            <span className="text-base sm:text-xl font-extrabold text-foreground">{monthlyStats.lateCount}</span>
-            <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">Late Days</span>
+            <span className="text-xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{monthlyStats.lateCount}</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">Late Days</span>
           </div>
         </div>
       </div>
 
-      {/* ─── 4. QUICK ACCESS NAVIGATION GRID ─── */}
-      <div className="space-y-2.5">
+      {/* ─── 6. QUICK NAVIGATION TILES ─── */}
+      <div className="space-y-3">
         <div className="px-1">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Quick Access
+          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
+            Quick Navigation
           </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Link
             href="/school/staff/attendance"
-            className="flex items-center justify-between p-3.5 rounded-2xl border border-border/80 bg-card hover:bg-muted/40 transition-all group active:scale-[0.99] shadow-xs"
+            className="flex items-center justify-between p-4 rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all group active:scale-[0.99] shadow-lg shadow-slate-900/5"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform">
-                <Calendar className="w-4 h-4" />
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0 group-hover:scale-110 transition-transform">
+                <Calendar className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-bold text-foreground">My Attendance</p>
-                <p className="text-[11px] text-muted-foreground truncate">Biometrics &amp; 30-day logs</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Attendance Log</p>
+                <p className="text-xs text-slate-500 truncate">Biometrics &amp; 30-day history</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-1 transition-transform" />
           </Link>
 
           <Link
             href="/school/staff/communication"
-            className="flex items-center justify-between p-3.5 rounded-2xl border border-border/80 bg-card hover:bg-muted/40 transition-all group active:scale-[0.99] shadow-xs"
+            className="flex items-center justify-between p-4 rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all group active:scale-[0.99] shadow-lg shadow-slate-900/5"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
-                <MessageSquare className="w-4 h-4" />
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform">
+                <MessageSquare className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-bold text-foreground">Messages &amp; Chat</p>
-                <p className="text-[11px] text-muted-foreground truncate">Direct staff communication</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Staff Chat</p>
+                <p className="text-xs text-slate-500 truncate">Messages &amp; announcements</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-1 transition-transform" />
           </Link>
 
           <Link
             href="/school/staff/profile"
-            className="flex items-center justify-between p-3.5 rounded-2xl border border-border/80 bg-card hover:bg-muted/40 transition-all group active:scale-[0.99] shadow-xs"
+            className="flex items-center justify-between p-4 rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all group active:scale-[0.99] shadow-lg shadow-slate-900/5"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 shrink-0 group-hover:scale-105 transition-transform">
-                <User className="w-4 h-4" />
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 shrink-0 group-hover:scale-110 transition-transform">
+                <User className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-bold text-foreground">My Profile</p>
-                <p className="text-[11px] text-muted-foreground truncate">Account &amp; Biometrics</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">My Profile</p>
+                <p className="text-xs text-slate-500 truncate">Face ID &amp; security</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
       </div>
 
-      {/* ─── 5. ANNOUNCEMENTS & RECENT ALERTS FEED ─── */}
+      {/* ─── 7. ANNOUNCEMENTS & ALERTS FEED ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* School Announcements */}
-        <Card className="border-border/80 shadow-xs bg-card/95 rounded-2xl">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between border-b border-border/40">
-            <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2">
+        <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden">
+          <div className="p-5 pb-3 flex items-center justify-between border-b border-white/20 dark:border-white/10">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Megaphone className="w-4 h-4 text-primary" /> School Announcements
-            </CardTitle>
+            </h3>
             <Link
               href="/school/staff/announcements"
-              className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
+              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
             >
               <span>View All</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
-          </CardHeader>
-          <CardContent className="p-4 space-y-2.5">
+          </div>
+          <div className="p-4 space-y-2.5">
             {announcements.length === 0 ? (
-              <div className="py-6 text-center text-xs text-muted-foreground">
+              <div className="py-8 text-center text-xs text-slate-500">
                 No active announcements at this time.
               </div>
             ) : (
               announcements.map((ann: any) => (
                 <div
                   key={ann.id}
-                  className="p-3 rounded-xl bg-muted/30 border border-border/40 space-y-1 hover:bg-muted/50 transition-colors"
+                  className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-1 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <p className="font-semibold text-xs sm:text-sm text-foreground truncate">{ann.title || "Announcement"}</p>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{ann.title || "Announcement"}</p>
                       {ann.targetAudience === "STAFF" && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded-md font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[9px] font-black px-1.5 py-0">
                           Staff Only
-                        </span>
+                        </Badge>
                       )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
+                    <span className="text-[10px] font-medium text-slate-400 shrink-0">
                       {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString() : ""}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{ann.content || ann.message}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">{ann.content || ann.message}</p>
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Recent Alerts */}
-        <Card className="border-border/80 shadow-xs bg-card/95 rounded-2xl">
-          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between border-b border-border/40">
-            <CardTitle className="text-sm sm:text-base font-bold flex items-center gap-2">
-              <Bell className="w-4 h-4 text-primary" /> Recent Alerts
-            </CardTitle>
+        <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden">
+          <div className="p-5 pb-3 flex items-center justify-between border-b border-white/20 dark:border-white/10">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Bell className="w-4 h-4 text-primary" /> Recent Notifications
+            </h3>
             <Link
               href="/school/staff/communication"
-              className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
+              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
             >
               <span>View All</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
-          </CardHeader>
-          <CardContent className="p-4 space-y-2.5">
+          </div>
+          <div className="p-4 space-y-2.5">
             {recentNotifications.length === 0 ? (
-              <div className="py-6 text-center text-xs text-muted-foreground">
+              <div className="py-8 text-center text-xs text-slate-500">
                 You have no unread notifications.
               </div>
             ) : (
               recentNotifications.map((notif: any) => (
                 <div
                   key={notif.id}
-                  className="p-3 rounded-xl bg-muted/30 border border-border/40 space-y-1 hover:bg-muted/50 transition-colors"
+                  className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-1 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-xs sm:text-sm text-foreground truncate">{notif.title || "Notification"}</p>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
+                    <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{notif.title || "Notification"}</p>
+                    <span className="text-[10px] font-medium text-slate-400 shrink-0">
                       {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString() : ""}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{notif.message}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">{notif.message}</p>
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* ─── 6. DIRECT FACE ENROLLMENT MODAL ─── */}
+      {/* ─── 8. DIRECT FACE ENROLLMENT MODAL ─── */}
       {user?.id && (
         <StaffFaceEnrollModal
           open={isFaceEnrollModalOpen}
