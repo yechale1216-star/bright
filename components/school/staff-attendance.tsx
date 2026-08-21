@@ -296,6 +296,21 @@ export function StaffAttendance() {
 
       // Step 2: Face Verification Check
       if (settings?.staff_face_required !== false) {
+        let activeDescriptor = enrolledDescriptor
+        if (!activeDescriptor || activeDescriptor.length !== 128) {
+          const desc = await db.getStaffFaceDescriptor()
+          if (desc?.descriptor && desc.descriptor.length === 128) {
+            activeDescriptor = desc.descriptor
+            setEnrolledDescriptor(desc.descriptor)
+          }
+        }
+
+        if (!activeDescriptor || activeDescriptor.length !== 128) {
+          setVerificationStep("error")
+          setStepMessage("Face biometric profile not registered for your account. Please enroll your face first.")
+          return
+        }
+
         setVerificationStep("face_verification")
         setStepMessage("Geofence verified! Initializing automatic biometric scanner...")
       } else {

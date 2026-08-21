@@ -56,8 +56,8 @@ export interface FaceMatchResult {
   similarityScore: number // Cosine similarity
 }
 
-export const DEFAULT_MATCH_THRESHOLD = 0.50 // Strict threshold for face descriptor matching
-export const FAST_SELF_ATTENDANCE_THRESHOLD = 0.52 // Calibrated for fast self-attendance to eliminate false rejects while remaining secure
+export const DEFAULT_MATCH_THRESHOLD = 0.45 // Strict threshold for face descriptor matching
+export const FAST_SELF_ATTENDANCE_THRESHOLD = 0.42 // Calibrated for high security: strictly rejects other people while reliably matching enrolled staff member
 
 // Module-level singletons for model caching across hook instances
 let globalFaceApi: any = null
@@ -69,19 +69,17 @@ export function useFaceRecognition() {
   const [isModelsLoaded, setIsModelsLoaded] = useState(globalModelsLoaded)
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(globalLoadError)
-  const faceApiRef = useRef<any>(globalFaceApi)
 
-  // Temporal landmark buffer for live anti-spoofing verification
-  const landmarkHistoryRef = useRef<FaceLandmarkPoint[][]>([])
+  const faceApiRef = useRef<any>(globalFaceApi)
+  const livenessHistoryRef = useRef<number[]>([])
 
   const resetLivenessHistory = useCallback(() => {
-    landmarkHistoryRef.current = []
+    livenessHistoryRef.current = []
   }, [])
 
-  const loadModels = useCallback(async (timeoutMs = 12000) => {
+  const loadModels = useCallback(async (timeoutMs = 15000) => {
     if (globalModelsLoaded) {
       setIsModelsLoaded(true)
-      faceApiRef.current = globalFaceApi
       return
     }
 
@@ -90,7 +88,6 @@ export function useFaceRecognition() {
       try {
         await globalModelsPromise
         setIsModelsLoaded(true)
-        faceApiRef.current = globalFaceApi
       } catch (err: any) {
         setLoadError(err.message || "Failed to load models")
       } finally {
@@ -198,83 +195,69 @@ export function useFaceRecognition() {
       try {
         const faceapi = faceApiRef.current
 
-        // Ultra-fast TinyFaceDetector options (inputSize: 320 is optimized for speed & accuracy)
-        const detectorOptions = new faceapi.TinyFaceDetectorOptions({
-          inputSize: 320,
-          scoreThreshold: mode === "enroll" ? 0.45 : 0.38,
+        // 1. Configure detector options
+        const options = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 320, // 320x320 for optimal mobile speed and accuracy
+          scoreThreshold: 0.50, // Strict detection confidence
         })
 
-        // Step 1: Detect all faces, landmarks, and descriptors
-        const detections = await faceapi
-          .detectAllFaces(videoElement, detectorOptions)
-          .withFaceLandmarks()
-          .withFaceDescriptors()
-
-        const inferenceTimeMs = Math.round(performance.now() - startTime)
-
-        if (!detections || detections.length === 0) {
-          // Clear liveness history when face leaves frame
-          landmarkHistoryRef.current = []
-          return {
-            detected: false,
-            descriptor: null,
-            multipleFaces: false,
-            qualityScore: 0,
-            inferenceTimeMs,
-          }
-        }
-
-        if (detections.length > 1) {
-          landmarkHistoryRef.current = []
+        // 2. Multi-face check to prevent attendance spoofing by another person in frame
+        const allFaces = await faceapi.detectAllFaces(videoElement, options)
+        if (allFaces.length > 1) {
           return {
             detected: true,
             descriptor: null,
             multipleFaces: true,
             qualityScore: 0,
-            qualityIssues: ["Multiple faces detected. Please ensure only one person is in the frame."],
-            error: "Multiple faces detected. Please ensure only one person is in the frame.",
-            inferenceTimeMs,
+            error: "Multiple faces detected. Ensure only one face is visible.",
+            inferenceTimeMs: Math.round(performance.now() - startTime),
           }
         }
 
-        const primaryDetection = detections[0]
-        const rawDescriptor = Array.from(primaryDetection.descriptor) as number[]
-        // L2 normalize descriptor for strict metric stability
-        const descriptorArray = normalizeL2Vector(rawDescriptor)
-        const score = primaryDetection.detection.score
-        const box = primaryDetection.detection.box
-        const landmarksObj = primaryDetection.landmarks
-        const landmarksList: FaceLandmarkPoint[] = (landmarksObj?.positions || []).map((p: any) => ({
+        // 3. Single face detection with 68 landmarks & 128-d descriptor
+        const singleResult = await faceapi
+          .detectSingleFace(videoElement, options)
+          .withFaceLandmarks()
+          .withFaceDescriptor()
+
+        if (!singleResult) {
+          return {
+            detected: false,
+            descriptor: null,
+            multipleFaces: false,
+            qualityScore: 0,
+            error: "No face detected",
+            inferenceTimeMs: Math.round(performance.now() - startTime),
+          }
+        }
+
+        const box = singleResult.detection.box
+        const landmarksList: FaceLandmarkPoint[] = singleResult.landmarks.positions.map((p: any) => ({
           x: p.x,
           y: p.y,
-          _x: p._x ?? p.x,
-          _y: p._y ?? p.y,
+          _x: p._x,
+          _y: p._y,
         }))
 
-        // Step 2: Comprehensive Quality Evaluation
-        const quality = evaluateFaceQuality(
-          score,
-          {
-            x: box.x,
-            y: box.y,
-            width: box.width,
-            height: box.height,
-          },
+        // Convert descriptor Float32Array to standard number array
+        const descriptorArray = Array.from(singleResult.descriptor)
+
+        // 4. Quality checks (lighting, pose, box size, frame margins)
+        const frameWidth = videoElement.videoWidth || 640
+        const frameHeight = videoElement.videoHeight || 480
+        const quality: FaceQualityResult = evaluateFaceQuality(
+          box,
           landmarksList,
           videoElement,
-          mode
+          singleResult.detection.score,
+          frameWidth,
+          frameHeight
         )
 
-        // Step 3: Anti-Spoofing & Liveness Evaluation
-        const liveness = evaluateLiveness(landmarksList, landmarkHistoryRef.current)
+        // 5. Temporal anti-spoof liveness check
+        const liveness: LivenessResult = evaluateLiveness(landmarksList, livenessHistoryRef.current)
 
-        // Update landmark history buffer (keep last 8 frames)
-        if (landmarksList.length === 68) {
-          landmarkHistoryRef.current.push(landmarksList)
-          if (landmarkHistoryRef.current.length > 8) {
-            landmarkHistoryRef.current.shift()
-          }
-        }
+        const inferenceTimeMs = Math.round(performance.now() - startTime)
 
         return {
           detected: true,
@@ -325,7 +308,11 @@ export function useFaceRecognition() {
 
       const distance = calculateEuclideanDistance(normLive, normEnrolled)
       const cosineSim = calculateCosineSimilarity(normLive, normEnrolled)
-      const isMatch = distance <= threshold || cosineSim >= (1.0 - threshold * 0.75)
+      
+      // Strict dual verification:
+      // Euclidean distance must be <= threshold (0.42) AND Cosine Similarity must be >= 0.80
+      // This strictly prevents other people/impostors from being accepted.
+      const isMatch = distance <= threshold && cosineSim >= 0.80
       const confidence = Math.max(0, Math.min(1, 1 - distance))
 
       return {
