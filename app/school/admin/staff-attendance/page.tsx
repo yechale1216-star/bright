@@ -177,7 +177,6 @@ export default function AdminStaffAttendanceDashboard() {
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [sessionFilter, setSessionFilter] = useState("all")
   const [geoFilter, setGeoFilter] = useState<string>("all")
-  const [faceFilter, setFaceFilter] = useState<string>("all")
 
   // Data states
   const [records, setRecords] = useState<any[]>([])
@@ -362,7 +361,6 @@ export default function AdminStaffAttendanceDashboard() {
         session: isSessionMode && sessionFilter !== "all" ? sessionFilter : undefined,
         search: search.trim() || undefined,
         geofenceVerified: geoFilter === "verified" ? true : geoFilter === "unverified" ? false : undefined,
-        faceVerified: faceFilter === "verified" ? true : faceFilter === "unverified" ? false : undefined,
       }
 
       if (isRangeMode) {
@@ -380,7 +378,7 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [isSessionMode, isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter, faceFilter])
+  }, [isSessionMode, isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter])
 
   const fetchReport = useCallback(async () => {
     setReportLoading(true)
@@ -1133,17 +1131,6 @@ export default function AdminStaffAttendanceDashboard() {
                 <option value="all">GPS: All Statuses</option>
                 <option value="verified">GPS: Verified Campus</option>
                 <option value="unverified">GPS: Unverified / Outside</option>
-              </select>
-
-              {/* Face */}
-              <select
-                value={faceFilter}
-                onChange={(e) => setFaceFilter(e.target.value)}
-                className="h-9 px-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
-              >
-                <option value="all">Face: All Verification</option>
-                <option value="verified">Face: Authenticated ✓</option>
-                <option value="unverified">Face: Not Verified</option>
               </select>
             </div>
           </div>
