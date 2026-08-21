@@ -174,14 +174,20 @@ export function getConfiguredSessions(settings?: any): StaffSessionConfig[] {
       return parsed.map((s: any) => ({
         id: (s.id || s.name || 'session').toLowerCase().trim(),
         name: s.name || s.id || 'Session',
-        startTime: s.startTime || s.start || '08:00',
-        endTime: s.endTime || s.end || '12:30',
-        lateGraceMinutes: Number(s.lateGraceMinutes ?? s.grace ?? 15),
-        earlyDepartureToleranceMinutes: Number(s.earlyDepartureToleranceMinutes ?? 15),
-        absenceCutoffMinutes: Number(s.absenceCutoffMinutes ?? 60),
+        startTime: s.startTime || s.start_time || s.start || '08:00',
+        endTime: s.endTime || s.end_time || s.end || '12:30',
+        lateGraceMinutes: Number(s.lateGraceMinutes ?? s.late_grace_minutes ?? s.grace ?? 15),
+        earlyDepartureToleranceMinutes: Number(s.earlyDepartureToleranceMinutes ?? s.early_departure_tolerance_minutes ?? 15),
+        absenceCutoffMinutes: Number(s.absenceCutoffMinutes ?? s.absence_cutoff_minutes ?? 60),
+        // Preserve the absolute time strings saved by admin — these are used directly
+        // by computeSessionThresholds instead of being re-computed from offsets.
+        absenceCutoffTime: s.absenceCutoffTime || s.absence_cutoff_time || undefined,
+        earliestCheckinTime: s.earliestCheckinTime || s.earliest_checkin_time || undefined,
+        latestCheckoutTime: s.latestCheckoutTime || s.latest_checkout_time || undefined,
+        // Fallback offset fields (only used when absolute times are absent)
         earliestCheckInOffsetMinutes: Number(s.earliestCheckInOffsetMinutes ?? 60),
         latestCheckOutOffsetMinutes: Number(s.latestCheckOutOffsetMinutes ?? 60),
-        allowCheckinAfterCutoff: Boolean(s.allowCheckinAfterCutoff ?? false),
+        allowCheckinAfterCutoff: Boolean(s.allowCheckinAfterCutoff ?? s.allow_checkin_after_cutoff ?? false),
         isActive: s.isActive !== false,
       }));
     }
@@ -191,7 +197,11 @@ export function getConfiguredSessions(settings?: any): StaffSessionConfig[] {
   return DEFAULT_STAFF_SESSIONS;
 }
 
-export function computeSessionThresholds(session: StaffSessionConfig) {
+export function computeSessionThresholds(session: StaffSessionConfig & {
+  absenceCutoffTime?: string;
+  earliestCheckinTime?: string;
+  latestCheckoutTime?: string;
+}) {
   const {
     startTime,
     endTime,
@@ -204,9 +214,12 @@ export function computeSessionThresholds(session: StaffSessionConfig) {
 
   const lateCutoffTime = addMinutesToTime(startTime, lateGraceMinutes);
   const earlyDepartureCutoffTime = addMinutesToTime(endTime, -earlyDepartureToleranceMinutes);
-  const earliestCheckIn = addMinutesToTime(startTime, -earliestCheckInOffsetMinutes);
-  const latestCheckOut = addMinutesToTime(endTime, latestCheckOutOffsetMinutes);
-  const absenceCutoffTime = addMinutesToTime(startTime, absenceCutoffMinutes);
+
+  // Prefer absolute saved times over offset-based calculation.
+  // This ensures admin-configured check-in windows are respected.
+  const earliestCheckIn = session.earliestCheckinTime || addMinutesToTime(startTime, -earliestCheckInOffsetMinutes);
+  const latestCheckOut = session.latestCheckoutTime || addMinutesToTime(endTime, latestCheckOutOffsetMinutes);
+  const absenceCutoffTime = session.absenceCutoffTime || addMinutesToTime(startTime, absenceCutoffMinutes);
 
   return {
     expectedStartTime: startTime,
