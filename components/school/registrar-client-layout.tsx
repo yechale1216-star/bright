@@ -27,7 +27,7 @@ const navItems = [
 export default function RegistrarClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, logout } = useAuth()
+  const { user, logout, sessionReady } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -43,7 +43,7 @@ export default function RegistrarClientLayout({ children }: { children: React.Re
     notifications.info('Logged Out', 'You have been successfully logged out')
   }
 
-  if (!isMounted) return null
+  if (!isMounted || !sessionReady) return null
 
   return (
     <AuthGuard allowedRoles={['registrar']}>

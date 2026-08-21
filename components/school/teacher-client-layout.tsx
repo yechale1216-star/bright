@@ -34,7 +34,7 @@ export default function TeacherClientLayout({
 function TeacherClientLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user, logout, sessionReady } = useAuth()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -66,7 +66,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
     notifications.info("Logged Out", "You have been successfully logged out")
   }
 
-  if (!mounted) return <PageSkeleton variant="dashboard" />
+  if (!mounted || !sessionReady) return <PageSkeleton variant="dashboard" />
 
   const navItems = [
     { href: "/school/teacher", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },

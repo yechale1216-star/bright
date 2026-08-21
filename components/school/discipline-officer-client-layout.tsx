@@ -59,7 +59,7 @@ const navGroups: NavGroup[] = [
 
 export default function DisciplineOfficerClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user, logout, sessionReady } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -75,7 +75,7 @@ export default function DisciplineOfficerClientLayout({ children }: { children: 
     notifications.info('Logged Out', 'You have been successfully logged out')
   }
 
-  if (!isMounted) return null
+  if (!isMounted || !sessionReady) return null
 
   const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex flex-col h-full">
