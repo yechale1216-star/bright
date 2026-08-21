@@ -514,6 +514,34 @@ export function StaffScheduleSettingsTab({
 
   return (
     <div className="space-y-8">
+      {/* ── Top Header Action Bar with Save Button ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-[24px] bg-gradient-to-r from-primary/10 via-indigo-500/5 to-cyan-500/10 border border-white/50 dark:border-white/10 backdrop-blur-2xl shadow-xl shadow-primary/5">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-md shadow-primary/25">
+            <Clock className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+              Staff Working Schedule &amp; Shifts
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Configure check-in/out windows, late grace periods, absence cutoffs, and working days.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <Button
+            onClick={handleSaveWithValidation}
+            disabled={isSaving || !validationResult.isValid}
+            className="w-full sm:w-auto h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-lg shadow-primary/25 active:scale-95 gap-2"
+          >
+            <Save className={`w-4 h-4 ${isSaving ? "animate-spin" : ""}`} />
+            <span>{isSaving ? "Saving Settings..." : "Save Schedule Settings"}</span>
+          </Button>
+        </div>
+      </div>
+
       {/* Global Validation Warning Banner */}
       {!validationResult.isValid && (
         <div className="p-4 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 text-rose-800 dark:text-rose-200 space-y-2">
@@ -1544,6 +1572,22 @@ export function StaffScheduleSettingsTab({
           )}
         </CardContent>
       </Card>
+
+      {/* ─── Bottom Save Action Bar ─── */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-[24px] bg-white/70 dark:bg-slate-900/70 border border-white/50 dark:border-white/10 backdrop-blur-2xl shadow-xl shadow-slate-900/5">
+        <div>
+          <p className="text-sm font-bold text-slate-900 dark:text-white">Ready to apply schedule changes?</p>
+          <p className="text-xs text-slate-500">Changes will take effect immediately across all staff check-in terminals and dashboards.</p>
+        </div>
+        <Button
+          onClick={handleSaveWithValidation}
+          disabled={isSaving || !validationResult.isValid}
+          className="w-full sm:w-auto h-11 px-7 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-lg shadow-primary/25 active:scale-95 gap-2"
+        >
+          <Save className={`w-4 h-4 ${isSaving ? "animate-spin" : ""}`} />
+          <span>{isSaving ? "Saving Settings..." : "Save Schedule Settings"}</span>
+        </Button>
+      </div>
 
       {/* ─── ADD/EDIT HOLIDAY MODAL ────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
