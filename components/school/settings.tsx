@@ -337,6 +337,90 @@ export function Settings() {
                 />
               </div>
 
+              <Separator />
+
+              {/* Campus GPS & Geofencing Settings */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="flex items-center gap-2 font-bold text-foreground">
+                      <MapPin className="h-4 w-4 text-primary" /> Restrict Attendance to School Location (Geofencing)
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Verify teacher &amp; staff GPS proximity against configured school coordinates during attendance.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.restrictLocation ?? false}
+                    onCheckedChange={(checked) => setSettings({ ...settings, restrictLocation: checked })}
+                  />
+                </div>
+
+                {settings.restrictLocation && (
+                  <div className="bg-muted/40 border rounded-2xl p-4 sm:p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-foreground">School Geographic Coordinates</span>
+                      <Button type="button" variant="outline" size="sm" onClick={detectCurrentLocation} className="rounded-xl font-semibold gap-1.5">
+                        <Navigation className="h-4 w-4 text-primary" /> Detect My Location
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="schoolLatitude">School Latitude</Label>
+                        <Input
+                          id="schoolLatitude"
+                          type="number"
+                          step="any"
+                          placeholder="e.g. 9.030000"
+                          value={settings.schoolLatitude ?? ""}
+                          onChange={(e) => setSettings({ ...settings, schoolLatitude: e.target.value })}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="schoolLongitude">School Longitude</Label>
+                        <Input
+                          id="schoolLongitude"
+                          type="number"
+                          step="any"
+                          placeholder="e.g. 38.740000"
+                          value={settings.schoolLongitude ?? ""}
+                          onChange={(e) => setSettings({ ...settings, schoolLongitude: e.target.value })}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="allowedRadiusMeters">Allowed Radius (meters)</Label>
+                        <Input
+                          id="allowedRadiusMeters"
+                          type="number"
+                          min="10"
+                          max="5000"
+                          placeholder="200"
+                          value={settings.allowedRadiusMeters ?? 200}
+                          onChange={(e) => setSettings({ ...settings, allowedRadiusMeters: parseInt(e.target.value) || 200 })}
+                          className="mt-1.5"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                      <div>
+                        <Label>Allow Attendance Outside School</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Enable bypass to allow recording attendance outside school radius when needed.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={settings.allowOutsideAttendance ?? true}
+                        onCheckedChange={(checked) => setSettings({ ...settings, allowOutsideAttendance: checked })}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end pt-2">
                 <Button
                   onClick={saveSettings}
@@ -352,11 +436,20 @@ export function Settings() {
 
         <TabsContent value="attendance" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Attendance Configuration</CardTitle>
-              <CardDescription>Configure attendance tracking preferences</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Student Attendance Rules</CardTitle>
+                <CardDescription>Configure student attendance tracking preferences</CardDescription>
+              </div>
+              <Button
+                onClick={saveSettings}
+                disabled={isSaving}
+                className="rounded-xl font-bold px-6 shadow-sm"
+              >
+                {isSaving ? "Saving..." : "Save Changes"}
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div>
                 <Label htmlFor="attendanceThreshold">Attendance Threshold (%)</Label>
                 <Input
@@ -366,8 +459,9 @@ export function Settings() {
                   max="100"
                   value={settings.attendanceThreshold || 75}
                   onChange={(e) => setSettings({ ...settings, attendanceThreshold: Number.parseInt(e.target.value) })}
+                  className="mt-1.5"
                 />
-                <p className="typography-body text-gray-600 mt-1">Minimum attendance percentage for alerts</p>
+                <p className="text-xs text-muted-foreground mt-1">Minimum attendance percentage for alerts</p>
               </div>
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 space-y-6">
                 <div className="flex items-center gap-3">
@@ -422,7 +516,7 @@ export function Settings() {
                   value={settings.gradeSystem || "standard"}
                   onValueChange={(value) => setSettings({ ...settings, gradeSystem: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="mt-1.5">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -449,7 +543,7 @@ export function Settings() {
                   value={settings.attendanceUiType || "card_based"}
                   onValueChange={(value) => setSettings({ ...settings, attendanceUiType: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="mt-1.5">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -475,84 +569,14 @@ export function Settings() {
                 />
               </div>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary" /> Restrict Attendance to School Location (Geofencing)
-                    </Label>
-                    <p className="typography-body text-muted-foreground">
-                      Verify teacher GPS proximity against configured school coordinates before submission.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.restrictLocation ?? false}
-                    onCheckedChange={(checked) => setSettings({ ...settings, restrictLocation: checked })}
-                  />
-                </div>
-
-                {settings.restrictLocation && (
-                  <div className="bg-muted/40 border rounded-xl p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">School Geographic Location</span>
-                      <Button type="button" variant="outline" size="sm" onClick={detectCurrentLocation}>
-                        <Navigation className="h-4 w-4 mr-2" /> Detect My Location
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor="schoolLatitude">School Latitude</Label>
-                        <Input
-                          id="schoolLatitude"
-                          type="number"
-                          step="any"
-                          placeholder="e.g. 9.030000"
-                          value={settings.schoolLatitude ?? ""}
-                          onChange={(e) => setSettings({ ...settings, schoolLatitude: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="schoolLongitude">School Longitude</Label>
-                        <Input
-                          id="schoolLongitude"
-                          type="number"
-                          step="any"
-                          placeholder="e.g. 38.740000"
-                          value={settings.schoolLongitude ?? ""}
-                          onChange={(e) => setSettings({ ...settings, schoolLongitude: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="allowedRadiusMeters">Allowed Radius (meters)</Label>
-                        <Input
-                          id="allowedRadiusMeters"
-                          type="number"
-                          min="10"
-                          max="5000"
-                          placeholder="200"
-                          value={settings.allowedRadiusMeters ?? 200}
-                          onChange={(e) => setSettings({ ...settings, allowedRadiusMeters: parseInt(e.target.value) || 200 })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <div>
-                        <Label>Allow Attendance Outside School</Label>
-                        <p className="typography-body text-muted-foreground text-xs">
-                          Enable bypass to allow submission outside school radius when needed.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={settings.allowOutsideAttendance ?? true}
-                        onCheckedChange={(checked) => setSettings({ ...settings, allowOutsideAttendance: checked })}
-                      />
-                    </div>
-                  </div>
-                )}
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={saveSettings}
+                  disabled={isSaving}
+                  className="rounded-xl font-bold px-6 shadow-sm"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </Button>
               </div>
             </CardContent>
           </Card>
