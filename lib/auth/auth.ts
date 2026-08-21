@@ -623,6 +623,18 @@ class AuthService {
       ]
       keysToRemove.forEach(key => localStorage.removeItem(key))
 
+      // Also clean up any _settings_backup_ keys
+      try {
+        const backupKeys: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i)
+          if (k && k.startsWith("_settings_backup_")) {
+            backupKeys.push(k)
+          }
+        }
+        backupKeys.forEach(k => localStorage.removeItem(k))
+      } catch {}
+
       // 3. Clear SWR cache synchronously to avoid data leaks
       try {
         const { queryCache } = require('@/lib/utils/query-cache');

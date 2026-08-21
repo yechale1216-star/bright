@@ -74,8 +74,11 @@ export function Settings() {
   const loadSettings = async () => {
     setIsLoading(true)
     try {
-      const currentSettings = await db.getSettings()
+      const currentSettings = await db.getSettings(true)
       setSettings(currentSettings)
+      if (currentSettings.calendarPreference) {
+        setCalendarPreference(currentSettings.calendarPreference)
+      }
     } catch (error) {
       console.error("Failed to load settings:", error)
     } finally {
@@ -89,6 +92,8 @@ export function Settings() {
     try {
       const updatedSettings = {
         ...settings,
+        calendarPreference,
+        calendarType: calendarPreference === 'gregorian' ? 'GREGORIAN' : 'ETHIOPIAN',
       }
 
       // Validate schedule settings prior to sending to backend
@@ -286,6 +291,36 @@ export function Settings() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="schoolName">School Name</Label>
+                  <Input
+                    id="schoolName"
+                    value={settings.schoolName || ""}
+                    onChange={(e) => setSettings({ ...settings, schoolName: e.target.value })}
+                    placeholder="e.g. Addis Hiwot School"
+                    className="mt-1.5"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Official name of your institution
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="schoolPhone">School Phone Number</Label>
+                  <Input
+                    id="schoolPhone"
+                    value={settings.schoolPhone || ""}
+                    onChange={(e) => setSettings({ ...settings, schoolPhone: e.target.value })}
+                    placeholder="e.g. +251911223344"
+                    className="mt-1.5"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Primary school contact phone
+                  </p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="academicYear">Academic Year</Label>

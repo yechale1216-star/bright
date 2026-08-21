@@ -1,22 +1,46 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStreams = exports.getSections = exports.getGrades = exports.updateSchool = exports.createSchool = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.getSingleSchool = void 0;
 const db_1 = __importDefault(require("../config/db"));
+const settingsService = __importStar(require("./settings.service"));
 const getSingleSchool = async () => {
-    let settings = await db_1.default.schoolSettings.findFirst();
-    if (!settings) {
-        settings = await db_1.default.schoolSettings.create({
-            data: {
-                id: 'singleton',
-                school_name: 'Addis Hiwot School',
-                attendance_mode: 'session_based',
-                attendance_ui_type: 'card_based',
-            },
-        });
-    }
+    const settings = await settingsService.getSettings();
     return {
         id: 'single-school',
         name: settings.school_name || 'Addis Hiwot School',
@@ -38,16 +62,7 @@ const getAllSchools = async () => {
 };
 exports.getAllSchools = getAllSchools;
 const createSchool = async (data) => {
-    const settings = await db_1.default.schoolSettings.upsert({
-        where: { id: 'singleton' },
-        update: { school_name: data.name },
-        create: {
-            id: 'singleton',
-            school_name: data.name,
-            attendance_mode: 'session_based',
-            attendance_ui_type: 'card_based',
-        },
-    });
+    const settings = await settingsService.updateSettings(undefined, { school_name: data.name });
     return {
         id: 'single-school',
         name: settings.school_name || data.name,
@@ -58,11 +73,7 @@ const createSchool = async (data) => {
 exports.createSchool = createSchool;
 const updateSchool = async (_id, data) => {
     if (data.name) {
-        await db_1.default.schoolSettings.upsert({
-            where: { id: 'singleton' },
-            update: { school_name: data.name },
-            create: { id: 'singleton', school_name: data.name },
-        });
+        await settingsService.updateSettings(undefined, { school_name: data.name });
     }
     return await (0, exports.getSingleSchool)();
 };

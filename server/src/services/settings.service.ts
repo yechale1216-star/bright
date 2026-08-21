@@ -183,7 +183,7 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
 }
 
 const DEFAULT_SETTINGS = {
-  school_name: '',
+  school_name: 'Addis Hiwot School',
   school_phone: '',
   school_address: '',
   academic_year: '2017/2018 E.C.',
@@ -202,6 +202,9 @@ const DEFAULT_SETTINGS = {
   school_longitude: null,
   allowed_radius_meters: 200,
   allow_outside_attendance: true,
+  grade_system: 'standard',
+  email_api_key: '',
+  email_from_domain: 'smartattenadacetracker.app',
   // Staff Attendance Mode & Session Configuration
   staff_attendance_mode: 'daily',
   staff_sessions: DEFAULT_FIXED_STAFF_SESSIONS as any,
@@ -240,6 +243,9 @@ const ALLOWED_SETTINGS_FIELDS = new Set([
   'school_longitude',
   'allowed_radius_meters',
   'allow_outside_attendance',
+  'grade_system',
+  'email_api_key',
+  'email_from_domain',
   'staff_attendance_mode',
   'staff_sessions',
   'staff_working_days',
@@ -259,13 +265,33 @@ const ALLOWED_SETTINGS_FIELDS = new Set([
   'allow_staff_checkin_after_cutoff',
 ]);
 
-export const getSettings = async (_schoolId?: string) => {
-  let settings = await prisma.schoolSettings.findFirst();
-  if (!settings) {
-    settings = await prisma.schoolSettings.create({
-      data: { id: 'singleton', ...DEFAULT_SETTINGS } as any,
-    });
+export const ensureSingletonSettings = async () => {
+  const all = await prisma.schoolSettings.findMany({
+    orderBy: { updatedAt: 'desc' }
+  });
+  if (all.length > 1) {
+    // Keep the most recently updated record, preferably 'singleton' if it's latest
+    const primary = all[0];
+    const duplicates = all.slice(1);
+    for (const dup of duplicates) {
+      try {
+        await prisma.schoolSettings.delete({ where: { id: dup.id } });
+      } catch (err) {
+        console.warn(`[Settings] Failed to prune duplicate settings row ${dup.id}:`, err);
+      }
+    }
+    return primary;
   }
+  if (all.length === 1) {
+    return all[0];
+  }
+  return await prisma.schoolSettings.create({
+    data: { id: 'singleton', ...DEFAULT_SETTINGS } as any,
+  });
+};
+
+export const getSettings = async (_schoolId?: string) => {
+  let settings = await ensureSingletonSettings();
 
   // Ensure staff_sessions is sanitized to fixed morning & afternoon sessions
   settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions) as any;
@@ -285,6 +311,69 @@ export const getSettings = async (_schoolId?: string) => {
 
 export const updateSettings = async (_schoolId?: string, data?: any) => {
   const rawData: any = { ...data };
+
+  // Normalize camelCase fields to snake_case if passed
+  if (rawData.schoolName !== undefined && rawData.school_name === undefined) rawData.school_name = rawData.schoolName;
+  if (rawData.schoolPhone !== undefined && rawData.school_phone === undefined) rawData.school_phone = rawData.schoolPhone;
+  if (rawData.schoolAddress !== undefined && rawData.school_address === undefined) rawData.school_address = rawData.schoolAddress;
+  if (rawData.academicYear !== undefined && rawData.academic_year === undefined) rawData.academic_year = rawData.academicYear;
+  if (rawData.attendanceMode !== undefined && rawData.attendance_mode === undefined) rawData.attendance_mode = rawData.attendanceMode;
+  if (rawData.attendanceUiType !== undefined && rawData.attendance_ui_type === undefined) rawData.attendance_ui_type = rawData.attendanceUiType;
+  if (rawData.attendanceThreshold !== undefined && rawData.attendance_threshold === undefined) rawData.attendance_threshold = rawData.attendanceThreshold;
+  if (rawData.allowLateMark !== undefined && rawData.allow_late_mark === undefined) rawData.allow_late_mark = rawData.allowLateMark;
+  if (rawData.emailNotifications !== undefined && rawData.email_notifications === undefined) rawData.email_notifications = rawData.emailNotifications;
+  if (rawData.smsNotifications !== undefined && rawData.sms_notifications === undefined) rawData.sms_notifications = rawData.smsNotifications;
+  if (rawData.notificationTime !== undefined && rawData.notification_time === undefined) rawData.notification_time = rawData.notificationTime;
+  if (rawData.schoolLogo !== undefined && rawData.school_logo === undefined) rawData.school_logo = rawData.schoolLogo;
+  if (rawData.allowAttendanceEditing !== undefined && rawData.allow_attendance_editing === undefined) rawData.allow_attendance_editing = rawData.allowAttendanceEditing;
+  if (rawData.restrictLocation !== undefined && rawData.restrict_location === undefined) rawData.restrict_location = rawData.restrictLocation;
+  if (rawData.schoolLatitude !== undefined && rawData.school_latitude === undefined) rawData.school_latitude = rawData.schoolLatitude;
+  if (rawData.schoolLongitude !== undefined && rawData.school_longitude === undefined) rawData.school_longitude = rawData.schoolLongitude;
+  if (rawData.allowedRadiusMeters !== undefined && rawData.allowed_radius_meters === undefined) rawData.allowed_radius_meters = rawData.allowedRadiusMeters;
+  if (rawData.allowOutsideAttendance !== undefined && rawData.allow_outside_attendance === undefined) rawData.allow_outside_attendance = rawData.allowOutsideAttendance;
+  if (rawData.gradeSystem !== undefined && rawData.grade_system === undefined) rawData.grade_system = rawData.gradeSystem;
+  if (rawData.emailApiKey !== undefined && rawData.email_api_key === undefined) rawData.email_api_key = rawData.emailApiKey;
+  if (rawData.emailFromDomain !== undefined && rawData.email_from_domain === undefined) rawData.email_from_domain = rawData.emailFromDomain;
+  if (rawData.calendarType !== undefined && rawData.calendar_type === undefined) rawData.calendar_type = rawData.calendarType;
+  if (rawData.calendarPreference !== undefined && rawData.calendar_type === undefined) rawData.calendar_type = rawData.calendarPreference;
+  if (rawData.staffAttendanceMode !== undefined && rawData.staff_attendance_mode === undefined) rawData.staff_attendance_mode = rawData.staffAttendanceMode;
+  if (rawData.staffSessions !== undefined && rawData.staff_sessions === undefined) rawData.staff_sessions = rawData.staffSessions;
+  if (rawData.staffWorkingDays !== undefined && rawData.staff_working_days === undefined) rawData.staff_working_days = rawData.staffWorkingDays;
+  if (rawData.staffWorkStartTime !== undefined && rawData.staff_work_start_time === undefined) rawData.staff_work_start_time = rawData.staffWorkStartTime;
+  if (rawData.staffWorkEndTime !== undefined && rawData.staff_work_end_time === undefined) rawData.staff_work_end_time = rawData.staffWorkEndTime;
+  if (rawData.staffLateGraceMinutes !== undefined && rawData.staff_late_grace_minutes === undefined) rawData.staff_late_grace_minutes = rawData.staffLateGraceMinutes;
+  if (rawData.staffEarlyCheckoutToleranceMinutes !== undefined && rawData.staff_early_checkout_tolerance_minutes === undefined) rawData.staff_early_checkout_tolerance_minutes = rawData.staffEarlyCheckoutToleranceMinutes;
+  if (rawData.staffAbsenceCutoffMinutes !== undefined && rawData.staff_absence_cutoff_minutes === undefined) rawData.staff_absence_cutoff_minutes = rawData.staffAbsenceCutoffMinutes;
+  if (rawData.staffAbsenceCutoffTime !== undefined && rawData.staff_absence_cutoff_time === undefined) rawData.staff_absence_cutoff_time = rawData.staffAbsenceCutoffTime;
+  if (rawData.staffEarliestCheckinTime !== undefined && rawData.staff_earliest_checkin_time === undefined) rawData.staff_earliest_checkin_time = rawData.staffEarliestCheckinTime;
+  if (rawData.staffLatestCheckoutTime !== undefined && rawData.staff_latest_checkout_time === undefined) rawData.staff_latest_checkout_time = rawData.staffLatestCheckoutTime;
+  if (rawData.staffFaceRequired !== undefined && rawData.staff_face_required === undefined) rawData.staff_face_required = rawData.staffFaceRequired;
+  if (rawData.staffGeoRequired !== undefined && rawData.staff_geo_required === undefined) rawData.staff_geo_required = rawData.staffGeoRequired;
+  if (rawData.allowStaffCheckinAfterCutoff !== undefined && rawData.allow_staff_checkin_after_cutoff === undefined) rawData.allow_staff_checkin_after_cutoff = rawData.allowStaffCheckinAfterCutoff;
+
+  // Normalize calendar_type to standard string
+  if (rawData.calendar_type !== undefined) {
+    const cal = String(rawData.calendar_type).trim().toUpperCase();
+    rawData.calendar_type = cal.includes('GREGORIAN') ? 'GREGORIAN' : 'ETHIOPIAN';
+  }
+
+  // Normalize numeric types
+  if (rawData.attendance_threshold !== undefined && rawData.attendance_threshold !== null && rawData.attendance_threshold !== '') {
+    rawData.attendance_threshold = Number(rawData.attendance_threshold);
+  }
+  if (rawData.school_latitude !== undefined && rawData.school_latitude !== null && rawData.school_latitude !== '') {
+    rawData.school_latitude = Number(rawData.school_latitude);
+  } else if (rawData.school_latitude === '') {
+    rawData.school_latitude = null;
+  }
+  if (rawData.school_longitude !== undefined && rawData.school_longitude !== null && rawData.school_longitude !== '') {
+    rawData.school_longitude = Number(rawData.school_longitude);
+  } else if (rawData.school_longitude === '') {
+    rawData.school_longitude = null;
+  }
+  if (rawData.allowed_radius_meters !== undefined && rawData.allowed_radius_meters !== null && rawData.allowed_radius_meters !== '') {
+    rawData.allowed_radius_meters = Number(rawData.allowed_radius_meters);
+  }
 
   // ── Authoritative Validation Before Persistence ──
   if (rawData.staff_sessions !== undefined) {
@@ -307,10 +396,11 @@ export const updateSettings = async (_schoolId?: string, data?: any) => {
     rawData.staff_early_checkout_tolerance_minutes !== undefined ||
     rawData.staff_absence_cutoff_time !== undefined;
 
+  const current = await ensureSingletonSettings();
+
   if (hasDailyFields) {
-    const existing = await prisma.schoolSettings.findFirst();
     const mergedDaily = {
-      ...(existing || DEFAULT_SETTINGS),
+      ...(current || DEFAULT_SETTINGS),
       ...rawData,
     };
     const dailyValidation = validateDailySchedule(mergedDaily);
@@ -327,10 +417,9 @@ export const updateSettings = async (_schoolId?: string, data?: any) => {
     }
   }
 
-  const settings: any = await prisma.schoolSettings.upsert({
-    where: { id: 'singleton' },
-    create: { id: 'singleton', ...DEFAULT_SETTINGS, ...sanitizedData } as any,
-    update: sanitizedData,
+  const settings: any = await prisma.schoolSettings.update({
+    where: { id: current.id },
+    data: sanitizedData,
   });
 
   settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions) as any;
@@ -359,4 +448,15 @@ export const updateSettings = async (_schoolId?: string, data?: any) => {
 
   return settings;
 };
+
+export const resetSettings = async (_schoolId?: string) => {
+  const current = await ensureSingletonSettings();
+  const settings: any = await prisma.schoolSettings.update({
+    where: { id: current.id },
+    data: { ...DEFAULT_SETTINGS },
+  });
+  settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions) as any;
+  return settings;
+};
+
 

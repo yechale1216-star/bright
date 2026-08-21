@@ -202,134 +202,153 @@ class Database extends BaseDatabase {
   }
 
   // ─── SETTINGS ─────────────────────────────────────────────────────────────
-  async getSettings(): Promise<any> {
-    const schoolId = this.getSchoolId()
-    // Security: Never cache settings under a missing/default schoolId.
-    // This prevents stale settings from a previous school leaking to a new context.
-    if (!schoolId) {
-      // APK cold-start fallback: auth may not have hydrated yet.
-      // Try the direct localStorage backup written by updateSettings() before
-      // falling back to network (which requires schoolId in the request).
-      if (typeof window !== "undefined") {
-        try {
-          // Scan for any _settings_backup_ key (we don't know schoolId yet)
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i)
-            if (k && k.startsWith("_settings_backup_")) {
-              const raw = localStorage.getItem(k)
-              if (raw) return JSON.parse(raw)
-            }
-          }
-        } catch { /* ignore */ }
-      }
-      return settings.getSettings(this.getApiHeaders(), "")
-    }
+  async getSettings(forceRefetch = false): Promise<any> {
+    const schoolId = this.getSchoolId() || "single-school"
     return queryCache.fetch(
       `settings_${schoolId}`,
       async () => {
         const data = await settings.getSettings(this.getApiHeaders(), schoolId)
-        // Persist to direct backup whenever a fresh network fetch succeeds
         if (typeof window !== "undefined" && data) {
           try { localStorage.setItem(`_settings_backup_${schoolId}`, JSON.stringify(data)) } catch { /* quota */ }
         }
         return data
       },
-      { staleTime: 120_000 }
+      { staleTime: 30_000, forceRefetch }
     )
   }
 
   async updateSettings(settingsData: any): Promise<any> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) {
-      throw new Error("School context missing. Please log in again.")
+    const schoolId = this.getSchoolId() || "single-school"
+
+    const calendarPrefRaw = settingsData.calendarPreference || settingsData.calendarType || settingsData.calendar_type
+    let normalizedCalendarType: string | undefined
+    if (calendarPrefRaw !== undefined && calendarPrefRaw !== null) {
+      normalizedCalendarType = String(calendarPrefRaw).toUpperCase().includes("GREGORIAN") ? "GREGORIAN" : "ETHIOPIAN"
     }
-    const result = await apiFetch<{ success: boolean; data: any }>(
+
+    const payload: any = {
+      school_name: settingsData.schoolName ?? settingsData.school_name,
+      school_phone: settingsData.schoolPhone ?? settingsData.school_phone,
+      school_address: settingsData.schoolAddress ?? settingsData.school_address,
+      academic_year: settingsData.academicYear ?? settingsData.academic_year,
+      calendar_type: normalizedCalendarType,
+      attendance_mode: settingsData.attendanceMode ?? settingsData.attendance_mode,
+      attendance_ui_type: settingsData.attendanceUiType ?? settingsData.attendance_ui_type,
+      attendance_threshold: settingsData.attendanceThreshold != null && settingsData.attendanceThreshold !== "" ? Number(settingsData.attendanceThreshold) : undefined,
+      allow_late_mark: settingsData.allowLateMark ?? settingsData.allow_late_mark,
+      email_notifications: settingsData.emailNotifications ?? settingsData.email_notifications,
+      sms_notifications: settingsData.smsNotifications ?? settingsData.sms_notifications,
+      notification_time: settingsData.notificationTime ?? settingsData.notification_time,
+      school_logo: settingsData.schoolLogo ?? settingsData.school_logo,
+      allow_attendance_editing: settingsData.allowAttendanceEditing ?? settingsData.allow_attendance_editing,
+      restrict_location: settingsData.restrictLocation ?? settingsData.restrict_location,
+      school_latitude: settingsData.schoolLatitude != null && settingsData.schoolLatitude !== "" ? Number(settingsData.schoolLatitude) : (settingsData.schoolLatitude === "" ? null : undefined),
+      school_longitude: settingsData.schoolLongitude != null && settingsData.schoolLongitude !== "" ? Number(settingsData.schoolLongitude) : (settingsData.schoolLongitude === "" ? null : undefined),
+      allowed_radius_meters: settingsData.allowedRadiusMeters != null && settingsData.allowedRadiusMeters !== "" ? Number(settingsData.allowedRadiusMeters) : undefined,
+      allow_outside_attendance: settingsData.allowOutsideAttendance ?? settingsData.allow_outside_attendance,
+      grade_system: settingsData.gradeSystem ?? settingsData.grade_system,
+      email_api_key: settingsData.emailApiKey ?? settingsData.email_api_key,
+      email_from_domain: settingsData.emailFromDomain ?? settingsData.email_from_domain,
+      staff_attendance_mode: settingsData.staffAttendanceMode ?? settingsData.staff_attendance_mode,
+      staff_sessions: settingsData.staffSessions !== undefined ? settingsData.staffSessions : settingsData.staff_sessions,
+      staff_working_days: settingsData.staffWorkingDays ?? settingsData.staff_working_days,
+      staff_work_start_time: settingsData.staffWorkStartTime ?? settingsData.staff_work_start_time,
+      staff_work_end_time: settingsData.staffWorkEndTime ?? settingsData.staff_work_end_time,
+      staff_late_grace_minutes: settingsData.staffLateGraceMinutes != null && settingsData.staffLateGraceMinutes !== "" ? Number(settingsData.staffLateGraceMinutes) : undefined,
+      staff_early_checkout_tolerance_minutes: settingsData.staffEarlyCheckoutToleranceMinutes != null && settingsData.staffEarlyCheckoutToleranceMinutes !== "" ? Number(settingsData.staffEarlyCheckoutToleranceMinutes) : undefined,
+      staff_absence_cutoff_minutes: settingsData.staffAbsenceCutoffMinutes != null && settingsData.staffAbsenceCutoffMinutes !== "" ? Number(settingsData.staffAbsenceCutoffMinutes) : undefined,
+      staff_absence_cutoff_time: settingsData.staffAbsenceCutoffTime ?? settingsData.staff_absence_cutoff_time,
+      staff_earliest_checkin_time: settingsData.staffEarliestCheckinTime ?? settingsData.staff_earliest_checkin_time,
+      staff_latest_checkout_time: settingsData.staffLatestCheckoutTime ?? settingsData.staff_latest_checkout_time,
+      staff_face_required: settingsData.staffFaceRequired ?? settingsData.staff_face_required,
+      staff_geo_required: settingsData.staffGeoRequired ?? settingsData.staff_geo_required,
+      allow_staff_checkin_after_cutoff: settingsData.allowStaffCheckinAfterCutoff ?? settingsData.allow_staff_checkin_after_cutoff,
+    }
+
+    // Clean undefined fields
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === undefined) delete payload[key]
+    })
+
+    const result = await apiFetch<{ success: boolean; data: any; message?: string }>(
       `${API_URL}/api/settings`,
       {
         method: "PUT",
         headers: this.getApiHeaders(),
-        body: JSON.stringify({
-          school_name: settingsData.schoolName,
-          school_phone: settingsData.schoolPhone,
-          school_address: settingsData.schoolAddress,
-          academic_year: settingsData.academicYear,
-          attendance_mode: settingsData.attendanceMode,
-          attendance_ui_type: settingsData.attendanceUiType,
-          attendance_threshold: settingsData.attendanceThreshold,
-          allow_late_mark: settingsData.allowLateMark,
-          email_notifications: settingsData.emailNotifications,
-          sms_notifications: settingsData.smsNotifications,
-          notification_time: settingsData.notificationTime,
-          school_logo: settingsData.schoolLogo,
-          allow_attendance_editing: settingsData.allowAttendanceEditing,
-          restrict_location: settingsData.restrictLocation,
-          school_latitude: settingsData.schoolLatitude != null && settingsData.schoolLatitude !== "" ? Number(settingsData.schoolLatitude) : null,
-          school_longitude: settingsData.schoolLongitude != null && settingsData.schoolLongitude !== "" ? Number(settingsData.schoolLongitude) : null,
-          allowed_radius_meters: settingsData.allowedRadiusMeters != null && settingsData.allowedRadiusMeters !== "" ? Number(settingsData.allowedRadiusMeters) : 200,
-          allow_outside_attendance: settingsData.allowOutsideAttendance,
-          staff_attendance_mode: settingsData.staffAttendanceMode || "daily",
-          staff_sessions: settingsData.staffSessions ?? null,
-          staff_working_days: settingsData.staffWorkingDays,
-          staff_work_start_time: settingsData.staffWorkStartTime,
-          staff_work_end_time: settingsData.staffWorkEndTime,
-          staff_late_grace_minutes: settingsData.staffLateGraceMinutes != null ? Number(settingsData.staffLateGraceMinutes) : 15,
-          staff_early_checkout_tolerance_minutes: settingsData.staffEarlyCheckoutToleranceMinutes != null ? Number(settingsData.staffEarlyCheckoutToleranceMinutes) : 15,
-          staff_absence_cutoff_minutes: settingsData.staffAbsenceCutoffMinutes != null ? Number(settingsData.staffAbsenceCutoffMinutes) : 120,
-          staff_absence_cutoff_time: settingsData.staffAbsenceCutoffTime,
-          staff_earliest_checkin_time: settingsData.staffEarliestCheckinTime,
-          staff_latest_checkout_time: settingsData.staffLatestCheckoutTime,
-          staff_face_required: settingsData.staffFaceRequired,
-          staff_geo_required: settingsData.staffGeoRequired,
-        }),
+        body: JSON.stringify(payload),
       }
     )
 
-    // Build the canonical mapped settings object (camelCase) from either the
-    // server-confirmed response body OR the caller-supplied data (optimistic).
-    const s = (result && result.data) ? result.data : null
+    const s = result.data || {}
+    const calendarTypeUpper = (s.calendar_type || normalizedCalendarType || "ETHIOPIAN").toUpperCase()
+    const calendarPreference = calendarTypeUpper.includes("GREGORIAN") ? "gregorian" : "ethiopian"
+
     const updatedMapped = {
-      schoolName: (s?.school_name) || settingsData.schoolName,
-      schoolPhone: (s?.school_phone) || settingsData.schoolPhone,
-      schoolAddress: (s?.school_address) || settingsData.schoolAddress,
-      academicYear: (s?.academic_year) || settingsData.academicYear,
-      attendanceMode: (s?.attendance_mode) || settingsData.attendanceMode,
-      attendanceUiType: (s?.attendance_ui_type) || settingsData.attendanceUiType,
-      attendanceThreshold: s ? (s.attendance_threshold ?? settingsData.attendanceThreshold) : settingsData.attendanceThreshold,
-      allowLateMark: s ? (s.allow_late_mark ?? settingsData.allowLateMark) : settingsData.allowLateMark,
-      emailNotifications: s ? (s.email_notifications ?? settingsData.emailNotifications) : settingsData.emailNotifications,
-      smsNotifications: s ? (s.sms_notifications ?? settingsData.smsNotifications) : settingsData.smsNotifications,
-      notificationTime: (s?.notification_time) || settingsData.notificationTime,
-      schoolLogo: (s?.school_logo) || settingsData.schoolLogo,
-      allowAttendanceEditing: s ? (s.allow_attendance_editing ?? settingsData.allowAttendanceEditing) : settingsData.allowAttendanceEditing,
-      restrictLocation: s ? (s.restrict_location ?? settingsData.restrictLocation) : settingsData.restrictLocation,
-      schoolLatitude: s ? (s.school_latitude ?? settingsData.schoolLatitude) : settingsData.schoolLatitude,
-      schoolLongitude: s ? (s.school_longitude ?? settingsData.school_longitude) : settingsData.schoolLongitude,
-      allowedRadiusMeters: s ? (s.allowed_radius_meters ?? settingsData.allowedRadiusMeters) : settingsData.allowedRadiusMeters,
-      allowOutsideAttendance: s ? (s.allow_outside_attendance ?? settingsData.allowOutsideAttendance) : settingsData.allowOutsideAttendance,
-      staffAttendanceMode: (s?.staff_attendance_mode) || settingsData.staffAttendanceMode || "daily",
-      staffSessions: (s?.staff_sessions !== undefined ? s.staff_sessions : settingsData.staffSessions) ?? null,
-      staffWorkingDays: (s?.staff_working_days) || settingsData.staffWorkingDays || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
-      staffWorkStartTime: (s?.staff_work_start_time) || settingsData.staffWorkStartTime || "08:00",
-      staffWorkEndTime: (s?.staff_work_end_time) || settingsData.staffWorkEndTime || "17:00",
-      staffLateGraceMinutes: s ? (s.staff_late_grace_minutes ?? settingsData.staffLateGraceMinutes) : (settingsData.staffLateGraceMinutes ?? 15),
-      staffEarlyCheckoutToleranceMinutes: s ? (s.staff_early_checkout_tolerance_minutes ?? settingsData.staffEarlyCheckoutToleranceMinutes) : (settingsData.staffEarlyCheckoutToleranceMinutes ?? 15),
-      staffAbsenceCutoffMinutes: s ? (s.staff_absence_cutoff_minutes ?? settingsData.staffAbsenceCutoffMinutes) : (settingsData.staffAbsenceCutoffMinutes ?? 120),
-      staffAbsenceCutoffTime: (s?.staff_absence_cutoff_time) || settingsData.staffAbsenceCutoffTime || "10:00",
-      staffEarliestCheckinTime: (s?.staff_earliest_checkin_time) || settingsData.staffEarliestCheckinTime || "06:00",
-      staffLatestCheckoutTime: (s?.staff_latest_checkout_time) || settingsData.staffLatestCheckoutTime || "20:00",
-      staffFaceRequired: s ? (s.staff_face_required ?? settingsData.staffFaceRequired) : (settingsData.staffFaceRequired ?? true),
-      staffGeoRequired: s ? (s.staff_geo_required ?? settingsData.staffGeoRequired) : (settingsData.staffGeoRequired ?? true),
+      schoolName: s.school_name || settingsData.schoolName || "Addis Hiwot School",
+      schoolPhone: s.school_phone || settingsData.schoolPhone || "",
+      schoolAddress: s.school_address || settingsData.schoolAddress || "",
+      academicYear: s.academic_year || settingsData.academicYear || "2017/2018 E.C.",
+      calendarType: calendarTypeUpper,
+      calendar_type: calendarTypeUpper,
+      calendarPreference,
+      attendanceMode: s.attendance_mode || settingsData.attendanceMode || "session_based",
+      attendanceUiType: s.attendance_ui_type || settingsData.attendanceUiType || "card_based",
+      attendanceThreshold: s.attendance_threshold ?? settingsData.attendanceThreshold ?? 75,
+      allowLateMark: s.allow_late_mark ?? settingsData.allowLateMark ?? true,
+      emailNotifications: s.email_notifications ?? settingsData.emailNotifications ?? true,
+      smsNotifications: s.sms_notifications ?? settingsData.smsNotifications ?? false,
+      notificationTime: s.notification_time || settingsData.notificationTime || "16:00",
+      schoolLogo: s.school_logo || settingsData.schoolLogo || "",
+      allowAttendanceEditing: s.allow_attendance_editing ?? settingsData.allowAttendanceEditing ?? true,
+      restrictLocation: s.restrict_location ?? settingsData.restrictLocation ?? false,
+      schoolLatitude: s.school_latitude ?? settingsData.schoolLatitude ?? null,
+      schoolLongitude: s.school_longitude ?? settingsData.schoolLongitude ?? null,
+      allowedRadiusMeters: s.allowed_radius_meters ?? settingsData.allowedRadiusMeters ?? 200,
+      allowOutsideAttendance: s.allow_outside_attendance ?? settingsData.allowOutsideAttendance ?? true,
+      gradeSystem: s.grade_system || settingsData.gradeSystem || "standard",
+      grade_system: s.grade_system || settingsData.gradeSystem || "standard",
+      emailApiKey: s.email_api_key ?? settingsData.emailApiKey ?? "",
+      email_api_key: s.email_api_key ?? settingsData.emailApiKey ?? "",
+      emailFromDomain: s.email_from_domain || settingsData.emailFromDomain || "smartattenadacetracker.app",
+      email_from_domain: s.email_from_domain || settingsData.emailFromDomain || "smartattenadacetracker.app",
+      staffAttendanceMode: (s.staff_attendance_mode || settingsData.staffAttendanceMode || "daily") as "daily" | "session_based",
+      staffSessions: (s.staff_sessions !== undefined ? s.staff_sessions : settingsData.staffSessions) ?? null,
+      staffWorkingDays: s.staff_working_days || settingsData.staffWorkingDays || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
+      staffWorkStartTime: s.staff_work_start_time || settingsData.staffWorkStartTime || "08:00",
+      staffWorkEndTime: s.staff_work_end_time || settingsData.staffWorkEndTime || "17:00",
+      staffLateGraceMinutes: s.staff_late_grace_minutes ?? settingsData.staffLateGraceMinutes ?? 15,
+      staffEarlyCheckoutToleranceMinutes: s.staff_early_checkout_tolerance_minutes ?? settingsData.staffEarlyCheckoutToleranceMinutes ?? 15,
+      staffAbsenceCutoffMinutes: s.staff_absence_cutoff_minutes ?? settingsData.staffAbsenceCutoffMinutes ?? 120,
+      staffAbsenceCutoffTime: s.staff_absence_cutoff_time || settingsData.staffAbsenceCutoffTime || "10:00",
+      staffEarliestCheckinTime: s.staff_earliest_checkin_time || settingsData.staffEarliestCheckinTime || "06:00",
+      staffLatestCheckoutTime: s.staff_latest_checkout_time || settingsData.staffLatestCheckoutTime || "20:00",
+      staffFaceRequired: s.staff_face_required ?? settingsData.staffFaceRequired ?? true,
+      staffGeoRequired: s.staff_geo_required ?? settingsData.staffGeoRequired ?? true,
+      allowStaffCheckinAfterCutoff: s.allow_staff_checkin_after_cutoff ?? settingsData.allowStaffCheckinAfterCutoff ?? false,
     }
 
-    // 1. Update SWR memory+localStorage cache (serves subsequent getSettings() calls)
+    // 1. Update SWR cache and localStorage
     queryCache.set(`settings_${schoolId}`, updatedMapped, true)
 
-    // 2. Write a DIRECT localStorage backup that is independent of the SWR cache.
-    //    This is the APK safety net: even if the SWR cache is cleared on logout or
-    //    the WebView is recreated before auth has hydrated, this key survives and
-    //    allows getSettings() to return real saved data instead of hardcoded defaults.
     if (typeof window !== "undefined") {
       try { localStorage.setItem(`_settings_backup_${schoolId}`, JSON.stringify(updatedMapped)) } catch { /* quota */ }
+      
+      // Synchronize calendar preference across the app
+      try {
+        localStorage.setItem('app_calendar_preference', calendarPreference)
+        window.dispatchEvent(new CustomEvent('calendarPreferenceChanged', { detail: calendarPreference }))
+      } catch {}
+
+      // Synchronize active_school if name or logo changed
+      try {
+        const storedActive = localStorage.getItem("active_school")
+        if (storedActive) {
+          const parsed = JSON.parse(storedActive)
+          parsed.name = updatedMapped.schoolName
+          if (updatedMapped.schoolLogo) parsed.logo = updatedMapped.schoolLogo
+          localStorage.setItem("active_school", JSON.stringify(parsed))
+        }
+      } catch {}
     }
 
     queryCache.invalidate(/^grades_/)
@@ -337,10 +356,9 @@ class Database extends BaseDatabase {
     queryCache.invalidate(/^streams_/)
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("settingsDataChanged"))
+      window.dispatchEvent(new CustomEvent("schoolSettingsUpdated"))
     }
 
-    // Return the canonical mapped object so callers can use it directly
-    // without an additional getSettings() round-trip.
     return updatedMapped
   }
 
@@ -386,14 +404,12 @@ class Database extends BaseDatabase {
   }
 
   async resetSettings(): Promise<void> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) return
-    await apiFetch(
-      `${API_URL}/api/settings`,
+    const schoolId = this.getSchoolId() || "single-school"
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/settings/reset`,
       {
         method: "POST",
         headers: this.getApiHeaders(),
-        body: JSON.stringify(settings.defaultSettings()),
       }
     )
     queryCache.invalidate(/^settings_/)
@@ -401,7 +417,9 @@ class Database extends BaseDatabase {
     queryCache.invalidate(/^sections_/)
     queryCache.invalidate(/^streams_/)
     if (typeof window !== "undefined") {
+      localStorage.removeItem(`_settings_backup_${schoolId}`)
       window.dispatchEvent(new CustomEvent("settingsDataChanged"))
+      window.dispatchEvent(new CustomEvent("schoolSettingsUpdated"))
     }
   }
 

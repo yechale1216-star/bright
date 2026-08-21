@@ -19,10 +19,14 @@ export function EmailSettings() {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const settings = await db.getSettings()
-      if (settings) {
-        setApiKey(settings.email_api_key || "")
-        setFromDomain(settings.email_from_domain || "smartattenadacetracker.app")
+      try {
+        const settings = await db.getSettings(true)
+        if (settings) {
+          setApiKey(settings.email_api_key || settings.emailApiKey || "")
+          setFromDomain(settings.email_from_domain || settings.emailFromDomain || "smartattenadacetracker.app")
+        }
+      } catch (err) {
+        console.error("Failed to load email settings:", err)
       }
     }
     loadSettings()

@@ -130,6 +130,9 @@ model SchoolSettings {
   staff_face_required                   Boolean  @default(true)
   staff_geo_required                    Boolean  @default(true)
   allow_staff_checkin_after_cutoff      Boolean  @default(false)
+  grade_system                          String   @default("standard")
+  email_api_key                         String?
+  email_from_domain                     String?  @default("smartattenadacetracker.app")
   createdAt                             DateTime @default(now())
   updatedAt                             DateTime @updatedAt
   school_logo                           String?

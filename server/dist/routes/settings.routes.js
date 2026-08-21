@@ -49,10 +49,10 @@ router.get('/', async (_req, res, next) => {
     }
 });
 // Update settings
-router.put('/', async (req, res, next) => {
+router.put('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
     try {
         const settings = await settingsService.updateSettings(undefined, req.body);
-        res.status(200).json({ success: true, data: settings });
+        res.status(200).json({ success: true, data: settings, message: 'Settings updated successfully.' });
     }
     catch (error) {
         if (error instanceof settingsService.ScheduleValidationError) {
@@ -62,6 +62,16 @@ router.put('/', async (req, res, next) => {
                 errors: error.errors,
             });
         }
+        next(error);
+    }
+});
+// Reset settings to defaults
+router.post('/reset', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (_req, res, next) => {
+    try {
+        const settings = await settingsService.resetSettings();
+        res.status(200).json({ success: true, data: settings, message: 'Settings reset to default values successfully.' });
+    }
+    catch (error) {
         next(error);
     }
 });

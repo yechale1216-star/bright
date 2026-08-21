@@ -25,10 +25,9 @@ export function useSchoolSettings() {
     return ""
   }, [authUser?.schoolId])
 
-  const confirmedSchoolId = getSchoolId()
+  const confirmedSchoolId = getSchoolId() || "single-school"
 
   const [settings, setSettings] = useState<any>(() => {
-    if (!confirmedSchoolId) return null
     return queryCache.get<any>(`settings_${confirmedSchoolId}`) ?? null
   })
   const [isLoading, setIsLoading] = useState(!settings)

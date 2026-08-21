@@ -14,10 +14,10 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response, next: NextFunc
 });
 
 // Update settings
-router.put('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.put('/', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const settings = await settingsService.updateSettings(undefined, req.body);
-    res.status(200).json({ success: true, data: settings });
+    res.status(200).json({ success: true, data: settings, message: 'Settings updated successfully.' });
   } catch (error: any) {
     if (error instanceof settingsService.ScheduleValidationError) {
       return res.status(400).json({
@@ -28,6 +28,14 @@ router.put('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
     }
     next(error);
   }
+});
+
+// Reset settings to defaults
+router.post('/reset', authorize(['admin', 'school_admin']), async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const settings = await settingsService.resetSettings();
+    res.status(200).json({ success: true, data: settings, message: 'Settings reset to default values successfully.' });
+  } catch (error) { next(error); }
 });
 
 // GET /api/settings/holidays — list holidays

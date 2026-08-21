@@ -5,10 +5,13 @@ import { apiFetch, RequestError } from "@/lib/utils/fetch-with-timeout"
 
 export function defaultSettings() {
   return {
-    schoolName: "Setup Required",
+    schoolName: "Addis Hiwot School",
     schoolPhone: "",
     schoolAddress: "",
-    academicYear: new Date().getFullYear().toString(),
+    academicYear: "2017/2018 E.C.",
+    calendarType: "ETHIOPIAN",
+    calendar_type: "ETHIOPIAN",
+    calendarPreference: "ethiopian" as "ethiopian" | "gregorian",
     attendanceMode: "session_based",
     attendanceUiType: "card_based",
     attendanceThreshold: 75,
@@ -16,12 +19,19 @@ export function defaultSettings() {
     emailNotifications: true,
     smsNotifications: false,
     notificationTime: "16:00",
+    schoolLogo: "",
     allowAttendanceEditing: true,
     restrictLocation: false,
     schoolLatitude: null,
     schoolLongitude: null,
     allowedRadiusMeters: 200,
     allowOutsideAttendance: true,
+    gradeSystem: "standard",
+    grade_system: "standard",
+    emailApiKey: "",
+    email_api_key: "",
+    emailFromDomain: "smartattenadacetracker.app",
+    email_from_domain: "smartattenadacetracker.app",
     // Staff working schedule
     staffAttendanceMode: "daily" as "daily" | "session_based",
     staffSessions: null as any,
@@ -40,8 +50,7 @@ export function defaultSettings() {
   }
 }
 
-export async function getSettings(headers: any, schoolId: string): Promise<any> {
-  if (!schoolId) return defaultSettings()
+export async function getSettings(headers: any, schoolId?: string): Promise<any> {
   try {
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/settings?_t=${Date.now()}`,
@@ -50,12 +59,18 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
         cache: 'no-store'
       }
     )
-    const s = result.data
+    const s = result.data || {}
+    const calendarTypeUpper = (s.calendar_type || "ETHIOPIAN").toUpperCase()
+    const calendarPreference = calendarTypeUpper.includes("GREGORIAN") ? "gregorian" : "ethiopian"
+
     const settingsData = {
       schoolName: s.school_name || "Addis Hiwot School",
       schoolPhone: s.school_phone || "",
       schoolAddress: s.school_address || "",
-      academicYear: s.academic_year || new Date().getFullYear().toString(),
+      academicYear: s.academic_year || "2017/2018 E.C.",
+      calendarType: calendarTypeUpper,
+      calendar_type: calendarTypeUpper,
+      calendarPreference,
       attendanceMode: s.attendance_mode || "session_based",
       attendanceUiType: s.attendance_ui_type || "card_based",
       attendanceThreshold: s.attendance_threshold ?? 75,
@@ -70,6 +85,12 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
       schoolLongitude: s.school_longitude ?? null,
       allowedRadiusMeters: s.allowed_radius_meters ?? 200,
       allowOutsideAttendance: s.allow_outside_attendance ?? true,
+      gradeSystem: s.grade_system || "standard",
+      grade_system: s.grade_system || "standard",
+      emailApiKey: s.email_api_key || "",
+      email_api_key: s.email_api_key || "",
+      emailFromDomain: s.email_from_domain || "smartattenadacetracker.app",
+      email_from_domain: s.email_from_domain || "smartattenadacetracker.app",
       staffAttendanceMode: (s.staff_attendance_mode || "daily") as "daily" | "session_based",
       staffSessions: s.staff_sessions ?? null,
       staffWorkingDays: s.staff_working_days || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
@@ -86,9 +107,10 @@ export async function getSettings(headers: any, schoolId: string): Promise<any> 
       allowStaffCheckinAfterCutoff: s.allow_staff_checkin_after_cutoff ?? false,
     }
 
-    if (settingsData.schoolLogo && schoolId) {
+    const effectiveSchoolId = schoolId || "single-school"
+    if (settingsData.schoolLogo && effectiveSchoolId) {
       import("@/lib/utils/indexeddb-store").then(({ cacheSchoolLogo }) => {
-        cacheSchoolLogo(schoolId, settingsData.schoolLogo)
+        cacheSchoolLogo(effectiveSchoolId, settingsData.schoolLogo)
       }).catch(() => {})
     }
 

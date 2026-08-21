@@ -1,17 +1,8 @@
 import prisma from '../config/db';
+import * as settingsService from './settings.service';
 
 export const getSingleSchool = async () => {
-  let settings = await prisma.schoolSettings.findFirst();
-  if (!settings) {
-    settings = await prisma.schoolSettings.create({
-      data: {
-        id: 'singleton',
-        school_name: 'Addis Hiwot School',
-        attendance_mode: 'session_based',
-        attendance_ui_type: 'card_based',
-      },
-    });
-  }
+  const settings = await settingsService.getSettings();
   return {
     id: 'single-school',
     name: settings.school_name || 'Addis Hiwot School',
@@ -33,16 +24,7 @@ export const getAllSchools = async () => {
 };
 
 export const createSchool = async (data: { name: string }) => {
-  const settings = await prisma.schoolSettings.upsert({
-    where: { id: 'singleton' },
-    update: { school_name: data.name },
-    create: {
-      id: 'singleton',
-      school_name: data.name,
-      attendance_mode: 'session_based',
-      attendance_ui_type: 'card_based',
-    },
-  });
+  const settings = await settingsService.updateSettings(undefined, { school_name: data.name });
   return {
     id: 'single-school',
     name: settings.school_name || data.name,
@@ -53,11 +35,7 @@ export const createSchool = async (data: { name: string }) => {
 
 export const updateSchool = async (_id: string, data: { name?: string }) => {
   if (data.name) {
-    await prisma.schoolSettings.upsert({
-      where: { id: 'singleton' },
-      update: { school_name: data.name },
-      create: { id: 'singleton', school_name: data.name },
-    });
+    await settingsService.updateSettings(undefined, { school_name: data.name });
   }
   return await getSingleSchool();
 };

@@ -24,16 +24,39 @@ export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [calendarPreference, setCalendarPreferenceState] = useState<CalendarPreference>('ethiopian');
   const { language } = useLanguage();
 
-  // Load saved calendar preference on client initialization
+  // Load saved calendar preference on client initialization and listen to updates
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('app_calendar_preference') as CalendarPreference;
-      if (saved && (saved === 'ethiopian' || saved === 'gregorian')) {
-        setCalendarPreferenceState(saved);
+    const syncFromStorage = () => {
+      try {
+        const saved = localStorage.getItem('app_calendar_preference') as CalendarPreference;
+        if (saved && (saved === 'ethiopian' || saved === 'gregorian')) {
+          setCalendarPreferenceState(saved);
+        }
+      } catch (e) {
+        console.warn('LocalStorage error reading app_calendar_preference:', e);
       }
-    } catch (e) {
-      console.warn('LocalStorage error reading app_calendar_preference:', e);
-    }
+    };
+
+    syncFromStorage();
+
+    const handleCustomChange = (e: any) => {
+      const pref = e.detail;
+      if (pref && (pref === 'ethiopian' || pref === 'gregorian')) {
+        setCalendarPreferenceState(pref);
+      } else {
+        syncFromStorage();
+      }
+    };
+
+    window.addEventListener('calendarPreferenceChanged', handleCustomChange);
+    window.addEventListener('settingsDataChanged', syncFromStorage);
+    window.addEventListener('storage', syncFromStorage);
+
+    return () => {
+      window.removeEventListener('calendarPreferenceChanged', handleCustomChange);
+      window.removeEventListener('settingsDataChanged', syncFromStorage);
+      window.removeEventListener('storage', syncFromStorage);
+    };
   }, []);
 
   const setCalendarPreference = (pref: CalendarPreference) => {
