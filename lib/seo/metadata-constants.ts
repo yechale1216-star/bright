@@ -24,23 +24,35 @@ export const SCHOOL_AMHARIC_NAME = "አዲስ ህይወት ት/ቤት"
 export const SITE_URL = resolveSiteUrl()
 export const DEFAULT_OG_IMAGE = "/addis-hiwot-logo.png"
 export const TWITTER_HANDLE = "@AddisHiwot"
+export const DEVELOPER_NAME = "Yechale"
+export const DEVELOPER_ATTRIBUTION = "Developed by Yechale"
 
 export const DEFAULT_DESCRIPTION =
-  "Addis Hiwot School Attendance Management & Communication System — smart student attendance tracking, discipline records management, and real-time parent notifications in Addis Ababa, Ethiopia."
+  "Addis Hiwot is a comprehensive digital school management and communication platform developed by Yechale. Features student and staff attendance management with biometric face verification, student discipline tracking, parent-teacher communication, multi-role school dashboards, and full English & Amharic language support in Addis Ababa, Ethiopia."
 
 export const DEFAULT_KEYWORDS = [
   "Addis Hiwot",
   "Addis Hiwot School",
   "አዲስ ህይወት ት/ቤት",
-  "school attendance management",
-  "Ethiopia school portal",
-  "Addis Ababa schools",
-  "student attendance tracking",
-  "parent notification system",
-  "school discipline management",
-  "education management Ethiopia",
-  "teacher attendance app",
+  "ahs.pro.et",
+  "Developed by Yechale",
+  "digital school management platform",
+  "Ethiopia school management system",
+  "student attendance management",
+  "staff attendance biometric face verification",
+  "AI face attendance school",
+  "student discipline management",
+  "school incident tracking",
   "parent school communication",
+  "parent portal Ethiopia",
+  "teacher portal attendance",
+  "school administrative dashboards",
+  "role-based school management",
+  "English Amharic school software",
+  "Ethiopian calendar school system",
+  "Addis Ababa education technology",
+  "offline-first school PWA",
+  "centralized digital school management",
 ]
 
 // ── Helper: build a fully-formed Metadata object ────────────────────────────────
@@ -81,6 +93,9 @@ export function createPageMetadata({
     keywords: keywords
       ? [...DEFAULT_KEYWORDS, ...keywords]
       : DEFAULT_KEYWORDS,
+    authors: [{ name: SCHOOL_FULL_NAME }, { name: DEVELOPER_NAME }],
+    creator: DEVELOPER_NAME,
+    publisher: SCHOOL_FULL_NAME,
     alternates: {
       canonical: canonicalUrl,
       languages: {
@@ -90,7 +105,7 @@ export function createPageMetadata({
     },
     openGraph: {
       type: ogType,
-      siteName: SITE_NAME,
+      siteName: `${SITE_NAME} — Digital School Management & Communication Platform`,
       title: `${title} | ${SITE_NAME}`,
       description,
       url: canonicalUrl,
@@ -101,7 +116,7 @@ export function createPageMetadata({
           url: fullImageUrl,
           width: 1200,
           height: 630,
-          alt: `${title} — ${SCHOOL_FULL_NAME}`,
+          alt: `${title} — ${SCHOOL_FULL_NAME} (Developed by ${DEVELOPER_NAME})`,
         },
       ],
     },

@@ -6,7 +6,24 @@ import {
   SCHOOL_AMHARIC_NAME,
   DEFAULT_DESCRIPTION,
   DEFAULT_OG_IMAGE,
+  DEVELOPER_NAME,
 } from "@/lib/seo/metadata-constants"
+
+// ── Default Platform Core Capabilities ─────────────────────────────────────────
+export const ADDIS_HIWOT_FEATURES = [
+  "Student attendance management (daily roll-calls, multi-session tracking, automated late/absent parent alerts)",
+  "Staff attendance management with on-device AI neural face biometric verification and campus GPS geofencing",
+  "Student discipline management (incident logging, hearings, severity matrices, corrective actions, and parent digital acknowledgments)",
+  "School-wide announcements and targeted multi-channel communication (push notifications, SMS, email)",
+  "Real-time parent-school communication with in-app messaging, push notifications, and direct contact",
+  "Student and staff lifecycle management (admissions, auto-generated sequential student IDs, class rosters, annual cohort batch promotions)",
+  "Role-based school administrative dashboards with operational transparency and real-time analytics",
+  "Dedicated Parent Portal for monitoring student attendance, behavioral records, schedules, and school notices",
+  "Dedicated Teacher & Staff Portal with 1-tap roll calls and offline IndexedDB background synchronization",
+  "Granular role-based access workflows for Super Admins, Principals, Registrars, Discipline Officers, Teachers, and Parents",
+  "Full bilingual interface support in English and Amharic (አማርኛ) with native Ethiopian Calendar (E.C.) integration",
+  "Secure, centralized digital school management ensuring biometric privacy and zero raw photo storage",
+]
 
 // ── School & Educational Organization Schema ────────────────────────────────────
 interface SchoolJsonLdProps {
@@ -29,7 +46,7 @@ export function SchoolJsonLd({
         "@type": ["EducationalOrganization", "School"],
         "@id": `${url}/#school`,
         name,
-        alternateName: [SCHOOL_AMHARIC_NAME, SITE_NAME, "Addis Hiwot School Portal"],
+        alternateName: [SCHOOL_AMHARIC_NAME, SITE_NAME, "Addis Hiwot School Management Platform"],
         url,
         logo: {
           "@type": "ImageObject",
@@ -55,37 +72,106 @@ export function SchoolJsonLd({
         "@type": "WebSite",
         "@id": `${url}/#website`,
         url,
-        name: SITE_NAME,
-        alternateName: SCHOOL_AMHARIC_NAME,
+        name: `${SITE_NAME} — Digital School Management & Communication Platform`,
+        alternateName: [SCHOOL_AMHARIC_NAME, "Addis Hiwot Portal", "ahs.pro.et"],
         description,
         publisher: {
           "@id": `${url}/#school`,
+        },
+        creator: {
+          "@type": "Person",
+          name: DEVELOPER_NAME,
+          jobTitle: "Lead Developer & System Architect",
         },
         inLanguage: ["en-US", "am-ET"],
       },
       {
         "@type": "SoftwareApplication",
         "@id": `${url}/#application`,
-        name: `${SITE_NAME} Attendance & Communication Suite`,
-        applicationCategory: "EducationalApplication",
-        operatingSystem: "Web, Android, iOS",
+        name: "Addis Hiwot Digital School Management Platform",
+        alternateName: [
+          "Addis Hiwot School Management Suite",
+          "አዲስ ህይወት የትምህርት ቤት አስተዳደር ሥርዓት",
+          "Addis Hiwot Attendance & Communication System",
+        ],
+        applicationCategory: "BusinessApplication, EducationalApplication",
+        operatingSystem: "Web, Android (Capacitor Native & PWA), iOS",
         browserRequirements: "Requires JavaScript. Requires HTML5.",
-        softwareVersion: "1.0.0",
+        softwareVersion: "2.0.0",
         offers: {
           "@type": "Offer",
           price: "0",
           priceCurrency: "ETB",
         },
-        featureList: [
-          "Student Attendance Tracking and Session Monitoring",
-          "Real-time Parent Absent & Late Notifications",
-          "Student Conduct and Discipline Management",
-          "Multi-role Teacher, Admin, Registrar & Parent Portals",
-          "Offline-first Progressive Web App (PWA)",
-        ],
+        featureList: ADDIS_HIWOT_FEATURES,
         author: {
-          "@id": `${url}/#school`,
+          "@type": "Person",
+          name: DEVELOPER_NAME,
+          jobTitle: "Lead Developer & System Architect",
         },
+        creator: {
+          "@type": "Person",
+          name: DEVELOPER_NAME,
+        },
+        maintainer: {
+          "@type": "Person",
+          name: DEVELOPER_NAME,
+        },
+        description,
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${url}/#faq`,
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: "What is Addis Hiwot?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `Addis Hiwot is a comprehensive digital school management and communication platform developed by ${DEVELOPER_NAME}. It modernizes K-12 school administration in Addis Ababa, Ethiopia by uniting student attendance tracking, AI face biometric staff attendance with GPS geofencing, discipline management, parent-teacher communication, and student-staff lifecycle management into a single centralized system.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Who is Addis Hiwot designed for?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Addis Hiwot is designed for entire school communities, featuring dedicated role-based portals for School Administrators, Principals, Registrars, Discipline Officers, Homeroom Teachers, Subject Teachers, Support Staff, and Parents.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What are the core capabilities and modules of Addis Hiwot?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "The platform's major features include: 1) Student attendance management with multi-session tracking and instant absence alerts; 2) Staff attendance with neural 128-d face biometric verification and GPS campus geofencing; 3) Student discipline and behavioral incident management with tiered corrective actions; 4) School-wide multilingual announcements; 5) Real-time parent-school communication with push notifications and direct messaging; 6) Student and staff lifecycle management including sequential auto ID generation and annual cohort promotions; 7) Executive school administration dashboards; 8) Parent and Teacher portals; 9) English and Amharic language support; and 10) Offline-first IndexedDB synchronization.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Who developed Addis Hiwot?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `Addis Hiwot was developed by ${DEVELOPER_NAME} as a secure, purpose-built educational administration and communication platform.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "How does staff biometric attendance verification work in Addis Hiwot?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Staff members verify check-in and check-out on their own mobile portal or workstation. The system combines GPS campus geofencing with on-device TensorFlow.js neural face matching (threshold ≤ 0.42) against the enrolled biometric vector, operating in sub-second speed with total biometric privacy and zero raw photo storage.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Does Addis Hiwot support the Ethiopian Calendar and Amharic language?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "Yes. Addis Hiwot provides full native bilingual support in both English and Amharic (አማርኛ), including dual Ethiopian Calendar (E.C.) and Gregorian Calendar (G.C.) conversion, scheduling, and date pickers.",
+            },
+          },
+        ],
       },
     ],
   }
@@ -115,10 +201,10 @@ interface WebApplicationJsonLdProps {
 }
 
 export function WebApplicationJsonLd({
-  name = `${SITE_NAME} Portal`,
+  name = `${SITE_NAME} Digital School Management Platform`,
   url = SITE_URL,
   description = DEFAULT_DESCRIPTION,
-  applicationCategory = "EducationalApplication",
+  applicationCategory = "EducationalApplication, BusinessApplication",
   operatingSystem = "Web, Android, iOS",
   offers = { price: "0", priceCurrency: "ETB" },
 }: WebApplicationJsonLdProps) {
@@ -134,16 +220,15 @@ export function WebApplicationJsonLd({
       "@type": "Offer",
       ...offers,
     },
-    featureList: [
-      "Daily & Session-Based Attendance Tracking",
-      "Student Discipline Management",
-      "Real-Time Parent Notifications",
-      "Multi-Role Access Control",
-      "Offline-First PWA Support",
-      "Teacher & Admin Dashboards",
-      "Automated Absent Alerts",
-      "Direct Communication & Messaging",
-    ],
+    author: {
+      "@type": "Person",
+      name: DEVELOPER_NAME,
+    },
+    creator: {
+      "@type": "Person",
+      name: DEVELOPER_NAME,
+    },
+    featureList: ADDIS_HIWOT_FEATURES,
   }
 
   return (

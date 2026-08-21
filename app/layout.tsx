@@ -28,6 +28,7 @@ import {
   DEFAULT_DESCRIPTION,
   DEFAULT_KEYWORDS,
   TWITTER_HANDLE,
+  DEVELOPER_NAME,
 } from "@/lib/seo/metadata-constants"
 
 const inter = localFont({
@@ -45,13 +46,13 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
+    default: `${SITE_NAME} — Digital School Management & Communication Platform`,
     template: `%s | ${SITE_NAME}`,
   },
   description: DEFAULT_DESCRIPTION,
   keywords: DEFAULT_KEYWORDS,
-  authors: [{ name: SCHOOL_FULL_NAME }, { name: "Ethio Nova" }],
-  creator: SCHOOL_FULL_NAME,
+  authors: [{ name: SCHOOL_FULL_NAME }, { name: DEVELOPER_NAME }],
+  creator: DEVELOPER_NAME,
   publisher: SCHOOL_FULL_NAME,
   category: "education",
   manifest: "/manifest.json",
@@ -95,8 +96,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: SITE_NAME,
-    title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
+    siteName: `${SITE_NAME} — Digital School Management & Communication Platform`,
+    title: `${SITE_NAME} — Digital School Management & Communication Platform`,
     description: DEFAULT_DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
@@ -106,7 +107,7 @@ export const metadata: Metadata = {
         url: `${SITE_URL}${DEFAULT_OG_IMAGE}`,
         width: 1200,
         height: 630,
-        alt: `${SITE_NAME} — School Attendance & Parent Notification System, Addis Ababa`,
+        alt: `${SITE_NAME} — Digital School Management Platform (Developed by ${DEVELOPER_NAME})`,
       },
     ],
   },
@@ -114,7 +115,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: TWITTER_HANDLE,
     creator: TWITTER_HANDLE,
-    title: `${SITE_NAME} — Addis Ababa School Management & Parent Communication`,
+    title: `${SITE_NAME} — Digital School Management & Communication Platform`,
     description: DEFAULT_DESCRIPTION,
     images: [`${SITE_URL}${DEFAULT_OG_IMAGE}`],
   },

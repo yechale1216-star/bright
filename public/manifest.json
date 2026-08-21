@@ -1,14 +1,14 @@
 {
-  "name": "Addis Hiwot",
+  "name": "Addis Hiwot — Digital School Management Platform",
   "short_name": "Addis Hiwot",
-  "description": "School Attendance Management & Communication System",
+  "description": "Digital School Management and Communication Platform developed by Yechale — student and staff biometric attendance, discipline management, and parent communication.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a3a6b",
+  "background_color": "#070d1a",
   "theme_color": "#1a3a6b",
   "orientation": "portrait-primary",
   "scope": "/",
-  "categories": ["education", "productivity"],
+  "categories": ["education", "productivity", "business"],
   "prefer_related_applications": false,
   "icons": [
     {
@@ -40,7 +40,7 @@
     {
       "name": "Mark Attendance",
       "short_name": "Attendance",
-      "description": "Quickly mark student attendance",
+      "description": "Quickly mark student and staff attendance",
       "url": "/?tab=attendance",
       "icons": [
         {

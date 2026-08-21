@@ -44,7 +44,7 @@ export function DeveloperBrand({
           size === 'sm' ? 'text-[10px]' : 'text-[11px]'
         )}
       >
-        Ethio Nova
+        Yechale
       </span>
     </div>
   )
