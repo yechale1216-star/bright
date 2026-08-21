@@ -18,9 +18,7 @@ import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
 import { parseJsonResponse } from "@/lib/utils/parse-json-response"
-import { supabase } from "@/lib/utils/supabase"
-import { Edit2, Check, Calendar, MapPin, ShieldCheck, Navigation } from "lucide-react"
-import { PhoneInput } from "@/components/ui/phone-input"
+import { Check, Calendar, MapPin, ShieldCheck, Navigation } from "lucide-react"
 import { useCalendar } from "@/lib/context/calendar-context"
 
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
@@ -32,16 +30,9 @@ export function Settings() {
   const [settings, setSettings] = useState<any>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [schoolInfo, setSchoolInfo] = useState({ 
-    schoolName: "", 
-    schoolLogo: "" 
-  })
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [isEditingSchoolInfo, setIsEditingSchoolInfo] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
-
-
 
   const detectCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -72,15 +63,6 @@ export function Settings() {
     setCurrentUser(user)
     setUser(user)
     setMounted(true)
-    if (user) {
-      setSchoolInfo({
-        schoolName: user.schoolName || "",
-        schoolLogo: user.schoolLogo || "",
-      })
-      if (currentUser?.role === "admin" && currentUser?.schoolName === "Setup Required") {
-        setIsEditingSchoolInfo(true)
-      }
-    }
 
     const handleSettingsChanged = () => {
       loadSettings()
@@ -88,34 +70,6 @@ export function Settings() {
     window.addEventListener("settingsDataChanged", handleSettingsChanged)
     return () => window.removeEventListener("settingsDataChanged", handleSettingsChanged)
   }, [])
-
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `logo-${Date.now()}.${fileExt}`
-      const filePath = `logos/${fileName}`
-      const { error: uploadError } = await supabase.storage.from('school-logos').upload(filePath, file)
-      if (!uploadError) {
-        const { data } = supabase.storage.from('school-logos').getPublicUrl(filePath)
-        setSchoolInfo((prev) => ({ ...prev, schoolLogo: data.publicUrl }))
-        notifications.success("Success", "School logo uploaded to Supabase Storage")
-        return
-      }
-    } catch (err) {
-      console.warn("Supabase logo upload error, fallback to local:", err)
-    }
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string
-      setSchoolInfo((prev) => ({ ...prev, schoolLogo: base64 }))
-    }
-    reader.readAsDataURL(file)
-  }
 
   const loadSettings = async () => {
     setIsLoading(true)
@@ -133,11 +87,8 @@ export function Settings() {
     console.log("Starting to save settings:", settings)
     setIsSaving(true)
     try {
-      // Update settings with school info
       const updatedSettings = {
         ...settings,
-        schoolName: schoolInfo.schoolName || settings.schoolName,
-        schoolLogo: schoolInfo.schoolLogo || settings.schoolLogo,
       }
 
       // Validate schedule settings prior to sending to backend
@@ -153,40 +104,13 @@ export function Settings() {
       const savedSettings = await db.updateSettings(updatedSettings)
       console.log("Settings saved successfully to database")
 
-      // Update localStorage with new school info so AuthContext and SchoolContext
-      // pick up the change without a full page reload.
       if (typeof window !== "undefined") {
-        const storedUserStr = localStorage.getItem("attendance_current_user")
-        if (storedUserStr) {
-          try {
-            const storedUser = JSON.parse(storedUserStr)
-            const updatedUser = {
-              ...storedUser,
-              schoolName: updatedSettings.schoolName,
-              schoolLogo: updatedSettings.schoolLogo || storedUser.schoolLogo,
-            }
-            localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
-
-            const activeSchoolStr = localStorage.getItem("active_school")
-            if (activeSchoolStr) {
-              try {
-                const activeSchool = JSON.parse(activeSchoolStr)
-                localStorage.setItem("active_school", JSON.stringify({
-                  ...activeSchool,
-                  name: updatedSettings.schoolName,
-                  logo: updatedSettings.schoolLogo || activeSchool.logo,
-                }))
-              } catch { /* ignore */ }
-            }
-          } catch { /* ignore parse errors */ }
-        }
         window.dispatchEvent(new Event("userSessionChanged"))
         window.dispatchEvent(new CustomEvent("settingsDataChanged"))
         window.dispatchEvent(new CustomEvent("schoolSettingsUpdated"))
       }
 
       setSettings(savedSettings || updatedSettings)
-      setIsEditingSchoolInfo(false)
 
       notifications.success("Settings Saved", "All settings have been updated successfully.")
       console.log("Save settings completed successfully")
@@ -348,71 +272,21 @@ export function Settings() {
 
         <TabsContent value="general" className="space-y-4">
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>School Information</CardTitle>
-                  <CardDescription>Basic information about your school</CardDescription>
-                </div>
-                {mounted && (user?.role === "admin" || user?.role === "super_admin") && !isEditingSchoolInfo && (
-                  <Button
-                    onClick={() => setIsEditingSchoolInfo(true)}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>General Configuration</CardTitle>
+                <CardDescription>Academic year, system calendar, and school address</CardDescription>
               </div>
+              <Button
+                onClick={saveSettings}
+                disabled={isSaving}
+                className="rounded-xl font-bold px-6 shadow-sm"
+              >
+                {isSaving ? "Saving..." : "Save Changes"}
+              </Button>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex flex-col md:flex-row gap-6 items-start">
-                <div className="relative group">
-                  <div className="w-32 h-32 rounded-lg border-2 border-dashed border-border flex items-center justify-center overflow-hidden bg-secondary/30">
-                    {schoolInfo.schoolLogo ? (
-                      <img src={schoolInfo.schoolLogo} alt="School Logo" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center p-2">
-                        <p className="typography-label text-[10px] text-muted-foreground uppercase">No Logo</p>
-                      </div>
-                    )}
-                  </div>
-                  {isEditingSchoolInfo && (
-                    <div className="mt-2">
-                      <Label htmlFor="logo-upload" className="typography-helper cursor-pointer text-primary hover:underline">
-                        Upload Logo
-                      </Label>
-                      <Input
-                        id="logo-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleLogoUpload}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 w-full space-y-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <Label htmlFor="schoolName">School Name</Label>
-                      <Input
-                        id="schoolName"
-                        value={schoolInfo.schoolName}
-                        onChange={(e) => setSchoolInfo({ ...schoolInfo, schoolName: e.target.value })}
-                        disabled={(user?.role !== "admin" && user?.role !== "super_admin") || !isEditingSchoolInfo}
-                        className={(user?.role !== "admin" && user?.role !== "super_admin") || !isEditingSchoolInfo ? "bg-muted cursor-not-allowed" : ""}
-                        placeholder="Enter school name"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="academicYear">Academic Year</Label>
                   <Input
@@ -420,39 +294,35 @@ export function Settings() {
                     value={settings.academicYear || ""}
                     onChange={(e) => setSettings({ ...settings, academicYear: e.target.value })}
                     placeholder="e.g. 2026/2018"
+                    className="mt-1.5"
                   />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Active academic year cohort identifier
+                  </p>
                 </div>
-                <div>
-                  <Label htmlFor="schoolPhone">School Phone Number</Label>
-                  <PhoneInput
-                    id="schoolPhone"
-                    value={settings.schoolPhone || ""}
-                    onChange={(val) => setSettings({ ...settings, schoolPhone: val })}
-                  />
-                </div>
-              </div>
 
-              <div>
-                <Label htmlFor="calendarPreference">System Calendar Preference</Label>
-                <Select
-                  value={calendarPreference}
-                  onValueChange={(val: 'ethiopian' | 'gregorian') => setCalendarPreference(val)}
-                >
-                  <SelectTrigger className="w-full mt-1.5">
-                    <SelectValue placeholder="Select Calendar System" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ethiopian">
-                      Ethiopian Calendar (የኢትዮጵያ ዘመን አቆጣጠር / EC) - Default
-                    </SelectItem>
-                    <SelectItem value="gregorian">
-                      Gregorian Calendar (የፈረንጆች ዘመን አቆጣጠር / GC)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Applies your preferred calendar display (EC / GC) across all school portals while preserving standard database integrity.
-                </p>
+                <div>
+                  <Label htmlFor="calendarPreference">System Calendar Preference</Label>
+                  <Select
+                    value={calendarPreference}
+                    onValueChange={(val: 'ethiopian' | 'gregorian') => setCalendarPreference(val)}
+                  >
+                    <SelectTrigger className="w-full mt-1.5">
+                      <SelectValue placeholder="Select Calendar System" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ethiopian">
+                        Ethiopian Calendar (የኢትዮጵያ ዘመን አቆጣጠር / EC) - Default
+                      </SelectItem>
+                      <SelectItem value="gregorian">
+                        Gregorian Calendar (የፈረንጆች ዘመን አቆጣጠር / GC)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Display calendar (EC / GC) across all portals
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -463,7 +333,18 @@ export function Settings() {
                   onChange={(e) => setSettings({ ...settings, schoolAddress: e.target.value })}
                   placeholder="Enter complete school address"
                   rows={3}
+                  className="mt-1.5"
                 />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={saveSettings}
+                  disabled={isSaving}
+                  className="rounded-xl font-bold px-6 shadow-sm"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </Button>
               </div>
             </CardContent>
           </Card>

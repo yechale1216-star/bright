@@ -51,9 +51,10 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
     }).catch(() => {})
   }, [activeSchool?.id, user?.schoolId])
 
-  const schoolName = activeSchool ? activeSchool.name : (user?.schoolName || "Addis Hiwot")
+  const rawSchoolName = settings?.schoolName || settings?.school_name || activeSchool?.name || user?.schoolName || "Addis Hiwot School"
+  const schoolName = !rawSchoolName || rawSchoolName.trim().toLowerCase() === "addis hiwot" ? "Addis Hiwot School" : rawSchoolName
   const schoolLogo = activeSchool ? (activeSchool.logo || "") : (user?.schoolLogo || "")
-  const logoUrl = schoolLogo || cachedLogo || ""
+  const logoUrl = schoolLogo || cachedLogo || "/addis-hiwot-logo.png"
 
   const handleLogout = async () => {
     await logout()
