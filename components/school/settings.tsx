@@ -17,8 +17,7 @@ import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
-import { parseJsonResponse } from "@/lib/utils/parse-json-response"
-import { Check, Calendar, MapPin, ShieldCheck, Navigation } from "lucide-react"
+import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save } from "lucide-react"
 import { useCalendar } from "@/lib/context/calendar-context"
 
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
@@ -237,7 +236,7 @@ export function Settings() {
   return (
     <div className="space-y-8 pb-32">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1 pt-safe">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1 pt-safe">
         <div>
           <h1 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-normal">
             Settings
@@ -246,10 +245,27 @@ export function Settings() {
             System Configuration & Preferences
           </p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
-          <Badge variant="secondary" className="h-11 px-6 rounded-2xl bg-slate-100 dark:bg-slate-800 border-none font-black text-[10px] uppercase tracking-widest text-slate-600 dark:text-slate-400">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <Badge variant="secondary" className="hidden md:inline-flex h-11 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 border-none font-black text-[10px] uppercase tracking-widest text-slate-600 dark:text-slate-400">
             Admin Panel
           </Badge>
+          <Button
+            onClick={saveSettings}
+            disabled={isSaving}
+            className="w-full sm:w-auto h-11 px-6 rounded-2xl font-black text-[11px] uppercase tracking-wider shadow-md shadow-primary/20 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground transition-all"
+          >
+            {isSaving ? (
+              <>
+                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>Save All Settings</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -277,18 +293,9 @@ export function Settings() {
 
         <TabsContent value="general" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>General Configuration</CardTitle>
-                <CardDescription>Academic year, system calendar, and school address</CardDescription>
-              </div>
-              <Button
-                onClick={saveSettings}
-                disabled={isSaving}
-                className="rounded-xl font-bold px-6 shadow-sm"
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </Button>
+            <CardHeader>
+              <CardTitle>General Configuration</CardTitle>
+              <CardDescription>Academic year, system calendar, and school address</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -455,34 +462,15 @@ export function Settings() {
                   </div>
                 )}
               </div>
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={saveSettings}
-                  disabled={isSaving}
-                  className="rounded-xl font-bold px-6 shadow-sm"
-                >
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="attendance" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Student Attendance Rules</CardTitle>
-                <CardDescription>Configure student attendance tracking preferences</CardDescription>
-              </div>
-              <Button
-                onClick={saveSettings}
-                disabled={isSaving}
-                className="rounded-xl font-bold px-6 shadow-sm"
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </Button>
+            <CardHeader>
+              <CardTitle>Student Attendance Rules</CardTitle>
+              <CardDescription>Configure student attendance tracking preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
@@ -603,16 +591,6 @@ export function Settings() {
                   onCheckedChange={(checked) => setSettings({ ...settings, allowAttendanceEditing: checked })}
                 />
               </div>
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={saveSettings}
-                  disabled={isSaving}
-                  className="rounded-xl font-bold px-6 shadow-sm"
-                >
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -701,19 +679,6 @@ export function Settings() {
             )}
           </Button>
         </div>
-      </div>
-
-      <div className="hidden md:block">
-        <Card className="rounded-[32px] border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-black uppercase tracking-tight">Save Changes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={saveSettings} disabled={isSaving} className="w-full h-11 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20">
-              {isSaving ? "Saving..." : "Save System Settings"}
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

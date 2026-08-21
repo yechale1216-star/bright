@@ -514,7 +514,7 @@ export function StaffScheduleSettingsTab({
 
   return (
     <div className="space-y-8">
-      {/* ── Top Header Action Bar with Save Button ── */}
+      {/* ── Top Header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-[24px] bg-gradient-to-r from-primary/10 via-indigo-500/5 to-cyan-500/10 border border-white/50 dark:border-white/10 backdrop-blur-2xl shadow-xl shadow-primary/5">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-md shadow-primary/25">
@@ -528,17 +528,6 @@ export function StaffScheduleSettingsTab({
               Configure check-in/out windows, late grace periods, absence cutoffs, and working days.
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-          <Button
-            onClick={handleSaveWithValidation}
-            disabled={isSaving || !validationResult.isValid}
-            className="w-full sm:w-auto h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-lg shadow-primary/25 active:scale-95 gap-2"
-          >
-            <Save className={`w-4 h-4 ${isSaving ? "animate-spin" : ""}`} />
-            <span>{isSaving ? "Saving Settings..." : "Save Schedule Settings"}</span>
-          </Button>
         </div>
       </div>
 
@@ -1335,22 +1324,7 @@ export function StaffScheduleSettingsTab({
             </div>
           )}
 
-          {/* Direct Save Button Inside Tab */}
-          <div className="pt-4 border-t border-border/40 flex justify-end">
-            <Button
-              onClick={handleSaveWithValidation}
-              disabled={isSaving || !validationResult.isValid}
-              className={cn(
-                "h-11 px-6 rounded-2xl font-black text-xs uppercase tracking-wider gap-2 shadow-md transition-all",
-                !validationResult.isValid
-                  ? "bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed"
-                  : "bg-primary text-white hover:bg-primary/90 shadow-primary/20"
-              )}
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSaving ? "Saving..." : "Save Schedule Settings"}</span>
-            </Button>
-          </div>
+
         </CardContent>
       </Card>
 
