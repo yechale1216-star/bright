@@ -305,21 +305,31 @@ export function getStaffCheckInStatus(
 
 /**
  * Derives Check-Out status details from record & schedule settings.
+ * Strictly adheres to the lifecycle:
+ * 1. Before check-in is completed: Check-Out = "Awaiting Check-In"
+ * 2. After check-in before check-out: Check-Out = "Not Checked Out"
+ * 3. After check-out: Check-Out = "Checked Out" (or "Early Leave")
+ * 4. When established absent: Check-Out = "Not Applicable"
  */
 export function getStaffCheckOutStatus(
   record?: any,
   settings?: any,
-  sessionConfig?: any
+  sessionConfig?: any,
+  precalculatedCheckIn?: StaffStatusDisplay
 ): StaffStatusDisplay {
   const hasCheckOut = !!record?.checkOutTime
   const hasCheckIn = !!record?.checkInTime
   const checkOutTimeStr = hasCheckOut ? formatAttendanceTime(record.checkOutTime) : "—"
   const rawStatus = (record?.status || "").toUpperCase()
 
+  // Resolve check-in status if not passed
+  const checkIn = precalculatedCheckIn || getStaffCheckInStatus(record, settings, sessionConfig)
+
   // 1. Not checked out yet
   if (!hasCheckOut) {
+    // 1A. Staff member has NOT checked in
     if (!hasCheckIn) {
-      if (rawStatus === "LEAVE") {
+      if (checkIn.status === "LEAVE" || rawStatus === "LEAVE") {
         return {
           status: "LEAVE",
           label: "ON LEAVE",
@@ -333,7 +343,8 @@ export function getStaffCheckOutStatus(
           dotColor: "bg-blue-500",
         }
       }
-      if (rawStatus === "PERMISSION") {
+
+      if (checkIn.status === "PERMISSION" || rawStatus === "PERMISSION") {
         return {
           status: "PERMISSION",
           label: "PERMISSION",
@@ -348,22 +359,38 @@ export function getStaffCheckOutStatus(
         }
       }
 
-      if (rawStatus === "ABSENT") {
+      // Rule 4: When the system has officially determined that the staff member is absent
+      if (checkIn.status === "ABSENT") {
         return {
-          status: "ABSENT",
-          label: "ABSENT",
-          titleLabel: "Absent",
+          status: "NOT_APPLICABLE",
+          label: "NOT APPLICABLE",
+          titleLabel: "Not Applicable",
           timeStr: "—",
           hasTime: false,
-          badgeColor: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
-          badgeBg: "bg-rose-500/15",
-          badgeText: "text-rose-700 dark:text-rose-300",
-          badgeBorder: "border-rose-500/30",
-          dotColor: "bg-rose-500",
+          badgeColor: "bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20",
+          badgeBg: "bg-slate-500/10",
+          badgeText: "text-slate-500 dark:text-slate-400",
+          badgeBorder: "border-slate-500/20",
+          dotColor: "bg-slate-400",
         }
+      }
+
+      // Rule 1: Before check-in is completed (Pending Check-In or Not Started)
+      return {
+        status: "AWAITING_CHECKIN",
+        label: "AWAITING CHECK-IN",
+        titleLabel: "Awaiting Check-In",
+        timeStr: "—",
+        hasTime: false,
+        badgeColor: "bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20",
+        badgeBg: "bg-slate-500/10",
+        badgeText: "text-slate-500 dark:text-slate-400",
+        badgeBorder: "border-slate-500/20",
+        dotColor: "bg-slate-400",
       }
     }
 
+    // 1B. Rule 2: After staff member successfully checks in but has not checked out
     return {
       status: "NOT_CHECKED_OUT",
       label: "NOT CHECKED OUT",
@@ -378,7 +405,7 @@ export function getStaffCheckOutStatus(
     }
   }
 
-  // 2. Has check-out time -> evaluate if Early Leave or On Time
+  // 2. Rule 3: After the staff member checks out
   let isEarlyLeave =
     rawStatus === "EARLY_DEPARTURE" ||
     rawStatus === "EARLY_LEAVE" ||
@@ -421,9 +448,9 @@ export function getStaffCheckOutStatus(
   }
 
   return {
-    status: "ON_TIME",
-    label: "ON TIME",
-    titleLabel: "On Time",
+    status: "CHECKED_OUT",
+    label: "CHECKED OUT",
+    titleLabel: "Checked Out",
     timeStr: checkOutTimeStr,
     fullDateTimeStr: formatFullDateTimeET(record.checkOutTime),
     hasTime: true,
@@ -444,12 +471,12 @@ export function getStaffAttendanceDisplay(
   sessionConfig?: any
 ): StaffAttendanceDisplay {
   const checkIn = getStaffCheckInStatus(record, settings, sessionConfig)
-  const checkOut = getStaffCheckOutStatus(record, settings, sessionConfig)
+  const checkOut = getStaffCheckOutStatus(record, settings, sessionConfig, checkIn)
 
   return {
     checkIn,
     checkOut,
-    overallStatus: record?.status || "NOT_RECORDED",
+    overallStatus: record?.status || (checkIn.status === "ABSENT" ? "ABSENT" : checkIn.status === "PENDING" ? "PENDING" : "NOT_RECORDED"),
     isComplete: !!(record?.checkInTime && record?.checkOutTime),
     faceVerified: !!record?.faceVerified,
     geofenceVerified: !!record?.geofenceVerified,

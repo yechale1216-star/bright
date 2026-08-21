@@ -741,11 +741,11 @@ export function StaffDashboard() {
                       {sessDisplay && (
                         <div className="flex items-center gap-1 mt-0.5">
                           <span className="text-[9px] font-extrabold uppercase px-1 rounded bg-black/20 text-white">
-                            IN: {sessDisplay.checkIn.label}
+                            IN: {sessDisplay.checkIn.titleLabel}
                           </span>
-                          {sessRec.checkOutTime && (
+                          {sessRec?.checkOutTime && (
                             <span className="text-[9px] font-extrabold uppercase px-1 rounded bg-black/20 text-white">
-                              OUT: {sessDisplay.checkOut.label}
+                              OUT: {sessDisplay.checkOut.titleLabel}
                             </span>
                           )}
                         </div>
@@ -780,7 +780,7 @@ export function StaffDashboard() {
                     <Badge
                       className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${display.checkIn.badgeColor}`}
                     >
-                      {display.checkIn.label}
+                      {display.checkIn.titleLabel}
                     </Badge>
                   </div>
                 </div>
@@ -799,7 +799,7 @@ export function StaffDashboard() {
                     <Badge
                       className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${display.checkOut.badgeColor}`}
                     >
-                      {display.checkOut.label}
+                      {display.checkOut.titleLabel}
                     </Badge>
                   </div>
                 </div>

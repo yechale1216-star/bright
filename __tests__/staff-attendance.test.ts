@@ -443,7 +443,7 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkOut.hasTime).toBe(true)
     })
 
-    test("Staff checks in On Time and checks out On Time: both display 'ON TIME'", () => {
+    test("Staff checks in On Time and checks out On Time: check-in is 'On Time' and check-out is 'Checked Out'", () => {
       const record = {
         id: "rec_02",
         userId: "staff_B",
@@ -459,9 +459,9 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkIn.label).toBe("ON TIME")
       expect(display.checkIn.titleLabel).toBe("On Time")
 
-      expect(display.checkOut.status).toBe("ON_TIME")
-      expect(display.checkOut.label).toBe("ON TIME")
-      expect(display.checkOut.titleLabel).toBe("On Time")
+      expect(display.checkOut.status).toBe("CHECKED_OUT")
+      expect(display.checkOut.label).toBe("CHECKED OUT")
+      expect(display.checkOut.titleLabel).toBe("Checked Out")
     })
 
     test("Staff has checked in but NOT checked out yet: Check-Out displays 'NOT CHECKED OUT'", () => {
@@ -487,28 +487,26 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkOut.hasTime).toBe(false)
     })
 
-    test("Staff has NOT checked in: Check-In shows a valid no-check-in status and Check-Out shows 'NOT CHECKED OUT'", () => {
+    test("Staff has NOT checked in yet (before completion): Check-In is Pending and Check-Out is 'Awaiting Check-In' (never Absent)", () => {
       const record = null
 
       const display = getStaffAttendanceDisplay(record, mockSettings)
 
-      // The actual status depends on current EAT time vs configured thresholds:
-      //   Before expectedStartTime  → NOT_STARTED
-      //   Between start & cutoff    → PENDING
-      //   After absence cutoff      → ABSENT
-      //   Past date with no record  → ABSENT
-      // The code does not have a "NOT_CHECKED_IN" status.
       const validNoCheckinStatuses = ["NOT_STARTED", "PENDING", "ABSENT"]
       expect(validNoCheckinStatuses).toContain(display.checkIn.status)
       expect(display.checkIn.timeStr).toBe("—")
       expect(display.checkIn.hasTime).toBe(false)
 
-      expect(display.checkOut.status).toBe("NOT_CHECKED_OUT")
-      expect(display.checkOut.label).toBe("NOT CHECKED OUT")
-      expect(display.checkOut.timeStr).toBe("—")
+      if (display.checkIn.status === "ABSENT") {
+        expect(display.checkOut.status).toBe("NOT_APPLICABLE")
+        expect(display.checkOut.titleLabel).toBe("Not Applicable")
+      } else {
+        expect(display.checkOut.status).toBe("AWAITING_CHECKIN")
+        expect(display.checkOut.titleLabel).toBe("Awaiting Check-In")
+      }
     })
 
-    test("Staff marked ABSENT: displays 'ABSENT' consistently", () => {
+    test("Staff officially determined ABSENT: Check-In is 'Absent' and Check-Out is 'Not Applicable'", () => {
       const record = {
         id: "rec_04",
         userId: "staff_D",
@@ -523,6 +521,10 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkIn.status).toBe("ABSENT")
       expect(display.checkIn.label).toBe("ABSENT")
       expect(display.checkIn.titleLabel).toBe("Absent")
+
+      expect(display.checkOut.status).toBe("NOT_APPLICABLE")
+      expect(display.checkOut.label).toBe("NOT APPLICABLE")
+      expect(display.checkOut.titleLabel).toBe("Not Applicable")
     })
 
     test("Session Isolation: Afternoon session displays 'PENDING' when Morning cutoff has passed and Afternoon cutoff has not", () => {
@@ -546,7 +548,8 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
 
       // When afternoon cutoff has not elapsed, Check-In must be NOT_STARTED or PENDING (never falsely marked ABSENT from morning)
       expect(["NOT_STARTED", "PENDING"]).toContain(display.checkIn.status)
-      expect(display.checkOut.status).toBe("NOT_CHECKED_OUT")
+      expect(display.checkOut.status).toBe("AWAITING_CHECKIN")
+      expect(display.checkOut.titleLabel).toBe("Awaiting Check-In")
     })
   })
 

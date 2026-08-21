@@ -807,7 +807,7 @@ export function StaffAttendance() {
                           <Badge
                             className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${display.checkOut.badgeColor}`}
                           >
-                            {display.checkOut.label}
+                            {display.checkOut.titleLabel}
                           </Badge>
                         </div>
                       </div>
