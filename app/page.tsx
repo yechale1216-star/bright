@@ -247,7 +247,7 @@ export default function Page() {
         <p className="font-medium text-slate-300">
           &copy; {new Date().getFullYear()} {SCHOOL_FULL_NAME} ({SCHOOL_AMHARIC_NAME}) &bull; All Rights Reserved.
         </p>
-        <p className="font-bold tracking-wide text-blue-400">
+        <p className="font-bold tracking-wide text-[#FF8000]">
           {DEVELOPER_ATTRIBUTION}
         </p>
       </footer>

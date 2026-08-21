@@ -23,7 +23,7 @@ export function DeveloperBrand({
   return (
     <div
       className={cn(
-        'flex items-center gap-1 select-none transition-all duration-300',
+        'flex items-center gap-1.5 select-none transition-all duration-300',
         align === 'center' && 'justify-center text-center',
         align === 'left' && 'justify-start text-left',
         align === 'right' && 'justify-end text-right',
@@ -32,16 +32,16 @@ export function DeveloperBrand({
     >
       <span
         className={cn(
-          'font-medium text-slate-500/80 dark:text-slate-400/80',
-          size === 'sm' ? 'text-[10px]' : 'text-[11px]'
+          'font-semibold text-slate-700 dark:text-slate-300 tracking-normal',
+          size === 'sm' ? 'text-[11px]' : 'text-xs'
         )}
       >
         {prefix}
       </span>
       <span
         className={cn(
-          'font-bold tracking-wide bg-gradient-to-r from-[#2563EB] via-[#06B6DA] to-[#7C3AED] bg-clip-text text-transparent hover:brightness-110 transition-all',
-          size === 'sm' ? 'text-[10px]' : 'text-[11px]'
+          'font-black tracking-wide text-[#FF8000] hover:brightness-110 transition-all drop-shadow-[0_0_12px_rgba(255,128,0,0.35)]',
+          size === 'sm' ? 'text-[11px]' : 'text-xs'
         )}
       >
         Yechale

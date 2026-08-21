@@ -131,8 +131,8 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
           {renderAuthForm()}
         </div>
 
-        <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500 flex flex-col items-center gap-2">
-          <div className="text-[10px] text-slate-500/50 dark:text-slate-400/50 font-medium uppercase tracking-[0.25em]">
+        <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500 flex flex-col items-center gap-2.5">
+          <div className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-[0.2em]">
             &copy; {new Date().getFullYear()} Addis Hiwot &bull; Management Suite
           </div>
           <DeveloperBrand type="developed" />

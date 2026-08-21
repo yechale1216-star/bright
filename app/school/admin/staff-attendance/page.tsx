@@ -1106,20 +1106,37 @@ export default function AdminStaffAttendanceDashboard() {
                 <option value="PERMISSION">Permission</option>
               </select>
 
-              {/* Session Filter (visible in Session-Based mode) */}
+              {/* Session Filter Tabs (visible in Session-Based mode) */}
               {isSessionMode && (
-                <select
-                  value={sessionFilter}
-                  onChange={(e) => setSessionFilter(e.target.value)}
-                  className="h-9 px-3 rounded-xl border border-primary/30 bg-primary/5 text-primary text-xs font-bold focus:outline-none"
-                >
-                  <option value="all">All Sessions</option>
+                <div className="flex items-center gap-1 p-1 rounded-xl bg-white/70 dark:bg-slate-950/70 border border-white/40 dark:border-white/10 h-9">
+                  <button
+                    type="button"
+                    onClick={() => setSessionFilter("all")}
+                    className={cn(
+                      "h-7 px-3 rounded-lg text-[11px] font-bold transition-all",
+                      sessionFilter === "all"
+                        ? "bg-primary text-white shadow-sm shadow-primary/30"
+                        : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                    )}
+                  >
+                    All
+                  </button>
                   {staffSessions.map((sess: any) => (
-                    <option key={sess.id} value={sess.id}>
-                      {sess.name} ({formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)})
-                    </option>
+                    <button
+                      key={sess.id}
+                      type="button"
+                      onClick={() => setSessionFilter(sess.id)}
+                      className={cn(
+                        "h-7 px-3 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap",
+                        sessionFilter === sess.id
+                          ? "bg-primary text-white shadow-sm shadow-primary/30"
+                          : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                      )}
+                    >
+                      {sess.name}
+                    </button>
                   ))}
-                </select>
+                </div>
               )}
 
               {/* Geofence */}

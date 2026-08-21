@@ -66,6 +66,26 @@ router.get('/me/streams', async (_req, res, next) => {
         next(error);
     }
 });
+// Create or upsert school
+router.post('/', async (req, res, next) => {
+    try {
+        const school = await schoolService.createSchool(req.body);
+        res.status(200).json({ success: true, data: school });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// Update school by ID
+router.put('/:id', async (req, res, next) => {
+    try {
+        const school = await schoolService.updateSchool(req.params.id, req.body);
+        res.status(200).json({ success: true, data: school });
+    }
+    catch (error) {
+        next(error);
+    }
+});
 // Get school by ID
 router.get('/:id', async (req, res, next) => {
     try {
