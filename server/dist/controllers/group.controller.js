@@ -41,17 +41,15 @@ const db_1 = __importDefault(require("../config/db"));
 // ── Create Group ─────────────────────────────────────────────────────────────
 const createGroup = async (req, res) => {
     const { name, description, groupType, isAnnouncement, memberIds, avatar } = req.body;
-    const schoolId = req.user?.schoolId;
     const creatorId = req.user?.id;
-    if (!schoolId || !creatorId)
+    if (!creatorId)
         return res.status(401).json({ error: 'Unauthorized' });
     if (!name?.trim())
         return res.status(400).json({ error: 'Group name is required' });
     try {
-        // Ensure all members belong to this school
         const allMemberIds = Array.from(new Set([creatorId, ...(memberIds || [])]));
         const users = await db_1.default.user.findMany({
-            where: { id: { in: allMemberIds }, schoolId },
+            where: { id: { in: allMemberIds } },
             select: { id: true },
         });
         const validIds = new Set(users.map((u) => u.id));
@@ -64,7 +62,6 @@ const createGroup = async (req, res) => {
                 isAnnouncement: isAnnouncement || false,
                 isGroup: true,
                 avatar: avatar || null,
-                schoolId,
                 createdBy: creatorId,
                 members: {
                     create: filteredIds.map((userId) => ({
@@ -92,13 +89,11 @@ exports.createGroup = createGroup;
 // ── Get Group Details ─────────────────────────────────────────────────────────
 const getGroup = async (req, res) => {
     const { id } = req.params;
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
     try {
         const group = await db_1.default.conversation.findFirst({
             where: {
                 id,
-                schoolId,
                 isGroup: true,
                 members: { some: { userId } },
             },
@@ -141,7 +136,6 @@ exports.getGroup = getGroup;
 const updateGroup = async (req, res) => {
     const { id } = req.params;
     const { name, description, avatar, isAnnouncement } = req.body;
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
     try {
         const member = await db_1.default.conversationMember.findFirst({
@@ -150,7 +144,7 @@ const updateGroup = async (req, res) => {
         if (!member)
             return res.status(403).json({ error: 'Only admins can update group settings' });
         const updated = await db_1.default.conversation.update({
-            where: { id, schoolId },
+            where: { id },
             data: {
                 ...(name ? { name: name.trim() } : {}),
                 ...(description !== undefined ? { description } : {}),
@@ -169,7 +163,6 @@ exports.updateGroup = updateGroup;
 // ── Delete Group ──────────────────────────────────────────────────────────────
 const deleteGroup = async (req, res) => {
     const { id } = req.params;
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
     try {
         const member = await db_1.default.conversationMember.findFirst({
@@ -177,7 +170,7 @@ const deleteGroup = async (req, res) => {
         });
         if (!member)
             return res.status(403).json({ error: 'Only group owner can delete the group' });
-        await db_1.default.conversation.delete({ where: { id, schoolId } });
+        await db_1.default.conversation.delete({ where: { id } });
         res.json({ success: true });
     }
     catch (error) {
@@ -190,7 +183,6 @@ exports.deleteGroup = deleteGroup;
 const addMembers = async (req, res) => {
     const { id } = req.params;
     const { memberIds } = req.body;
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
     try {
         const requester = await db_1.default.conversationMember.findFirst({
@@ -198,20 +190,10 @@ const addMembers = async (req, res) => {
         });
         if (!requester)
             return res.status(403).json({ error: 'Only admins can add members' });
-        // Validate new members belong to school
         const validUsers = await db_1.default.user.findMany({
-            where: { id: { in: memberIds }, schoolId },
+            where: { id: { in: memberIds } },
             select: { id: true },
         });
-        const toAdd = validUsers
-            .map((u) => u.id)
-            .filter(async (uid) => {
-            const existing = await db_1.default.conversationMember.findFirst({
-                where: { conversationId: id, userId: uid },
-            });
-            return !existing;
-        });
-        // Upsert to avoid duplicates
         for (const uid of validUsers.map((u) => u.id)) {
             await db_1.default.conversationMember.upsert({
                 where: { conversationId_userId: { conversationId: id, userId: uid } },
@@ -240,17 +222,14 @@ exports.addMembers = addMembers;
 // ── Remove Member ─────────────────────────────────────────────────────────────
 const removeMember = async (req, res) => {
     const { id, userId: targetUserId } = req.params;
-    const schoolId = req.user?.schoolId;
     const requesterId = req.user?.id;
     try {
-        // Can remove self, or admin/owner can remove others
         if (requesterId !== targetUserId) {
             const requester = await db_1.default.conversationMember.findFirst({
                 where: { conversationId: id, userId: requesterId, role: { in: ['OWNER', 'ADMIN'] } },
             });
             if (!requester)
                 return res.status(403).json({ error: 'Insufficient permissions' });
-            // Owners cannot be removed by admins
             const target = await db_1.default.conversationMember.findFirst({
                 where: { conversationId: id, userId: targetUserId },
             });
@@ -271,7 +250,7 @@ exports.removeMember = removeMember;
 // ── Update Member Role ────────────────────────────────────────────────────────
 const updateMemberRole = async (req, res) => {
     const { id, userId: targetUserId } = req.params;
-    const { role } = req.body; // 'ADMIN' | 'MEMBER'
+    const { role } = req.body;
     const requesterId = req.user?.id;
     if (!['ADMIN', 'MEMBER'].includes(role)) {
         return res.status(400).json({ error: 'Invalid role. Must be ADMIN or MEMBER' });
@@ -304,10 +283,9 @@ exports.getGroupMedia = getGroupMedia;
 const pinMessage = async (req, res) => {
     const { messageId } = req.params;
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     try {
-        const message = await db_1.default.message.findFirst({
-            where: { id: messageId, schoolId },
+        const message = await db_1.default.message.findUnique({
+            where: { id: messageId },
         });
         if (!message)
             return res.status(404).json({ error: 'Message not found' });
@@ -355,9 +333,8 @@ exports.pinMessage = pinMessage;
 const unpinMessage = async (req, res) => {
     const { messageId } = req.params;
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     try {
-        const message = await db_1.default.message.findFirst({ where: { id: messageId, schoolId } });
+        const message = await db_1.default.message.findUnique({ where: { id: messageId } });
         if (!message)
             return res.status(404).json({ error: 'Message not found' });
         const conversation = await db_1.default.conversation.findUnique({
@@ -399,12 +376,11 @@ const editMessage = async (req, res) => {
     const { messageId } = req.params;
     const { content } = req.body;
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     if (!content?.trim())
         return res.status(400).json({ error: 'Content cannot be empty' });
     try {
         const message = await db_1.default.message.findFirst({
-            where: { id: messageId, schoolId, senderId: userId },
+            where: { id: messageId, senderId: userId },
         });
         if (!message)
             return res.status(404).json({ error: 'Message not found or not yours' });
@@ -424,14 +400,12 @@ exports.editMessage = editMessage;
 const deleteMessage = async (req, res) => {
     const { messageId } = req.params;
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     try {
-        const message = await db_1.default.message.findFirst({
-            where: { id: messageId, schoolId },
+        const message = await db_1.default.message.findUnique({
+            where: { id: messageId },
         });
         if (!message)
             return res.status(404).json({ error: 'Message not found' });
-        // Allow sender to delete their own, admins can delete anyone's
         if (message.senderId !== userId) {
             const member = await db_1.default.conversationMember.findFirst({
                 where: {
@@ -460,7 +434,6 @@ const toggleReaction = async (req, res) => {
     const { messageId } = req.params;
     const { emoji } = req.body;
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     if (!emoji)
         return res.status(400).json({ error: 'Emoji is required' });
     try {
@@ -472,7 +445,7 @@ const toggleReaction = async (req, res) => {
             return res.json({ action: 'removed', emoji });
         }
         await db_1.default.messageReaction.create({
-            data: { messageId, userId: userId, emoji, schoolId },
+            data: { messageId, userId: userId, emoji },
         });
         res.json({ action: 'added', emoji });
     }
@@ -484,7 +457,7 @@ const toggleReaction = async (req, res) => {
 exports.toggleReaction = toggleReaction;
 // ── Mute/Unmute Member ────────────────────────────────────────────────────────
 const toggleMute = async (req, res) => {
-    const { id } = req.params; // conversationId
+    const { id } = req.params;
     const { muted, mutedUntil } = req.body;
     const userId = req.user?.id;
     try {

@@ -35,46 +35,43 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const settingsService = __importStar(require("../services/settings.service"));
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const holidayService = __importStar(require("../services/holiday.service"));
 const router = (0, express_1.Router)();
-// Get settings for a school
-router.get('/', async (req, res, next) => {
+// Get settings
+router.get('/', async (_req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const settings = await settingsService.getSettings(schoolId);
+        const settings = await settingsService.getSettings();
         res.status(200).json({ success: true, data: settings });
     }
     catch (error) {
         next(error);
     }
 });
-// Update settings for a school
+// Update settings
 router.put('/', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const settings = await settingsService.updateSettings(schoolId, req.body);
+        const settings = await settingsService.updateSettings(undefined, req.body);
         res.status(200).json({ success: true, data: settings });
     }
     catch (error) {
+        if (error instanceof settingsService.ScheduleValidationError) {
+            return res.status(400).json({
+                success: false,
+                message: error.message,
+                errors: error.errors,
+            });
+        }
         next(error);
     }
 });
-// ─── Holiday & Non-Working Days Routes ────────────────────────────────────────
-const holidayService = __importStar(require("../services/holiday.service"));
-const auth_middleware_1 = require("../middleware/auth.middleware");
-// GET /api/settings/holidays — list holidays for the school
+// GET /api/settings/holidays — list holidays
 router.get('/holidays', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const includeInactive = req.query.includeInactive === 'true';
         const startDate = req.query.startDate;
         const endDate = req.query.endDate;
-        const holidays = await holidayService.getSchoolHolidays(schoolId, { startDate, endDate, includeInactive });
+        const holidays = await holidayService.getSchoolHolidays(undefined, { startDate, endDate, includeInactive });
         res.status(200).json({ success: true, data: holidays });
     }
     catch (error) {
@@ -84,11 +81,8 @@ router.get('/holidays', async (req, res, next) => {
 // GET /api/settings/is-working-day — check working day status for a specific date
 router.get('/is-working-day', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const date = req.query.date;
-        const status = await holidayService.isDateWorkingDay(schoolId, date);
+        const status = await holidayService.isDateWorkingDay(undefined, date);
         res.status(200).json({ success: true, data: status });
     }
     catch (error) {
@@ -96,12 +90,9 @@ router.get('/is-working-day', async (req, res, next) => {
     }
 });
 // POST /api/settings/holidays — create holiday (admin only)
-router.post('/holidays', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.post('/holidays', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, _next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const holiday = await holidayService.createSchoolHoliday(schoolId, req.body);
+        const holiday = await holidayService.createSchoolHoliday(undefined, req.body);
         res.status(201).json({ success: true, data: holiday, message: 'Holiday created successfully.' });
     }
     catch (error) {
@@ -109,12 +100,9 @@ router.post('/holidays', (0, auth_middleware_1.authorize)(['admin', 'school_admi
     }
 });
 // PUT /api/settings/holidays/:id — update holiday (admin only)
-router.put('/holidays/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.put('/holidays/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, _next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const holiday = await holidayService.updateSchoolHoliday(req.params.id, schoolId, req.body);
+        const holiday = await holidayService.updateSchoolHoliday(req.params.id, undefined, req.body);
         res.status(200).json({ success: true, data: holiday, message: 'Holiday updated successfully.' });
     }
     catch (error) {
@@ -122,12 +110,9 @@ router.put('/holidays/:id', (0, auth_middleware_1.authorize)(['admin', 'school_a
     }
 });
 // DELETE /api/settings/holidays/:id — delete holiday (admin only)
-router.delete('/holidays/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.delete('/holidays/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, _next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        await holidayService.deleteSchoolHoliday(req.params.id, schoolId);
+        await holidayService.deleteSchoolHoliday(req.params.id, undefined);
         res.status(200).json({ success: true, message: 'Holiday deleted successfully.' });
     }
     catch (error) {

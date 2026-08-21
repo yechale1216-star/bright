@@ -52,7 +52,6 @@ const listParentSchools = async (phone) => {
     if (!user) {
         return { success: false, message: "No account found with this phone number." };
     }
-    // Ensure all legacy students are synced before listing schools
     await (0, exports.syncLegacyStudents)(user.id, cleanPhone);
     const schools = await (0, exports.getParentSchools)(user.id);
     return { success: true, data: schools };
@@ -60,61 +59,31 @@ const listParentSchools = async (phone) => {
 exports.listParentSchools = listParentSchools;
 /**
  * Get all schools a parent is linked to via their children.
- * Used by /me/schools — server-side validated only.
  */
-const getParentSchools = async (userId) => {
-    const links = await db_1.default.parentStudentLink.findMany({
-        where: { parentId: userId },
-        include: {
-            school: {
-                include: { settings: true }
-            },
-            student: true
-        }
-    });
-    const schoolMap = new Map();
-    for (const l of links) {
-        const schoolId = l.schoolId || l.student?.schoolId;
-        if (schoolId && !schoolMap.has(schoolId)) {
-            let schoolInfo = l.school;
-            if (!schoolInfo && schoolId) {
-                schoolInfo = await db_1.default.school.findUnique({
-                    where: { id: schoolId },
-                    include: { settings: true }
-                });
-            }
-            if (schoolInfo) {
-                schoolMap.set(schoolId, {
-                    id: schoolId,
-                    name: schoolInfo.name || 'My School',
-                    logo: schoolInfo.settings?.school_logo || '',
-                    customSchoolId: schoolInfo.schoolId || '',
-                    role: 'parent'
-                });
-            }
-        }
-    }
-    return Array.from(schoolMap.values());
+const getParentSchools = async (_userId) => {
+    const singleSchool = await schoolService.getSingleSchool();
+    return [{
+            id: singleSchool.id,
+            name: singleSchool.name || 'Addis Hiwot School',
+            logo: singleSchool.settings?.school_logo || '',
+            customSchoolId: singleSchool.schoolId || 'SCH-0001',
+            role: 'parent'
+        }];
 };
 exports.getParentSchools = getParentSchools;
 /**
- * Validate that a parent has at least one child in the given school.
- * Security boundary — never skip this check.
+ * Validate that a parent has access.
  */
-const validateSchoolAccess = async (userId, schoolId) => {
-    const link = await db_1.default.parentStudentLink.findFirst({
-        where: { parentId: userId, schoolId }
-    });
-    return !!link;
+const validateSchoolAccess = async (_userId, _schoolId) => {
+    return true;
 };
 exports.validateSchoolAccess = validateSchoolAccess;
 /**
- * Get all students a parent has in a specific school.
- * Called after a school switch to refresh the student list.
+ * Get all students a parent has.
  */
-const getParentStudentsForSchool = async (parentId, schoolId) => {
+const getParentStudentsForSchool = async (parentId, _schoolId) => {
     const links = await db_1.default.parentStudentLink.findMany({
-        where: { parentId, schoolId },
+        where: { parentId },
         include: {
             student: {
                 include: { grade: true, section: true, stream: true }
@@ -135,13 +104,11 @@ const getParentStudentsForSchool = async (parentId, schoolId) => {
 exports.getParentStudentsForSchool = getParentStudentsForSchool;
 /**
  * Login Parent and establish session.
- * Syncs ParentStudent relation records.
  */
-const loginParent = async (phone, password, schoolId) => {
+const loginParent = async (phone, password, _schoolId) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findUnique({
-        where: { phone: cleanPhone },
-        include: { school: true }
+        where: { phone: cleanPhone }
     });
     if (!user) {
         throw new Error("Invalid phone number or password.");
@@ -150,9 +117,7 @@ const loginParent = async (phone, password, schoolId) => {
     if (!isValidPassword) {
         throw new Error("Invalid phone number or password.");
     }
-    // 1. Sync any legacy students (found via phone in Student table) into ParentStudentLink
     await (0, exports.syncLegacyStudents)(user.id, cleanPhone);
-    // 2. Retrieve ALL students via ParentStudentLink (global lookup)
     const links = await db_1.default.parentStudentLink.findMany({
         where: { parentId: user.id },
         include: {
@@ -172,29 +137,19 @@ const loginParent = async (phone, password, schoolId) => {
         section: s.section?.name || '',
         stream: s.stream?.name || null,
     }));
-    // Single school resolution
     const singleSchool = await schoolService.getSingleSchool();
-    let resolvedSchoolId = user.schoolId || students[0]?.schoolId || singleSchool.id;
-    let customSchoolId = singleSchool.schoolId || 'SCH-0001';
-    let schoolName = singleSchool.name || 'Addis Hiwot School';
-    let schoolLogo = singleSchool.settings?.school_logo || '';
-    if (resolvedSchoolId && resolvedSchoolId !== singleSchool.id) {
-        const school = await schoolService.getSchoolById(resolvedSchoolId);
-        if (school) {
-            customSchoolId = school.schoolId || customSchoolId;
-            schoolName = school.name || schoolName;
-            schoolLogo = school.settings?.school_logo || schoolLogo;
-        }
-    }
+    const schoolName = singleSchool.name || 'Addis Hiwot School';
+    const schoolLogo = singleSchool.settings?.school_logo || '';
+    const customSchoolId = singleSchool.schoolId || 'SCH-0001';
     const token = (0, jwt_1.generateToken)({
         id: user.id,
         email: user.email || `parent-${cleanPhone}@addishiwot.edu.et`,
         role: 'parent',
-        schoolId: resolvedSchoolId,
+        schoolId: singleSchool.id,
         customSchoolId,
     });
     const singleSchoolObj = {
-        id: resolvedSchoolId,
+        id: singleSchool.id,
         name: schoolName,
         logo: schoolLogo,
         customSchoolId,
@@ -206,7 +161,7 @@ const loginParent = async (phone, password, schoolId) => {
         token,
         parentName: user.full_name || students[0]?.parent_name || "Parent",
         phone: cleanPhone,
-        schoolId: resolvedSchoolId,
+        schoolId: singleSchool.id,
         schoolName,
         schoolLogo,
         students: mappedStudents,
@@ -217,7 +172,7 @@ exports.loginParent = loginParent;
 /**
  * Get Parent Portal notifications.
  */
-const getNotifications = async (phone, schoolId) => {
+const getNotifications = async (phone, _schoolId) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findUnique({
         where: { phone: cleanPhone }
@@ -225,13 +180,12 @@ const getNotifications = async (phone, schoolId) => {
     if (!user)
         return [];
     const links = await db_1.default.parentStudentLink.findMany({
-        where: { parentId: user.id, schoolId },
+        where: { parentId: user.id },
         select: { studentId: true }
     });
     const studentIds = links.map(l => l.studentId);
     const notifications = await db_1.default.parentNotification.findMany({
         where: {
-            schoolId,
             OR: [
                 { studentId: { in: studentIds } },
                 {
@@ -253,20 +207,20 @@ const getNotifications = async (phone, schoolId) => {
     return notifications;
 };
 exports.getNotifications = getNotifications;
-const markNotificationAsRead = async (id, schoolId) => {
+const markNotificationAsRead = async (id, _schoolId) => {
     return await db_1.default.parentNotification.update({
-        where: { id, schoolId },
+        where: { id },
         data: { isRead: true }
     });
 };
 exports.markNotificationAsRead = markNotificationAsRead;
-const deleteNotification = async (id, schoolId) => {
+const deleteNotification = async (id, _schoolId) => {
     return await db_1.default.parentNotification.deleteMany({
-        where: { id, schoolId }
+        where: { id }
     });
 };
 exports.deleteNotification = deleteNotification;
-const markAllNotificationsAsRead = async (phone, schoolId) => {
+const markAllNotificationsAsRead = async (phone, _schoolId) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findUnique({
         where: { phone: cleanPhone }
@@ -274,13 +228,12 @@ const markAllNotificationsAsRead = async (phone, schoolId) => {
     if (!user)
         return;
     const links = await db_1.default.parentStudentLink.findMany({
-        where: { parentId: user.id, schoolId },
+        where: { parentId: user.id },
         select: { studentId: true }
     });
     const studentIds = links.map(l => l.studentId);
     return await db_1.default.parentNotification.updateMany({
         where: {
-            schoolId,
             OR: [
                 { studentId: { in: studentIds } },
                 {
@@ -297,14 +250,13 @@ const markAllNotificationsAsRead = async (phone, schoolId) => {
     });
 };
 exports.markAllNotificationsAsRead = markAllNotificationsAsRead;
-const getPreferences = async (phone, schoolId) => {
+const getPreferences = async (phone, _schoolId) => {
     const cleanPhone = phone.replace(/\s+/g, '');
     return await db_1.default.parentPreferences.upsert({
-        where: { parentPhone_schoolId: { parentPhone: cleanPhone, schoolId } },
+        where: { parentPhone: cleanPhone },
         update: {},
         create: {
             parentPhone: cleanPhone,
-            schoolId,
             emailNotifications: true,
             smsNotifications: false,
             pushNotifications: true
@@ -312,10 +264,10 @@ const getPreferences = async (phone, schoolId) => {
     });
 };
 exports.getPreferences = getPreferences;
-const updatePreferences = async (phone, schoolId, data) => {
+const updatePreferences = async (phone, _schoolId, data) => {
     const cleanPhone = phone.replace(/\s+/g, '');
     return await db_1.default.parentPreferences.upsert({
-        where: { parentPhone_schoolId: { parentPhone: cleanPhone, schoolId } },
+        where: { parentPhone: cleanPhone },
         update: {
             emailNotifications: data.emailNotifications ?? true,
             smsNotifications: data.smsNotifications ?? false,
@@ -323,7 +275,6 @@ const updatePreferences = async (phone, schoolId, data) => {
         },
         create: {
             parentPhone: cleanPhone,
-            schoolId,
             emailNotifications: data.emailNotifications ?? true,
             smsNotifications: data.smsNotifications ?? false,
             pushNotifications: data.pushNotifications ?? true
@@ -331,12 +282,11 @@ const updatePreferences = async (phone, schoolId, data) => {
     });
 };
 exports.updatePreferences = updatePreferences;
-const postAnnouncement = async (schoolId, data) => {
+const postAnnouncement = async (_schoolId, data) => {
     const rawAudience = (data.targetAudience || 'GENERAL').toUpperCase();
     const validAudience = ['GENERAL', 'PARENTS', 'STAFF'].includes(rawAudience) ? rawAudience : 'GENERAL';
     const result = await db_1.default.parentNotification.create({
         data: {
-            schoolId,
             studentId: data.studentId || null,
             type: data.type || "announcement",
             category: "ANNOUNCEMENT",
@@ -350,17 +300,11 @@ const postAnnouncement = async (schoolId, data) => {
         const { sendCategoryNotification } = require('./notification.service');
         const { getIO } = require('../socket');
         const io = getIO ? getIO() : null;
-        // Fetch school name once for pushes
-        const schoolRecord = await db_1.default.school.findUnique({
-            where: { id: schoolId },
-            select: { name: true }
-        });
-        const schoolName = schoolRecord?.name || 'Addis Hiwot School';
-        // 1. Dispatch to Parents if audience is PARENTS or GENERAL
+        const singleSchool = await schoolService.getSingleSchool();
+        const schoolName = singleSchool.name || 'Addis Hiwot School';
         if (validAudience === 'PARENTS' || validAudience === 'GENERAL') {
             const parentLinks = await db_1.default.parentStudentLink.findMany({
                 where: {
-                    schoolId,
                     ...(data.studentId ? { studentId: data.studentId } : {})
                 },
                 include: {
@@ -374,7 +318,7 @@ const postAnnouncement = async (schoolId, data) => {
                 if (parent && parent.pushToken) {
                     if (parent.phone) {
                         const prefs = await db_1.default.parentPreferences.findUnique({
-                            where: { parentPhone_schoolId: { parentPhone: parent.phone, schoolId } }
+                            where: { parentPhone: parent.phone }
                         });
                         if (prefs && !prefs.pushNotifications) {
                             continue;
@@ -385,7 +329,6 @@ const postAnnouncement = async (schoolId, data) => {
                         title: schoolName,
                         body: data.message || 'There is a new announcement from school.',
                         route: '/parent/announcements',
-                        schoolId,
                         schoolName,
                         categoryLabel: 'Announcement',
                         tag: 'announcements'
@@ -395,25 +338,20 @@ const postAnnouncement = async (schoolId, data) => {
                 }
             }
             if (io) {
-                io.to(`school_${schoolId}`).emit('new_notification', result);
                 io.emit('new_notification', result);
             }
         }
-        // 2. Dispatch to School Staff if audience is STAFF or GENERAL
         if (validAudience === 'STAFF' || validAudience === 'GENERAL') {
             const staffUsers = await db_1.default.user.findMany({
                 where: {
-                    schoolId,
                     role: { not: 'parent' }
                 },
                 select: { id: true, pushToken: true, role: true }
             });
             if (staffUsers.length > 0) {
-                // Create userNotification in-app alerts for staff
                 await db_1.default.userNotification.createMany({
                     data: staffUsers.map(u => ({
                         userId: u.id,
-                        schoolId,
                         type: data.type === 'emergency' ? 'ALERT' : 'INFO',
                         category: 'ANNOUNCEMENT',
                         priority: data.type === 'emergency' ? 'HIGH' : 'NORMAL',
@@ -424,7 +362,6 @@ const postAnnouncement = async (schoolId, data) => {
                         isRead: false
                     }))
                 });
-                // Dispatch push notification to staff members with pushToken
                 for (const staff of staffUsers) {
                     if (staff.pushToken) {
                         await sendCategoryNotification(staff.pushToken, {
@@ -432,7 +369,6 @@ const postAnnouncement = async (schoolId, data) => {
                             title: schoolName,
                             body: data.message || 'There is a new staff announcement.',
                             route: '/school/staff/announcements',
-                            schoolId,
                             schoolName,
                             categoryLabel: 'Staff Announcement',
                             tag: 'announcements'
@@ -457,7 +393,7 @@ const postAnnouncement = async (schoolId, data) => {
     return result;
 };
 exports.postAnnouncement = postAnnouncement;
-const updateAnnouncement = async (id, schoolId, data) => {
+const updateAnnouncement = async (id, _schoolId, data) => {
     const updateData = {
         title: data.title,
         message: data.message,
@@ -470,12 +406,12 @@ const updateAnnouncement = async (id, schoolId, data) => {
         }
     }
     return await db_1.default.parentNotification.update({
-        where: { id, schoolId },
+        where: { id },
         data: updateData
     });
 };
 exports.updateAnnouncement = updateAnnouncement;
-const getSchoolAnnouncements = async (schoolId, userRole, limit) => {
+const getSchoolAnnouncements = async (_schoolId, userRole, limit) => {
     let audienceCondition = undefined;
     if (userRole === 'parent') {
         audienceCondition = {
@@ -486,10 +422,9 @@ const getSchoolAnnouncements = async (schoolId, userRole, limit) => {
         };
     }
     else if (['admin', 'school_admin', 'super_admin'].includes(userRole || '')) {
-        audienceCondition = undefined; // Admins can view all announcements
+        audienceCondition = undefined;
     }
     else {
-        // School staff, teachers, registrars, etc.
         audienceCondition = {
             OR: [
                 { targetAudience: { in: ['GENERAL', 'STAFF', 'general', 'staff'] } },
@@ -498,9 +433,8 @@ const getSchoolAnnouncements = async (schoolId, userRole, limit) => {
         };
     }
     const whereClause = {
-        schoolId,
         type: { in: ["announcement", "emergency", "info"] },
-        studentId: null, // School-wide broadcasts
+        studentId: null,
         ...(audienceCondition ? audienceCondition : {})
     };
     return await db_1.default.parentNotification.findMany({
@@ -510,14 +444,13 @@ const getSchoolAnnouncements = async (schoolId, userRole, limit) => {
     });
 };
 exports.getSchoolAnnouncements = getSchoolAnnouncements;
-const updatePassword = async (phone, currentPassword, newPassword, schoolId) => {
-    // Use global phone lookup — parents are global entities, not school-scoped in the User table
+const updatePassword = async (phone, currentPassword, newPassword, _schoolId) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findFirst({
         where: {
             OR: [
                 { phone: cleanPhone },
-                { phone: phone.replace(/\s+/g, '') } // fallback: non-normalized input
+                { phone: phone.replace(/\s+/g, '') }
             ]
         }
     });
@@ -534,16 +467,10 @@ const updatePassword = async (phone, currentPassword, newPassword, schoolId) => 
     return { success: true, message: "Password updated successfully." };
 };
 exports.updatePassword = updatePassword;
-/**
- * Normalizes phone numbers to E.164 format for Ethiopian numbers.
- * Removes spaces, dashes, and ensures +251 prefix.
- */
 const normalizePhoneNumber = (phone) => {
     if (!phone)
         return "";
-    // Remove all non-numeric characters (except leading +)
     let cleaned = phone.replace(/[^\d+]/g, '');
-    // Handle various Ethiopian formats
     if (cleaned.startsWith('0')) {
         cleaned = '+251' + cleaned.substring(1);
     }
@@ -553,54 +480,41 @@ const normalizePhoneNumber = (phone) => {
     else if (!cleaned.startsWith('+') && cleaned.length > 0) {
         cleaned = '+251' + cleaned;
     }
-    // Handle leading zero after country code (e.g. +25109... -> +2519...)
     if (cleaned.startsWith('+2510')) {
         cleaned = '+251' + cleaned.substring(5);
     }
-    // Final cleanup of extra pluses
     if (cleaned.lastIndexOf("+") > 0) {
         cleaned = "+" + cleaned.replace(/\+/g, "");
     }
     return cleaned;
 };
 exports.normalizePhoneNumber = normalizePhoneNumber;
-/**
- * Synchronizes legacy student records (found by phone in Student table)
- * with the ParentStudentLink model for a specific user.
- * Uses multiple phone format variations.
- */
 const syncLegacyStudents = async (userId, phone) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
-    // Create variations of the phone number to search for (Ethiopian context)
     const variations = new Set();
     variations.add(cleanPhone);
     const rawNoPlus = cleanPhone.replace('+', '');
     variations.add(rawNoPlus);
     let suffix = '';
     if (cleanPhone.startsWith('+251') && cleanPhone.length >= 13) {
-        suffix = cleanPhone.substring(cleanPhone.length - 9); // e.g., 911223344
+        suffix = cleanPhone.substring(cleanPhone.length - 9);
     }
     else if (cleanPhone.length >= 9) {
         suffix = cleanPhone.substring(cleanPhone.length - 9);
     }
-    // 1. Direct match with common variations
     if (suffix) {
         variations.add(suffix);
         variations.add('0' + suffix);
         variations.add('251' + suffix);
     }
-    // 2. Fetch students using these variations
-    // We use multiple search strategies to find legacy records
     const legacyStudents = await db_1.default.student.findMany({
         where: {
             OR: [
                 { parent_phone: { in: Array.from(variations) } },
-                // Aggressive suffix match to handle spaces (e.g. "09 11 22..." in DB)
                 ...(suffix ? [{ parent_phone: { contains: suffix } }] : [])
             ]
         }
     });
-    // 3. Filter results in memory to ensure true phone match (cleaning DB phone numbers)
     const matchedStudents = legacyStudents.filter(s => {
         if (!s.parent_phone)
             return false;
@@ -610,24 +524,18 @@ const syncLegacyStudents = async (userId, phone) => {
     for (const student of matchedStudents) {
         await db_1.default.parentStudentLink.upsert({
             where: { parentId_studentId: { parentId: userId, studentId: student.id } },
-            update: { schoolId: student.schoolId },
-            create: { parentId: userId, studentId: student.id, schoolId: student.schoolId }
+            update: {},
+            create: { parentId: userId, studentId: student.id }
         });
     }
     return matchedStudents;
 };
 exports.syncLegacyStudents = syncLegacyStudents;
-/**
- * Finds an existing parent by phone or creates a new one.
- * Atomic operation using upsert to prevent duplicates.
- */
 const findOrCreateParentByPhone = async (phone, data) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
-    // 1. Try finding by normalized phone first
     let existingUser = await db_1.default.user.findUnique({
         where: { phone: cleanPhone }
     });
-    // 2. If not found, try unnormalized variations (e.g. 09... instead of +251...)
     if (!existingUser) {
         const rawNoPlus = cleanPhone.replace('+', '');
         const ethStandard = cleanPhone.startsWith('+251') ? '0' + cleanPhone.substring(4) : null;
@@ -639,7 +547,6 @@ const findOrCreateParentByPhone = async (phone, data) => {
                 ]
             }
         });
-        // If found by old format, update it to normalized format
         if (existingUser) {
             existingUser = await db_1.default.user.update({
                 where: { id: existingUser.id },
@@ -647,12 +554,10 @@ const findOrCreateParentByPhone = async (phone, data) => {
             });
         }
     }
-    // 3. Fallback: Search by email if provided
     if (!existingUser && data.email) {
         existingUser = await db_1.default.user.findUnique({
             where: { email: data.email }
         });
-        // If found by email, link the phone if it was missing
         if (existingUser && !existingUser.phone) {
             existingUser = await db_1.default.user.update({
                 where: { id: existingUser.id },
@@ -660,7 +565,6 @@ const findOrCreateParentByPhone = async (phone, data) => {
             });
         }
         else if (existingUser && existingUser.phone !== cleanPhone) {
-            // Conflict: Email belongs to someone with a DIFFERENT phone
             throw new Error(`Email ${data.email} is already associated with another account.`);
         }
     }
@@ -671,7 +575,6 @@ const findOrCreateParentByPhone = async (phone, data) => {
         ? await bcryptjs_1.default.hash(data.password, 10)
         : await bcryptjs_1.default.hash('addishiwot123', 10);
     const parentEmail = data.email || `parent-${cleanPhone.replace('+', '')}@addishiwot.edu.et`;
-    // 4. Creation with UNIQUE Constraint Violation (P2002) Error Handling & Recovery
     try {
         const newParent = await db_1.default.user.create({
             data: {
@@ -681,14 +584,12 @@ const findOrCreateParentByPhone = async (phone, data) => {
                 full_name: data.name || 'Parent',
                 role: 'parent',
                 address: data.address || null,
-                is_active: true,
-                schoolId: data.schoolId || null
+                is_active: true
             }
         });
         return newParent;
     }
     catch (error) {
-        // Catch Unique Constraint Violation (Prisma Code P2002)
         if (error.code === 'P2002' || error.message?.includes('Unique constraint')) {
             const recoveredParent = await db_1.default.user.findFirst({
                 where: {
@@ -719,12 +620,11 @@ const checkParentsExist = async (phones) => {
     return normalizedPhones.map(p => existingSet.has(p));
 };
 exports.checkParentsExist = checkParentsExist;
-const searchParentByPhone = async (phone, schoolId) => {
+const searchParentByPhone = async (phone, _schoolId) => {
     const cleanPhone = phone.replace(/\s+/g, '');
-    // Create variations of the phone number to search for (Ethiopian context)
     const phoneVariations = [cleanPhone];
     if (cleanPhone.startsWith('+251')) {
-        const suffix = cleanPhone.substring(4); // e.g., 911223344
+        const suffix = cleanPhone.substring(4);
         phoneVariations.push(suffix);
         phoneVariations.push('0' + suffix);
         phoneVariations.push('251' + suffix);
@@ -739,16 +639,14 @@ const searchParentByPhone = async (phone, schoolId) => {
         where: {
             phone: { in: phoneVariations }
         },
-        select: { id: true, full_name: true, email: true, phone: true, address: true, schoolId: true }
+        select: { id: true, full_name: true, email: true, phone: true, address: true }
     });
     if (user) {
         return { success: true, data: user };
     }
-    // Fallback: Search Student table for legacy parent info within THIS school
     const legacyStudent = await db_1.default.student.findFirst({
         where: {
-            parent_phone: { in: phoneVariations },
-            schoolId: schoolId
+            parent_phone: { in: phoneVariations }
         },
         select: { parent_name: true, parent_email: true, parent_phone: true, address: true }
     });
@@ -756,7 +654,7 @@ const searchParentByPhone = async (phone, schoolId) => {
         return {
             success: true,
             data: {
-                id: null, // No user account yet
+                id: null,
                 full_name: legacyStudent.parent_name,
                 email: legacyStudent.parent_email,
                 phone: legacyStudent.parent_phone,
@@ -768,7 +666,7 @@ const searchParentByPhone = async (phone, schoolId) => {
     return { success: false, message: "No parent found with this phone number." };
 };
 exports.searchParentByPhone = searchParentByPhone;
-const updateProfile = async (phone, schoolId, data) => {
+const updateProfile = async (phone, _schoolId, data) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findUnique({
         where: { phone: cleanPhone }
@@ -781,7 +679,6 @@ const updateProfile = async (phone, schoolId, data) => {
         email: data.email,
         address: data.address
     };
-    // Only update profile_photo if explicitly provided (allows null to remove)
     if (data.profile_photo !== undefined) {
         updateData.profile_photo = data.profile_photo;
     }

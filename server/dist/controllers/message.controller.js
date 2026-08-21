@@ -7,16 +7,14 @@ exports.getConversationShared = exports.createConversation = exports.getBlockSta
 const db_1 = __importDefault(require("../config/db"));
 const getConversations = async (req, res) => {
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     const { limit = '30', cursor } = req.query;
-    if (!schoolId) {
-        return res.status(401).json({ error: 'Unauthorized: School ID missing' });
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
     const take = Math.min(Math.max(Number(limit) || 30, 1), 50);
     try {
         const conversations = await db_1.default.conversation.findMany({
             where: {
-                schoolId,
                 members: {
                     some: { userId },
                 },
@@ -54,7 +52,6 @@ const getConversations = async (req, res) => {
                     },
                 },
                 messages: {
-                    where: { schoolId },
                     orderBy: { createdAt: 'desc' },
                     take: 1,
                     select: {
@@ -71,12 +68,10 @@ const getConversations = async (req, res) => {
             },
             orderBy: { updatedAt: 'desc' },
         });
-        // Calculate unread message count per conversation for the requesting user
         const conversationsWithUnread = await Promise.all(conversations.map(async (conv) => {
             const unreadCount = await db_1.default.message.count({
                 where: {
                     conversationId: conv.id,
-                    schoolId,
                     senderId: { not: userId },
                     isDeleted: false,
                     readBy: { none: { userId } },
@@ -95,12 +90,11 @@ exports.getConversations = getConversations;
 const getMessages = async (req, res) => {
     const { conversationId } = req.params;
     const { limit = '30', cursor } = req.query;
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
-    if (!schoolId || !userId) {
-        return res.status(401).json({ error: 'Unauthorized: School ID missing' });
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
-    const take = Math.min(Math.max(Number(limit) || 30, 1), 50); // Default 30, cap at 50
+    const take = Math.min(Math.max(Number(limit) || 30, 1), 50);
     try {
         const [membership, messages] = await Promise.all([
             db_1.default.conversationMember.findFirst({
@@ -108,7 +102,7 @@ const getMessages = async (req, res) => {
                 select: { id: true, clearedAt: true },
             }),
             db_1.default.message.findMany({
-                where: { conversationId, schoolId },
+                where: { conversationId },
                 take: take + 1,
                 ...(cursor ? { skip: 1, cursor: { id: String(cursor) } } : {}),
                 orderBy: { createdAt: 'desc' },
@@ -134,14 +128,12 @@ const getMessages = async (req, res) => {
                         },
                     },
                     readBy: {
-                        where: { schoolId },
                         take: 20,
                         select: {
                             userId: true,
                         },
                     },
                     reactions: {
-                        where: { schoolId },
                         select: {
                             id: true,
                             userId: true,
@@ -166,7 +158,6 @@ const getMessages = async (req, res) => {
         if (!membership) {
             return res.status(403).json({ error: 'Forbidden: You are not a member of this conversation' });
         }
-        // Filter out messages that were cleared by this user
         const clearedAt = membership.clearedAt;
         const visibleMessages = clearedAt
             ? messages.filter((m) => m.createdAt > clearedAt)
@@ -177,14 +168,13 @@ const getMessages = async (req, res) => {
         const formattedMessages = page.map((m) => {
             const isMe = m.senderId === userId;
             const isRead = isMe
-                ? m.readBy.some((r) => r.userId !== userId)
-                : m.readBy.some((r) => r.userId === userId);
+                ? m.readBy?.some((r) => r.userId !== userId)
+                : m.readBy?.some((r) => r.userId === userId);
             return {
                 ...m,
                 isRead,
             };
         });
-        // Return in chronological order (oldest first)
         res.status(200).json({
             messages: formattedMessages.reverse(),
             nextCursor,
@@ -198,12 +188,10 @@ const getMessages = async (req, res) => {
     }
 };
 exports.getMessages = getMessages;
-// ── Toggle Mute / Unmute Conversation ─────────────────────────────────────────
 const toggleMuteConversation = async (req, res) => {
     const { id: conversationId } = req.params;
     const userId = req.user?.id;
-    const schoolId = req.user?.schoolId;
-    if (!userId || !schoolId)
+    if (!userId)
         return res.status(401).json({ error: 'Unauthorized' });
     try {
         const membership = await db_1.default.conversationMember.findFirst({
@@ -226,7 +214,6 @@ const toggleMuteConversation = async (req, res) => {
     }
 };
 exports.toggleMuteConversation = toggleMuteConversation;
-// ── Get Mute Status ───────────────────────────────────────────────────────────
 const getMuteStatus = async (req, res) => {
     const { id: conversationId } = req.params;
     const userId = req.user?.id;
@@ -248,7 +235,6 @@ const getMuteStatus = async (req, res) => {
     }
 };
 exports.getMuteStatus = getMuteStatus;
-// ── Clear Chat History (per-user) ─────────────────────────────────────────────
 const clearChatHistory = async (req, res) => {
     const { id: conversationId } = req.params;
     const userId = req.user?.id;
@@ -262,7 +248,6 @@ const clearChatHistory = async (req, res) => {
         if (!membership) {
             return res.status(403).json({ error: 'You are not a member of this conversation' });
         }
-        // Set clearedAt to NOW — getMessages will filter out all messages before this point
         await db_1.default.conversationMember.update({
             where: { id: membership.id },
             data: { clearedAt: new Date() },
@@ -275,27 +260,23 @@ const clearChatHistory = async (req, res) => {
     }
 };
 exports.clearChatHistory = clearChatHistory;
-// ── Block User ────────────────────────────────────────────────────────────────
 const blockUser = async (req, res) => {
     const { targetUserId } = req.params;
     const blockerId = req.user?.id;
-    const schoolId = req.user?.schoolId;
     if (!blockerId)
         return res.status(401).json({ error: 'Unauthorized' });
     if (blockerId === targetUserId)
         return res.status(400).json({ error: 'Cannot block yourself' });
     try {
-        // Verify target user exists and belongs to same school
-        const target = await db_1.default.user.findFirst({
-            where: { id: targetUserId, schoolId },
+        const target = await db_1.default.user.findUnique({
+            where: { id: targetUserId },
             select: { id: true },
         });
         if (!target)
             return res.status(404).json({ error: 'User not found' });
-        // Upsert to prevent duplicate block records
         const block = await db_1.default.userBlock.upsert({
             where: { blockerId_blockedId: { blockerId, blockedId: targetUserId } },
-            create: { blockerId, blockedId: targetUserId, schoolId },
+            create: { blockerId, blockedId: targetUserId },
             update: {},
         });
         return res.status(200).json({ blocked: true, blockId: block.id });
@@ -306,7 +287,6 @@ const blockUser = async (req, res) => {
     }
 };
 exports.blockUser = blockUser;
-// ── Unblock User ──────────────────────────────────────────────────────────────
 const unblockUser = async (req, res) => {
     const { targetUserId } = req.params;
     const blockerId = req.user?.id;
@@ -324,7 +304,6 @@ const unblockUser = async (req, res) => {
     }
 };
 exports.unblockUser = unblockUser;
-// ── Get Block Status ──────────────────────────────────────────────────────────
 const getBlockStatus = async (req, res) => {
     const { targetUserId } = req.params;
     const userId = req.user?.id;
@@ -354,48 +333,22 @@ const getBlockStatus = async (req, res) => {
 exports.getBlockStatus = getBlockStatus;
 const createConversation = async (req, res) => {
     const { name, isGroup, memberIds, avatar } = req.body;
-    // Use x-school-id header as the authoritative school context.
-    // req.user.schoolId can fall back to the JWT's default school (which may be suspended/wrong)
-    // when tenantMiddleware cannot resolve the role for the /api/messages path.
-    const headerSchoolId = req.headers['x-school-id'];
-    const schoolId = headerSchoolId || req.user?.schoolId;
-    if (!schoolId) {
-        return res.status(401).json({ error: 'Unauthorized: School ID missing' });
-    }
     try {
-        // Verify all members are either:
-        // a) Staff/Teachers/Admins in this school (via User.schoolId)
-        // b) Parents linked to this school (via ParentStudentLink)
-        // This handles the case of a parent (whose User.schoolId = SchoolA) messaging
-        // a teacher in SchoolB (their child's school).
-        const staffInSchool = await db_1.default.user.findMany({
+        const validUsers = await db_1.default.user.findMany({
             where: {
                 id: { in: memberIds },
-                schoolId,
                 is_active: true,
             },
             select: { id: true }
         });
-        const parentLinksInSchool = await db_1.default.parentStudentLink.findMany({
-            where: {
-                parentId: { in: memberIds },
-                schoolId,
-            },
-            select: { parentId: true }
-        });
-        const parentIds = new Set(parentLinksInSchool.map((l) => l.parentId));
-        const staffIds = new Set(staffInSchool.map((u) => u.id));
-        const validMemberIds = memberIds.filter((id) => staffIds.has(id) || parentIds.has(id));
-        if (validMemberIds.length !== memberIds.length) {
+        if (validUsers.length !== memberIds.length) {
             return res.status(403).json({
-                error: 'Forbidden: One or more users are not found in your school or are not authorized for communication'
+                error: 'Forbidden: One or more users are not found or not active'
             });
         }
-        // If not a group, check if a 1:1 conversation already exists in THIS school
         if (!isGroup && memberIds.length === 2) {
             const existingConversation = await db_1.default.conversation.findFirst({
                 where: {
-                    schoolId,
                     isGroup: false,
                     AND: [
                         { members: { some: { userId: memberIds[0] } } },
@@ -412,7 +365,6 @@ const createConversation = async (req, res) => {
                 name,
                 isGroup,
                 avatar,
-                schoolId,
                 members: {
                     create: memberIds.map((userId) => ({
                         userId,
@@ -446,13 +398,11 @@ const createConversation = async (req, res) => {
 exports.createConversation = createConversation;
 const getConversationShared = async (req, res) => {
     const { conversationId } = req.params;
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
     if (!userId)
         return res.status(401).json({ error: 'Unauthorized' });
     try {
         let targetConvId = conversationId;
-        // Verify membership or direct contact conversation
         const isMember = await db_1.default.conversationMember.findFirst({
             where: { conversationId: targetConvId, userId },
             select: { id: true },
@@ -473,7 +423,6 @@ const getConversationShared = async (req, res) => {
             }
             targetConvId = directConv.id;
         }
-        // 1. Fetch Media & File messages
         const mediaAndFiles = await db_1.default.message.findMany({
             where: {
                 conversationId: targetConvId,
@@ -489,7 +438,6 @@ const getConversationShared = async (req, res) => {
                 sender: { select: { id: true, full_name: true, profile_photo: true } },
             },
         });
-        // 2. Fetch Text messages containing links
         const textMessages = await db_1.default.message.findMany({
             where: {
                 conversationId: targetConvId,
@@ -510,7 +458,6 @@ const getConversationShared = async (req, res) => {
                 sender: { select: { id: true, full_name: true, profile_photo: true } },
             },
         });
-        // 3. Fetch Saved Bookmarks for this conversation
         const savedBookmarks = await db_1.default.savedBookmark.findMany({
             where: { userId, conversationId: targetConvId },
             orderBy: { createdAt: 'desc' },
@@ -533,7 +480,6 @@ const getConversationShared = async (req, res) => {
                 },
             },
         });
-        // Categorize Media vs Files
         const media = [];
         const files = [];
         const MEDIA_EXTS = /\.(jpg|jpeg|png|webp|gif|svg|mp4|mov|webm|mkv|avi)$/i;
@@ -564,7 +510,6 @@ const getConversationShared = async (req, res) => {
                 });
             }
             else {
-                // File categorization
                 const ext = cleanUrl.split('.').pop()?.toLowerCase() || '';
                 let fileCategory = 'other';
                 if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(ext) || mime.includes('pdf') || mime.includes('word') || mime.includes('text')) {
@@ -597,7 +542,6 @@ const getConversationShared = async (req, res) => {
                 });
             }
         }
-        // Extract Links from text messages
         const URL_REGEX = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
         const links = [];
         const seenUrls = new Set();
@@ -631,7 +575,6 @@ const getConversationShared = async (req, res) => {
                 });
             }
         }
-        // Process Saved Bookmarks
         const saved = savedBookmarks
             .filter((b) => b.message && !b.message.isDeleted)
             .map((b) => ({

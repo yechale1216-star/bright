@@ -21,20 +21,15 @@ const db_1 = __importDefault(require("./config/db"));
 const KEY = {
     userSockets: (uid) => `sockets:user:${uid}`,
     socketData: (sid) => `sockets:data:${sid}`,
-    userSchool: (uid) => `sockets:school:${uid}`,
-    onlineUsers: (schoolId) => `online:${schoolId}`,
+    onlineUsers: () => `online:all`,
     activeCall: (callId) => `calls:${callId}`,
     userInCall: (uid) => `calls:user:${uid}`,
-    schoolStatus: (sid) => `cache:school:${sid}`,
     userInfo: (uid) => `cache:user:${uid}`,
-    convSchool: (cid) => `cache:conv:${cid}`,
     convMembers: (cid) => `cache:members:${cid}`,
     tempId: (key) => `dedup:${key}`,
 };
 const TTL = {
-    schoolStatus: 5 * 60,
     userInfo: 5 * 60,
-    convSchool: 5 * 60,
     convMembers: 60,
     tempId: 60,
     activeCall: 60,
@@ -45,13 +40,10 @@ const TTL = {
 // ─────────────────────────────────────────────────────────────────────────────
 const memUserSockets = new Map(); // userId → Set<socketId>
 const memSocketData = new Map();
-const memUserSchool = new Map();
-const memOnlineUsers = new Map(); // schoolId → Set<userId>
+const memOnlineUsers = new Set(); // Set<userId>
 const memActiveCalls = new Map(); // callId → call data
 const memUserInCall = new Map(); // userId → callId
-const memSchoolStatus = new Map();
 const memUserInfo = new Map();
-const memConvSchool = new Map();
 const memConvMembers = new Map();
 const memTempIds = new Map();
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,12 +64,6 @@ async function safeRedis(fn, fallback) {
     }
 }
 // ─────────────────────────────────────────────────────────────────────────────
-// School suspension cache
-// ─────────────────────────────────────────────────────────────────────────────
-async function isSchoolSuspended(schoolId) {
-    return false;
-}
-// ─────────────────────────────────────────────────────────────────────────────
 // User info cache
 // ─────────────────────────────────────────────────────────────────────────────
 async function getUserCachedInfo(userId) {
@@ -85,7 +71,6 @@ async function getUserCachedInfo(userId) {
         const cached = await safeRedis(() => redis_1.pubClient.hgetall(KEY.userInfo(userId)), null);
         if (cached && cached.role) {
             return {
-                schoolId: cached.schoolId || '',
                 role: cached.role || '',
                 full_name: cached.full_name || 'User',
                 profile_photo: cached.profile_photo || undefined,
@@ -100,17 +85,16 @@ async function getUserCachedInfo(userId) {
     try {
         const info = await db_1.default.user.findUnique({
             where: { id: userId },
-            select: { schoolId: true, role: true, full_name: true, profile_photo: true },
+            select: { role: true, full_name: true, profile_photo: true },
         });
         if (info) {
             const result = {
-                schoolId: info.schoolId || '',
                 role: info.role || '',
                 full_name: info.full_name || 'User',
                 profile_photo: info.profile_photo || undefined,
             };
             if ((0, redis_1.isRedisAvailable)()) {
-                const storeData = { schoolId: result.schoolId, role: result.role, full_name: result.full_name };
+                const storeData = { role: result.role, full_name: result.full_name };
                 if (result.profile_photo)
                     storeData.profile_photo = result.profile_photo;
                 await safeRedis(async () => {
@@ -132,35 +116,6 @@ async function getUserCachedInfo(userId) {
     return null;
 }
 // ─────────────────────────────────────────────────────────────────────────────
-// Conversation school cache
-// ─────────────────────────────────────────────────────────────────────────────
-async function getConvSchoolId(convId) {
-    if ((0, redis_1.isRedisAvailable)()) {
-        const cached = await safeRedis(() => redis_1.pubClient.get(KEY.convSchool(convId)), null);
-        if (cached !== null)
-            return cached;
-    }
-    else {
-        const cached = memConvSchool.get(convId);
-        if (cached && cached.expires > Date.now())
-            return cached.schoolId;
-    }
-    try {
-        const conv = await db_1.default.conversation.findUnique({ where: { id: convId }, select: { schoolId: true } });
-        const schoolId = conv?.schoolId || '';
-        if ((0, redis_1.isRedisAvailable)()) {
-            await safeRedis(() => redis_1.pubClient.setex(KEY.convSchool(convId), TTL.convSchool, schoolId), null);
-        }
-        else {
-            memConvSchool.set(convId, { schoolId, expires: Date.now() + TTL.convSchool * 1000 });
-        }
-        return schoolId;
-    }
-    catch {
-        return '';
-    }
-}
-// ─────────────────────────────────────────────────────────────────────────────
 // Conversation member cache
 // ─────────────────────────────────────────────────────────────────────────────
 async function getConversationMemberIds(conversationId) {
@@ -174,35 +129,42 @@ async function getConversationMemberIds(conversationId) {
         if (cached && cached.expires > Date.now())
             return cached.memberIds;
     }
-    const members = await db_1.default.conversationMember.findMany({ where: { conversationId }, select: { userId: true } });
-    const memberIds = members.map(m => m.userId);
-    if (memberIds.length > 0) {
+    try {
+        const members = await db_1.default.conversationMember.findMany({
+            where: { conversationId },
+            select: { userId: true },
+        });
+        const ids = members.map(m => m.userId);
         if ((0, redis_1.isRedisAvailable)()) {
-            await safeRedis(async () => {
-                const p = redis_1.pubClient.multi();
-                p.sadd(KEY.convMembers(conversationId), ...memberIds);
-                p.expire(KEY.convMembers(conversationId), TTL.convMembers);
-                await p.exec();
-            }, null);
+            if (ids.length > 0) {
+                await safeRedis(async () => {
+                    const p = redis_1.pubClient.multi();
+                    p.sadd(KEY.convMembers(conversationId), ...ids);
+                    p.expire(KEY.convMembers(conversationId), TTL.convMembers);
+                    await p.exec();
+                }, null);
+            }
         }
         else {
-            memConvMembers.set(conversationId, { memberIds, expires: Date.now() + TTL.convMembers * 1000 });
+            memConvMembers.set(conversationId, { memberIds: ids, expires: Date.now() + TTL.convMembers * 1000 });
         }
+        return ids;
     }
-    return memberIds;
+    catch {
+        return [];
+    }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // User socket management
 // ─────────────────────────────────────────────────────────────────────────────
-async function addUserSocket(userId, socketId, schoolId) {
+async function addUserSocket(userId, socketId) {
     if ((0, redis_1.isRedisAvailable)()) {
         await safeRedis(async () => {
             const p = redis_1.pubClient.multi();
             p.sadd(KEY.userSockets(userId), socketId);
-            p.hset(KEY.socketData(socketId), { userId, schoolId });
+            p.hset(KEY.socketData(socketId), { userId });
             p.expire(KEY.socketData(socketId), TTL.socketData);
-            p.set(KEY.userSchool(userId), schoolId);
-            p.sadd(KEY.onlineUsers(schoolId), userId);
+            p.sadd(KEY.onlineUsers(), userId);
             await p.exec();
         }, null);
     }
@@ -210,14 +172,11 @@ async function addUserSocket(userId, socketId, schoolId) {
         if (!memUserSockets.has(userId))
             memUserSockets.set(userId, new Set());
         memUserSockets.get(userId).add(socketId);
-        memSocketData.set(socketId, { userId, schoolId });
-        memUserSchool.set(userId, schoolId);
-        if (!memOnlineUsers.has(schoolId))
-            memOnlineUsers.set(schoolId, new Set());
-        memOnlineUsers.get(schoolId).add(userId);
+        memSocketData.set(socketId, { userId });
+        memOnlineUsers.add(userId);
     }
 }
-async function removeUserSocket(userId, socketId, schoolId) {
+async function removeUserSocket(userId, socketId) {
     if ((0, redis_1.isRedisAvailable)()) {
         await safeRedis(async () => {
             await redis_1.pubClient.srem(KEY.userSockets(userId), socketId);
@@ -227,8 +186,7 @@ async function removeUserSocket(userId, socketId, schoolId) {
         if (remaining === 0) {
             await safeRedis(async () => {
                 await redis_1.pubClient.del(KEY.userSockets(userId));
-                await redis_1.pubClient.del(KEY.userSchool(userId));
-                await redis_1.pubClient.srem(KEY.onlineUsers(schoolId), userId);
+                await redis_1.pubClient.srem(KEY.onlineUsers(), userId);
             }, null);
             return { fullyOffline: true };
         }
@@ -240,9 +198,8 @@ async function removeUserSocket(userId, socketId, schoolId) {
             sids.delete(socketId);
             if (sids.size === 0) {
                 memUserSockets.delete(userId);
-                memUserSchool.delete(userId);
                 memSocketData.delete(socketId);
-                memOnlineUsers.get(schoolId)?.delete(userId);
+                memOnlineUsers.delete(userId);
                 return { fullyOffline: true };
             }
         }
@@ -271,11 +228,11 @@ async function isUserOnline(userId) {
     }
     return (memUserSockets.get(userId)?.size ?? 0) > 0;
 }
-async function getOnlineUsersForSchool(schoolId) {
+async function getOnlineUsers() {
     if ((0, redis_1.isRedisAvailable)()) {
-        return safeRedis(() => redis_1.pubClient.smembers(KEY.onlineUsers(schoolId)), []);
+        return safeRedis(() => redis_1.pubClient.smembers(KEY.onlineUsers()), []);
     }
-    return Array.from(memOnlineUsers.get(schoolId) || []);
+    return Array.from(memOnlineUsers);
 }
 async function setActiveCall(call) {
     if ((0, redis_1.isRedisAvailable)()) {
@@ -288,7 +245,6 @@ async function setActiveCall(call) {
                 type: call.type,
                 profile: JSON.stringify(call.profile),
                 conversationId: call.conversationId || '',
-                schoolId: call.schoolId || '',
                 startTime: call.startTime,
                 timestamp: call.timestamp,
             };
@@ -415,14 +371,14 @@ async function emitToUserExcept(io, userId, excludeSocketId, event, data) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Presence
 // ─────────────────────────────────────────────────────────────────────────────
-async function emitPresenceToSchoolMates(io, event, userId, schoolId, excludeSocketId) {
+async function emitPresenceToMates(io, event, userId, excludeSocketId) {
     try {
         const userConvs = await db_1.default.conversationMember.findMany({ where: { userId }, select: { conversationId: true } });
         const convIds = userConvs.map(m => m.conversationId);
         if (convIds.length === 0)
             return;
         const sharedMembers = await db_1.default.conversationMember.findMany({
-            where: { conversation: { schoolId }, conversationId: { in: convIds } },
+            where: { conversationId: { in: convIds } },
             select: { userId: true },
             distinct: ['userId'],
         });
@@ -447,15 +403,9 @@ setInterval(() => {
     if ((0, redis_1.isRedisAvailable)())
         return;
     const now = Date.now();
-    for (const [k, v] of memSchoolStatus)
-        if (v.expires < now)
-            memSchoolStatus.delete(k);
     for (const [k, v] of memUserInfo)
         if (v.expires < now)
             memUserInfo.delete(k);
-    for (const [k, v] of memConvSchool)
-        if (v.expires < now)
-            memConvSchool.delete(k);
     for (const [k, v] of memConvMembers)
         if (v.expires < now)
             memConvMembers.delete(k);
@@ -473,7 +423,6 @@ const initSocket = (server) => {
         pingTimeout: 60000,
         transports: ['websocket'],
     });
-    // Only attach Redis adapter if Redis is available
     if ((0, redis_1.isRedisAvailable)()) {
         io.adapter((0, redis_adapter_1.createAdapter)(redis_1.pubClient, redis_1.subClient));
         console.log('[Socket] Redis adapter attached — multi-instance broadcasting ENABLED.');
@@ -487,12 +436,11 @@ const initSocket = (server) => {
         socket.on('authenticate', async ({ token }) => {
             try {
                 const decoded = jsonwebtoken_1.default.verify(token, (0, jwt_1.getJwtSecret)());
-                const { id: userId, schoolId } = decoded;
-                await addUserSocket(userId, socket.id, schoolId);
-                const schoolOnline = await getOnlineUsersForSchool(schoolId);
-                socket.emit('initial_online_users', schoolOnline);
-                emitPresenceToSchoolMates(io, 'user_online', userId, schoolId, socket.id);
-                // Re-deliver any pending incoming call
+                const { id: userId } = decoded;
+                await addUserSocket(userId, socket.id);
+                const onlineUsers = await getOnlineUsers();
+                socket.emit('initial_online_users', onlineUsers);
+                emitPresenceToMates(io, 'user_online', userId, socket.id);
                 const callId = (0, redis_1.isRedisAvailable)()
                     ? await safeRedis(() => redis_1.pubClient.get(KEY.userInCall(userId)), null)
                     : (memUserInCall.get(userId) || null);
@@ -525,7 +473,7 @@ const initSocket = (server) => {
             if (!tenant)
                 return;
             db_1.default.message.findMany({
-                where: { conversationId, schoolId: tenant.schoolId, senderId: { not: tenant.userId }, readBy: { none: { userId: tenant.userId } } },
+                where: { conversationId, senderId: { not: tenant.userId }, readBy: { none: { userId: tenant.userId } } },
                 select: { id: true }, take: 100, orderBy: { createdAt: 'desc' },
             }).then(unread => {
                 if (unread.length > 0)
@@ -538,21 +486,7 @@ const initSocket = (server) => {
             const tenant = await getSocketData(socket.id);
             if (!tenant || tenant.userId !== data.senderId)
                 return;
-            const [targetSchoolId, senderInfo] = await Promise.all([
-                data.conversationId ? getConvSchoolId(data.conversationId) : Promise.resolve(tenant.schoolId),
-                getUserCachedInfo(data.senderId),
-            ]);
-            const senderSchoolId = (senderInfo && senderInfo.role !== 'parent') ? senderInfo.schoolId : null;
-            const schoolIdsToCheck = [...new Set([targetSchoolId || '', senderSchoolId].filter(Boolean))];
-            const suspensionResults = await Promise.all(schoolIdsToCheck.map(id => isSchoolSuspended(id)));
-            if (suspensionResults.some(Boolean)) {
-                socket.emit('message_error', { tempId: data.tempId, message: 'Your school account is suspended. Read-only access only.' });
-                socket.emit('school_suspended', { message: 'Your school account is suspended.' });
-                return;
-            }
             try {
-                // ── Block Check ─────────────────────────────────────────────────────────
-                // For 1:1 conversations, silently reject if either user has blocked the other.
                 const convMembers = await db_1.default.conversationMember.findMany({
                     where: { conversationId: data.conversationId },
                     select: { userId: true, isMuted: true },
@@ -574,7 +508,7 @@ const initSocket = (server) => {
                     }
                 }
                 if (data.tempId) {
-                    const dedupeKey = `${tenant.schoolId}:${data.tempId}`;
+                    const dedupeKey = `msg:${data.tempId}`;
                     const { alreadyExists, existingMessageId } = await checkAndSetTempId(dedupeKey, 'pending');
                     if (alreadyExists && existingMessageId) {
                         socket.emit('message_sent', { tempId: data.tempId, messageId: existingMessageId });
@@ -592,7 +526,6 @@ const initSocket = (server) => {
                     data: {
                         conversationId: data.conversationId,
                         senderId: data.senderId,
-                        schoolId: targetSchoolId,
                         content: data.content,
                         type: data.type,
                         replyToId: data.replyToId,
@@ -601,9 +534,8 @@ const initSocket = (server) => {
                     include: { sender: { select: { id: true, full_name: true, profile_photo: true } } }
                 });
                 const dbEnd = Date.now();
-                // Update dedup entry with real messageId
                 if (data.tempId) {
-                    const dedupeKey = `${tenant.schoolId}:${data.tempId}`;
+                    const dedupeKey = `msg:${data.tempId}`;
                     if ((0, redis_1.isRedisAvailable)()) {
                         await safeRedis(() => redis_1.pubClient.setex(KEY.tempId(dedupeKey), TTL.tempId, message.id), null);
                     }
@@ -618,7 +550,6 @@ const initSocket = (server) => {
                 const broadcastPayload = { ...message, tempId: data.tempId };
                 io.to(data.conversationId).emit('new_message', broadcastPayload);
                 socket.emit('message_sent', { tempId: data.tempId, messageId: message.id });
-                // Guaranteed delivery to online-but-not-in-room members
                 getConversationMemberIds(data.conversationId).then(async (memberIds) => {
                     const roomSockets = io.sockets.adapter.rooms.get(data.conversationId) || new Set();
                     for (const memberId of memberIds) {
@@ -631,13 +562,7 @@ const initSocket = (server) => {
                         }
                     }
                 }).catch(() => { });
-                // ── Push notifications ────────────────────────────────────────────────
-                // Only send FCM push to members who have NO active socket connection —
-                // i.e. they are truly offline / backgrounded with socket disconnected.
-                // If the user is online (any socket alive = they are using the app),
-                // the real-time socket message already reaches them. No native push needed.
                 getConversationMemberIds(data.conversationId).then(async (memberIds) => {
-                    // Push targets = members excluding sender AND any user with an active socket
                     const pushTargetIds = [];
                     for (const id of memberIds) {
                         if (id === data.senderId)
@@ -652,7 +577,6 @@ const initSocket = (server) => {
                         where: { id: { in: pushTargetIds }, pushToken: { not: null } },
                         select: { id: true, pushToken: true }
                     });
-                    // Filter out members who have muted this conversation
                     const mutedMemberIds = new Set(convMembers.filter(m => m.isMuted).map(m => m.userId));
                     const expiredIds = [];
                     for (const u of usersWithTokens) {
@@ -662,7 +586,8 @@ const initSocket = (server) => {
                             continue;
                         const result = await (0, notification_service_1.sendMessageNotification)(u.pushToken, {
                             conversationId: data.conversationId,
-                            senderId: message.sender.id, senderName: message.sender.full_name,
+                            senderId: message.sender.id,
+                            senderName: message.sender.full_name,
                             senderAvatar: message.sender.profile_photo || '',
                             messagePreview: data.content || (data.attachment ? '📎 Attachment' : 'New message'),
                             messageType: data.type || 'TEXT',
@@ -683,12 +608,8 @@ const initSocket = (server) => {
             const tenant = await getSocketData(socket.id);
             if (!tenant)
                 return;
-            if (await isSchoolSuspended(tenant.schoolId)) {
-                socket.emit('school_suspended', { message: 'Your school account is suspended.' });
-                return;
-            }
             try {
-                const message = await db_1.default.message.findFirst({ where: { id: data.messageId, schoolId: tenant.schoolId }, select: { id: true, senderId: true, conversationId: true } });
+                const message = await db_1.default.message.findFirst({ where: { id: data.messageId }, select: { id: true, senderId: true, conversationId: true } });
                 if (!message)
                     return;
                 if (message.senderId !== tenant.userId) {
@@ -714,12 +635,8 @@ const initSocket = (server) => {
             const tenant = await getSocketData(socket.id);
             if (!tenant)
                 return;
-            if (await isSchoolSuspended(tenant.schoolId)) {
-                socket.emit('school_suspended', { message: 'Your school account is suspended.' });
-                return;
-            }
             try {
-                const message = await db_1.default.message.findFirst({ where: { id: data.messageId, schoolId: tenant.schoolId, senderId: tenant.userId }, select: { id: true, conversationId: true } });
+                const message = await db_1.default.message.findFirst({ where: { id: data.messageId, senderId: tenant.userId }, select: { id: true, conversationId: true } });
                 if (!message)
                     return;
                 const updated = await db_1.default.message.update({ where: { id: data.messageId }, data: { content: data.content, editedAt: new Date() } });
@@ -734,10 +651,6 @@ const initSocket = (server) => {
             const tenant = await getSocketData(socket.id);
             if (!tenant)
                 return;
-            if (await isSchoolSuspended(tenant.schoolId)) {
-                socket.emit('school_suspended', { message: 'Your school account is suspended.' });
-                return;
-            }
             try {
                 const conversation = await db_1.default.conversation.findUnique({ where: { id: data.conversationId }, select: { isGroup: true } });
                 if (!conversation)
@@ -778,7 +691,7 @@ const initSocket = (server) => {
                 await Promise.allSettled(data.messageIds.map((messageId) => db_1.default.messageRead.upsert({
                     where: { messageId_userId: { messageId, userId: data.userId } },
                     update: { readAt: new Date() },
-                    create: { messageId, userId: data.userId, schoolId: tenant.schoolId },
+                    create: { messageId, userId: data.userId },
                 })));
                 socket.to(data.conversationId).emit('messages_read', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
                 emitToUser(io, data.userId, 'conversation_read_ack', { conversationId: data.conversationId, userId: data.userId, messageIds: data.messageIds });
@@ -793,42 +706,29 @@ const initSocket = (server) => {
             if (!tenant || tenant.userId !== data.from)
                 return;
             const [callerInfo, targetUser] = await Promise.all([
-                db_1.default.user.findUnique({ where: { id: data.from }, select: { schoolId: true, role: true, full_name: true } }),
-                db_1.default.user.findFirst({ where: { id: data.to, is_active: true }, select: { id: true, schoolId: true, role: true, pushToken: true } }),
+                db_1.default.user.findUnique({ where: { id: data.from }, select: { role: true, full_name: true } }),
+                db_1.default.user.findFirst({ where: { id: data.to, is_active: true }, select: { id: true, role: true, pushToken: true } }),
             ]);
             if (!targetUser)
                 return;
-            let callSchoolId = tenant.schoolId;
-            if (callerInfo && callerInfo.role !== 'parent')
-                callSchoolId = callerInfo.schoolId || '';
-            else if (targetUser && targetUser.role !== 'parent')
-                callSchoolId = targetUser.schoolId || '';
-            if (await isSchoolSuspended(callSchoolId)) {
-                socket.emit('call_blocked', { code: 'SCHOOL_SUSPENDED', callType: data.type || 'VOICE', message: 'Voice and video calls are disabled while the school account is suspended.' });
-                return;
-            }
             const callId = data.callId || `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             if (await isUserBusy(data.to)) {
                 socket.emit('call_busy', { callId, from: data.to, to: data.from });
-                const busySchoolId = callerInfo?.schoolId || targetUser.schoolId || tenant.schoolId;
-                if (busySchoolId)
-                    (0, call_service_1.logCall)({ callId, schoolId: busySchoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: 'BUSY', endTime: new Date(), duration: 0, disconnectReason: 'BUSY' }).catch(() => { });
+                (0, call_service_1.logCall)({ callId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: 'BUSY', endTime: new Date(), duration: 0, disconnectReason: 'BUSY' }).catch(() => { });
                 return;
             }
             const callStartTime = Date.now();
-            const resolvedSchoolId = targetUser.schoolId || callerInfo?.schoolId || tenant.schoolId;
             const timeoutHandle = setTimeout(async () => {
                 const call = await getActiveCall(callId);
                 if (call) {
                     await deleteActiveCall(callId, call.from, call.to);
                     emitToUser(io, call.from, 'call_missed', { callId, reason: 'NO_ANSWER' });
                     emitToUser(io, call.to, 'call_ended', { from: call.from, callId, reason: 'MISSED' });
-                    if (call.schoolId)
-                        (0, call_service_1.logCall)({ callId, schoolId: call.schoolId, userId: call.from, recipientId: call.to, conversationId: call.conversationId, type: call.type, status: 'MISSED', endTime: new Date(), duration: 0, disconnectReason: 'MISSED' }).catch(() => { });
+                    (0, call_service_1.logCall)({ callId, userId: call.from, recipientId: call.to, conversationId: call.conversationId, type: call.type, status: 'MISSED', endTime: new Date(), duration: 0, disconnectReason: 'MISSED' }).catch(() => { });
                 }
             }, 45000);
             localTimeoutHandles.set(callId, timeoutHandle);
-            await setActiveCall({ callId, from: data.from, to: data.to, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, conversationId: data.conversationId, schoolId: resolvedSchoolId, startTime: String(callStartTime), timestamp: String(callStartTime) });
+            await setActiveCall({ callId, from: data.from, to: data.to, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, conversationId: data.conversationId, startTime: String(callStartTime), timestamp: String(callStartTime) });
             await emitToUser(io, data.to, 'incoming_call', { from: data.from, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, callId });
             if (targetUser.pushToken) {
                 const serverUrl = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend-dmlv.onrender.com';
@@ -841,19 +741,6 @@ const initSocket = (server) => {
             const tenant = await getSocketData(socket.id);
             if (!tenant)
                 return;
-            const [answererInfo, callerInfo] = await Promise.all([
-                db_1.default.user.findUnique({ where: { id: data.from }, select: { schoolId: true, role: true } }),
-                db_1.default.user.findUnique({ where: { id: data.to }, select: { schoolId: true, role: true } }),
-            ]);
-            let callSchoolId = tenant.schoolId;
-            if (answererInfo && answererInfo.role !== 'parent')
-                callSchoolId = answererInfo.schoolId || '';
-            else if (callerInfo && callerInfo.role !== 'parent')
-                callSchoolId = callerInfo.schoolId || '';
-            if (await isSchoolSuspended(callSchoolId || '')) {
-                socket.emit('call_blocked', { code: 'SCHOOL_SUSPENDED', callType: data.type || 'VOICE', message: 'Voice and video calls are disabled while the school account is suspended.' });
-                return;
-            }
             await emitToUser(io, data.to, 'call_answered', { from: data.from, answer: data.answer });
             await emitToUserExcept(io, data.from, socket.id, 'call_stop_ringing', { callId: data.callId });
             if (data.callId)
@@ -885,12 +772,10 @@ const initSocket = (server) => {
             const targetUserForReject = await db_1.default.user.findUnique({ where: { id: data.to }, select: { pushToken: true } });
             if (targetUserForReject?.pushToken)
                 (0, notification_service_1.sendCallCancellation)(targetUserForReject.pushToken, data.callId || '');
-            const callSchoolId = rejectedCall?.schoolId || tenant.schoolId;
-            if (callSchoolId)
-                (0, call_service_1.logCall)({ callId: data.callId, schoolId: callSchoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId || rejectedCall?.conversationId, type: data.type || rejectedCall?.type || 'VOICE', status: 'DECLINED', endTime: new Date(), duration: 0, disconnectReason: 'DECLINED' }).catch(err => console.warn('[Socket] reject logCall error:', err));
+            (0, call_service_1.logCall)({ callId: data.callId, userId: data.from, recipientId: data.to, conversationId: data.conversationId || rejectedCall?.conversationId, type: data.type || rejectedCall?.type || 'VOICE', status: 'DECLINED', endTime: new Date(), duration: 0, disconnectReason: 'DECLINED' }).catch(err => console.warn('[Socket] reject logCall error:', err));
             const rejectConvId = data.conversationId || rejectedCall?.conversationId;
             if (rejectConvId) {
-                const msg = await db_1.default.message.create({ data: { conversationId: rejectConvId, senderId: data.from, schoolId: tenant.schoolId, content: data.reason === 'MISSED' ? 'Missed Call' : 'Declined Call', type: data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE', metadata: { reason: data.reason || 'DECLINED' } } });
+                const msg = await db_1.default.message.create({ data: { conversationId: rejectConvId, senderId: data.from, content: data.reason === 'MISSED' ? 'Missed Call' : 'Declined Call', type: data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE', metadata: { reason: data.reason || 'DECLINED' } } });
                 io.to(rejectConvId).emit('new_message', msg);
             }
         });
@@ -913,8 +798,7 @@ const initSocket = (server) => {
             const durationSecs = typeof data.duration === 'number' ? Math.round(data.duration) : 0;
             const answerTime = data.answerTime ? new Date(data.answerTime) : undefined;
             const callStatus = data.reason === 'CANCELLED' ? 'CANCELLED' : data.reason === 'MISSED' ? 'MISSED' : durationSecs > 0 ? 'ANSWERED' : 'CANCELLED';
-            if (tenant.schoolId)
-                (0, call_service_1.logCall)({ callId: data.callId, schoolId: data.schoolId || tenant.schoolId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: callStatus, duration: durationSecs, answerTime, endTime: new Date(), disconnectReason: data.reason || 'ENDED', networkQuality: data.networkQuality }).catch(err => console.warn('[Socket] end_call logCall error:', err));
+            (0, call_service_1.logCall)({ callId: data.callId, userId: data.from, recipientId: data.to, conversationId: data.conversationId, type: data.type || 'VOICE', status: callStatus, duration: durationSecs, answerTime, endTime: new Date(), disconnectReason: data.reason || 'ENDED', networkQuality: data.networkQuality }).catch(err => console.warn('[Socket] end_call logCall error:', err));
             if (data.conversationId) {
                 let content = 'Call ended';
                 let msgType = data.type === 'VIDEO' ? 'CALL_VIDEO' : 'CALL_VOICE';
@@ -926,7 +810,7 @@ const initSocket = (server) => {
                     content = 'Missed Call';
                     msgType = data.type === 'VIDEO' ? 'CALL_MISSED_VIDEO' : 'CALL_MISSED_VOICE';
                 }
-                const msg = await db_1.default.message.create({ data: { conversationId: data.conversationId, senderId: data.from, schoolId: tenant.schoolId, content, type: msgType, metadata: { duration: data.duration, reason: data.reason } } });
+                const msg = await db_1.default.message.create({ data: { conversationId: data.conversationId, senderId: data.from, content, type: msgType, metadata: { duration: data.duration, reason: data.reason } } });
                 io.to(data.conversationId).emit('new_message', msg);
             }
         });
@@ -934,10 +818,10 @@ const initSocket = (server) => {
         socket.on('disconnect', async () => {
             const tenant = await getSocketData(socket.id);
             if (tenant) {
-                const { userId, schoolId } = tenant;
-                const { fullyOffline } = await removeUserSocket(userId, socket.id, schoolId);
+                const { userId } = tenant;
+                const { fullyOffline } = await removeUserSocket(userId, socket.id);
                 if (fullyOffline)
-                    await emitPresenceToSchoolMates(io, 'user_offline', userId, schoolId, socket.id);
+                    await emitPresenceToMates(io, 'user_offline', userId, socket.id);
             }
         });
     });

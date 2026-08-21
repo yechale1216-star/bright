@@ -5,20 +5,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCallHistory = exports.logCall = void 0;
 const db_1 = __importDefault(require("../config/db"));
-/**
- * Create a complete call log entry including a CallSession record and
- * a CallHistory record for the initiating user. All new fields are stored.
- */
 const logCall = async (params) => {
     const now = new Date();
-    // Create (or upsert by callId) the session record
     let session;
     if (params.callId) {
         session = await db_1.default.callSession.upsert({
             where: { callId: params.callId },
             create: {
                 callId: params.callId,
-                schoolId: params.schoolId,
                 conversationId: params.conversationId,
                 type: params.type,
                 status: params.status,
@@ -30,8 +24,8 @@ const logCall = async (params) => {
                 networkQuality: params.networkQuality,
                 participants: {
                     create: [
-                        { userId: params.userId, schoolId: params.schoolId },
-                        { userId: params.recipientId, schoolId: params.schoolId },
+                        { userId: params.userId },
+                        { userId: params.recipientId },
                     ],
                 },
             },
@@ -48,7 +42,6 @@ const logCall = async (params) => {
     else {
         session = await db_1.default.callSession.create({
             data: {
-                schoolId: params.schoolId,
                 conversationId: params.conversationId,
                 type: params.type,
                 status: params.status,
@@ -60,18 +53,16 @@ const logCall = async (params) => {
                 networkQuality: params.networkQuality,
                 participants: {
                     create: [
-                        { userId: params.userId, schoolId: params.schoolId },
-                        { userId: params.recipientId, schoolId: params.schoolId },
+                        { userId: params.userId },
+                        { userId: params.recipientId },
                     ],
                 },
             },
         });
     }
-    // Log CallHistory for the caller
     const historyEntry = await db_1.default.callHistory.create({
         data: {
             callId: params.callId,
-            schoolId: params.schoolId,
             userId: params.userId,
             recipientId: params.recipientId,
             callSessionId: session.id,
@@ -98,14 +89,9 @@ const logCall = async (params) => {
     return historyEntry;
 };
 exports.logCall = logCall;
-/**
- * Fetch call history for a user within their school,
- * ordered by most recent first.
- */
-const getCallHistory = async (schoolId, userId, limit = 100) => {
+const getCallHistory = async (_schoolId, userId, limit = 100) => {
     const historyRecords = await db_1.default.callHistory.findMany({
         where: {
-            schoolId,
             ...(userId ? { OR: [{ userId }, { recipientId: userId }] } : {}),
         },
         include: {
@@ -125,7 +111,6 @@ const getCallHistory = async (schoolId, userId, limit = 100) => {
         orderBy: { createdAt: 'desc' },
         take: limit,
     });
-    // Extract recipient IDs to resolve user names and phone numbers
     const recipientIds = Array.from(new Set(historyRecords.map((r) => r.recipientId).filter(Boolean)));
     const recipientUsers = recipientIds.length > 0
         ? await db_1.default.user.findMany({

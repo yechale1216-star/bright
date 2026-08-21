@@ -36,14 +36,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const assignmentService = __importStar(require("../services/assignment.service"));
 const router = (0, express_1.Router)();
-// Get assignments for a school (optionally filtered by teacherId)
+// Get assignments
 router.get('/', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { teacherId } = req.query;
-        const assignments = await assignmentService.getAssignments(schoolId, teacherId);
+        const assignments = await assignmentService.getAssignments(undefined, teacherId);
         res.status(200).json({ success: true, data: assignments });
     }
     catch (error) {
@@ -53,10 +50,7 @@ router.get('/', async (req, res, next) => {
 // Create assignment
 router.post('/', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const assignment = await assignmentService.createAssignment(req.body, schoolId);
+        const assignment = await assignmentService.createAssignment(req.body);
         res.status(201).json({ success: true, data: assignment });
     }
     catch (error) {
@@ -66,10 +60,7 @@ router.post('/', async (req, res, next) => {
 // Update assignment
 router.put('/:id', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const assignment = await assignmentService.updateAssignment(req.params.id, req.body, schoolId);
+        const assignment = await assignmentService.updateAssignment(req.params.id, req.body);
         res.status(200).json({ success: true, data: assignment });
     }
     catch (error) {
@@ -79,10 +70,7 @@ router.put('/:id', async (req, res, next) => {
 // Delete assignment
 router.delete('/:id', async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        await assignmentService.deleteAssignment(req.params.id, schoolId);
+        await assignmentService.deleteAssignment(req.params.id);
         res.status(200).json({ success: true, message: 'Assignment removed' });
     }
     catch (error) {

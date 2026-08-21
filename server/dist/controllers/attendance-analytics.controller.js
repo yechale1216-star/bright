@@ -37,10 +37,7 @@ exports.exportAttendance = exports.getDrillDownStats = exports.getAttendanceTren
 const analyticsService = __importStar(require("../services/attendance-analytics.service"));
 const getAttendanceSummary = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const stats = await analyticsService.getAttendanceSummary(schoolId, req.query);
+        const stats = await analyticsService.getAttendanceSummary(undefined, req.query);
         res.status(200).json({ success: true, data: stats });
     }
     catch (error) {
@@ -50,10 +47,7 @@ const getAttendanceSummary = async (req, res, next) => {
 exports.getAttendanceSummary = getAttendanceSummary;
 const getGradeStats = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const stats = await analyticsService.getGradeStats(schoolId, req.query);
+        const stats = await analyticsService.getGradeStats(undefined, req.query);
         res.status(200).json({ success: true, data: stats });
     }
     catch (error) {
@@ -63,10 +57,7 @@ const getGradeStats = async (req, res, next) => {
 exports.getGradeStats = getGradeStats;
 const getAttendanceTrends = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const trends = await analyticsService.getAttendanceTrends(schoolId, req.query);
+        const trends = await analyticsService.getAttendanceTrends(undefined, req.query);
         res.status(200).json({ success: true, data: trends });
     }
     catch (error) {
@@ -76,10 +67,7 @@ const getAttendanceTrends = async (req, res, next) => {
 exports.getAttendanceTrends = getAttendanceTrends;
 const getDrillDownStats = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const stats = await analyticsService.getDrillDownStats(schoolId, req.params.gradeId, req.query);
+        const stats = await analyticsService.getDrillDownStats(undefined, req.params.gradeId, req.query);
         res.status(200).json({ success: true, data: stats });
     }
     catch (error) {
@@ -89,11 +77,7 @@ const getDrillDownStats = async (req, res, next) => {
 exports.getDrillDownStats = getDrillDownStats;
 const exportAttendance = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        // For now, return a raw list or summary that can be converted to CSV on frontend
-        const data = await analyticsService.getAttendanceTrends(schoolId, req.query);
+        const data = await analyticsService.getAttendanceTrends(undefined, req.query);
         res.status(200).json({ success: true, data });
     }
     catch (error) {

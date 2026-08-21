@@ -378,7 +378,14 @@ export function StaffAttendance() {
     } catch (err: any) {
       console.error("Attendance submission error:", err)
       setVerificationStep("error")
-      setStepMessage(err.message || "Failed to submit attendance.")
+      const rawMsg = err.message || ""
+      let friendlyMsg = "Unable to complete attendance right now. Please try again."
+      if (rawMsg.toLowerCase().includes("already") || rawMsg.toLowerCase().includes("recorded")) {
+        friendlyMsg = "Attendance already recorded for this session."
+      } else if (rawMsg.toLowerCase().includes("location") || rawMsg.toLowerCase().includes("geofence")) {
+        friendlyMsg = "Location verification failed. You must be on school grounds."
+      }
+      setStepMessage(friendlyMsg)
       isSubmittingAttendanceRef.current = false
     }
   }

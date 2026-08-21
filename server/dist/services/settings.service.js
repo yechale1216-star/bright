@@ -3,9 +3,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateSettings = exports.getSettings = exports.DEFAULT_FIXED_STAFF_SESSIONS = void 0;
+exports.updateSettings = exports.getSettings = exports.DEFAULT_FIXED_STAFF_SESSIONS = exports.ScheduleValidationError = void 0;
 exports.sanitizeStaffSessions = sanitizeStaffSessions;
 const db_1 = __importDefault(require("../config/db"));
+const schedule_validation_1 = require("../utils/schedule-validation");
+class ScheduleValidationError extends Error {
+    errors;
+    constructor(message, errors) {
+        super(message);
+        this.name = 'ScheduleValidationError';
+        this.errors = errors;
+    }
+}
+exports.ScheduleValidationError = ScheduleValidationError;
 exports.DEFAULT_FIXED_STAFF_SESSIONS = [
     {
         id: 'morning',
@@ -18,6 +28,7 @@ exports.DEFAULT_FIXED_STAFF_SESSIONS = [
         absenceCutoffTime: '09:30',
         earliestCheckinTime: '06:00',
         latestCheckoutTime: '13:30',
+        allowCheckinAfterCutoff: false,
         isActive: true,
     },
     {
@@ -31,6 +42,7 @@ exports.DEFAULT_FIXED_STAFF_SESSIONS = [
         absenceCutoffTime: '15:00',
         earliestCheckinTime: '12:30',
         latestCheckoutTime: '18:30',
+        allowCheckinAfterCutoff: false,
         isActive: true,
     },
 ];
@@ -89,7 +101,6 @@ function sanitizeStaffSessions(rawSessions) {
         let absenceCutoffTime;
         if (typeof raw?.absenceCutoffTime === 'string' && /^\d{2}:\d{2}$/.test(raw.absenceCutoffTime)) {
             absenceCutoffTime = raw.absenceCutoffTime;
-            // Derive minutes if valid
             const diff = getMinutesDiff(absenceCutoffTime, startTime);
             if (diff > 0) {
                 absenceCutoffMinutes = diff;
@@ -107,6 +118,7 @@ function sanitizeStaffSessions(rawSessions) {
         const latestCheckoutTime = typeof raw?.latestCheckoutTime === 'string' && /^\d{2}:\d{2}$/.test(raw.latestCheckoutTime)
             ? raw.latestCheckoutTime
             : (typeof raw?.latestCheckOutTime === 'string' && /^\d{2}:\d{2}$/.test(raw.latestCheckOutTime) ? raw.latestCheckOutTime : fallback.latestCheckoutTime);
+        const allowCheckinAfterCutoff = raw?.allowCheckinAfterCutoff === true;
         return {
             id: key,
             name,
@@ -118,6 +130,7 @@ function sanitizeStaffSessions(rawSessions) {
             absenceCutoffTime,
             earliestCheckinTime,
             latestCheckoutTime,
+            allowCheckinAfterCutoff,
             isActive: raw?.isActive !== false,
         };
     };
@@ -155,24 +168,64 @@ const DEFAULT_SETTINGS = {
     staff_work_end_time: '17:00',
     staff_late_grace_minutes: 15,
     staff_early_checkout_tolerance_minutes: 15,
+    staff_absence_cutoff_minutes: 120,
+    staff_absence_cutoff_time: '10:00',
     staff_earliest_checkin_time: '06:00',
     staff_latest_checkout_time: '20:00',
     staff_face_required: true,
     staff_geo_required: true,
+    allow_staff_checkin_after_cutoff: false,
 };
-const getSettings = async (schoolId) => {
-    let settings = await db_1.default.schoolSettings.findUnique({ where: { schoolId: schoolId } });
+const ALLOWED_SETTINGS_FIELDS = new Set([
+    'school_name',
+    'school_phone',
+    'school_address',
+    'academic_year',
+    'calendar_type',
+    'attendance_mode',
+    'attendance_ui_type',
+    'attendance_threshold',
+    'allow_late_mark',
+    'email_notifications',
+    'sms_notifications',
+    'notification_time',
+    'school_logo',
+    'allow_attendance_editing',
+    'restrict_location',
+    'school_latitude',
+    'school_longitude',
+    'allowed_radius_meters',
+    'allow_outside_attendance',
+    'staff_attendance_mode',
+    'staff_sessions',
+    'staff_working_days',
+    'staff_work_start_time',
+    'staff_work_end_time',
+    'staff_late_grace_minutes',
+    'staff_early_checkout_tolerance_minutes',
+    'staff_absence_cutoff_minutes',
+    'staff_absence_cutoff_time',
+    'staff_earliest_checkin_time',
+    'staff_latest_checkout_time',
+    'staff_checkin_start',
+    'staff_checkin_late',
+    'staff_checkout_early',
+    'staff_face_required',
+    'staff_geo_required',
+    'allow_staff_checkin_after_cutoff',
+]);
+const getSettings = async (_schoolId) => {
+    let settings = await db_1.default.schoolSettings.findFirst();
     if (!settings) {
-        // Auto-create defaults on first access
         settings = await db_1.default.schoolSettings.create({
-            data: { ...DEFAULT_SETTINGS, schoolId: schoolId },
+            data: { id: 'singleton', ...DEFAULT_SETTINGS },
         });
     }
     // Ensure staff_sessions is sanitized to fixed morning & afternoon sessions
     settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions);
     // Ensure settings.academic_year reflects the currently active AcademicYear record
     const activeAY = await db_1.default.academicYear.findFirst({
-        where: { schoolId, isCurrent: true },
+        where: { isCurrent: true },
         select: { name: true }
     });
     if (activeAY && activeAY.name) {
@@ -181,39 +234,60 @@ const getSettings = async (schoolId) => {
     return settings;
 };
 exports.getSettings = getSettings;
-const updateSettings = async (schoolId, data) => {
-    // If staff_sessions was provided, sanitize and enforce the 2 fixed sessions
-    const sanitizedData = { ...data };
-    if (sanitizedData.staff_sessions !== undefined) {
-        sanitizedData.staff_sessions = sanitizeStaffSessions(sanitizedData.staff_sessions);
+const updateSettings = async (_schoolId, data) => {
+    const rawData = { ...data };
+    // ── Authoritative Validation Before Persistence ──
+    if (rawData.staff_sessions !== undefined) {
+        const sessions = sanitizeStaffSessions(rawData.staff_sessions);
+        const morning = sessions.find(s => s.id === 'morning') || sessions[0];
+        const afternoon = sessions.find(s => s.id === 'afternoon') || sessions[1];
+        const sessionValidation = (0, schedule_validation_1.validateSessionSchedule)(morning, afternoon);
+        if (!sessionValidation.isValid) {
+            const firstError = sessionValidation.errors[0]?.message || 'Invalid session configuration';
+            throw new ScheduleValidationError(firstError, sessionValidation.errors);
+        }
+        rawData.staff_sessions = sessions;
+    }
+    const hasDailyFields = rawData.staff_work_start_time !== undefined ||
+        rawData.staff_work_end_time !== undefined ||
+        rawData.staff_late_grace_minutes !== undefined ||
+        rawData.staff_early_checkout_tolerance_minutes !== undefined ||
+        rawData.staff_absence_cutoff_time !== undefined;
+    if (hasDailyFields) {
+        const existing = await db_1.default.schoolSettings.findFirst();
+        const mergedDaily = {
+            ...(existing || DEFAULT_SETTINGS),
+            ...rawData,
+        };
+        const dailyValidation = (0, schedule_validation_1.validateDailySchedule)(mergedDaily);
+        if (!dailyValidation.isValid) {
+            const firstError = dailyValidation.errors[0]?.message || 'Invalid daily schedule configuration';
+            throw new ScheduleValidationError(firstError, dailyValidation.errors);
+        }
+    }
+    const sanitizedData = {};
+    for (const key of Object.keys(rawData)) {
+        if (ALLOWED_SETTINGS_FIELDS.has(key)) {
+            sanitizedData[key] = rawData[key];
+        }
     }
     const settings = await db_1.default.schoolSettings.upsert({
-        where: { schoolId: schoolId },
-        create: { ...DEFAULT_SETTINGS, ...sanitizedData, schoolId: schoolId },
+        where: { id: 'singleton' },
+        create: { id: 'singleton', ...DEFAULT_SETTINGS, ...sanitizedData },
         update: sanitizedData,
     });
-    // Ensure output returns sanitized fixed sessions
     settings.staff_sessions = sanitizeStaffSessions(settings.staff_sessions);
-    // Keep School table in sync if name changed
-    if (data.school_name) {
-        await db_1.default.school.update({
-            where: { id: schoolId },
-            data: { name: data.school_name }
-        });
-    }
     // Keep AcademicYear table in sync if academic_year changed
-    if (data.academic_year) {
+    if (data?.academic_year) {
         const ayName = String(data.academic_year).trim();
         if (ayName) {
             await db_1.default.$transaction(async (tx) => {
                 await tx.academicYear.updateMany({
-                    where: { schoolId },
                     data: { isCurrent: false },
                 });
                 await tx.academicYear.upsert({
-                    where: { schoolId_name: { schoolId, name: ayName } },
+                    where: { name: ayName },
                     create: {
-                        schoolId,
                         name: ayName,
                         startDate: new Date(),
                         endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),

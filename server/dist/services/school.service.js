@@ -3,104 +3,85 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getStreams = exports.getSections = exports.getGrades = exports.getSingleSchool = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.updateSchool = exports.createSchool = void 0;
+exports.getStreams = exports.getSections = exports.getGrades = exports.updateSchool = exports.createSchool = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.getSingleSchool = void 0;
 const db_1 = __importDefault(require("../config/db"));
-const school_id_1 = require("../utils/school-id");
-const createSchool = async (data) => {
-    const customId = await (0, school_id_1.generateSchoolId)();
-    const school = await db_1.default.school.create({
-        data: {
-            id: data.id,
-            name: data.name,
-            schoolId: customId,
-            settings: {
-                create: {
-                    school_name: data.name,
-                    attendance_mode: 'session_based',
-                    attendance_ui_type: 'card_based'
-                }
-            }
-        },
-        include: {
-            settings: true
-        }
-    });
-    return school;
-};
-exports.createSchool = createSchool;
-const updateSchool = async (id, data) => {
-    const school = await db_1.default.school.update({
-        where: { id },
-        data: {
-            name: data.name,
-        },
-        include: {
-            settings: true
-        }
-    });
-    // Also update school_name in settings for consistency
-    if (data.name) {
-        await db_1.default.schoolSettings.update({
-            where: { schoolId: id },
-            data: { school_name: data.name }
+const getSingleSchool = async () => {
+    let settings = await db_1.default.schoolSettings.findFirst();
+    if (!settings) {
+        settings = await db_1.default.schoolSettings.create({
+            data: {
+                id: 'singleton',
+                school_name: 'Addis Hiwot School',
+                attendance_mode: 'session_based',
+                attendance_ui_type: 'card_based',
+            },
         });
     }
-    return school;
+    return {
+        id: 'single-school',
+        name: settings.school_name || 'Addis Hiwot School',
+        schoolId: 'SCH-0001',
+        settings,
+    };
 };
-exports.updateSchool = updateSchool;
-const getSchoolById = async (id) => {
-    return await db_1.default.school.findUnique({
-        where: { id },
-        include: {
-            settings: true,
-        },
-    });
+exports.getSingleSchool = getSingleSchool;
+const getSchoolById = async (_id) => {
+    return await (0, exports.getSingleSchool)();
 };
 exports.getSchoolById = getSchoolById;
-const getSchoolByCustomId = async (schoolId) => {
-    return await db_1.default.school.findFirst({
-        where: { schoolId },
-        include: {
-            settings: true,
-        }
-    });
+const getSchoolByCustomId = async (_schoolId) => {
+    return await (0, exports.getSingleSchool)();
 };
 exports.getSchoolByCustomId = getSchoolByCustomId;
 const getAllSchools = async () => {
-    return await db_1.default.school.findMany({
-        orderBy: { createdAt: 'desc' },
-    });
+    return [await (0, exports.getSingleSchool)()];
 };
 exports.getAllSchools = getAllSchools;
-const getSingleSchool = async () => {
-    let school = await db_1.default.school.findFirst({
-        include: { settings: true },
-        orderBy: { createdAt: 'asc' }
+const createSchool = async (data) => {
+    const settings = await db_1.default.schoolSettings.upsert({
+        where: { id: 'singleton' },
+        update: { school_name: data.name },
+        create: {
+            id: 'singleton',
+            school_name: data.name,
+            attendance_mode: 'session_based',
+            attendance_ui_type: 'card_based',
+        },
     });
-    if (!school) {
-        school = await (0, exports.createSchool)({ name: 'Addis Hiwot School' });
-    }
-    return school;
+    return {
+        id: 'single-school',
+        name: settings.school_name || data.name,
+        schoolId: 'SCH-0001',
+        settings,
+    };
 };
-exports.getSingleSchool = getSingleSchool;
-const getGrades = async (schoolId) => {
+exports.createSchool = createSchool;
+const updateSchool = async (_id, data) => {
+    if (data.name) {
+        await db_1.default.schoolSettings.upsert({
+            where: { id: 'singleton' },
+            update: { school_name: data.name },
+            create: { id: 'singleton', school_name: data.name },
+        });
+    }
+    return await (0, exports.getSingleSchool)();
+};
+exports.updateSchool = updateSchool;
+const getGrades = async () => {
     return await db_1.default.grade.findMany({
-        where: { schoolId },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
     });
 };
 exports.getGrades = getGrades;
-const getSections = async (schoolId) => {
+const getSections = async () => {
     return await db_1.default.section.findMany({
-        where: { schoolId },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
     });
 };
 exports.getSections = getSections;
-const getStreams = async (schoolId) => {
+const getStreams = async () => {
     return await db_1.default.stream.findMany({
-        where: { schoolId },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
     });
 };
 exports.getStreams = getStreams;

@@ -30,11 +30,13 @@ router.get('/my', blockNonStaff, staffAttendanceController.getMyAttendance);
 router.get('/face-descriptor/:userId?', blockNonStaff, staffAttendanceController.getEnrolledDescriptor);
 router.post('/sync', blockNonStaff, staffAttendanceController.bulkSync);
 
+// Face enrollment (staff self-service or admin assisted)
+router.post('/face-enroll', blockNonStaff, staffAttendanceController.enrollFace);
+
 // Admin-only management
 router.get('/stats', authorize(['admin', 'school_admin']), staffAttendanceController.getStats);
 router.get('/report', authorize(['admin', 'school_admin']), staffAttendanceController.getReport);
 router.get('/', authorize(['admin', 'school_admin']), staffAttendanceController.getStaffAttendance);
-router.post('/face-enroll', authorize(['admin', 'school_admin']), staffAttendanceController.enrollFace);
 router.post('/mark-absent', authorize(['admin', 'school_admin']), staffAttendanceController.markAbsent);
 router.post('/process-absences', authorize(['admin', 'school_admin']), staffAttendanceController.processAbsences);
 router.post('/leave', authorize(['admin', 'school_admin']), staffAttendanceController.setLeave);

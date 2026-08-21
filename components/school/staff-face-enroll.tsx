@@ -124,15 +124,16 @@ export function StaffFaceEnrollModal({
 
   const isSavingEnrollmentRef = useRef(false)
 
-  const handleFaceCaptured = async (result: { descriptor: number[] }) => {
+  const handleFaceCaptured = async (result: { descriptor: number[]; confidence?: number; samplesCount?: number }) => {
     if (!selectedStaff || isSavingEnrollmentRef.current) return
     isSavingEnrollmentRef.current = true
     setIsSavingEnrollment(true)
     try {
       await db.enrollStaffFace(selectedStaff.id, result.descriptor)
+      const countStr = result.samplesCount ? `${result.samplesCount} biometric samples` : "5 biometric samples"
       notifications.success(
-        "Face Enrolled",
-        `Biometric face template registered for ${selectedStaff.full_name}.`
+        "Face Registered",
+        `Stable biometric template synthesized from ${countStr} for ${selectedStaff.full_name}.`
       )
       setIsEnrollCameraOpen(false)
       setSelectedStaff(null)

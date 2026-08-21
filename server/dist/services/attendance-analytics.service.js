@@ -6,26 +6,24 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDrillDownStats = exports.getAttendanceTrends = exports.getGradeStats = exports.getAttendanceSummary = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const academic_year_service_1 = require("./academic-year.service");
-// Helpers for the rules
 const isP = (s) => s?.toLowerCase() === 'present';
 const isL = (s) => s?.toLowerCase() === 'late';
 const isE = (s) => s?.toLowerCase() === 'excused';
 const isA = (s) => s?.toLowerCase() === 'absent';
 const isAttendance = (s) => isP(s) || isL(s);
-const getAttendanceSummary = async (schoolId, filters) => {
+const getAttendanceSummary = async (_schoolId, filters) => {
     const { startDate, endDate, academicYear, session, grade, section, stream, mode } = filters;
     const isFullDay = !session || session === 'total';
     const isSessionMode = mode === 'session_based';
-    const where = { schoolId };
-    // Scope to active academic year unless academicYear filter is 'all'
+    const where = {};
     if (!academicYear || academicYear === 'current' || academicYear === 'active') {
-        const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+        const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
         if (activeAY)
             where.academicYearId = activeAY.id;
     }
     else if (academicYear && academicYear !== 'all') {
         const targetAY = await db_1.default.academicYear.findUnique({
-            where: { schoolId_name: { schoolId, name: academicYear } }
+            where: { name: academicYear }
         });
         if (targetAY)
             where.academicYearId = targetAY.id;
@@ -46,8 +44,7 @@ const getAttendanceSummary = async (schoolId, filters) => {
     else if (mode === 'daily') {
         where.session = null;
     }
-    // Filter attendance by student attributes if provided
-    const studentWhere = { schoolId };
+    const studentWhere = {};
     if (grade && grade !== 'all')
         studentWhere.grade = { name: grade };
     if (section && section !== 'all')
@@ -66,7 +63,6 @@ const getAttendanceSummary = async (schoolId, filters) => {
         const byStudentDate = {};
         allRecords.forEach(rec => {
             const recHasSession = !!rec.session;
-            // Strict mode isolation
             if (isSessionMode && !recHasSession)
                 return;
             if (!isSessionMode && recHasSession)
@@ -91,7 +87,6 @@ const getAttendanceSummary = async (schoolId, filters) => {
             const { morning: m, afternoon: a, daily: d } = entry;
             if (m !== undefined || a !== undefined) {
                 if (m !== undefined && a !== undefined) {
-                    // Both sessions recorded
                     if (isP(m) && isP(a))
                         present++;
                     else if (isAttendance(m) && isAttendance(a))
@@ -113,53 +108,52 @@ const getAttendanceSummary = async (schoolId, filters) => {
                     absent++;
             }
         });
-        const totalEntries = present + late + excused + absent;
-        const attendanceRate = totalEntries > 0
-            ? Math.round(((present + late + excused) / totalEntries) * 100)
-            : 0;
+        const totalRecorded = present + late + excused + absent;
         return {
             totalStudents,
+            totalRecorded,
             present,
             late,
             excused,
             absent,
-            attendanceRate
+            attendanceRate: totalRecorded > 0
+                ? Math.round(((present + late + excused) / totalRecorded) * 100)
+                : 0
         };
     }
     else {
-        // Single session view — fetch records and deduplicate by studentId + date to guarantee unique counts
-        const stats = {
-            totalStudents,
-            present: 0,
-            absent: 0,
-            late: 0,
-            excused: 0,
-            attendanceRate: 0
-        };
-        const allRecords = await db_1.default.attendance.findMany({
+        const records = await db_1.default.attendance.findMany({
             where,
-            select: { studentId: true, date: true, status: true },
-            orderBy: { updatedAt: 'desc' }
+            select: { studentId: true, status: true, date: true }
         });
-        const uniqueStudentDate = new Map(); // `${studentId}||${dateStr}` -> status
-        allRecords.forEach(rec => {
-            const dateStr = rec.date.toISOString().split('T')[0];
-            const key = `${rec.studentId}||${dateStr}`;
-            if (!uniqueStudentDate.has(key)) {
-                uniqueStudentDate.set(key, rec.status.toLowerCase());
+        const byDateStudent = {};
+        records.forEach(r => {
+            const dateStr = r.date.toISOString().split('T')[0];
+            const key = `${r.studentId}||${dateStr}`;
+            if (!byDateStudent[key]) {
+                byDateStudent[key] = r.status.toLowerCase();
             }
         });
-        uniqueStudentDate.forEach(s => {
-            if (s === 'present')
+        const stats = {
+            totalStudents,
+            totalRecorded: Object.keys(byDateStudent).length,
+            present: 0,
+            late: 0,
+            excused: 0,
+            absent: 0,
+            attendanceRate: 0
+        };
+        Object.values(byDateStudent).forEach(status => {
+            if (status === 'present')
                 stats.present++;
-            else if (s === 'absent')
-                stats.absent++;
-            else if (s === 'late')
+            else if (status === 'late')
                 stats.late++;
-            else if (s === 'excused')
+            else if (status === 'excused')
                 stats.excused++;
+            else if (status === 'absent')
+                stats.absent++;
         });
-        const totalRecorded = stats.present + stats.absent + stats.late + stats.excused;
+        const totalRecorded = stats.present + stats.late + stats.excused + stats.absent;
         stats.attendanceRate = totalRecorded > 0
             ? Math.round(((stats.present + stats.late + stats.excused) / totalRecorded) * 100)
             : 0;
@@ -167,11 +161,11 @@ const getAttendanceSummary = async (schoolId, filters) => {
     }
 };
 exports.getAttendanceSummary = getAttendanceSummary;
-const getGradeStats = async (schoolId, filters) => {
+const getGradeStats = async (_schoolId, filters) => {
     const { startDate, endDate, session, grade, section, stream, mode } = filters;
     const isFullDay = !session || session === 'total';
     const isSessionMode = mode === 'session_based';
-    const where = { schoolId };
+    const where = {};
     if (startDate || endDate) {
         where.date = {};
         if (startDate)
@@ -188,8 +182,7 @@ const getGradeStats = async (schoolId, filters) => {
     else if (mode === 'daily') {
         where.session = null;
     }
-    // Filter by student attributes if provided
-    const studentWhere = { schoolId };
+    const studentWhere = {};
     if (grade && grade !== 'all')
         studentWhere.grade = { name: grade };
     if (section && section !== 'all')
@@ -313,11 +306,11 @@ const getGradeStats = async (schoolId, filters) => {
     });
 };
 exports.getGradeStats = getGradeStats;
-const getAttendanceTrends = async (schoolId, filters) => {
+const getAttendanceTrends = async (_schoolId, filters) => {
     const { startDate, endDate, grade, section, stream, session, mode } = filters;
     const isFullDay = !session || session === 'total';
     const isSessionMode = mode === 'session_based';
-    const where = { schoolId };
+    const where = {};
     if (startDate || endDate) {
         where.date = {};
         if (startDate)
@@ -325,8 +318,7 @@ const getAttendanceTrends = async (schoolId, filters) => {
         if (endDate)
             where.date.lte = new Date(endDate);
     }
-    // Filter records by student attributes if provided
-    const studentWhere = { schoolId };
+    const studentWhere = {};
     if (grade && grade !== 'all')
         studentWhere.grade = { name: grade };
     if (section && section !== 'all')
@@ -399,11 +391,10 @@ const getAttendanceTrends = async (schoolId, filters) => {
     }).sort((a, b) => a.date.localeCompare(b.date));
 };
 exports.getAttendanceTrends = getAttendanceTrends;
-const getDrillDownStats = async (schoolId, gradeId, filters) => {
+const getDrillDownStats = async (_schoolId, gradeId, filters) => {
     const { startDate, endDate, sectionId, streamId, mode } = filters;
     const isSessionMode = mode === 'session_based';
     const where = {
-        schoolId,
         gradeId,
         ...(sectionId && sectionId !== 'all' ? { sectionId } : {}),
         ...(streamId && streamId !== 'all' ? { streamId } : {})
@@ -415,7 +406,6 @@ const getDrillDownStats = async (schoolId, gradeId, filters) => {
             stream: true,
             attendance: {
                 where: {
-                    schoolId,
                     ...(startDate || endDate ? {
                         date: {
                             ...(startDate ? { gte: new Date(startDate) } : {}),

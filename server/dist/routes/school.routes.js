@@ -36,39 +36,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const schoolService = __importStar(require("../services/school.service"));
 const router = (0, express_1.Router)();
-// Get all grades for current school
-router.get('/me/grades', async (req, res, next) => {
+// Get all grades
+router.get('/me/grades', async (_req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const grades = await schoolService.getGrades(schoolId);
+        const grades = await schoolService.getGrades();
         res.status(200).json({ success: true, data: grades });
     }
     catch (error) {
         next(error);
     }
 });
-// Get all sections for current school
-router.get('/me/sections', async (req, res, next) => {
+// Get all sections
+router.get('/me/sections', async (_req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const sections = await schoolService.getSections(schoolId);
+        const sections = await schoolService.getSections();
         res.status(200).json({ success: true, data: sections });
     }
     catch (error) {
         next(error);
     }
 });
-// Get all streams for current school
-router.get('/me/streams', async (req, res, next) => {
+// Get all streams
+router.get('/me/streams', async (_req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const streams = await schoolService.getStreams(schoolId);
+        const streams = await schoolService.getStreams();
         res.status(200).json({ success: true, data: streams });
     }
     catch (error) {

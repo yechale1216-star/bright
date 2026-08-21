@@ -484,12 +484,30 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
 }
 
 /**
- * Face enrollment for a staff member (admin only)
+ * Face enrollment for a staff member (admin or self-service)
  */
 export async function enrollFace(adminUserId: string, targetUserId: string, _schoolId?: string, descriptor?: number[]) {
-  if (!descriptor || !Array.isArray(descriptor) || descriptor.length === 0) {
-    throw new Error('Valid face descriptor array is required for enrollment');
+  if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
+    throw new Error('Invalid face descriptor: exactly 128 numerical feature values are required.');
   }
+
+  // Validate all elements are finite numbers
+  let sumSq = 0;
+  for (let i = 0; i < descriptor.length; i++) {
+    const val = descriptor[i];
+    if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) {
+      throw new Error(`Corrupted biometric descriptor: invalid value at index ${i}`);
+    }
+    sumSq += val * val;
+  }
+
+  const norm = Math.sqrt(sumSq);
+  if (norm < 0.1 || norm > 3.0) {
+    throw new Error('Biometric descriptor norm is out of acceptable bounds.');
+  }
+
+  // Ensure normalized unit vector (L2-norm = 1.0)
+  const normalizedDescriptor = descriptor.map(v => v / norm);
 
   const staff = await prisma.user.findFirst({
     where: { id: targetUserId }
@@ -498,26 +516,18 @@ export async function enrollFace(adminUserId: string, targetUserId: string, _sch
     throw new Error('Staff member not found');
   }
 
-  const existing = await prisma.staffFaceEnrollment.findUnique({
-    where: { userId: targetUserId }
-  });
-
-  if (existing) {
-    return await prisma.staffFaceEnrollment.update({
-      where: { userId: targetUserId },
-      data: {
-        descriptor,
-        enrolledBy: adminUserId,
-        updatedAt: new Date()
-      }
-    });
-  }
-
-  return await prisma.staffFaceEnrollment.create({
-    data: {
+  // Atomic upsert to prevent race conditions or duplicate biometric registrations
+  return await prisma.staffFaceEnrollment.upsert({
+    where: { userId: targetUserId },
+    create: {
       userId: targetUserId,
-      descriptor,
+      descriptor: normalizedDescriptor,
       enrolledBy: adminUserId,
+    },
+    update: {
+      descriptor: normalizedDescriptor,
+      enrolledBy: adminUserId,
+      updatedAt: new Date(),
     }
   });
 }
@@ -526,9 +536,24 @@ export async function enrollFace(adminUserId: string, targetUserId: string, _sch
  * Retrieve face descriptor for client-side matching
  */
 export async function getEnrolledDescriptor(userId: string, _schoolId?: string) {
-  return await prisma.staffFaceEnrollment.findFirst({
+  const enrollment = await prisma.staffFaceEnrollment.findFirst({
     where: { userId }
   });
+
+  if (!enrollment) return null;
+
+  // Normalize return shape if descriptor is wrapped
+  let descriptorArray: number[] = [];
+  if (Array.isArray(enrollment.descriptor)) {
+    descriptorArray = enrollment.descriptor as unknown as number[];
+  } else if (enrollment.descriptor && typeof enrollment.descriptor === 'object' && Array.isArray((enrollment.descriptor as any).vector)) {
+    descriptorArray = (enrollment.descriptor as any).vector;
+  }
+
+  return {
+    ...enrollment,
+    descriptor: descriptorArray,
+  };
 }
 
 /**

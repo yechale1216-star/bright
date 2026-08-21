@@ -9,7 +9,7 @@ exports.validateGeofence = validateGeofence;
 const db_1 = __importDefault(require("../config/db"));
 const academic_year_service_1 = require("./academic-year.service");
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // Earth's radius in meters
+    const R = 6371e3;
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
@@ -19,13 +19,11 @@ function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(R * c);
 }
-const resolveTeacherId = async (schoolId, rawTeacherId) => {
+const resolveTeacherId = async (_schoolId, rawTeacherId) => {
     if (!rawTeacherId)
         return null;
-    // 1. Try finding Teacher directly by id or user_id
     const teacher = await db_1.default.teacher.findFirst({
         where: {
-            schoolId,
             OR: [
                 { id: rawTeacherId },
                 { user_id: rawTeacherId }
@@ -34,10 +32,8 @@ const resolveTeacherId = async (schoolId, rawTeacherId) => {
     });
     if (teacher)
         return teacher.id;
-    // 2. Try finding User by id or teacher_id
     const user = await db_1.default.user.findFirst({
         where: {
-            schoolId,
             OR: [
                 { id: rawTeacherId },
                 { teacher_id: rawTeacherId }
@@ -51,13 +47,11 @@ const resolveTeacherId = async (schoolId, rawTeacherId) => {
         if (teacherFromUser)
             return teacherFromUser.id;
     }
-    // 3. If user is a teacher role but has no Teacher profile row yet, auto-create one
     if (user && user.role === 'teacher') {
         const newTeacher = await db_1.default.teacher.create({
             data: {
                 name: user.full_name,
                 email: user.email,
-                schoolId,
                 phone: user.phone || null,
                 user_id: user.id
             }
@@ -100,10 +94,6 @@ const normalizeSession = (sess) => {
     return s;
 };
 exports.normalizeSession = normalizeSession;
-/**
- * Shared geofence validation used by both student and staff attendance.
- * Returns verified flag and computed distance, or throws if strict-mode fails.
- */
 function validateGeofence(data, settings) {
     let locVerified = data.locationVerified ?? false;
     let locDistance = data.locationDistance != null ? Number(data.locationDistance) : null;
@@ -127,34 +117,27 @@ function validateGeofence(data, settings) {
     }
     return { locVerified, locDistance };
 }
-const markAttendance = async (data, schoolId) => {
+const markAttendance = async (data, _schoolId) => {
     const { studentId, date, status, remarks, teacherId, userRole, userId } = data;
     const session = (0, exports.normalizeSession)(data.session);
     if (!studentId || !date) {
         throw new Error("Student ID and Date are required");
     }
-    // Resolve valid teacherId foreign key (or null if marked by admin/non-teacher)
-    const resolvedTeacherId = await (0, exports.resolveTeacherId)(schoolId, teacherId || userId);
-    // Ensure student belongs to this school and is actively enrolled
-    const student = await db_1.default.student.findFirst({
-        where: { id: studentId, schoolId }
+    const resolvedTeacherId = await (0, exports.resolveTeacherId)(undefined, teacherId || userId);
+    const student = await db_1.default.student.findUnique({
+        where: { id: studentId }
     });
     if (!student) {
-        throw new Error("Student not found in this school");
+        throw new Error("Student not found");
     }
     if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
         throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
     }
-    // Fetch school settings for location restriction & edit permission checks
-    const settings = await db_1.default.schoolSettings.findUnique({ where: { schoolId } });
-    // 1. Geofence & Location Restriction Verification
+    const settings = await db_1.default.schoolSettings.findFirst();
     const { locVerified, locDistance } = validateGeofence(data, settings);
-    // Standardize the day range in UTC
     const { dateStr, startDate, endDate } = (0, exports.normalizeDate)(date);
-    // Find if a record already exists for this student on this day and session.
     const existing = await db_1.default.attendance.findFirst({
         where: {
-            schoolId,
             studentId,
             date: {
                 gte: startDate,
@@ -165,7 +148,6 @@ const markAttendance = async (data, schoolId) => {
                 : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] }),
         }
     });
-    // 2. Attendance Edit Permission Verification
     if (existing && userRole === 'teacher') {
         if (settings && settings.allow_attendance_editing === false) {
             const sessionFilter = session
@@ -173,7 +155,6 @@ const markAttendance = async (data, schoolId) => {
                 : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
             const approvedRequest = await db_1.default.attendanceEditRequest.findFirst({
                 where: {
-                    schoolId,
                     status: 'APPROVED',
                     isUsed: false,
                     date: {
@@ -198,7 +179,6 @@ const markAttendance = async (data, schoolId) => {
             });
             await db_1.default.auditLog.create({
                 data: {
-                    schoolId,
                     user_id: userId || teacherId || null,
                     action: 'ATTENDANCE_EDIT_PERMITTED',
                     entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -209,8 +189,7 @@ const markAttendance = async (data, schoolId) => {
             }).catch(err => console.error('[AuditLog] edit permission use log error:', err));
         }
     }
-    // Resolve active academic year and student's enrollment record
-    const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
     const academicYearId = activeAY?.id || null;
     let academicYearRecordId = null;
     if (activeAY) {
@@ -239,7 +218,6 @@ const markAttendance = async (data, schoolId) => {
         : await db_1.default.attendance.create({
             data: {
                 studentId,
-                schoolId,
                 teacherId: resolvedTeacherId,
                 date: startDate,
                 status,
@@ -253,10 +231,8 @@ const markAttendance = async (data, schoolId) => {
                 academicYearRecordId,
             }
         });
-    // Audit log attendance operation
     await db_1.default.auditLog.create({
         data: {
-            schoolId,
             user_id: userId || teacherId || null,
             action: existing ? 'ATTENDANCE_UPDATED' : 'ATTENDANCE_MARKED',
             entity_type: 'ATTENDANCE',
@@ -273,15 +249,13 @@ const markAttendance = async (data, schoolId) => {
             }
         }
     }).catch(err => console.error('[AuditLog] Attendance error:', err));
-    // Intercept and create parent notification if status is Absent, Late, or Excused
-    await (0, exports.sendAttendanceParentNotification)(student, status, dateStr, schoolId);
+    await (0, exports.sendAttendanceParentNotification)(student, status, dateStr);
     return result;
 };
 exports.markAttendance = markAttendance;
-const getAttendance = async (filters, schoolId) => {
+const getAttendance = async (filters, _schoolId) => {
     const { studentId, date, session, grade, section, startDate: filterStartDate, endDate: filterEndDate, academicYearId: filterAcademicYearId } = filters;
-    const where = { schoolId };
-    // Explicit academicYearId filter if supplied by caller
+    const where = {};
     if (filterAcademicYearId) {
         where.academicYearId = filterAcademicYearId;
     }
@@ -322,7 +296,7 @@ const getAttendance = async (filters, schoolId) => {
         }
     }
     if (grade || section) {
-        where.student = { schoolId };
+        where.student = {};
         if (grade)
             where.student.gradeId = grade;
         if (section)
@@ -342,9 +316,9 @@ const getAttendance = async (filters, schoolId) => {
     });
 };
 exports.getAttendance = getAttendance;
-const getAttendanceByStudent = async (studentId, schoolId, filters = {}) => {
+const getAttendanceByStudent = async (studentId, _schoolId, filters = {}) => {
     const { session } = filters;
-    const where = { studentId, schoolId };
+    const where = { studentId };
     if (session !== undefined && session !== null) {
         const cleanSess = String(session).trim().toLowerCase();
         if (cleanSess === 'none' || cleanSess === 'daily' || cleanSess === '') {
@@ -367,25 +341,22 @@ const getAttendanceByStudent = async (studentId, schoolId, filters = {}) => {
     });
 };
 exports.getAttendanceByStudent = getAttendanceByStudent;
-// ─── ATTENDANCE EDIT REQUESTS & AUDIT LOGS ──────────────────────────────────
-const createEditRequest = async (schoolId, teacherId, data) => {
+const createEditRequest = async (_schoolId, teacherId, data) => {
     const { studentId, gradeId, sectionId, date, session, reason } = data;
     if (!date) {
         throw new Error("Date is required for edit request");
     }
     const dateStr = typeof date === 'string' ? date.split("T")[0] : new Date(date).toISOString().split("T")[0];
     const parsedDate = new Date(`${dateStr}T00:00:00.000Z`);
-    // Ensure teacher record exists or resolve teacherId
     let resolvedTeacherId = teacherId;
     const teacherRecord = await db_1.default.teacher.findFirst({
-        where: { schoolId, OR: [{ id: teacherId }, { user_id: teacherId }] }
+        where: { OR: [{ id: teacherId }, { user_id: teacherId }] }
     });
     if (teacherRecord) {
         resolvedTeacherId = teacherRecord.id;
     }
     const editRequest = await db_1.default.attendanceEditRequest.create({
         data: {
-            schoolId,
             teacherId: resolvedTeacherId,
             studentId: studentId || null,
             gradeId: gradeId || null,
@@ -402,7 +373,6 @@ const createEditRequest = async (schoolId, teacherId, data) => {
     });
     await db_1.default.auditLog.create({
         data: {
-            schoolId,
             user_id: teacherId,
             action: 'ATTENDANCE_EDIT_REQUEST_SUBMITTED',
             entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -413,9 +383,9 @@ const createEditRequest = async (schoolId, teacherId, data) => {
     return editRequest;
 };
 exports.createEditRequest = createEditRequest;
-const getEditRequests = async (schoolId, filters = {}) => {
+const getEditRequests = async (_schoolId, filters = {}) => {
     const { teacherId, status } = filters;
-    const where = { schoolId };
+    const where = {};
     if (teacherId) {
         where.OR = [
             { teacherId },
@@ -435,9 +405,9 @@ const getEditRequests = async (schoolId, filters = {}) => {
     });
 };
 exports.getEditRequests = getEditRequests;
-const approveEditRequest = async (requestId, adminUserId, schoolId, adminNote) => {
-    const request = await db_1.default.attendanceEditRequest.findFirst({
-        where: { id: requestId, schoolId }
+const approveEditRequest = async (requestId, adminUserId, _schoolId, adminNote) => {
+    const request = await db_1.default.attendanceEditRequest.findUnique({
+        where: { id: requestId }
     });
     if (!request) {
         throw new Error("Edit request not found");
@@ -457,7 +427,6 @@ const approveEditRequest = async (requestId, adminUserId, schoolId, adminNote) =
     });
     await db_1.default.auditLog.create({
         data: {
-            schoolId,
             user_id: adminUserId,
             action: 'ATTENDANCE_EDIT_REQUEST_APPROVED',
             entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -469,9 +438,9 @@ const approveEditRequest = async (requestId, adminUserId, schoolId, adminNote) =
     return updated;
 };
 exports.approveEditRequest = approveEditRequest;
-const rejectEditRequest = async (requestId, adminUserId, schoolId, adminNote) => {
-    const request = await db_1.default.attendanceEditRequest.findFirst({
-        where: { id: requestId, schoolId }
+const rejectEditRequest = async (requestId, adminUserId, _schoolId, adminNote) => {
+    const request = await db_1.default.attendanceEditRequest.findUnique({
+        where: { id: requestId }
     });
     if (!request) {
         throw new Error("Edit request not found");
@@ -491,7 +460,6 @@ const rejectEditRequest = async (requestId, adminUserId, schoolId, adminNote) =>
     });
     await db_1.default.auditLog.create({
         data: {
-            schoolId,
             user_id: adminUserId,
             action: 'ATTENDANCE_EDIT_REQUEST_REJECTED',
             entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -503,10 +471,9 @@ const rejectEditRequest = async (requestId, adminUserId, schoolId, adminNote) =>
     return updated;
 };
 exports.rejectEditRequest = rejectEditRequest;
-const getAttendanceAuditLogs = async (schoolId) => {
+const getAttendanceAuditLogs = async (_schoolId) => {
     return await db_1.default.auditLog.findMany({
         where: {
-            schoolId,
             entity_type: {
                 in: ['ATTENDANCE', 'ATTENDANCE_EDIT_REQUEST']
             }
@@ -516,7 +483,7 @@ const getAttendanceAuditLogs = async (schoolId) => {
     });
 };
 exports.getAttendanceAuditLogs = getAttendanceAuditLogs;
-const sendAttendanceParentNotification = async (student, status, dateStr, schoolId) => {
+const sendAttendanceParentNotification = async (student, status, dateStr, _schoolId) => {
     if (!status)
         return;
     const statusLower = status.toLowerCase();
@@ -539,7 +506,6 @@ const sendAttendanceParentNotification = async (student, status, dateStr, school
             include: { parent: true }
         });
         if (!parentLinks || parentLinks.length === 0) {
-            console.log(`[ParentNotification] No linked parent found for student ${student.fullName} (${student.id})`);
             return;
         }
         const firstParentName = parentLinks[0]?.parent?.full_name || 'ወላጅ';
@@ -556,7 +522,6 @@ const sendAttendanceParentNotification = async (student, status, dateStr, school
                     : `ውድ ${firstParentName}፣ ልጅዎ ${student.fullName} ዛሬ ${dateStr} በተሰጠው ፈቃድ መሰረት ከትምህርት ቀርቷል። በሚቀጥለው የትምህርት ቀን በትምህርቱ ላይ እንዲገኝ እንጠብቃለን። ለትብብርዎ እናመሰግናለን።`);
         await db_1.default.parentNotification.create({
             data: {
-                schoolId,
                 studentId: student.id,
                 type,
                 title,
@@ -565,17 +530,14 @@ const sendAttendanceParentNotification = async (student, status, dateStr, school
             }
         });
         const { sendCategoryNotification } = require('./notification.service');
-        const school = await db_1.default.school.findUnique({
-            where: { id: schoolId },
-            select: { name: true }
-        });
-        const schoolName = school?.name || 'Addis Hiwot School';
+        const settings = await db_1.default.schoolSettings.findFirst();
+        const schoolName = settings?.school_name || 'Addis Hiwot School';
         const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
         for (const link of parentLinks) {
             if (link.parent && link.parent.pushToken) {
                 if (link.parent.phone) {
                     const prefs = await db_1.default.parentPreferences.findUnique({
-                        where: { parentPhone_schoolId: { parentPhone: link.parent.phone, schoolId } }
+                        where: { parentPhone: link.parent.phone }
                     });
                     if (prefs && !prefs.pushNotifications) {
                         continue;
@@ -589,7 +551,6 @@ const sendAttendanceParentNotification = async (student, status, dateStr, school
                     body: parentSpecificMessage,
                     route: `/parent/attendance`,
                     studentId: student.id,
-                    schoolId,
                     schoolName,
                     categoryLabel,
                     tag: `attendance-${student.id}`
@@ -604,17 +565,15 @@ const sendAttendanceParentNotification = async (student, status, dateStr, school
     }
 };
 exports.sendAttendanceParentNotification = sendAttendanceParentNotification;
-const bulkMarkAttendance = async (records, schoolId, meta) => {
+const bulkMarkAttendance = async (records, _schoolId, meta = {}) => {
     if (!Array.isArray(records) || records.length === 0)
         return [];
     if (records.length > 500) {
         throw new Error('Maximum 500 attendance records allowed per bulk request');
     }
     const { userRole, userId, teacherId } = meta;
-    const resolvedTeacherId = await (0, exports.resolveTeacherId)(schoolId, teacherId || userId);
-    // Fetch school settings once
-    const settings = await db_1.default.schoolSettings.findUnique({ where: { schoolId } });
-    // Geofence check once
+    const resolvedTeacherId = await (0, exports.resolveTeacherId)(undefined, teacherId || userId);
+    const settings = await db_1.default.schoolSettings.findFirst();
     let locVerified = meta.locationVerified ?? false;
     let locDistance = meta.locationDistance != null ? Number(meta.locationDistance) : null;
     if (settings?.restrict_location && !settings?.allow_outside_attendance) {
@@ -631,8 +590,6 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             locDistance = dist;
         }
     }
-    // Deduplicate incoming payload records by (studentId, dateStr, session)
-    // Preserves latest record in payload if duplicate student entries exist in same batch
     const dedupedMap = new Map();
     for (const r of records) {
         if (!r.studentId)
@@ -645,17 +602,15 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     const cleanRecords = Array.from(dedupedMap.values());
     if (cleanRecords.length === 0)
         return [];
-    // Batch query active enrolled students only
     const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
     const validStudents = await db_1.default.student.findMany({
-        where: { id: { in: studentIds }, schoolId, status: 'ACTIVE' },
+        where: { id: { in: studentIds }, status: 'ACTIVE' },
         select: { id: true, fullName: true, gender: true }
     });
     const studentMap = new Map(validStudents.map(s => [s.id, s]));
-    // Pre-fetch active Academic Year and all Student Academic Year Enrollment Records in bulk
-    const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear(schoolId);
+    const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
     const activeAYId = activeAY?.id || null;
-    const enrollmentMap = new Map(); // studentId -> studentAcademicYearRecordId
+    const enrollmentMap = new Map();
     if (activeAYId) {
         const enrollments = await db_1.default.studentAcademicYearRecord.findMany({
             where: {
@@ -666,7 +621,6 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
         });
         enrollments.forEach(e => enrollmentMap.set(e.studentId, e.id));
     }
-    // Collect all unique date ranges present in the batch
     const dateRanges = new Map();
     cleanRecords.forEach(r => {
         const { dateStr, startDate, endDate } = (0, exports.normalizeDate)(r.date);
@@ -677,22 +631,18 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     const dateConditions = Array.from(dateRanges.values()).map(r => ({
         date: { gte: r.startDate, lte: r.endDate }
     }));
-    // Batch query existing attendance records for the target students across all batch dates
     const existingRecords = await db_1.default.attendance.findMany({
         where: {
-            schoolId,
             studentId: { in: Array.from(studentMap.keys()) },
             OR: dateConditions.length > 0 ? dateConditions : undefined,
         }
     });
-    // Build composite lookup map: `${studentId}::${dateStr}::${normalizeSession(session) || '__daily__'}`
     const existingMap = new Map();
     existingRecords.forEach(e => {
         const eDateStr = e.date ? e.date.toISOString().split("T")[0] : 'unknown';
         const sKey = (0, exports.normalizeSession)(e.session) || '__daily__';
         existingMap.set(`${e.studentId}::${eDateStr}::${sKey}`, e);
     });
-    // Edit Permission Verification for Bulk Updates
     const hasExistingUpdates = cleanRecords.some(r => {
         const { dateStr } = (0, exports.normalizeDate)(r.date);
         const recSession = (0, exports.normalizeSession)(r.session);
@@ -707,7 +657,6 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
         const approvedRequest = await db_1.default.attendanceEditRequest.findFirst({
             where: {
-                schoolId,
                 status: 'APPROVED',
                 isUsed: false,
                 date: {
@@ -726,14 +675,12 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             const sessionLabel = sampleSession ? ` (${sampleSession} session)` : '';
             throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${sampleDateInfo.dateStr}${sessionLabel}.`);
         }
-        // Consume the approved permission
         await db_1.default.attendanceEditRequest.update({
             where: { id: approvedRequest.id },
             data: { isUsed: true }
         });
         await db_1.default.auditLog.create({
             data: {
-                schoolId,
                 user_id: userId || teacherId || null,
                 action: 'ATTENDANCE_EDIT_PERMITTED',
                 entity_type: 'ATTENDANCE_EDIT_REQUEST',
@@ -742,7 +689,6 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             }
         }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
     }
-    // Build atomic transaction queries — updates existing rows, creates missing rows
     const txOps = [];
     for (const record of cleanRecords) {
         const student = studentMap.get(record.studentId);
@@ -774,7 +720,6 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             txOps.push(db_1.default.attendance.create({
                 data: {
                     studentId: record.studentId,
-                    schoolId,
                     teacherId: resolvedTeacherId,
                     date: startDate,
                     status,
@@ -788,19 +733,12 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
             }));
         }
     }
-    // Execute all upserts in a single DB transaction
     const results = await db_1.default.$transaction(txOps);
-    // Build status summary for admin notification
     const presentCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'present').length;
     const lateCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'late').length;
     const absentCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'absent').length;
     const excusedCount = cleanRecords.filter(r => r.status?.toLowerCase() === 'excused').length;
-    // Determine grade/section from first valid student record
-    const firstStudent = cleanRecords.map(r => studentMap.get(r.studentId)).find(Boolean);
-    const gradeLabel = firstStudent ? `${firstStudent.fullName.split(' ')[0]}'s class` : 'A class';
-    // Fire admin notification in background (does not block response)
     (0, exports.sendAdminAttendanceNotification)({
-        schoolId,
         teacherId: resolvedTeacherId,
         dateStr: sampleDateInfo.dateStr,
         session: sampleSession,
@@ -812,20 +750,17 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     }).catch(err => {
         console.error('[BulkAttendance] Admin notification dispatch error:', err);
     });
-    // Asynchronously send parent notifications for absent, late, or excused students
     for (const record of cleanRecords) {
         const student = studentMap.get(record.studentId);
         if (student) {
             const recDateStr = (0, exports.normalizeDate)(record.date).dateStr;
-            (0, exports.sendAttendanceParentNotification)(student, record.status, recDateStr, schoolId).catch(err => {
+            (0, exports.sendAttendanceParentNotification)(student, record.status, recDateStr).catch(err => {
                 console.error(`[BulkAttendance] Parent notification dispatch error for student ${student.id}:`, err);
             });
         }
     }
-    // Background audit log
     db_1.default.auditLog.create({
         data: {
-            schoolId,
             user_id: userId || teacherId || null,
             action: 'BULK_ATTENDANCE_MARKED',
             entity_type: 'ATTENDANCE',
@@ -835,20 +770,14 @@ const bulkMarkAttendance = async (records, schoolId, meta) => {
     return results;
 };
 exports.bulkMarkAttendance = bulkMarkAttendance;
-/**
- * Notifies all school admins (with a registered push token) when a teacher submits attendance.
- * Sent asynchronously after the bulk upsert — never blocks the teacher's response.
- */
 const sendAdminAttendanceNotification = async (params) => {
-    const { schoolId, teacherId, dateStr, session, totalCount, presentCount, lateCount, absentCount, excusedCount } = params;
+    const { teacherId, dateStr, session, totalCount, presentCount, lateCount, absentCount, excusedCount } = params;
     try {
         const { sendCategoryNotification } = require('./notification.service');
-        // Fetch school name and all admin users with a push token in parallel
-        const [school, adminUsers, teacher] = await Promise.all([
-            db_1.default.school.findUnique({ where: { id: schoolId }, select: { name: true } }),
+        const [settings, adminUsers, teacher] = await Promise.all([
+            db_1.default.schoolSettings.findFirst(),
             db_1.default.user.findMany({
                 where: {
-                    schoolId,
                     role: 'admin',
                     pushToken: { not: null },
                     is_active: true,
@@ -861,10 +790,9 @@ const sendAdminAttendanceNotification = async (params) => {
         ]);
         if (!adminUsers || adminUsers.length === 0)
             return;
-        const schoolName = school?.name || 'School';
+        const schoolName = settings?.school_name || 'Addis Hiwot School';
         const teacherName = teacher?.name || 'A teacher';
         const sessionLabel = session ? ` (${session})` : '';
-        // Build compact status summary: e.g. "✅ 28  ⚠️ 2  ❌ 1"
         const parts = [];
         if (presentCount > 0)
             parts.push(`✅ ${presentCount} Present`);
@@ -886,10 +814,9 @@ const sendAdminAttendanceNotification = async (params) => {
                 title,
                 body,
                 route: '/school/admin',
-                schoolId,
                 schoolName,
                 categoryLabel: 'Attendance Alert',
-                tag: `attendance-admin-${schoolId}-${dateStr}`,
+                tag: `attendance-admin-${dateStr}`,
             }).catch((err) => {
                 console.error(`[AdminNotification] Push error for admin ${admin.id}:`, err);
                 return null;
@@ -897,7 +824,6 @@ const sendAdminAttendanceNotification = async (params) => {
             if (result === 'EXPIRED_TOKEN')
                 expiredIds.push(admin.id);
         }
-        // Clear stale tokens
         if (expiredIds.length > 0) {
             db_1.default.user.updateMany({
                 where: { id: { in: expiredIds } },

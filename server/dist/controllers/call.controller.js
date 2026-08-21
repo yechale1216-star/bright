@@ -37,14 +37,12 @@ exports.getCallHistory = exports.logCall = void 0;
 const callService = __importStar(require("../services/call.service"));
 const logCall = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
         const userId = req.user?.id;
-        if (!schoolId || !userId) {
+        if (!userId) {
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         }
         const call = await callService.logCall({
             ...req.body,
-            schoolId,
             userId
         });
         res.status(201).json({ success: true, data: call });
@@ -56,11 +54,7 @@ const logCall = async (req, res, next) => {
 exports.logCall = logCall;
 const getCallHistory = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'School ID required' });
-        }
-        const history = await callService.getCallHistory(schoolId, req.query.userId);
+        const history = await callService.getCallHistory(undefined, req.query.userId);
         res.status(200).json({ success: true, data: history });
     }
     catch (error) {

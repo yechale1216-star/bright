@@ -143,7 +143,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         }
         // Resolve single school context
         const singleSchool = await schoolService.getSingleSchool();
-        let schoolId = user.schoolId || singleSchool.id;
+        let schoolId = singleSchool.id;
         let customSchoolId = singleSchool.schoolId || 'SCH-0001';
         let schoolName = singleSchool.name || 'Addis Hiwot School';
         let schoolLogo = singleSchool.settings?.school_logo || '';

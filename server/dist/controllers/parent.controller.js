@@ -39,9 +39,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkParentsBatch = exports.setActiveSchool = exports.getMySchools = exports.getMyStudents = exports.updateProfile = exports.updateAnnouncement = exports.getAnnouncements = exports.postAnnouncement = exports.updatePreferences = exports.getPreferences = exports.markAllAsRead = exports.deleteNotification = exports.markAsRead = exports.getNotifications = exports.updatePassword = exports.searchParent = exports.loginParent = exports.listParentSchools = void 0;
 const parentService = __importStar(require("../services/parent.service"));
 const db_1 = __importDefault(require("../config/db"));
-/**
- * Helper to verify that the requested phone belongs to the authenticated user.
- */
 const verifyPhoneOwnership = async (req, requestedPhone) => {
     if (!req.user?.id)
         return false;
@@ -54,7 +51,7 @@ const verifyPhoneOwnership = async (req, requestedPhone) => {
     const normalizedRequestedPhone = parentService.normalizePhoneNumber(requestedPhone);
     return normalizedUserPhone === normalizedRequestedPhone;
 };
-const listParentSchools = async (req, res, next) => {
+const listParentSchools = async (req, res, _next) => {
     try {
         const { phone } = req.query;
         if (!phone || typeof phone !== 'string') {
@@ -69,7 +66,7 @@ const listParentSchools = async (req, res, next) => {
     }
 };
 exports.listParentSchools = listParentSchools;
-const loginParent = async (req, res, next) => {
+const loginParent = async (req, res, _next) => {
     try {
         const { phone, password, schoolId } = req.body;
         if (!phone || !password) {
@@ -92,16 +89,13 @@ const loginParent = async (req, res, next) => {
     }
 };
 exports.loginParent = loginParent;
-const searchParent = async (req, res, next) => {
+const searchParent = async (req, res, _next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone } = req.query;
         if (!phone || typeof phone !== 'string') {
             return res.status(400).json({ success: false, message: "Phone query parameter is required." });
         }
-        const result = await parentService.searchParentByPhone(phone, schoolId);
+        const result = await parentService.searchParentByPhone(phone);
         if (!result.success) {
             return res.status(404).json({ success: false, notFound: true, message: result.message || "No parent found with this phone number." });
         }
@@ -113,11 +107,8 @@ const searchParent = async (req, res, next) => {
     }
 };
 exports.searchParent = searchParent;
-const updatePassword = async (req, res, next) => {
+const updatePassword = async (req, res, _next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone, currentPassword, newPassword } = req.body;
         if (!phone || !currentPassword || !newPassword) {
             return res.status(400).json({ success: false, message: "Phone, current password, and new password are required." });
@@ -126,7 +117,7 @@ const updatePassword = async (req, res, next) => {
         if (!isOwner) {
             return res.status(403).json({ success: false, message: "Forbidden: You cannot modify another parent's account." });
         }
-        const result = await parentService.updatePassword(phone, currentPassword, newPassword, schoolId);
+        const result = await parentService.updatePassword(phone, currentPassword, newPassword);
         res.status(200).json(result);
     }
     catch (error) {
@@ -136,15 +127,12 @@ const updatePassword = async (req, res, next) => {
 exports.updatePassword = updatePassword;
 const getNotifications = async (req, res, next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone } = req.params;
         const isOwner = await verifyPhoneOwnership(req, phone);
         if (!isOwner) {
             return res.status(403).json({ success: false, message: "Forbidden: You cannot access another parent's data." });
         }
-        const notifications = await parentService.getNotifications(phone, schoolId);
+        const notifications = await parentService.getNotifications(phone);
         res.status(200).json({ success: true, data: notifications });
     }
     catch (error) {
@@ -154,11 +142,7 @@ const getNotifications = async (req, res, next) => {
 exports.getNotifications = getNotifications;
 const markAsRead = async (req, res, next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { id } = req.params;
-        // Secure it: check if this notification belongs to a student of this parent (if studentId is set)
         const notification = await db_1.default.parentNotification.findUnique({
             where: { id }
         });
@@ -172,7 +156,7 @@ const markAsRead = async (req, res, next) => {
                 return res.status(403).json({ success: false, message: "Forbidden: Notification belongs to another parent's child." });
             }
         }
-        await parentService.markNotificationAsRead(id, schoolId);
+        await parentService.markNotificationAsRead(id);
         res.status(200).json({ success: true, message: "Notification marked as read." });
     }
     catch (error) {
@@ -182,11 +166,7 @@ const markAsRead = async (req, res, next) => {
 exports.markAsRead = markAsRead;
 const deleteNotification = async (req, res, next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { id } = req.params;
-        // Secure it: check if this notification belongs to a student of this parent (if studentId is set)
         const notification = await db_1.default.parentNotification.findUnique({
             where: { id }
         });
@@ -200,7 +180,7 @@ const deleteNotification = async (req, res, next) => {
                 return res.status(403).json({ success: false, message: "Forbidden: Notification belongs to another parent's child." });
             }
         }
-        await parentService.deleteNotification(id, schoolId);
+        await parentService.deleteNotification(id);
         res.status(200).json({ success: true, message: "Notification deleted." });
     }
     catch (error) {
@@ -210,15 +190,12 @@ const deleteNotification = async (req, res, next) => {
 exports.deleteNotification = deleteNotification;
 const markAllAsRead = async (req, res, next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone } = req.params;
         const isOwner = await verifyPhoneOwnership(req, phone);
         if (!isOwner) {
             return res.status(403).json({ success: false, message: "Forbidden: You cannot modify another parent's data." });
         }
-        await parentService.markAllNotificationsAsRead(phone, schoolId);
+        await parentService.markAllNotificationsAsRead(phone);
         res.status(200).json({ success: true, message: "All notifications marked as read." });
     }
     catch (error) {
@@ -228,15 +205,12 @@ const markAllAsRead = async (req, res, next) => {
 exports.markAllAsRead = markAllAsRead;
 const getPreferences = async (req, res, next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone } = req.params;
         const isOwner = await verifyPhoneOwnership(req, phone);
         if (!isOwner) {
             return res.status(403).json({ success: false, message: "Forbidden: You cannot access another parent's preferences." });
         }
-        const preferences = await parentService.getPreferences(phone, schoolId);
+        const preferences = await parentService.getPreferences(phone);
         res.status(200).json({ success: true, data: preferences });
     }
     catch (error) {
@@ -246,15 +220,12 @@ const getPreferences = async (req, res, next) => {
 exports.getPreferences = getPreferences;
 const updatePreferences = async (req, res, next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone } = req.params;
         const isOwner = await verifyPhoneOwnership(req, phone);
         if (!isOwner) {
             return res.status(403).json({ success: false, message: "Forbidden: You cannot modify another parent's preferences." });
         }
-        const preferences = await parentService.updatePreferences(phone, schoolId, req.body);
+        const preferences = await parentService.updatePreferences(phone, undefined, req.body);
         res.status(200).json({ success: true, data: preferences, message: "Preferences updated successfully." });
     }
     catch (error) {
@@ -264,10 +235,7 @@ const updatePreferences = async (req, res, next) => {
 exports.updatePreferences = updatePreferences;
 const postAnnouncement = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const announcement = await parentService.postAnnouncement(schoolId, req.body);
+        const announcement = await parentService.postAnnouncement(undefined, req.body);
         res.status(201).json({ success: true, data: announcement, message: "Announcement published." });
     }
     catch (error) {
@@ -277,11 +245,8 @@ const postAnnouncement = async (req, res, next) => {
 exports.postAnnouncement = postAnnouncement;
 const getAnnouncements = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const limit = req.query.limit ? Number(req.query.limit) : undefined;
-        const announcements = await parentService.getSchoolAnnouncements(schoolId, req.user?.role, limit);
+        const announcements = await parentService.getSchoolAnnouncements(undefined, req.user?.role, limit);
         res.status(200).json({ success: true, data: announcements });
     }
     catch (error) {
@@ -292,10 +257,7 @@ exports.getAnnouncements = getAnnouncements;
 const updateAnnouncement = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const schoolId = req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const announcement = await parentService.updateAnnouncement(id, schoolId, req.body);
+        const announcement = await parentService.updateAnnouncement(id, undefined, req.body);
         res.status(200).json({ success: true, data: announcement, message: "Announcement updated." });
     }
     catch (error) {
@@ -303,11 +265,8 @@ const updateAnnouncement = async (req, res, next) => {
     }
 };
 exports.updateAnnouncement = updateAnnouncement;
-const updateProfile = async (req, res, next) => {
+const updateProfile = async (req, res, _next) => {
     try {
-        const schoolId = req.headers['x-school-id'] || req.user?.schoolId;
-        if (!schoolId)
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { phone } = req.params;
         const isOwner = await verifyPhoneOwnership(req, phone);
         if (!isOwner) {
@@ -317,11 +276,10 @@ const updateProfile = async (req, res, next) => {
         if (!name) {
             return res.status(400).json({ success: false, message: "Name is required." });
         }
-        // Validate base64 image size (max ~2MB base64 ≈ 2.7M chars)
         if (profile_photo && typeof profile_photo === 'string' && profile_photo.length > 3_000_000) {
             return res.status(400).json({ success: false, message: "Photo is too large. Please use an image under 2MB." });
         }
-        const result = await parentService.updateProfile(phone, schoolId, { name, email, address, profile_photo });
+        const result = await parentService.updateProfile(phone, undefined, { name, email, address, profile_photo });
         res.status(200).json(result);
     }
     catch (error) {
@@ -329,28 +287,11 @@ const updateProfile = async (req, res, next) => {
     }
 };
 exports.updateProfile = updateProfile;
-/**
- * GET /api/parent/me/students?schoolId=...
- * Returns all children the parent has in the specified school.
- * schoolId comes from the x-school-id header (set during school switch).
- */
 const getMyStudents = async (req, res, next) => {
     try {
         if (!req.user?.id)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
-        // Prefer explicit query param, fall back to header, then JWT schoolId
-        const schoolId = req.query.schoolId
-            || req.headers['x-school-id']
-            || req.user.schoolId;
-        if (!schoolId) {
-            return res.status(400).json({ success: false, message: 'schoolId is required.' });
-        }
-        // Security: verify the parent actually has access to this school
-        const hasAccess = await parentService.validateSchoolAccess(req.user.id, schoolId);
-        if (!hasAccess) {
-            return res.status(403).json({ success: false, message: 'You do not have a child enrolled in this school.' });
-        }
-        const students = await parentService.getParentStudentsForSchool(req.user.id, schoolId);
+        const students = await parentService.getParentStudentsForSchool(req.user.id);
         res.status(200).json({ success: true, data: students });
     }
     catch (error) {
@@ -358,10 +299,6 @@ const getMyStudents = async (req, res, next) => {
     }
 };
 exports.getMyStudents = getMyStudents;
-/**
- * GET /api/parent/me/schools
- * Returns all schools this parent has children in — server validated.
- */
 const getMySchools = async (req, res, next) => {
     try {
         if (!req.user?.id)
@@ -374,34 +311,20 @@ const getMySchools = async (req, res, next) => {
     }
 };
 exports.getMySchools = getMySchools;
-/**
- * POST /api/parent/me/active-school
- * Validates the parent owns a child in the requested school, then returns school info.
- */
 const setActiveSchool = async (req, res, next) => {
     try {
         if (!req.user?.id)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
-        const { schoolId } = req.body;
-        if (!schoolId)
-            return res.status(400).json({ success: false, message: 'schoolId is required.' });
-        const hasAccess = await parentService.validateSchoolAccess(req.user.id, schoolId);
-        if (!hasAccess) {
-            return res.status(403).json({ success: false, message: 'You do not have a child enrolled in this school.' });
-        }
-        // Return the school details for the frontend to update context
         const schools = await parentService.getParentSchools(req.user.id);
-        const school = schools.find((s) => s.id === schoolId);
-        // Generate a fresh token with the NEW schoolId context
+        const school = schools[0];
         const { generateToken } = require('../utils/jwt');
         const token = generateToken({
             id: req.user.id,
             email: req.user.email,
             role: 'parent',
-            schoolId: schoolId,
-            customSchoolId: school?.customSchoolId || '',
+            schoolId: school.id,
+            customSchoolId: school?.customSchoolId || 'SCH-0001',
         });
-        // Update the attendance_token cookie to match
         res.cookie('attendance_token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',

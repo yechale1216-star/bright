@@ -1,15 +1,50 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
+import {
+  calculateEuclideanDistance,
+  calculateCosineSimilarity,
+  calculateL2Norm,
+  normalizeL2Vector,
+  isValidFaceDescriptor,
+  evaluateFaceQuality,
+  evaluateLiveness,
+  synthesizeStableEmbedding,
+  FaceLandmarkPoint,
+  FaceQualityResult,
+  LivenessResult,
+  FaceSampleItem,
+  StableEmbeddingResult,
+} from "@/lib/utils/biometric-quality"
+
+export {
+  calculateEuclideanDistance,
+  calculateCosineSimilarity,
+  calculateL2Norm,
+  normalizeL2Vector,
+  isValidFaceDescriptor,
+  evaluateFaceQuality,
+  evaluateLiveness,
+  synthesizeStableEmbedding,
+}
+
+export type { FaceLandmarkPoint, FaceQualityResult, LivenessResult, FaceSampleItem, StableEmbeddingResult }
 
 export interface FaceDetectionResult {
   detected: boolean
   descriptor: number[] | null
   multipleFaces: boolean
   qualityScore: number
+  qualityIssues?: string[]
   box?: { x: number; y: number; width: number; height: number }
+  landmarks?: FaceLandmarkPoint[]
   isProperlyPositioned?: boolean
+  isGoodLighting?: boolean
+  isGoodPose?: boolean
+  isSharp?: boolean
+  poseAngles?: { yaw: number; pitch: number; roll: number }
   isLive?: boolean
+  livenessConfidence?: number
   error?: string
   inferenceTimeMs?: number
 }
@@ -18,22 +53,11 @@ export interface FaceMatchResult {
   isMatch: boolean
   distance: number
   confidence: number // 0.0 to 1.0 (1 - distance)
+  similarityScore: number // Cosine similarity
 }
 
-/**
- * Calculates Euclidean distance between two 128-dimensional descriptors
- */
-export function calculateEuclideanDistance(desc1: number[], desc2: number[]): number {
-  if (!desc1 || !desc2 || desc1.length !== desc2.length) return 1.0
-  let sum = 0
-  for (let i = 0; i < desc1.length; i++) {
-    const diff = desc1[i] - desc2[i]
-    sum += diff * diff
-  }
-  return Math.sqrt(sum)
-}
-
-export const DEFAULT_MATCH_THRESHOLD = 0.50 // Standard strict threshold for face descriptor matching
+export const DEFAULT_MATCH_THRESHOLD = 0.50 // Strict threshold for face descriptor matching
+export const FAST_SELF_ATTENDANCE_THRESHOLD = 0.52 // Calibrated for fast self-attendance to eliminate false rejects while remaining secure
 
 // Module-level singletons for model caching across hook instances
 let globalFaceApi: any = null
@@ -46,6 +70,13 @@ export function useFaceRecognition() {
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(globalLoadError)
   const faceApiRef = useRef<any>(globalFaceApi)
+
+  // Temporal landmark buffer for live anti-spoofing verification
+  const landmarkHistoryRef = useRef<FaceLandmarkPoint[][]>([])
+
+  const resetLivenessHistory = useCallback(() => {
+    landmarkHistoryRef.current = []
+  }, [])
 
   const loadModels = useCallback(async (timeoutMs = 12000) => {
     if (globalModelsLoaded) {
@@ -148,7 +179,10 @@ export function useFaceRecognition() {
   }, [isModelsLoaded])
 
   const detectFaceFromVideo = useCallback(
-    async (videoElement: HTMLVideoElement): Promise<FaceDetectionResult> => {
+    async (
+      videoElement: HTMLVideoElement,
+      mode: "enroll" | "verify" = "verify"
+    ): Promise<FaceDetectionResult> => {
       if (!faceApiRef.current || !globalModelsLoaded) {
         return {
           detected: false,
@@ -167,10 +201,10 @@ export function useFaceRecognition() {
         // Ultra-fast TinyFaceDetector options (inputSize: 320 is optimized for speed & accuracy)
         const detectorOptions = new faceapi.TinyFaceDetectorOptions({
           inputSize: 320,
-          scoreThreshold: 0.40,
+          scoreThreshold: mode === "enroll" ? 0.45 : 0.38,
         })
 
-        // Step 1: Detect all faces and landmarks
+        // Step 1: Detect all faces, landmarks, and descriptors
         const detections = await faceapi
           .detectAllFaces(videoElement, detectorOptions)
           .withFaceLandmarks()
@@ -179,6 +213,8 @@ export function useFaceRecognition() {
         const inferenceTimeMs = Math.round(performance.now() - startTime)
 
         if (!detections || detections.length === 0) {
+          // Clear liveness history when face leaves frame
+          landmarkHistoryRef.current = []
           return {
             detected: false,
             descriptor: null,
@@ -189,52 +225,77 @@ export function useFaceRecognition() {
         }
 
         if (detections.length > 1) {
+          landmarkHistoryRef.current = []
           return {
             detected: true,
             descriptor: null,
             multipleFaces: true,
             qualityScore: 0,
+            qualityIssues: ["Multiple faces detected. Please ensure only one person is in the frame."],
             error: "Multiple faces detected. Please ensure only one person is in the frame.",
             inferenceTimeMs,
           }
         }
 
         const primaryDetection = detections[0]
-        const descriptorArray = Array.from(primaryDetection.descriptor) as number[]
+        const rawDescriptor = Array.from(primaryDetection.descriptor) as number[]
+        // L2 normalize descriptor for strict metric stability
+        const descriptorArray = normalizeL2Vector(rawDescriptor)
         const score = primaryDetection.detection.score
         const box = primaryDetection.detection.box
-        const landmarks = primaryDetection.landmarks
+        const landmarksObj = primaryDetection.landmarks
+        const landmarksList: FaceLandmarkPoint[] = (landmarksObj?.positions || []).map((p: any) => ({
+          x: p.x,
+          y: p.y,
+          _x: p._x ?? p.x,
+          _y: p._y ?? p.y,
+        }))
 
-        // Quality & liveness checks:
-        // 1. Adequate detector score (>= 0.45)
-        // 2. Minimum face resolution (box width/height >= 50px)
-        // 3. Complete 68-point 3D facial landmark mesh
-        const hasLandmarks = !!(landmarks && landmarks.positions && landmarks.positions.length === 68)
-        const isAdequateSize = box.width >= 50 && box.height >= 50
-        const isLive = score >= 0.45 && hasLandmarks && isAdequateSize
+        // Step 2: Comprehensive Quality Evaluation
+        const quality = evaluateFaceQuality(
+          score,
+          {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          },
+          landmarksList,
+          videoElement,
+          mode
+        )
 
-        // Center positioning check
-        const videoWidth = videoElement.videoWidth || 640
-        const videoHeight = videoElement.videoHeight || 480
-        const faceCenterX = box.x + box.width / 2
-        const faceCenterY = box.y + box.height / 2
-        const isCenteredX = faceCenterX > videoWidth * 0.10 && faceCenterX < videoWidth * 0.90
-        const isCenteredY = faceCenterY > videoHeight * 0.08 && faceCenterY < videoHeight * 0.92
-        const isProperlyPositioned = isCenteredX && isCenteredY && isAdequateSize
+        // Step 3: Anti-Spoofing & Liveness Evaluation
+        const liveness = evaluateLiveness(landmarksList, landmarkHistoryRef.current)
+
+        // Update landmark history buffer (keep last 8 frames)
+        if (landmarksList.length === 68) {
+          landmarkHistoryRef.current.push(landmarksList)
+          if (landmarkHistoryRef.current.length > 8) {
+            landmarkHistoryRef.current.shift()
+          }
+        }
 
         return {
           detected: true,
           descriptor: descriptorArray,
           multipleFaces: false,
-          qualityScore: score,
-          isLive,
-          isProperlyPositioned,
+          qualityScore: quality.qualityScore,
+          qualityIssues: quality.issues,
           box: {
             x: box.x,
             y: box.y,
             width: box.width,
             height: box.height,
           },
+          landmarks: landmarksList,
+          isProperlyPositioned: quality.isProperlyPositioned,
+          isGoodLighting: quality.isGoodLighting,
+          isGoodPose: quality.isGoodPose,
+          isSharp: quality.isSharp,
+          poseAngles: quality.poseAngles,
+          isLive: liveness.isLive && quality.isValid,
+          livenessConfidence: liveness.confidence,
           inferenceTimeMs,
         }
       } catch (err: any) {
@@ -253,11 +314,26 @@ export function useFaceRecognition() {
   )
 
   const verifyFaceMatch = useCallback(
-    (liveDescriptor: number[], enrolledDescriptor: number[], threshold = DEFAULT_MATCH_THRESHOLD): FaceMatchResult => {
-      const distance = calculateEuclideanDistance(liveDescriptor, enrolledDescriptor)
-      const isMatch = distance <= threshold
+    (
+      liveDescriptor: number[],
+      enrolledDescriptor: number[],
+      threshold = FAST_SELF_ATTENDANCE_THRESHOLD
+    ): FaceMatchResult => {
+      // Normalize both vectors to guarantee unit metric calculations
+      const normLive = normalizeL2Vector(liveDescriptor)
+      const normEnrolled = normalizeL2Vector(enrolledDescriptor)
+
+      const distance = calculateEuclideanDistance(normLive, normEnrolled)
+      const cosineSim = calculateCosineSimilarity(normLive, normEnrolled)
+      const isMatch = distance <= threshold || cosineSim >= (1.0 - threshold * 0.75)
       const confidence = Math.max(0, Math.min(1, 1 - distance))
-      return { isMatch, distance, confidence }
+
+      return {
+        isMatch,
+        distance: Math.round(distance * 1000) / 1000,
+        confidence: Math.round(confidence * 1000) / 1000,
+        similarityScore: Math.round(cosineSim * 1000) / 1000,
+      }
     },
     []
   )
@@ -269,6 +345,6 @@ export function useFaceRecognition() {
     loadModels,
     detectFaceFromVideo,
     verifyFaceMatch,
+    resetLivenessHistory,
   }
 }
-

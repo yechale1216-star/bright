@@ -2,12 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rollbackPromotion = exports.getPromotionHistory = exports.promoteStudents = exports.getStudentsByGrade = exports.getPromotionPreview = void 0;
 const promotion_service_1 = require("../services/promotion.service");
-const getPromotionPreview = async (req, res) => {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId)
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
+const getPromotionPreview = async (_req, res) => {
     try {
-        const preview = await promotion_service_1.promotionService.getPromotionPreview(schoolId);
+        const preview = await promotion_service_1.promotionService.getPromotionPreview();
         res.status(200).json({ success: true, data: preview });
     }
     catch (error) {
@@ -16,13 +13,10 @@ const getPromotionPreview = async (req, res) => {
 };
 exports.getPromotionPreview = getPromotionPreview;
 const getStudentsByGrade = async (req, res) => {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId)
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
     const { gradeId } = req.params;
     const { sectionId, streamId } = req.query;
     try {
-        const students = await promotion_service_1.promotionService.getStudentsByGrade(schoolId, gradeId, sectionId, streamId);
+        const students = await promotion_service_1.promotionService.getStudentsByGrade(undefined, gradeId, sectionId, streamId);
         res.status(200).json({ success: true, data: students });
     }
     catch (error) {
@@ -52,9 +46,8 @@ const isValidAcademicYear = (year) => {
     return false;
 };
 const promoteStudents = async (req, res) => {
-    const schoolId = req.user?.schoolId;
     const userId = req.user?.id;
-    if (!schoolId || !userId)
+    if (!userId)
         return res.status(401).json({ success: false, error: 'Unauthorized' });
     if (!req.body.academicYear || !isValidAcademicYear(req.body.academicYear)) {
         return res.status(400).json({
@@ -63,7 +56,7 @@ const promoteStudents = async (req, res) => {
         });
     }
     try {
-        const result = await promotion_service_1.promotionService.promoteStudents(req.body, schoolId, userId);
+        const result = await promotion_service_1.promotionService.promoteStudents(req.body, undefined, userId);
         res.status(201).json({ success: true, data: result });
     }
     catch (error) {
@@ -75,12 +68,9 @@ const promoteStudents = async (req, res) => {
 };
 exports.promoteStudents = promoteStudents;
 const getPromotionHistory = async (req, res) => {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId)
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
     const { academicYear } = req.query;
     try {
-        const history = await promotion_service_1.promotionService.getPromotionHistory(schoolId, academicYear);
+        const history = await promotion_service_1.promotionService.getPromotionHistory(undefined, academicYear);
         res.status(200).json({ success: true, data: history });
     }
     catch (error) {
@@ -89,12 +79,9 @@ const getPromotionHistory = async (req, res) => {
 };
 exports.getPromotionHistory = getPromotionHistory;
 const rollbackPromotion = async (req, res) => {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId)
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
     const { id } = req.params;
     try {
-        const result = await promotion_service_1.promotionService.rollbackPromotion(id, schoolId);
+        const result = await promotion_service_1.promotionService.rollbackPromotion(id);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {

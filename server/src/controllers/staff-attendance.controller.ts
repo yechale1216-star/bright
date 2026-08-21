@@ -55,18 +55,26 @@ export const getStaffAttendance = async (req: AuthenticatedRequest, res: Respons
 
 export const enrollFace = async (req: AuthenticatedRequest, res: Response, _next: NextFunction) => {
   try {
-    const adminUserId = req.user?.id;
-    if (!adminUserId) {
+    const callerUserId = req.user?.id;
+    const role = req.user?.role;
+    if (!callerUserId) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
     const { userId, descriptor } = req.body;
-    if (!userId || !descriptor) {
+    const targetUserId = userId || callerUserId;
+
+    const isAdmin = role === 'admin' || role === 'school_admin';
+    if (!isAdmin && callerUserId !== targetUserId) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Staff can only enroll their own face template.' });
+    }
+
+    if (!targetUserId || !descriptor) {
       return res.status(400).json({ success: false, message: 'Target userId and descriptor are required' });
     }
 
-    const result = await staffAttendanceService.enrollFace(adminUserId, userId, undefined, descriptor);
-    res.status(200).json({ success: true, data: result, message: 'Staff face enrolled successfully' });
+    const result = await staffAttendanceService.enrollFace(callerUserId, targetUserId, undefined, descriptor);
+    res.status(200).json({ success: true, data: result, message: 'Staff face biometric template registered successfully' });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to enroll face' });
   }

@@ -37,17 +37,13 @@ exports.getAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = 
 const attendanceService = __importStar(require("../services/attendance.service"));
 const markAttendance = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'School ID context missing' });
-        }
         const payload = {
             ...req.body,
             userRole: req.user?.role,
             userId: req.user?.id,
             teacherId: req.body.teacherId || req.user?.teacherId || req.user?.id,
         };
-        const result = await attendanceService.markAttendance(payload, schoolId);
+        const result = await attendanceService.markAttendance(payload);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
@@ -57,18 +53,13 @@ const markAttendance = async (req, res, next) => {
 exports.markAttendance = markAttendance;
 const getAttendance = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'School ID context missing' });
-        }
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
         const filters = {
-            ...req.query,
-            schoolId
+            ...req.query
         };
-        const result = await attendanceService.getAttendance(filters, schoolId);
+        const result = await attendanceService.getAttendance(filters);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
@@ -78,14 +69,10 @@ const getAttendance = async (req, res, next) => {
 exports.getAttendance = getAttendance;
 const getAttendanceByStudent = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'School ID context missing' });
-        }
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.set('Pragma', 'no-cache');
         res.set('Expires', '0');
-        const result = await attendanceService.getAttendanceByStudent(req.params.studentId, schoolId, req.query);
+        const result = await attendanceService.getAttendanceByStudent(req.params.studentId, undefined, req.query);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
@@ -93,17 +80,13 @@ const getAttendanceByStudent = async (req, res, next) => {
     }
 };
 exports.getAttendanceByStudent = getAttendanceByStudent;
-const bulkMarkAttendance = async (req, res, next) => {
+const bulkMarkAttendance = async (req, res, _next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'School ID context missing' });
-        }
         const { records, latitude, longitude, locationVerified, locationDistance } = req.body;
         if (!Array.isArray(records)) {
             return res.status(400).json({ success: false, message: 'Records must be an array' });
         }
-        const results = await attendanceService.bulkMarkAttendance(records, schoolId, {
+        const results = await attendanceService.bulkMarkAttendance(records, undefined, {
             userRole: req.user?.role,
             userId: req.user?.id,
             teacherId: req.user?.teacherId || req.user?.id,
@@ -121,12 +104,8 @@ const bulkMarkAttendance = async (req, res, next) => {
 exports.bulkMarkAttendance = bulkMarkAttendance;
 const createEditRequest = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
         const teacherId = req.user?.teacherId || req.user?.id;
-        const result = await attendanceService.createEditRequest(schoolId, teacherId, req.body);
+        const result = await attendanceService.createEditRequest(undefined, teacherId, req.body);
         res.status(201).json({ success: true, data: result });
     }
     catch (error) {
@@ -136,15 +115,11 @@ const createEditRequest = async (req, res, next) => {
 exports.createEditRequest = createEditRequest;
 const getEditRequests = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
         const filters = {
             ...req.query,
             ...(req.user?.role === 'teacher' ? { teacherId: req.user?.teacherId || req.user?.id } : {})
         };
-        const result = await attendanceService.getEditRequests(schoolId, filters);
+        const result = await attendanceService.getEditRequests(undefined, filters);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
@@ -154,14 +129,10 @@ const getEditRequests = async (req, res, next) => {
 exports.getEditRequests = getEditRequests;
 const approveEditRequest = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
         if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin') {
             return res.status(403).json({ success: false, message: 'Only School Admin can approve edit requests' });
         }
-        const result = await attendanceService.approveEditRequest(req.params.id, req.user?.id || 'admin', schoolId, req.body.adminNote);
+        const result = await attendanceService.approveEditRequest(req.params.id, req.user?.id || 'admin', undefined, req.body.adminNote);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
@@ -171,14 +142,10 @@ const approveEditRequest = async (req, res, next) => {
 exports.approveEditRequest = approveEditRequest;
 const rejectEditRequest = async (req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
         if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin') {
             return res.status(403).json({ success: false, message: 'Only School Admin can reject edit requests' });
         }
-        const result = await attendanceService.rejectEditRequest(req.params.id, req.user?.id || 'admin', schoolId, req.body.adminNote);
+        const result = await attendanceService.rejectEditRequest(req.params.id, req.user?.id || 'admin', undefined, req.body.adminNote);
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
@@ -186,13 +153,9 @@ const rejectEditRequest = async (req, res, next) => {
     }
 };
 exports.rejectEditRequest = rejectEditRequest;
-const getAuditLogs = async (req, res, next) => {
+const getAuditLogs = async (_req, res, next) => {
     try {
-        const schoolId = req.user?.schoolId;
-        if (!schoolId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
-        }
-        const result = await attendanceService.getAttendanceAuditLogs(schoolId);
+        const result = await attendanceService.getAttendanceAuditLogs();
         res.status(200).json({ success: true, data: result });
     }
     catch (error) {
