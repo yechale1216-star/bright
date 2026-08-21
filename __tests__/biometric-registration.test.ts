@@ -216,5 +216,17 @@ describe("Staff Biometric Face Registration & Fast Verification Pipeline", () =>
       const distance = calculateEuclideanDistance(staffBQuery, staffATemplate)
       expect(distance).toBeGreaterThan(DEFAULT_MATCH_THRESHOLD)
     })
+
+    test("should flag verification mismatch when face is detected but does not match template", () => {
+      const enrolledTemplate = createMockDescriptor(3.14)
+      const nonMatchingLiveFace = createMockDescriptor(7.89)
+
+      const distance = calculateEuclideanDistance(nonMatchingLiveFace, enrolledTemplate)
+      const cosineSim = calculateCosineSimilarity(nonMatchingLiveFace, enrolledTemplate)
+
+      const isMatch = distance <= FAST_SELF_ATTENDANCE_THRESHOLD && cosineSim >= 0.80
+      expect(isMatch).toBe(false)
+      expect(distance).toBeGreaterThan(FAST_SELF_ATTENDANCE_THRESHOLD)
+    })
   })
 })

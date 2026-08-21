@@ -108,30 +108,36 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
     raw: any,
     fallback: FixedStaffSession
   ): FixedStaffSession => {
-    const startTime = typeof raw?.startTime === 'string' && /^\d{2}:\d{2}$/.test(raw.startTime)
-      ? raw.startTime
+    const rawStartTime = raw?.startTime || raw?.start_time;
+    const startTime = typeof rawStartTime === 'string' && /^\d{2}:\d{2}$/.test(rawStartTime)
+      ? rawStartTime
       : fallback.startTime;
 
-    const endTime = typeof raw?.endTime === 'string' && /^\d{2}:\d{2}$/.test(raw.endTime)
-      ? raw.endTime
+    const rawEndTime = raw?.endTime || raw?.end_time;
+    const endTime = typeof rawEndTime === 'string' && /^\d{2}:\d{2}$/.test(rawEndTime)
+      ? rawEndTime
       : fallback.endTime;
 
-    const lateGraceMinutes = Number.isFinite(Number(raw?.lateGraceMinutes)) && Number(raw.lateGraceMinutes) >= 0
-      ? Math.min(180, Math.floor(Number(raw.lateGraceMinutes)))
+    const rawLateGrace = raw?.lateGraceMinutes ?? raw?.late_grace_minutes;
+    const lateGraceMinutes = Number.isFinite(Number(rawLateGrace)) && Number(rawLateGrace) >= 0
+      ? Math.min(180, Math.floor(Number(rawLateGrace)))
       : fallback.lateGraceMinutes;
 
-    const earlyDepartureToleranceMinutes = Number.isFinite(Number(raw?.earlyDepartureToleranceMinutes)) && Number(raw.earlyDepartureToleranceMinutes) >= 0
-      ? Math.min(180, Math.floor(Number(raw.earlyDepartureToleranceMinutes)))
+    const rawEarlyTol = raw?.earlyDepartureToleranceMinutes ?? raw?.early_departure_tolerance_minutes;
+    const earlyDepartureToleranceMinutes = Number.isFinite(Number(rawEarlyTol)) && Number(rawEarlyTol) >= 0
+      ? Math.min(180, Math.floor(Number(rawEarlyTol)))
       : fallback.earlyDepartureToleranceMinutes;
 
     // Synchronize absence cutoff minutes & time authoritatively
-    let absenceCutoffMinutes = Number.isFinite(Number(raw?.absenceCutoffMinutes)) && Number(raw.absenceCutoffMinutes) >= 0
-      ? Math.min(360, Math.floor(Number(raw.absenceCutoffMinutes)))
+    const rawCutoffMins = raw?.absenceCutoffMinutes ?? raw?.absence_cutoff_minutes;
+    let absenceCutoffMinutes = Number.isFinite(Number(rawCutoffMins)) && Number(rawCutoffMins) >= 0
+      ? Math.min(360, Math.floor(Number(rawCutoffMins)))
       : fallback.absenceCutoffMinutes;
 
+    const rawCutoffTime = raw?.absenceCutoffTime || raw?.absence_cutoff_time;
     let absenceCutoffTime: string;
-    if (typeof raw?.absenceCutoffTime === 'string' && /^\d{2}:\d{2}$/.test(raw.absenceCutoffTime)) {
-      absenceCutoffTime = raw.absenceCutoffTime;
+    if (typeof rawCutoffTime === 'string' && /^\d{2}:\d{2}$/.test(rawCutoffTime)) {
+      absenceCutoffTime = rawCutoffTime;
       const diff = getMinutesDiff(absenceCutoffTime, startTime);
       if (diff > 0) {
         absenceCutoffMinutes = diff;
@@ -142,15 +148,17 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
       absenceCutoffTime = addMinutes(startTime, absenceCutoffMinutes);
     }
 
-    const earliestCheckinTime = typeof raw?.earliestCheckinTime === 'string' && /^\d{2}:\d{2}$/.test(raw.earliestCheckinTime)
-      ? raw.earliestCheckinTime
-      : (typeof raw?.earliestCheckInTime === 'string' && /^\d{2}:\d{2}$/.test(raw.earliestCheckInTime) ? raw.earliestCheckInTime : fallback.earliestCheckinTime);
+    const rawEarliest = raw?.earliestCheckinTime || raw?.earliestCheckInTime || raw?.earliest_checkin_time;
+    const earliestCheckinTime = typeof rawEarliest === 'string' && /^\d{2}:\d{2}$/.test(rawEarliest)
+      ? rawEarliest
+      : fallback.earliestCheckinTime;
 
-    const latestCheckoutTime = typeof raw?.latestCheckoutTime === 'string' && /^\d{2}:\d{2}$/.test(raw.latestCheckoutTime)
-      ? raw.latestCheckoutTime
-      : (typeof raw?.latestCheckOutTime === 'string' && /^\d{2}:\d{2}$/.test(raw.latestCheckOutTime) ? raw.latestCheckOutTime : fallback.latestCheckoutTime);
+    const rawLatest = raw?.latestCheckoutTime || raw?.latestCheckOutTime || raw?.latest_checkout_time;
+    const latestCheckoutTime = typeof rawLatest === 'string' && /^\d{2}:\d{2}$/.test(rawLatest)
+      ? rawLatest
+      : fallback.latestCheckoutTime;
 
-    const allowCheckinAfterCutoff = raw?.allowCheckinAfterCutoff === true;
+    const allowCheckinAfterCutoff = (raw?.allowCheckinAfterCutoff ?? raw?.allow_checkin_after_cutoff) === true;
 
     return {
       id: key,
@@ -164,7 +172,7 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
       earliestCheckinTime,
       latestCheckoutTime,
       allowCheckinAfterCutoff,
-      isActive: raw?.isActive !== false,
+      isActive: (raw?.isActive ?? raw?.is_active) !== false,
     };
   };
 

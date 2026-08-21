@@ -127,26 +127,34 @@ function parseSessionsFromSettings(raw: any): StaffSession[] {
     r: any,
     fallback: StaffSession
   ): StaffSession => {
-    const startTime = r?.startTime || fallback.startTime
+    const rawStartTime = r?.startTime || r?.start_time
+    const startTime = rawStartTime || fallback.startTime
+
+    const rawEndTime = r?.endTime || r?.end_time
+    const endTime = rawEndTime || fallback.endTime
+
+    const rawLateGrace = r?.lateGraceMinutes ?? r?.late_grace_minutes
     const lateGraceMinutes =
-      Number.isFinite(Number(r?.lateGraceMinutes)) && Number(r.lateGraceMinutes) >= 0
-        ? Math.floor(Number(r.lateGraceMinutes))
+      Number.isFinite(Number(rawLateGrace)) && Number(rawLateGrace) >= 0
+        ? Math.floor(Number(rawLateGrace))
         : fallback.lateGraceMinutes
 
+    const rawEarlyTol = r?.earlyDepartureToleranceMinutes ?? r?.early_departure_tolerance_minutes
     const earlyDepartureToleranceMinutes =
-      Number.isFinite(Number(r?.earlyDepartureToleranceMinutes)) &&
-      Number(r.earlyDepartureToleranceMinutes) >= 0
-        ? Math.floor(Number(r.earlyDepartureToleranceMinutes))
+      Number.isFinite(Number(rawEarlyTol)) && Number(rawEarlyTol) >= 0
+        ? Math.floor(Number(rawEarlyTol))
         : fallback.earlyDepartureToleranceMinutes
 
+    const rawCutoffMins = r?.absenceCutoffMinutes ?? r?.absence_cutoff_minutes
     let absenceCutoffMinutes =
-      Number.isFinite(Number(r?.absenceCutoffMinutes)) && Number(r.absenceCutoffMinutes) >= 0
-        ? Math.floor(Number(r.absenceCutoffMinutes))
+      Number.isFinite(Number(rawCutoffMins)) && Number(rawCutoffMins) >= 0
+        ? Math.floor(Number(rawCutoffMins))
         : fallback.absenceCutoffMinutes
 
+    const rawCutoffTime = r?.absenceCutoffTime || r?.absence_cutoff_time
     let absenceCutoffTime: string
-    if (typeof r?.absenceCutoffTime === "string" && r.absenceCutoffTime.includes(":")) {
-      absenceCutoffTime = r.absenceCutoffTime
+    if (typeof rawCutoffTime === "string" && rawCutoffTime.includes(":")) {
+      absenceCutoffTime = rawCutoffTime
       const diff = getMinutesDiff(absenceCutoffTime, startTime)
       if (diff > 0) {
         absenceCutoffMinutes = diff
@@ -157,24 +165,25 @@ function parseSessionsFromSettings(raw: any): StaffSession[] {
       absenceCutoffTime = addMinutesToHHMM(startTime, absenceCutoffMinutes)
     }
 
-    const earliestCheckinTime =
-      r?.earliestCheckinTime || r?.earliestCheckInTime || fallback.earliestCheckinTime
-    const latestCheckoutTime =
-      r?.latestCheckoutTime || r?.latestCheckOutTime || fallback.latestCheckoutTime
+    const rawEarliest = r?.earliestCheckinTime || r?.earliestCheckInTime || r?.earliest_checkin_time
+    const earliestCheckinTime = rawEarliest || fallback.earliestCheckinTime
+
+    const rawLatest = r?.latestCheckoutTime || r?.latestCheckOutTime || r?.latest_checkout_time
+    const latestCheckoutTime = rawLatest || fallback.latestCheckoutTime
 
     return {
       id: key,
       name,
       startTime,
-      endTime: r?.endTime || fallback.endTime,
+      endTime,
       lateGraceMinutes,
       earlyDepartureToleranceMinutes,
       absenceCutoffMinutes,
       absenceCutoffTime,
       earliestCheckinTime,
       latestCheckoutTime,
-      allowCheckinAfterCutoff: r?.allowCheckinAfterCutoff === true,
-      isActive: r?.isActive !== false,
+      allowCheckinAfterCutoff: (r?.allowCheckinAfterCutoff ?? r?.allow_checkin_after_cutoff) === true,
+      isActive: (r?.isActive ?? r?.is_active) !== false,
     }
   }
 
@@ -231,7 +240,7 @@ export function StaffScheduleSettingsTab({
   const [isSubmittingHoliday, setIsSubmittingHoliday] = useState(false)
 
   // ── Fixed Session Management State (Morning & Afternoon) ──
-  const [sessions, setSessions] = useState<StaffSession[]>(() => parseSessionsFromSettings(settings?.staffSessions))
+  const [sessions, setSessions] = useState<StaffSession[]>(() => parseSessionsFromSettings(settings?.staffSessions ?? settings?.staff_sessions))
   const [expandedSessions, setExpandedSessions] = useState<{ morning: boolean; afternoon: boolean }>({
     morning: true,
     afternoon: true,
@@ -246,12 +255,12 @@ export function StaffScheduleSettingsTab({
 
   // Sync sessions state when settings change
   useEffect(() => {
-    setSessions(parseSessionsFromSettings(settings?.staffSessions))
-  }, [settings?.staffSessions])
+    setSessions(parseSessionsFromSettings(settings?.staffSessions ?? settings?.staff_sessions))
+  }, [settings?.staffSessions, settings?.staff_sessions])
 
   const persistSessions = (updated: StaffSession[]) => {
     setSessions(updated)
-    setSettings((prev: any) => ({ ...prev, staffSessions: updated }))
+    setSettings((prev: any) => ({ ...prev, staffSessions: updated, staff_sessions: updated }))
   }
 
   // Live validation computation
