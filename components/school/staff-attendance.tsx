@@ -484,6 +484,52 @@ export function StaffAttendance() {
     })
   }, [allStaffAttendance, searchTerm, statusFilter])
 
+  // ─── INITIAL LOADING SKELETON ───
+  if (isLoading && myHistory.length === 0 && allStaffAttendance.length === 0) {
+    return (
+      <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-pulse">
+        {/* Header Banner Skeleton */}
+        <div className="p-6 rounded-2xl bg-card/70 border border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-64 bg-muted/80 rounded-md" />
+            <div className="h-4 w-80 bg-muted/50 rounded-md" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-36 h-9 bg-muted/60 rounded-xl" />
+          </div>
+        </div>
+
+        {/* Self Check-In / Action Card Skeleton */}
+        <div className="p-6 rounded-3xl bg-card/70 border border-border/60 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1.5">
+              <div className="h-5 w-44 bg-muted/70 rounded" />
+              <div className="h-3.5 w-60 bg-muted/40 rounded" />
+            </div>
+            <div className="w-28 h-8 bg-muted/50 rounded-full" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="h-32 rounded-2xl bg-muted/40" />
+            <div className="h-32 rounded-2xl bg-muted/40" />
+          </div>
+        </div>
+
+        {/* History Table Skeleton */}
+        <div className="p-5 rounded-2xl bg-card/70 border border-border/60 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="h-5 w-36 bg-muted/70 rounded" />
+            <div className="h-8 w-28 bg-muted/50 rounded-lg" />
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-12 rounded-xl bg-muted/30 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-in fade-in duration-300">
       {/* Header Banner */}

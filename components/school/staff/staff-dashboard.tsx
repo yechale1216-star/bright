@@ -491,6 +491,71 @@ export function StaffDashboard() {
   const isCheckedOut = !!todayRecord?.checkOutTime
   const GreetingIcon = greeting.icon
 
+  // ─── INITIAL LOADING SKELETON ───
+  if (isLoading && allAttendance.length === 0) {
+    return (
+      <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-6 animate-pulse">
+        {/* 1. Hero Header Skeleton */}
+        <div className="rounded-2xl sm:rounded-3xl bg-card/70 border border-border/60 p-4 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-muted/70 shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="h-3.5 w-28 bg-muted/60 rounded-md" />
+                <div className="h-6 w-48 bg-muted/80 rounded-md" />
+                <div className="h-3 w-36 bg-muted/50 rounded-md" />
+              </div>
+            </div>
+            <div className="w-full sm:w-44 h-10 bg-muted/50 rounded-xl" />
+          </div>
+        </div>
+
+        {/* 2. Monthly Attendance Stats Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-4 rounded-2xl bg-card/70 border border-border/60 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-xl bg-muted/60" />
+                <div className="w-10 h-3 bg-muted/40 rounded" />
+              </div>
+              <div className="h-6 w-16 bg-muted/80 rounded" />
+              <div className="h-3 w-24 bg-muted/40 rounded" />
+            </div>
+          ))}
+        </div>
+
+        {/* 3. Active Attendance Action Card Skeleton */}
+        <div className="p-5 sm:p-6 rounded-3xl bg-card/70 border border-border/60 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1.5">
+              <div className="h-5 w-44 bg-muted/70 rounded" />
+              <div className="h-3.5 w-64 bg-muted/40 rounded" />
+            </div>
+            <div className="w-24 h-7 bg-muted/50 rounded-full" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div className="h-28 rounded-2xl bg-muted/40" />
+            <div className="h-28 rounded-2xl bg-muted/40" />
+          </div>
+        </div>
+
+        {/* 4. Bottom Grid Skeleton (Recent Notices & History) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="p-5 rounded-2xl bg-card/70 border border-border/60 space-y-3">
+            <div className="h-5 w-32 bg-muted/70 rounded" />
+            <div className="h-16 rounded-xl bg-muted/30" />
+            <div className="h-16 rounded-xl bg-muted/30" />
+          </div>
+          <div className="p-5 rounded-2xl bg-card/70 border border-border/60 space-y-3">
+            <div className="h-5 w-32 bg-muted/70 rounded" />
+            <div className="h-16 rounded-xl bg-muted/30" />
+            <div className="h-16 rounded-xl bg-muted/30" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-6">
       {/* ─── 1. MOBILE-FIRST HERO HEADER CARD ─── */}
