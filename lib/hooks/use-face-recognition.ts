@@ -71,10 +71,10 @@ export function useFaceRecognition() {
   const [loadError, setLoadError] = useState<string | null>(globalLoadError)
 
   const faceApiRef = useRef<any>(globalFaceApi)
-  const livenessHistoryRef = useRef<number[]>([])
+  const landmarkHistoryRef = useRef<FaceLandmarkPoint[][]>([])
 
   const resetLivenessHistory = useCallback(() => {
-    livenessHistoryRef.current = []
+    landmarkHistoryRef.current = []
   }, [])
 
   const loadModels = useCallback(async (timeoutMs = 15000) => {
@@ -240,22 +240,25 @@ export function useFaceRecognition() {
         }))
 
         // Convert descriptor Float32Array to standard number array
-        const descriptorArray = Array.from(singleResult.descriptor)
+        const descriptorArray: number[] = Array.from(singleResult.descriptor as Float32Array)
 
         // 4. Quality checks (lighting, pose, box size, frame margins)
-        const frameWidth = videoElement.videoWidth || 640
-        const frameHeight = videoElement.videoHeight || 480
         const quality: FaceQualityResult = evaluateFaceQuality(
+          singleResult.detection.score,
           box,
           landmarksList,
           videoElement,
-          singleResult.detection.score,
-          frameWidth,
-          frameHeight
+          mode
         )
 
         // 5. Temporal anti-spoof liveness check
-        const liveness: LivenessResult = evaluateLiveness(landmarksList, livenessHistoryRef.current)
+        if (landmarksList.length === 68) {
+          landmarkHistoryRef.current.push(landmarksList)
+          if (landmarkHistoryRef.current.length > 8) {
+            landmarkHistoryRef.current.shift()
+          }
+        }
+        const liveness: LivenessResult = evaluateLiveness(landmarksList, landmarkHistoryRef.current)
 
         const inferenceTimeMs = Math.round(performance.now() - startTime)
 
