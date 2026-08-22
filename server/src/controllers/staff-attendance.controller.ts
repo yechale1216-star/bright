@@ -12,6 +12,16 @@ export const checkIn = async (req: AuthenticatedRequest, res: Response, _next: N
     const result = await staffAttendanceService.checkIn(userId, undefined, req.body);
     res.status(200).json({ success: true, data: result, message: 'Staff check-in recorded successfully' });
   } catch (error: any) {
+    if (error.code === 'NON_WORKING_DAY') {
+      return res.status(403).json({
+        success: false,
+        code: 'NON_WORKING_DAY',
+        displayReason: error.displayReason,
+        isHoliday: error.isHoliday,
+        isWeekend: error.isWeekend,
+        message: error.message,
+      });
+    }
     res.status(400).json({ success: false, message: error.message || 'Failed to record check-in' });
   }
 };
@@ -26,6 +36,16 @@ export const checkOut = async (req: AuthenticatedRequest, res: Response, _next: 
     const result = await staffAttendanceService.checkOut(userId, undefined, req.body);
     res.status(200).json({ success: true, data: result, message: 'Staff check-out recorded successfully' });
   } catch (error: any) {
+    if (error.code === 'NON_WORKING_DAY') {
+      return res.status(403).json({
+        success: false,
+        code: 'NON_WORKING_DAY',
+        displayReason: error.displayReason,
+        isHoliday: error.isHoliday,
+        isWeekend: error.isWeekend,
+        message: error.message,
+      });
+    }
     res.status(400).json({ success: false, message: error.message || 'Failed to record check-out' });
   }
 };

@@ -175,6 +175,40 @@ export async function deleteSchoolHoliday(id: string, _schoolId?: string) {
 }
 
 /**
+ * Formats a user-facing reason string from working-day info.
+ * Examples:
+ *   "Weekend — Saturday"
+ *   "Public Holiday — Ethiopian New Year"
+ *   "School Holiday — Spring Break"
+ *   "Non-working day — Tuesday"
+ */
+export function buildNonWorkingDayReason(info: {
+  isHoliday: boolean;
+  isWeekend: boolean;
+  dayOfWeek: string;
+  holidayName?: string;
+  holidayType?: string;
+}): string {
+  if (info.isHoliday && info.holidayName) {
+    const typeLabel: Record<string, string> = {
+      PUBLIC_HOLIDAY: 'Public Holiday',
+      RELIGIOUS_HOLIDAY: 'Religious Holiday',
+      SCHOOL_HOLIDAY: 'School Holiday',
+      SPECIAL_CLOSURE: 'School Closure',
+      OTHER: 'Non-working day',
+    };
+    const prefix = (info.holidayType && typeLabel[info.holidayType]) || 'Holiday';
+    return `${prefix} — ${info.holidayName}`;
+  }
+  if (info.isWeekend) {
+    const day = info.dayOfWeek.charAt(0) + info.dayOfWeek.slice(1).toLowerCase();
+    return `Weekend — ${day}`;
+  }
+  const day = info.dayOfWeek.charAt(0) + info.dayOfWeek.slice(1).toLowerCase();
+  return `Non-working day — ${day}`;
+}
+
+/**
  * Determines whether a given date is a working day for Addis Hiwot according to:
  * 1. Configured staff working days in SchoolSettings (e.g. MONDAY-FRIDAY).
  * 2. Active SchoolHoliday / Non-working days in the database.
@@ -191,6 +225,7 @@ export async function isDateWorkingDay(
   holidayName?: string;
   holidayType?: string;
   reason?: string;
+  displayReason?: string;
   workingDaysList: string[];
 }> {
   const { dateStr, startDate } = normalizeStaffDate(dateInput);
@@ -217,15 +252,20 @@ export async function isDateWorkingDay(
 
   if (activeHoliday) {
     const isWeekend = dayOfWeek === 'SATURDAY' || dayOfWeek === 'SUNDAY';
-    return {
+    const info = {
       isWorkingDay: false,
       isHoliday: true,
       isWeekend,
       dayOfWeek,
-      holidayName: activeHoliday.name,
-      holidayType: activeHoliday.type,
-      reason: `Holiday: ${activeHoliday.name}`,
+      holidayName: activeHoliday.name as string,
+      holidayType: activeHoliday.type as string,
       workingDaysList,
+    };
+    const displayReason = buildNonWorkingDayReason(info);
+    return {
+      ...info,
+      reason: `Holiday: ${activeHoliday.name}`,
+      displayReason,
     };
   }
 
@@ -234,13 +274,18 @@ export async function isDateWorkingDay(
 
   if (!isScheduledDay) {
     const isWeekend = dayOfWeek === 'SATURDAY' || dayOfWeek === 'SUNDAY';
-    return {
+    const info = {
       isWorkingDay: false,
       isHoliday: false,
       isWeekend,
       dayOfWeek,
-      reason: isWeekend ? 'Weekend (Non-Working Day)' : `${dayOfWeek} (Scheduled Non-Working Day)`,
       workingDaysList,
+    };
+    const displayReason = buildNonWorkingDayReason(info);
+    return {
+      ...info,
+      reason: isWeekend ? 'Weekend (Non-Working Day)' : `${dayOfWeek} (Scheduled Non-Working Day)`,
+      displayReason,
     };
   }
 
@@ -252,4 +297,3 @@ export async function isDateWorkingDay(
     workingDaysList,
   };
 }
-

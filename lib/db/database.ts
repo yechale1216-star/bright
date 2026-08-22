@@ -393,6 +393,7 @@ class Database extends BaseDatabase {
     holidayName?: string;
     holidayType?: string;
     reason?: string;
+    displayReason?: string;
     workingDaysList: string[];
   }> {
     return settings.isDateWorkingDay(this.getApiHeaders(), date)

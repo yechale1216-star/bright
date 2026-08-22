@@ -252,8 +252,8 @@ export function StaffDashboard() {
 
   // Computed display status for today
   const attendanceDisplay = useMemo(() => {
-    return getStaffAttendanceDisplay(todayRecord, settings)
-  }, [todayRecord, settings])
+    return getStaffAttendanceDisplay(todayRecord, settings, undefined, calendarStatus)
+  }, [todayRecord, settings, calendarStatus])
 
   const isCheckedIn = Boolean(todayRecord?.checkInTime)
   const isCheckedOut = Boolean(todayRecord?.checkOutTime)
@@ -277,10 +277,12 @@ export function StaffDashboard() {
     }
     if (calendarStatus && !calendarStatus.isWorkingDay) {
       return {
-        label: "Off Duty / Holiday",
-        badgeClass: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
-        dotColor: "bg-purple-500",
-        subtitle: calendarStatus.holidayName || "Scheduled non-working day",
+        label: calendarStatus.isHoliday ? "Holiday" : "Non-Working Day",
+        badgeClass: calendarStatus.isHoliday
+          ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
+          : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+        dotColor: calendarStatus.isHoliday ? "bg-purple-500" : "bg-amber-500",
+        subtitle: calendarStatus.displayReason || (calendarStatus.holidayName ? `Holiday — ${calendarStatus.holidayName}` : "Scheduled non-working day"),
       }
     }
     return {

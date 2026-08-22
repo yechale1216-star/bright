@@ -1,6 +1,6 @@
 import prisma from '../config/db';
 import { validateGeofence } from './attendance.service';
-import { isDateWorkingDay, addMinutesToTime } from './holiday.service';
+import { isDateWorkingDay, addMinutesToTime, buildNonWorkingDayReason } from './holiday.service';
 import { formatCivilTime } from '../utils/ethiopian-time';
 
 /**
@@ -338,16 +338,19 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
   let status = 'PRESENT';
   let remarks = data.remarks || null;
 
-  if (workingDayInfo.isWorkingDay) {
-    if (isTimeAfter(currentTimeHHMM, lateCutoffTime)) {
-      status = 'LATE';
-    }
-  } else {
-    status = 'PRESENT';
-    const nonWorkNote = workingDayInfo.isHoliday
-      ? `Holiday Attendance (${workingDayInfo.holidayName})`
-      : `Weekend/Non-Working Day Attendance (${workingDayInfo.dayOfWeek})`;
-    remarks = remarks ? `${remarks} | ${nonWorkNote}` : nonWorkNote;
+  if (!workingDayInfo.isWorkingDay) {
+    // Hard block: staff cannot check in on holidays or non-working days
+    const displayReason = workingDayInfo.displayReason || buildNonWorkingDayReason(workingDayInfo);
+    const err: any = new Error(`Check-in is not available: ${displayReason}`);
+    err.code = 'NON_WORKING_DAY';
+    err.displayReason = displayReason;
+    err.isHoliday = workingDayInfo.isHoliday;
+    err.isWeekend = workingDayInfo.isWeekend;
+    throw err;
+  }
+
+  if (isTimeAfter(currentTimeHHMM, lateCutoffTime)) {
+    status = 'LATE';
   }
 
   const existing = await prisma.staffAttendance.findFirst({
@@ -433,6 +436,16 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
   const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
+
+  if (!workingDayInfo.isWorkingDay) {
+    const displayReason = workingDayInfo.displayReason || buildNonWorkingDayReason(workingDayInfo);
+    const err: any = new Error(`Check-out is not available: ${displayReason}`);
+    err.code = 'NON_WORKING_DAY';
+    err.displayReason = displayReason;
+    err.isHoliday = workingDayInfo.isHoliday;
+    err.isWeekend = workingDayInfo.isWeekend;
+    throw err;
+  }
 
   const now = new Date();
   const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
@@ -820,6 +833,7 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
     holidayName: workingDayInfo.holidayName,
     dayOfWeek: workingDayInfo.dayOfWeek,
     calendarNote: workingDayInfo.reason,
+    displayReason: workingDayInfo.displayReason || buildNonWorkingDayReason(workingDayInfo),
     totalStaff: totalStaffCount,
     present,
     late,
@@ -927,6 +941,12 @@ export async function bulkSyncStaffAttendance(records: Array<{
 
       const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
 
+      if (!workingDayInfo.isWorkingDay) {
+        const displayReason = workingDayInfo.displayReason || buildNonWorkingDayReason(workingDayInfo);
+        errors.push(`Skipped record for staff on ${dateStr}: ${displayReason}`);
+        continue;
+      }
+
       const existing = await prisma.staffAttendance.findFirst({
         where: {
           userId: item.userId,
@@ -939,15 +959,8 @@ export async function bulkSyncStaffAttendance(records: Array<{
         let status = 'PRESENT';
         let remarks = item.remarks || null;
 
-        if (workingDayInfo.isWorkingDay) {
-          if (isTimeAfter(timeHHMM, schedule.lateCutoffTime)) {
-            status = 'LATE';
-          }
-        } else {
-          const nonWorkNote = workingDayInfo.isHoliday
-            ? `Holiday Attendance (${workingDayInfo.holidayName})`
-            : `Weekend/Non-Working Day Attendance (${workingDayInfo.dayOfWeek})`;
-          remarks = remarks ? `${remarks} | ${nonWorkNote}` : nonWorkNote;
+        if (isTimeAfter(timeHHMM, schedule.lateCutoffTime)) {
+          status = 'LATE';
         }
 
         if (existing) {
@@ -1036,7 +1049,12 @@ export async function markAbsentStaff(
 ) {
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
-  const { startDate, endDate } = normalizeStaffDate(date);
+  const { dateStr, startDate, endDate } = normalizeStaffDate(date);
+  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
+  if (!workingDayInfo.isWorkingDay) {
+    const displayReason = workingDayInfo.displayReason || buildNonWorkingDayReason(workingDayInfo);
+    throw new Error(`Cannot mark staff absent on a non-working day: ${displayReason}`);
+  }
   const sessionKey = attendanceMode === 'session_based' ? normaliseSessionKey(session) : 'daily';
   const results: any[] = [];
 

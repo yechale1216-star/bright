@@ -4,9 +4,9 @@
  */
 
 export interface StaffStatusDisplay {
-  status: string // "NOT_STARTED" | "PENDING" | "LATE" | "PRESENT" | "ON_TIME" | "EARLY_LEAVE" | "NOT_CHECKED_IN" | "NOT_CHECKED_OUT" | "ABSENT" | "LEAVE" | "PERMISSION"
-  label: string // e.g. "NOT STARTED", "PENDING CHECK-IN", "LATE", "ON TIME", "EARLY LEAVE", "ABSENT", "ON LEAVE"
-  titleLabel: string // e.g. "Not Started", "Pending Check-In", "Late (15 min)", "On Time", "Absent", "On Leave"
+  status: string // "NOT_STARTED" | "PENDING" | "LATE" | "PRESENT" | "ON_TIME" | "EARLY_LEAVE" | "NOT_CHECKED_IN" | "NOT_CHECKED_OUT" | "ABSENT" | "LEAVE" | "PERMISSION" | "HOLIDAY" | "NON_WORKING_DAY"
+  label: string // e.g. "NOT STARTED", "PENDING CHECK-IN", "LATE", "ON TIME", "EARLY LEAVE", "ABSENT", "ON LEAVE", "HOLIDAY", "NON-WORKING DAY"
+  titleLabel: string // e.g. "Not Started", "Pending Check-In", "Late (15 min)", "On Time", "Absent", "On Leave", "Holiday — Meskel", "Weekend — Saturday"
   timeStr: string // e.g. "11:09" or "—"
   fullDateTimeStr?: string
   hasTime: boolean
@@ -127,12 +127,13 @@ function formatFullDateTimeET(dateInput?: string | Date | null): string | undefi
 /**
  * Derives Check-In status details from record & schedule settings.
  * Strictly adheres to the lifecycle:
- * Not Started → Pending Check-In → Present / Late → Absent (with Leave exceptions)
+ * Not Started → Pending Check-In → Present / Late → Absent (with Leave, Holiday, Non-Working Day exceptions)
  */
 export function getStaffCheckInStatus(
   record?: any,
   settings?: any,
-  sessionConfig?: any
+  sessionConfig?: any,
+  calendarStatus?: any
 ): StaffStatusDisplay {
   const hasCheckIn = !!record?.checkInTime
   const checkInTimeStr = hasCheckIn ? formatAttendanceTime(record.checkInTime) : "—"
@@ -164,6 +165,38 @@ export function getStaffCheckInStatus(
 
   // 2. Not checked in yet
   if (!hasCheckIn) {
+    if (rawStatus === "HOLIDAY" || (calendarStatus && calendarStatus.isWorkingDay === false && calendarStatus.isHoliday)) {
+      const holidayLabel = calendarStatus?.displayReason || (calendarStatus?.holidayName ? `Holiday — ${calendarStatus.holidayName}` : "Holiday")
+      return {
+        status: "HOLIDAY",
+        label: "HOLIDAY",
+        titleLabel: holidayLabel,
+        timeStr: "—",
+        hasTime: false,
+        badgeColor: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
+        badgeBg: "bg-purple-500/15",
+        badgeText: "text-purple-700 dark:text-purple-300",
+        badgeBorder: "border-purple-500/30",
+        dotColor: "bg-purple-500",
+      }
+    }
+
+    if (rawStatus === "NON_WORKING_DAY" || rawStatus === "NON-WORKING DAY" || (calendarStatus && calendarStatus.isWorkingDay === false)) {
+      const nonWorkLabel = calendarStatus?.displayReason || (calendarStatus?.isWeekend ? `Weekend — ${calendarStatus?.dayOfWeek}` : "Non-Working Day")
+      return {
+        status: "NON_WORKING_DAY",
+        label: "NON-WORKING DAY",
+        titleLabel: nonWorkLabel,
+        timeStr: "—",
+        hasTime: false,
+        badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+        badgeBg: "bg-amber-500/15",
+        badgeText: "text-amber-700 dark:text-amber-300",
+        badgeBorder: "border-amber-500/30",
+        dotColor: "bg-amber-500",
+      }
+    }
+
     if (rawStatus === "LEAVE") {
       return {
         status: "LEAVE",
@@ -315,7 +348,8 @@ export function getStaffCheckOutStatus(
   record?: any,
   settings?: any,
   sessionConfig?: any,
-  precalculatedCheckIn?: StaffStatusDisplay
+  precalculatedCheckIn?: StaffStatusDisplay,
+  calendarStatus?: any
 ): StaffStatusDisplay {
   const hasCheckOut = !!record?.checkOutTime
   const hasCheckIn = !!record?.checkInTime
@@ -323,12 +357,27 @@ export function getStaffCheckOutStatus(
   const rawStatus = (record?.status || "").toUpperCase()
 
   // Resolve check-in status if not passed
-  const checkIn = precalculatedCheckIn || getStaffCheckInStatus(record, settings, sessionConfig)
+  const checkIn = precalculatedCheckIn || getStaffCheckInStatus(record, settings, sessionConfig, calendarStatus)
 
   // 1. Not checked out yet
   if (!hasCheckOut) {
     // 1A. Staff member has NOT checked in
     if (!hasCheckIn) {
+      if (checkIn.status === "HOLIDAY" || checkIn.status === "NON_WORKING_DAY" || (calendarStatus && calendarStatus.isWorkingDay === false)) {
+        return {
+          status: "NOT_APPLICABLE",
+          label: "NOT APPLICABLE",
+          titleLabel: "Not Applicable",
+          timeStr: "—",
+          hasTime: false,
+          badgeColor: "bg-slate-500/10 text-slate-500 dark:text-slate-400 border-slate-500/20",
+          badgeBg: "bg-slate-500/10",
+          badgeText: "text-slate-500 dark:text-slate-400",
+          badgeBorder: "border-slate-500/20",
+          dotColor: "bg-slate-400",
+        }
+      }
+
       if (checkIn.status === "LEAVE" || rawStatus === "LEAVE") {
         return {
           status: "LEAVE",
@@ -468,15 +517,16 @@ export function getStaffCheckOutStatus(
 export function getStaffAttendanceDisplay(
   record?: any,
   settings?: any,
-  sessionConfig?: any
+  sessionConfig?: any,
+  calendarStatus?: any
 ): StaffAttendanceDisplay {
-  const checkIn = getStaffCheckInStatus(record, settings, sessionConfig)
-  const checkOut = getStaffCheckOutStatus(record, settings, sessionConfig, checkIn)
+  const checkIn = getStaffCheckInStatus(record, settings, sessionConfig, calendarStatus)
+  const checkOut = getStaffCheckOutStatus(record, settings, sessionConfig, checkIn, calendarStatus)
 
   return {
     checkIn,
     checkOut,
-    overallStatus: record?.status || (checkIn.status === "ABSENT" ? "ABSENT" : checkIn.status === "PENDING" ? "PENDING" : "NOT_RECORDED"),
+    overallStatus: record?.status || (checkIn.status === "HOLIDAY" ? "HOLIDAY" : checkIn.status === "NON_WORKING_DAY" ? "NON_WORKING_DAY" : checkIn.status === "ABSENT" ? "ABSENT" : checkIn.status === "PENDING" ? "PENDING" : "NOT_RECORDED"),
     isComplete: !!(record?.checkInTime && record?.checkOutTime),
     faceVerified: !!record?.faceVerified,
     geofenceVerified: !!record?.geofenceVerified,
@@ -490,6 +540,7 @@ export interface CheckInButtonState {
   isBeforeEarliest: boolean
   isAfterCutoff: boolean
   isAfterCheckout: boolean
+  isNonWorkingDay?: boolean
   buttonText: string
   helperText?: string
   badgeVariant?: "default" | "secondary" | "destructive" | "outline"
@@ -498,6 +549,7 @@ export interface CheckInButtonState {
 /**
  * Computes whether the staff check-in button is active or inactive,
  * strictly following admin-configured attendance time rules:
+ * 0. Non-Working Day / Holiday -> Inactive ("Closed — [Reason]")
  * 1. Before Earliest Time -> Inactive ("Check-in opens at [time]")
  * 2. After Checkout Time -> Always Inactive ("Check-in closed for today.")
  * 3. After Cutoff Time (when allowCheckinAfterCutoff is false) -> Inactive ("Check-in closed for today.")
@@ -507,8 +559,24 @@ export function getCheckInButtonState(
   record?: any,
   settings?: any,
   sessionConfig?: any,
-  dateInput?: Date | string | number | null
+  dateInput?: Date | string | number | null,
+  calendarStatus?: any
 ): CheckInButtonState {
+  // 0. Non-working day / Holiday check — hard disable
+  if (calendarStatus && calendarStatus.isWorkingDay === false) {
+    const reason = calendarStatus.displayReason || (calendarStatus.isHoliday ? (calendarStatus.holidayName ? `Holiday — ${calendarStatus.holidayName}` : "Holiday") : (calendarStatus.isWeekend ? `Weekend — ${calendarStatus.dayOfWeek}` : "Non-Working Day"))
+    return {
+      canCheckIn: false,
+      isBeforeEarliest: false,
+      isAfterCutoff: false,
+      isAfterCheckout: false,
+      isNonWorkingDay: true,
+      buttonText: `Closed — ${reason}`,
+      helperText: `Attendance is unavailable today: ${reason}.`,
+      badgeVariant: "outline",
+    }
+  }
+
   // 1. If already checked in for this session/day
   if (record && record.checkInTime) {
     return {

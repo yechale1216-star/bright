@@ -82,6 +82,7 @@ export function StaffAttendance() {
     holidayName?: string
     holidayType?: string
     reason?: string
+    displayReason?: string
     workingDaysList: string[]
   } | null>(null)
 
@@ -273,6 +274,12 @@ export function StaffAttendance() {
 
   // 2. Start Check-In / Check-Out Workflow
   const startAttendanceWorkflow = async (type: "checkin" | "checkout") => {
+    if (calendarStatus && calendarStatus.isWorkingDay === false) {
+      const reason = calendarStatus.displayReason || (calendarStatus.isHoliday ? `Holiday — ${calendarStatus.holidayName}` : "Non-working day")
+      notifications.error("Attendance Unavailable", `Attendance cannot be recorded today: ${reason}`)
+      return
+    }
+
     setActionType(type)
     setIsVerificationModalOpen(true)
     setVerificationStep("getting_location")
@@ -605,9 +612,9 @@ export function StaffAttendance() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm">
-                {calendarStatus.isHoliday
-                  ? `School Holiday: ${calendarStatus.holidayName}`
-                  : calendarStatus.reason || "Scheduled Non-Working Day"}
+                {calendarStatus.displayReason || (calendarStatus.isHoliday
+                  ? `School Holiday — ${calendarStatus.holidayName}`
+                  : calendarStatus.reason || "Scheduled Non-Working Day")}
               </span>
               <Badge
                 variant="outline"
@@ -621,7 +628,7 @@ export function StaffAttendance() {
               </Badge>
             </div>
             <p className="text-xs opacity-80 mt-0.5">
-              Staff attendance is optional today. Absences are not tracked or penalized on this date.
+              Attendance tracking is disabled today per admin configuration. Absences are not tracked.
             </p>
           </div>
         </div>
@@ -678,7 +685,7 @@ export function StaffAttendance() {
                       const sessRec = myHistory.find(
                         (r) => r.date?.split("T")[0] === selectedDate && r.session?.toLowerCase() === sess.id.toLowerCase()
                       )
-                      const sessDisplay = getStaffAttendanceDisplay(sessRec, settings, sess)
+                      const sessDisplay = getStaffAttendanceDisplay(sessRec, settings, sess, calendarStatus)
                       return (
                         <button
                           key={sess.id}
@@ -766,7 +773,7 @@ export function StaffAttendance() {
                 const currentSess = isSessionMode
                   ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
                   : undefined
-                const display = getStaffAttendanceDisplay(todayRecord, settings, currentSess)
+                const display = getStaffAttendanceDisplay(todayRecord, settings, currentSess, calendarStatus)
 
                 return (
                   <div className="p-3.5 sm:p-4 rounded-xl bg-muted/40 border border-border/60 space-y-3">
@@ -831,7 +838,7 @@ export function StaffAttendance() {
                 const currentSess = isSessionMode
                   ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
                   : undefined
-                const btnState = getCheckInButtonState(todayRecord, settings, currentSess)
+                const btnState = getCheckInButtonState(todayRecord, settings, currentSess, undefined, calendarStatus)
 
                 return (
                   <div className="space-y-2 pt-2">
@@ -853,7 +860,9 @@ export function StaffAttendance() {
                     {/* Contextual helper text explaining why check-in is disabled */}
                     {!btnState.canCheckIn && !todayRecord?.checkInTime && btnState.helperText && (
                       <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
-                        btnState.isBeforeEarliest
+                        btnState.isNonWorkingDay
+                          ? "bg-purple-500/10 border border-purple-500/20 text-purple-800 dark:text-purple-300"
+                          : btnState.isBeforeEarliest
                           ? "bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300"
                           : "bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300"
                       }`}>
@@ -864,7 +873,7 @@ export function StaffAttendance() {
 
                     <Button
                       onClick={() => startAttendanceWorkflow("checkout")}
-                      disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle"}
+                      disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle" || calendarStatus?.isWorkingDay === false}
                       variant="outline"
                       className="w-full h-12 text-base font-bold gap-2 border-primary/40 hover:bg-primary/5"
                     >

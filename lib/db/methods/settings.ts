@@ -181,6 +181,7 @@ export async function isDateWorkingDay(headers: any, date: string): Promise<{
   holidayName?: string;
   holidayType?: string;
   reason?: string;
+  displayReason?: string;
   workingDaysList: string[];
 }> {
   const result = await apiFetch<{ success: boolean; data: any }>(

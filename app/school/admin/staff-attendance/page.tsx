@@ -127,6 +127,16 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: st
     color: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30",
     dotColor: "bg-sky-500",
   },
+  HOLIDAY: {
+    label: "Holiday",
+    color: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
+    dotColor: "bg-purple-500",
+  },
+  NON_WORKING_DAY: {
+    label: "Non-Working Day",
+    color: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+    dotColor: "bg-amber-500",
+  },
 }
 
 export default function AdminStaffAttendanceDashboard() {
@@ -843,9 +853,9 @@ export default function AdminStaffAttendanceDashboard() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm">
-                {stats.isHoliday
-                  ? `School Holiday: ${stats.holidayName}`
-                  : stats.calendarNote || `${stats.dayOfWeek} (Scheduled Non-Working Day)`}
+                {stats.displayReason || (stats.isHoliday
+                  ? `School Holiday — ${stats.holidayName}`
+                  : stats.calendarNote || `${stats.dayOfWeek} (Scheduled Non-Working Day)`)}
               </span>
               <Badge
                 variant="outline"
