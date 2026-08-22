@@ -71,7 +71,7 @@ export default function StaffAnnouncementsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const { user: authUser } = useAuth()
-  const confirmedSchoolId = authUser?.schoolId || ""
+  const confirmedSchoolId = authUser?.schoolId || "single-school"
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : ""

@@ -14,10 +14,7 @@ export class BaseDatabase {
   }
 
   protected getSchoolId(): string {
-    // Always read fresh — NEVER rely on a cached instance variable.
-    // The db object is a module-level singleton, so a cached value would persist
-    // across logout/login transitions and expose one school's data to another.
-    if (typeof window === "undefined") return ""
+    if (typeof window === "undefined") return "single-school"
 
     const user = this.getCurrentUser()
     const fromUser = user?.schoolId || user?.school_id || user?.school?.id
@@ -36,7 +33,7 @@ export class BaseDatabase {
       }
     } catch {}
 
-    return ""
+    return "single-school"
   }
 
   public getCurrentUser(): any {

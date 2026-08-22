@@ -14,7 +14,7 @@ export const registerSchema = z.object({
     .regex(/[A-Z]/, "Password must contain uppercase")
     .regex(/[0-9]/, "Password must contain numbers"),
   full_name: z.string().min(2, "Full name required"),
-  school_id: z.union([z.string().min(1, "School ID required"), z.number().positive()]),
+  school_id: z.union([z.string(), z.number()]).optional().default("single-school"),
   role: z.enum(["admin", "teacher", "staff"]),
 })
 
@@ -26,7 +26,7 @@ export const teacherSchema = z.object({
   subject: z.string().optional().or(z.literal("")),
   qualification: z.string().optional().or(z.literal("")),
   experience_years: z.number().optional().or(z.literal("")),
-  school_id: z.union([z.string(), z.number()]).transform((val) => String(val)),
+  school_id: z.union([z.string(), z.number()]).transform((val) => String(val)).optional().default("single-school"),
 })
 
 // Student validation schemas
@@ -39,7 +39,7 @@ export const studentSchema = z.object({
   parent_email: z.string().email("Invalid parent email").optional().or(z.literal("")),
   parent_phone: z.string().optional().or(z.literal("")),
   parent_name: z.string().optional().or(z.literal("")),
-  school_id: z.union([z.string(), z.number()]).transform((val) => String(val)),
+  school_id: z.union([z.string(), z.number()]).transform((val) => String(val)).optional().default("single-school"),
   gender: z.string().optional().or(z.literal("")),
   date_of_birth: z.string().optional().or(z.literal("")),
 })
@@ -59,7 +59,7 @@ export const classSchema = z.object({
   name: z.string().min(2, "Class name required"),
   grade: z.string().min(1, "Grade required"),
   section: z.string().min(1, "Section required"),
-  school_id: z.union([z.string().min(1, "School ID required"), z.number().positive()]),
+  school_id: z.union([z.string(), z.number()]).optional().default("single-school"),
   teacher_id: z.string().uuid("Invalid teacher ID").optional(),
 })
 

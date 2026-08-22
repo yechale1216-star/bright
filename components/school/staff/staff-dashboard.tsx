@@ -143,7 +143,7 @@ export function StaffDashboard() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
-            "x-school-id": user?.schoolId || "",
+            "x-school-id": user?.schoolId || "single-school",
             "x-requested-role": "staff",
           },
         }).then((r) => r.json()),
@@ -151,7 +151,7 @@ export function StaffDashboard() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
-            "x-school-id": user?.schoolId || "",
+            "x-school-id": user?.schoolId || "single-school",
             "x-requested-role": "staff",
           },
         }).then((r) => r.json()),

@@ -77,7 +77,7 @@ export default function AdminAnnouncementsPage() {
 
   // Use AuthContext as the single source of truth for tenant identity.
   const { user: authUser } = useAuth()
-  const confirmedSchoolId = authUser?.schoolId || ""
+  const confirmedSchoolId = authUser?.schoolId || "single-school"
 
   // Derive auth headers from the confirmed context
   const getAuthHeaders = (): Record<string, string> => {

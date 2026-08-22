@@ -69,12 +69,10 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   const fetchContacts = async () => {
     try {
       const token = localStorage.getItem('attendance_token');
-      // Use schoolId from the passed-in currentUser prop (from auth context),
-      // NOT from raw localStorage, to prevent cross-school data leaks.
-      const schoolId = currentUser?.schoolId || localStorage.getItem('x-school-id') || '';
+      const schoolId = currentUser?.schoolId || localStorage.getItem('x-school-id') || 'single-school';
 
-      if (!token || !schoolId) {
-        console.warn('[CreateGroupModal] Missing token or schoolId — skipping contact fetch');
+      if (!token) {
+        console.warn('[CreateGroupModal] Missing token — skipping contact fetch');
         return;
       }
 
@@ -137,7 +135,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
     try {
       const token = localStorage.getItem('attendance_token');
       // Use schoolId from currentUser prop, not raw localStorage
-      const schoolId = currentUser?.schoolId || localStorage.getItem('x-school-id') || '';
+      const schoolId = currentUser?.schoolId || localStorage.getItem('x-school-id') || 'single-school';
       const res = await fetch(`${apiUrl}/api/groups`, {
         method: 'POST',
         headers: {

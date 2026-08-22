@@ -30,6 +30,8 @@ router.get('/profile', async (req: AuthenticatedRequest, res: Response, next: Ne
       ...user,
       role: req.user?.role || user.role,
       isVerified: (user as any).is_verified ?? false,
+      schoolId: 'single-school',
+      customSchoolId: 'SCH-0001',
       schoolName: settings?.school_name || 'Addis Hiwot School',
       schoolLogo: settings?.school_logo || '',
       onboardingCompleted: true

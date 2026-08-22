@@ -18,13 +18,13 @@ import { isOfflineError } from "@/lib/utils/fetch-with-timeout"
 
 export async function getStudents(
   headers: any,
-  schoolId: string,
+  schoolId = "single-school",
   forceRefetch = false,
   status = "ACTIVE",
   academicYear?: string
 ): Promise<Student[]> {
-  if (!schoolId) return []
-  const cacheKey = `students_${schoolId}_${status}_${academicYear || 'active'}`
+  const effectiveSchoolId = schoolId || "single-school"
+  const cacheKey = `students_${effectiveSchoolId}_${status}_${academicYear || 'active'}`
   return queryCache.fetch(
     cacheKey,
     async () => {
@@ -41,14 +41,14 @@ export async function getStudents(
         )
         const mappedStudents = (result.data || []).map((s: any) => ({
           ...s,
-          schoolId: schoolId,
+          schoolId: effectiveSchoolId,
         }))
         // Persist to IndexedDB for offline roll-call support
-        cacheRosterOffline(schoolId, mappedStudents).catch(() => {})
+        cacheRosterOffline(effectiveSchoolId, mappedStudents).catch(() => {})
         return mappedStudents
       } catch (err: any) {
         if (isOfflineError(err) || (typeof navigator !== "undefined" && !navigator.onLine)) {
-          const cachedRoster = await getCachedRosterOffline(schoolId)
+          const cachedRoster = await getCachedRosterOffline(effectiveSchoolId)
           if (cachedRoster && cachedRoster.length > 0) {
             console.log(`[Students] Offline mode: loaded ${cachedRoster.length} students from IndexedDB cache`)
             return cachedRoster
@@ -69,8 +69,8 @@ function notifyStudentDataChanged() {
   }
 }
 
-export async function addStudent(headers: any, schoolId: string, student: Partial<Student>): Promise<Student> {
-  if (!schoolId) throw new Error("School ID not found")
+export async function addStudent(headers: any, schoolId = "single-school", student: Partial<Student>): Promise<Student> {
+  const effectiveSchoolId = schoolId || "single-school"
   const result = await apiFetch<{ success: boolean; data: any }>(
     `${API_URL}/api/students`,
     {
@@ -82,7 +82,7 @@ export async function addStudent(headers: any, schoolId: string, student: Partia
   notifyStudentDataChanged()
   return {
     ...result.data,
-    schoolId: schoolId,
+    schoolId: effectiveSchoolId,
   }
 }
 

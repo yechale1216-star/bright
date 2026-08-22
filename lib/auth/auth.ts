@@ -96,8 +96,8 @@ class AuthService {
         phone: dbUser.phone || "",
         name: dbUser.name || dbUser.full_name,
         role: dbUser.role,
-        schoolId: dbUser.schoolId || "",
-        customSchoolId: dbUser.customSchoolId || data.data.customSchoolId || "",
+        schoolId: dbUser.schoolId || "single-school",
+        customSchoolId: dbUser.customSchoolId || data.data.customSchoolId || "SCH-0001",
         schoolName,
         schoolLogo,
         teacherId: dbUser.teacher_id || "",
@@ -119,20 +119,16 @@ class AuthService {
           localStorage.setItem("available_schools", JSON.stringify(availableSchools))
         }
 
-        if (user.schoolId) {
-          localStorage.setItem("x-school-id", user.schoolId);
-        }
+        localStorage.setItem("x-school-id", user.schoolId || "single-school");
 
         // Persist active_school so SchoolContext (and TopNav) can display the school name immediately
-        if (user.schoolId && user.schoolName) {
-          const activeSchool = {
-            id: user.schoolId,
-            name: user.schoolName,
-            logo: user.schoolLogo || "",
-            customSchoolId: user.customSchoolId || ""
-          }
-          localStorage.setItem("active_school", JSON.stringify(activeSchool))
+        const activeSchool = {
+          id: user.schoolId || "single-school",
+          name: user.schoolName || schoolName,
+          logo: user.schoolLogo || "",
+          customSchoolId: user.customSchoolId || "SCH-0001"
         }
+        localStorage.setItem("active_school", JSON.stringify(activeSchool))
       }
 
       return { success: true, message: "Login successful", user, availableSchools }
@@ -336,8 +332,8 @@ class AuthService {
         phone: newUser.phone || "",
         name: newUser.name || newUser.full_name,
         role: newUser.role,
-        schoolId: newUser.schoolId || "",
-        customSchoolId: newUser.customSchoolId || data.data.customSchoolId || "",
+        schoolId: newUser.schoolId || "single-school",
+        customSchoolId: newUser.customSchoolId || data.data.customSchoolId || "SCH-0001",
         schoolName: data.data.schoolName || credentials.schoolName || "My School",
         schoolLogo: data.data.schoolLogo || "",
         teacherId: "",
@@ -354,19 +350,16 @@ class AuthService {
           localStorage.setItem("attendance_token", token)
         }
         // NOTE: JWT token is now managed by HTTP-Only cookies
-        if (user.schoolId) {
-          localStorage.setItem("x-school-id", user.schoolId);
-        }
+        localStorage.setItem("x-school-id", user.schoolId || "single-school");
+        
         // Persist active_school so SchoolContext (and TopNav) shows school name immediately
-        if (user.schoolId && user.schoolName) {
-          const activeSchool = {
-            id: user.schoolId,
-            name: user.schoolName,
-            logo: user.schoolLogo || "",
-            customSchoolId: user.customSchoolId || ""
-          }
-          localStorage.setItem("active_school", JSON.stringify(activeSchool))
+        const activeSchool = {
+          id: user.schoolId || "single-school",
+          name: user.schoolName || "My School",
+          logo: user.schoolLogo || "",
+          customSchoolId: user.customSchoolId || "SCH-0001"
         }
+        localStorage.setItem("active_school", JSON.stringify(activeSchool))
       }
 
       return { success: true, message: "Account created successfully", user }

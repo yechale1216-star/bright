@@ -34,12 +34,12 @@ export function getNotifHeaders(extraHeaders?: Record<string, string>): Record<s
     typeof window !== "undefined"
       ? localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token")
       : null;
-  const schoolId = user?.schoolId;
+  const schoolId = user?.schoolId || "single-school";
   const role = user?.role;
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  if (schoolId) headers["x-school-id"] = schoolId;
+  headers["x-school-id"] = schoolId;
   if (role === "parent") headers["x-requested-role"] = "parent";
   else if (role === "teacher") headers["x-requested-role"] = "teacher";
   else if (role === "school_admin") headers["x-requested-role"] = "school_admin";
@@ -89,7 +89,7 @@ export function NotificationPopover() {
 
   const isParent = user?.role === "parent";
   const phone = user?.phone;
-  const schoolId = user?.schoolId;
+  const schoolId = user?.schoolId || "single-school";
 
   // Fetch unread count
   const refreshCount = useCallback(async () => {

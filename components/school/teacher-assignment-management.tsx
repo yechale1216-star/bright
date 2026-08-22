@@ -92,9 +92,9 @@ export function TeacherAssignmentManagement() {
     const initializeAndLoad = async () => {
       try {
         const user = authService.getCurrentUser()
-        if (!user?.schoolId) throw new Error("School ID not found - please login again")
-        setSchoolId(user.schoolId)
-        await loadAllData(user.schoolId)
+        const sid = user?.schoolId || "single-school"
+        setSchoolId(sid)
+        await loadAllData(sid)
       } catch (error) {
         console.error("Error initializing teacher assignment:", error)
         setIsLoading(false)

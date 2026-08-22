@@ -17,12 +17,12 @@ export function useSchoolSettings() {
           const parsed = JSON.parse(storedUser)
           if (parsed?.schoolId) return parsed.schoolId
         }
-        return localStorage.getItem("x-school-id") || ""
+        return localStorage.getItem("x-school-id") || "single-school"
       } catch {
-        return ""
+        return "single-school"
       }
     }
-    return ""
+    return "single-school"
   }, [authUser?.schoolId])
 
   const confirmedSchoolId = getSchoolId() || "single-school"

@@ -3,9 +3,8 @@ import type { TeacherAssignment } from "../types"
 import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 import { queryCache } from "@/lib/utils/query-cache"
 
-export async function getTeachers(headers: any, schoolId?: string, forceRefetch = false): Promise<any[]> {
-  const activeSchoolId = schoolId || headers["x-school-id"] || ""
-  if (!activeSchoolId) return []
+export async function getTeachers(headers: any, schoolId = "single-school", forceRefetch = false): Promise<any[]> {
+  const activeSchoolId = schoolId || headers?.["x-school-id"] || "single-school"
   return queryCache.fetch(
     `teachers_${activeSchoolId}`,
     async () => {
@@ -22,9 +21,9 @@ export async function getTeachers(headers: any, schoolId?: string, forceRefetch 
   )
 }
 
-export async function getTeacherAssignments(headers: any, schoolId?: string, teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
-  if (!schoolId) return []
-  const cacheKey = `assignments_${schoolId}_${teacherId || "all"}`
+export async function getTeacherAssignments(headers: any, schoolId = "single-school", teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
+  const activeSchoolId = schoolId || headers?.["x-school-id"] || "single-school"
+  const cacheKey = `assignments_${activeSchoolId}_${teacherId || "all"}`
   return queryCache.fetch(
     cacheKey,
     async () => {

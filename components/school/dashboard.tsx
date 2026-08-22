@@ -79,11 +79,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // Only load dashboard data once AuthContext has confirmed a non-empty schoolId.
   // This prevents any cross-tenant data from appearing even for a single render frame
   // when navigating here immediately after onboarding.
-  const confirmedSchoolId = authUser?.schoolId || ""
+  const confirmedSchoolId = authUser?.schoolId || "single-school"
 
   useEffect(() => {
-    // Do not fetch anything until the authenticated tenant context is confirmed.
-    if (!confirmedSchoolId) return
+    if (!authUser) return
 
     loadDashboardData()
 
@@ -124,8 +123,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       // Safety net: never fetch if schoolId is missing — all API calls would
       // lack the tenant header and could return another school's data.
       const user = authService.getCurrentUser()
-      if (!user?.schoolId) {
-        console.warn("[Dashboard] loadDashboardData called with no schoolId — aborting to prevent cross-tenant leak")
+      if (!user) {
         setIsLoading(false)
         return
       }
@@ -134,7 +132,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       if (user?.role === "teacher") {
         // Fetch assignments and all students in parallel
         const [assignmentsData, allStudents] = await Promise.all([
-          db.getTeacherAssignments(user.schoolId, user.teacherId || user.id),
+          db.getTeacherAssignments(user.schoolId || "single-school", user.teacherId || user.id),
           db.getStudents(),
         ])
         const classes = assignmentsData || []

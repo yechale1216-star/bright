@@ -44,7 +44,7 @@ const AcademicYearContext = createContext<AcademicYearContextValue | null>(null)
 
 function getAuthHeaders(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : null
-  const schoolId = typeof window !== "undefined" ? localStorage.getItem("x-school-id") : null
+  const schoolId = typeof window !== "undefined" ? localStorage.getItem("x-school-id") || "single-school" : "single-school"
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (token) headers["Authorization"] = `Bearer ${token}`
   if (schoolId) headers["x-school-id"] = schoolId
@@ -69,10 +69,6 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const refreshAcademicYears = useCallback(async () => {
-    const schoolId =
-      typeof window !== "undefined" ? localStorage.getItem("x-school-id") : null
-    if (!schoolId) return
-
     setIsLoadingAcademicYear(true)
     try {
       const res = await fetch(`${API_URL}/api/school/academic-years`, {

@@ -53,7 +53,7 @@ class ParentDatabase {
   // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
   async getNotifications(phone: string, schoolId?: string): Promise<ParentNotification[]> {
     if (!phone) return [];
-    const resolvedSchoolId = schoolId || (typeof window !== "undefined" ? localStorage.getItem("x-school-id") || "default" : "default")
+    const resolvedSchoolId = schoolId || (typeof window !== "undefined" ? localStorage.getItem("x-school-id") || "single-school" : "single-school")
     return queryCache.fetch(
       `parent_notifications_${phone}_${resolvedSchoolId}`,
       async () => {

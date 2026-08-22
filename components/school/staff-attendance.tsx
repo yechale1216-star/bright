@@ -351,7 +351,7 @@ export function StaffAttendance() {
       // Offline fallback: queue locally in IndexedDB
       try {
         await queueOfflineStaffCheckIn({
-          schoolId: currentUser?.schoolId || "",
+          schoolId: currentUser?.schoolId || "single-school",
           userId: currentUser?.id || "",
           type,
           date: selectedDate,

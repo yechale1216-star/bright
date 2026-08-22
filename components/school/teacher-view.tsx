@@ -82,7 +82,7 @@ export function TeacherView() {
     try {
       const currentUser = authService.getCurrentUser()
 
-      if (!currentUser || !currentUser.id || !currentUser.schoolId) {
+      if (!currentUser || !currentUser.id) {
         console.error("Missing essential user data in localStorage")
         toast({
           title: "Session Error",
@@ -96,7 +96,7 @@ export function TeacherView() {
       // The backend service is capable of resolving user.id to teacher.id
       const targetId = currentUser.teacherId || currentUser.id
       
-      const assignmentsData = await db.getTeacherAssignments(currentUser.schoolId, targetId)
+      const assignmentsData = await db.getTeacherAssignments(currentUser.schoolId || "single-school", targetId)
       setAssignments(assignmentsData as any)
 
       const allStudents = await db.getStudents(false, "ACTIVE")

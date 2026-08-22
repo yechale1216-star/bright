@@ -27,8 +27,7 @@ class Database extends BaseDatabase {
   }
 
   async bulkAddStudents(studentsData: Partial<Student>[]): Promise<any> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) throw new Error("School ID not found")
+    const schoolId = this.getSchoolId() || "single-school"
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/students/bulk`,
       {
@@ -71,8 +70,7 @@ class Database extends BaseDatabase {
   }
 
   async getAttendanceByDate(date: string): Promise<AttendanceRecord[]> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) return []
+    const schoolId = this.getSchoolId() || "single-school"
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
     const isToday = date === today
     // Short stale time for today (real-time marking), longer for past dates (historical)
@@ -91,8 +89,7 @@ class Database extends BaseDatabase {
   }
 
   async getAttendanceByDateAndMode(date: string, session: "morning" | "afternoon" | null): Promise<AttendanceRecord[]> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) return []
+    const schoolId = this.getSchoolId() || "single-school"
     const sessionStr = session || "none"
     return queryCache.fetch(
       `attendance_date_session_${schoolId}_${date}_${sessionStr}`,
@@ -107,8 +104,7 @@ class Database extends BaseDatabase {
   }
 
   async getAttendanceByDateRange(startDate: string, endDate: string, session?: string | null): Promise<AttendanceRecord[]> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) return []
+    const schoolId = this.getSchoolId() || "single-school"
     const sessionStr = session || "all"
     return queryCache.fetch(
       `attendance_range_${schoolId}_${startDate}_${endDate}_${sessionStr}`,
@@ -153,8 +149,7 @@ class Database extends BaseDatabase {
   }
 
   async saveAttendance(record: Partial<AttendanceRecord>, locationData?: any): Promise<AttendanceRecord> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) throw new Error("School ID not found")
+    const schoolId = this.getSchoolId() || "single-school"
     const recDate = record.attendance_date || record.date
     const rawSess = record.session ? record.session.toString().toLowerCase() : null
     const normSess = (rawSess && rawSess !== "none" && rawSess !== "daily") ? rawSess : null
@@ -186,8 +181,8 @@ class Database extends BaseDatabase {
   }
 
   async getAttendanceByStudent(studentId: string, schoolId?: string): Promise<AttendanceRecord[]> {
-    const activeSchoolId = schoolId || this.getSchoolId()
-    if (!activeSchoolId || !studentId) return []
+    const activeSchoolId = schoolId || this.getSchoolId() || "single-school"
+    if (!studentId) return []
     return queryCache.fetch(
       `attendance_student_${activeSchoolId}_${studentId}`,
       async () => {
@@ -439,8 +434,7 @@ class Database extends BaseDatabase {
   }
 
   async createTeacher(teacherData: any): Promise<any> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) throw new Error("School ID not found")
+    const schoolId = this.getSchoolId() || "single-school"
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/users`,
       {
@@ -488,15 +482,14 @@ class Database extends BaseDatabase {
 
   // ─── TEACHER ASSIGNMENTS ──────────────────────────────────────────────────
   async getTeacherAssignments(schoolId?: string, teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
-    return teachers.getTeacherAssignments(this.getApiHeaders(), schoolId || this.getSchoolId(), teacherId, forceRefetch)
+    return teachers.getTeacherAssignments(this.getApiHeaders(), schoolId || this.getSchoolId() || "single-school", teacherId, forceRefetch)
   }
 
   async assignTeacherToClass(
     teacherId: string, classId: string, subject?: string,
     grade?: string, section?: string, stream?: string,
   ): Promise<TeacherAssignment | null> {
-    const schoolId = this.getSchoolId()
-    if (!schoolId) throw new Error("School ID not found")
+    const schoolId = this.getSchoolId() || "single-school"
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/assignments`,
       {

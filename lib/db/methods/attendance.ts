@@ -5,12 +5,12 @@ import type { AttendanceRecord } from "../types"
 import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 import { queryCache } from "@/lib/utils/query-cache"
 
-export function mapAttendance(r: any, schoolId: string): AttendanceRecord {
+export function mapAttendance(r: any, schoolId = "single-school"): AttendanceRecord {
   return {
     ...r,
     attendance_date: (r.date || r.attendance_date || "").split("T")[0],
     student_id: r.studentId || r.student_id,
-    schoolId: schoolId,
+    schoolId: schoolId || "single-school",
     created_at: r.createdAt || r.created_at || new Date().toISOString(),
   }
 }
@@ -23,16 +23,16 @@ function notifyAttendanceDataChanged() {
   }
 }
 
-export async function getAttendance(headers: any, schoolId: string): Promise<AttendanceRecord[]> {
-  if (!schoolId) return []
+export async function getAttendance(headers: any, schoolId = "single-school"): Promise<AttendanceRecord[]> {
+  const effectiveSchoolId = schoolId || "single-school"
   return queryCache.fetch(
-    `attendance_all_${schoolId}`,
+    `attendance_all_${effectiveSchoolId}`,
     async () => {
       const result = await apiFetch<{ success: boolean; data: any[] }>(
         `${API_URL}/api/attendance`,
         { headers }
       )
-      return result.data.map((r: any) => mapAttendance(r, schoolId))
+      return result.data.map((r: any) => mapAttendance(r, effectiveSchoolId))
     },
     // Do NOT persist attendance data to localStorage (too large & sensitive)
     { staleTime: 0, persist: false }
@@ -44,11 +44,11 @@ import { queueOfflineAttendance } from "@/lib/utils/attendance-offline-store"
 
 export async function markAttendance(
   headers: any,
-  schoolId: string,
+  schoolId = "single-school",
   records: Partial<AttendanceRecord>[],
   locationData?: { latitude?: number | null; longitude?: number | null; locationVerified?: boolean; locationDistance?: number | null }
 ): Promise<void> {
-  if (!schoolId) throw new Error("School ID not found")
+  const effectiveSchoolId = schoolId || "single-school"
   
   const formattedRecords = records.map(record => {
     const rawDate = record.attendance_date || record.date
@@ -90,7 +90,7 @@ export async function markAttendance(
     if (isOfflineError(err) || (typeof navigator !== "undefined" && !navigator.onLine)) {
       console.warn("[Attendance] Network offline. Safely buffering attendance into IndexedDB outbox...")
       await queueOfflineAttendance(
-        schoolId,
+        effectiveSchoolId,
         formattedRecords as any,
         locationData,
         primaryDate,
@@ -107,11 +107,11 @@ export async function markAttendance(
 
 export async function markSingleAttendance(
   headers: any,
-  schoolId: string,
+  schoolId = "single-school",
   record: { studentId: string; status: string; date: string; session?: string | null; remarks?: string; note?: string },
   locationData?: { latitude?: number | null; longitude?: number | null; locationVerified?: boolean; locationDistance?: number | null }
 ): Promise<any> {
-  if (!schoolId) throw new Error("School ID not found")
+  const effectiveSchoolId = schoolId || "single-school"
   const rawDate = record.date || new Date().toISOString()
   const dateStr = typeof rawDate === 'string' ? rawDate.split("T")[0] : new Date(rawDate).toISOString().split("T")[0]
   const rawSess = record.session ? record.session.toString().toLowerCase().trim() : null
@@ -145,7 +145,7 @@ export async function markSingleAttendance(
     if (isOfflineError(err) || (typeof navigator !== "undefined" && !navigator.onLine)) {
       console.warn("[Attendance] Network offline. Safely buffering single attendance into IndexedDB outbox...")
       await queueOfflineAttendance(
-        schoolId,
+        effectiveSchoolId,
         [payload],
         locationData,
         dateStr,

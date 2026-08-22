@@ -119,7 +119,7 @@ export function StaffProfile() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
-          "x-school-id": user?.schoolId || "",
+          "x-school-id": user?.schoolId || "single-school",
         },
         body: JSON.stringify({
           currentPassword,

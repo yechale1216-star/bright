@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null)
 
     // Build common request headers once
-    const schoolId = localStorage.getItem("x-school-id") || currentUser?.schoolId || ""
+    const schoolId = localStorage.getItem("x-school-id") || currentUser?.schoolId || "single-school"
     const profileHeaders: Record<string, string> = { "Content-Type": "application/json" }
     if (token) profileHeaders["Authorization"] = `Bearer ${token}`
     if (schoolId) profileHeaders["x-school-id"] = schoolId
@@ -271,7 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   phone: dbUser.phone || currentUser!.phone || "",
                   profile_photo: dbUser.profile_photo || currentUser!.profile_photo || "",
                   role: dbUser.role || currentUser!.role,
-                  schoolId: dbUser.schoolId || dbUser.school_id || currentUser!.schoolId,
+                  schoolId: dbUser.schoolId || dbUser.school_id || currentUser?.schoolId || "single-school",
                   schoolName: dbUser.schoolName || currentUser!.schoolName || "",
                   schoolLogo: dbUser.schoolLogo || currentUser!.schoolLogo || "",
                   onboardingCompleted: dbUser.onboardingCompleted ?? currentUser!.onboardingCompleted,
@@ -281,6 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setSessionId(storedSessionId)
                 setError(null)
                 localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
+                localStorage.setItem("x-school-id", updatedUser.schoolId || "single-school")
                 currentUser = updatedUser
               } else {
                 setUser(currentUser)
@@ -320,7 +321,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             phone: dbUser.phone || "",
             name: dbUser.full_name || dbUser.name,
             role: dbUser.role,
-            schoolId: dbUser.schoolId || dbUser.school_id || "",
+            schoolId: dbUser.schoolId || dbUser.school_id || currentUser?.schoolId || "single-school",
             schoolName: dbUser.schoolName || "",
             schoolLogo: dbUser.schoolLogo || "",
             teacherId: dbUser.teacher_id || "",
@@ -349,7 +350,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             phone: dbUser.phone || currentUser!.phone || "",
             profile_photo: dbUser.profile_photo || currentUser!.profile_photo || "",
             role: resolvedRole,
-            schoolId: dbUser.schoolId || dbUser.school_id || currentUser!.schoolId,
+            schoolId: dbUser.schoolId || dbUser.school_id || currentUser?.schoolId || "single-school",
             schoolName: dbUser.schoolName || currentUser!.schoolName || "",
             schoolLogo: dbUser.schoolLogo || currentUser!.schoolLogo || "",
             onboardingCompleted: dbUser.onboardingCompleted ?? currentUser!.onboardingCompleted,
@@ -360,7 +361,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(updatedUser)
           setSessionId(storedSessionId)
           localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
-          if (updatedUser.schoolId) localStorage.setItem("x-school-id", updatedUser.schoolId)
+          localStorage.setItem("x-school-id", updatedUser.schoolId || "single-school")
           
           // Cache User Profile & School Logo to IndexedDB asynchronously
           import("@/lib/utils/indexeddb-store").then(({ cacheUserProfile, cacheSchoolLogo }) => {
