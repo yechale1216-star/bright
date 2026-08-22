@@ -120,6 +120,12 @@ export const ENROLL_STEPS: EnrollStepConfig[] = [
 
 const REQUIRED_ENROLL_SAMPLES = 5
 const MIN_SAMPLE_GAP_MS = 250
+const CAMERA_INIT_TIMEOUT_MS = 25000 // 25s for hardware/permission setup
+const ENROLL_TIMEOUT_MS = 120000 // 120s (2 minutes) for registration
+const VERIFY_TIMEOUT_MS = 60000 // 60s for attendance
+const SCAN_TIMEOUT_MS = 60000
+const LOOP_INTERVAL_MS = 60
+const SAMPLE_HOLD_TOLERANCE_MS = 750 // 0.75s alignment hold threshold
 
 const STATE_CONFIG: Record<
   ScanStatus,
@@ -210,10 +216,6 @@ const STATE_CONFIG: Record<
     showScanLine: false,
   },
 }
-
-const CAMERA_INIT_TIMEOUT_MS = 8000
-const SCAN_TIMEOUT_MS = 30000
-const LOOP_INTERVAL_MS = 60
 
 export function FaceVerificationCamera({
   mode,
@@ -402,7 +404,7 @@ export function FaceVerificationCamera({
 
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream
-          await videoRef.current.play().catch(() => {})
+          await videoRef.current.play().catch(() => { })
         }
 
         setIsCameraReady(true)
@@ -791,11 +793,10 @@ export function FaceVerificationCamera({
           <button
             type="button"
             onClick={() => setFacingMode("user")}
-            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              isFrontCamera
+            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${isFrontCamera
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <User className="w-3.5 h-3.5" />
             <span>Front Camera</span>
@@ -803,11 +804,10 @@ export function FaceVerificationCamera({
           <button
             type="button"
             onClick={() => setFacingMode("environment")}
-            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              !isFrontCamera
+            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!isFrontCamera
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <Camera className="w-3.5 h-3.5" />
             <span>Back Camera</span>
@@ -835,13 +835,12 @@ export function FaceVerificationCamera({
               return (
                 <div
                   key={s.key}
-                  className={`py-1 px-1 rounded-lg text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
-                    isDone
+                  className={`py-1 px-1 rounded-lg text-center transition-all flex flex-col items-center justify-center gap-0.5 ${isDone
                       ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40"
                       : isCurrent
-                      ? "bg-primary/20 text-primary border border-primary/50 shadow-sm"
-                      : "bg-muted/60 text-muted-foreground/60 border border-transparent"
-                  }`}
+                        ? "bg-primary/20 text-primary border border-primary/50 shadow-sm"
+                        : "bg-muted/60 text-muted-foreground/60 border border-transparent"
+                    }`}
                 >
                   <span className="text-[10px] font-black leading-none">{s.step}</span>
                   <span className="text-[8px] font-semibold truncate max-w-full leading-none">
@@ -872,9 +871,8 @@ export function FaceVerificationCamera({
           playsInline
           muted
           autoPlay
-          className={`absolute inset-0 w-full h-full object-cover ${
-            isFrontCamera ? "-scale-x-100" : "scale-x-100"
-          }`}
+          className={`absolute inset-0 w-full h-full object-cover ${isFrontCamera ? "-scale-x-100" : "scale-x-100"
+            }`}
         />
 
         {/* Dark vignette overlay */}
@@ -883,15 +881,14 @@ export function FaceVerificationCamera({
         {/* ─── Center Oval Face Guide ─── */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div
-            className={`w-[66%] h-[68%] rounded-[50%] border-2 transition-all duration-300 ${
-              isFaceAligned
+            className={`w-[66%] h-[68%] rounded-[50%] border-2 transition-all duration-300 ${isFaceAligned
                 ? "border-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.6)]"
                 : scanStatus === "capturing"
-                ? "border-primary shadow-[0_0_20px_rgba(147,51,234,0.5)]"
-                : isFailedState
-                ? "border-rose-400/80 shadow-[0_0_20px_rgba(244,63,94,0.4)]"
-                : "border-white/40 border-dashed"
-            }`}
+                  ? "border-primary shadow-[0_0_20px_rgba(147,51,234,0.5)]"
+                  : isFailedState
+                    ? "border-rose-400/80 shadow-[0_0_20px_rgba(244,63,94,0.4)]"
+                    : "border-white/40 border-dashed"
+              }`}
           />
         </div>
 
@@ -1020,19 +1017,19 @@ export function FaceVerificationCamera({
                 scanStatus === "matched"
                   ? "#6ee7b7"
                   : scanStatus === "mismatched"
-                  ? "#fda4af"
-                  : isFailedState
-                  ? "#fca5a5"
-                  : "#e2e8f0",
+                    ? "#fda4af"
+                    : isFailedState
+                      ? "#fca5a5"
+                      : "#e2e8f0",
             }}
           >
             {mode === "enroll"
               ? `Sample ${sampleCount}/${REQUIRED_ENROLL_SAMPLES}`
               : scanStatus === "matched"
-              ? "Verified"
-              : scanStatus === "mismatched"
-              ? "Mismatch"
-              : "Face Scanner"}
+                ? "Verified"
+                : scanStatus === "mismatched"
+                  ? "Mismatch"
+                  : "Face Scanner"}
           </Badge>
         </div>
 
@@ -1045,15 +1042,14 @@ export function FaceVerificationCamera({
                 background: isFaceAligned
                   ? "rgba(16,185,129,0.92)"
                   : isFailedState
-                  ? "rgba(225,29,72,0.90)"
-                  : "rgba(15,23,42,0.92)",
-                border: `1px solid ${
-                  isFaceAligned
+                    ? "rgba(225,29,72,0.90)"
+                    : "rgba(15,23,42,0.92)",
+                border: `1px solid ${isFaceAligned
                     ? "rgba(16,185,129,0.95)"
                     : isFailedState
-                    ? "rgba(244,63,94,0.6)"
-                    : "rgba(255,255,255,0.2)"
-                }`,
+                      ? "rgba(244,63,94,0.6)"
+                      : "rgba(255,255,255,0.2)"
+                  }`,
               }}
             >
               {renderGuidanceIcon()}

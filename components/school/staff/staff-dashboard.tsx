@@ -264,7 +264,7 @@ export function StaffDashboard() {
         label: "Active / On Duty",
         badgeClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
         dotColor: "bg-emerald-500",
-        subtitle: workingDuration ? `Duration: ${workingDuration}` : "Currently on campus",
+        subtitle: workingDuration ? `Duration: ${workingDuration}` : "Currently at school",
       }
     }
     if (isCheckedIn && isCheckedOut) {
@@ -455,9 +455,6 @@ export function StaffDashboard() {
                 {calendarStatus.isHoliday ? "Official Holiday" : "Non-Working Day"}
               </Badge>
             </div>
-            <p className="text-xs opacity-80 mt-0.5">
-              Attendance is optional today. Staff are not marked absent or penalized.
-            </p>
           </div>
         </div>
       )}
@@ -615,7 +612,7 @@ export function StaffDashboard() {
               Ready to record your arrival or departure?
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Instant 1-tap facial biometric scan and GPS geofence campus verification.
+              Instant 1-tap facial biometric scan and GPS geofence school verification.
             </p>
           </div>
         </div>

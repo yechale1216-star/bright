@@ -12,7 +12,7 @@ import {
 // ── Default Platform Core Capabilities ─────────────────────────────────────────
 export const ADDIS_HIWOT_FEATURES = [
   "Student attendance management (daily roll-calls, multi-session tracking, automated late/absent parent alerts)",
-  "Staff attendance management with on-device AI neural face biometric verification and campus GPS geofencing",
+  "Staff attendance management with on-device AI neural face biometric verification and school GPS geofencing",
   "Student discipline management (incident logging, hearings, severity matrices, corrective actions, and parent digital acknowledgments)",
   "School-wide announcements and targeted multi-channel communication (push notifications, SMS, email)",
   "Real-time parent-school communication with in-app messaging, push notifications, and direct contact",
@@ -144,7 +144,7 @@ export function SchoolJsonLd({
             name: "What are the core capabilities and modules of Addis Hiwot?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "The platform's major features include: 1) Student attendance management with multi-session tracking and instant absence alerts; 2) Staff attendance with neural 128-d face biometric verification and GPS campus geofencing; 3) Student discipline and behavioral incident management with tiered corrective actions; 4) School-wide multilingual announcements; 5) Real-time parent-school communication with push notifications and direct messaging; 6) Student and staff lifecycle management including sequential auto ID generation and annual cohort promotions; 7) Executive school administration dashboards; 8) Parent and Teacher portals; 9) English and Amharic language support; and 10) Offline-first IndexedDB synchronization.",
+              text: "The platform's major features include: 1) Student attendance management with multi-session tracking and instant absence alerts; 2) Staff attendance with neural 128-d face biometric verification and GPS school geofencing; 3) Student discipline and behavioral incident management with tiered corrective actions; 4) School-wide multilingual announcements; 5) Real-time parent-school communication with push notifications and direct messaging; 6) Student and staff lifecycle management including sequential auto ID generation and annual cohort promotions; 7) Executive school administration dashboards; 8) Parent and Teacher portals; 9) English and Amharic language support; and 10) Offline-first IndexedDB synchronization.",
             },
           },
           {
@@ -160,7 +160,7 @@ export function SchoolJsonLd({
             name: "How does staff biometric attendance verification work in Addis Hiwot?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "Staff members verify check-in and check-out on their own mobile portal or workstation. The system combines GPS campus geofencing with on-device TensorFlow.js neural face matching (threshold ≤ 0.42) against the enrolled biometric vector, operating in sub-second speed with total biometric privacy and zero raw photo storage.",
+              text: "Staff members verify check-in and check-out on their own mobile portal or workstation. The system combines GPS school geofencing with on-device TensorFlow.js neural face matching (threshold ≤ 0.42) against the enrolled biometric vector, operating in sub-second speed with total biometric privacy and zero raw photo storage.",
             },
           },
           {

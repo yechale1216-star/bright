@@ -283,7 +283,7 @@ export function StaffAttendance() {
     setActionType(type)
     setIsVerificationModalOpen(true)
     setVerificationStep("getting_location")
-    setStepMessage("Verifying campus location...")
+    setStepMessage("Verifying school location...")
     setCapturedLocation(null)
     isSubmittingAttendanceRef.current = false
 
@@ -559,7 +559,7 @@ export function StaffAttendance() {
             Staff Attendance & Biometrics
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1">
-            Biometric face verification with integrated campus geofencing and dual session tracking.
+            Biometric face verification with integrated school geofencing and dual session tracking.
           </p>
         </div>
 

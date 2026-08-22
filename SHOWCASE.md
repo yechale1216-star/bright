@@ -342,7 +342,7 @@ graph TD
 - **Background Sync Queue:** Operations performed while disconnected are enqueued in `sync_queue`. The `useOnline` hook and `@capacitor/network` monitor connectivity and flush pending payloads sequentially with exponential backoff retry logic.
 
 ### 8.3 Hardware GPS Geofencing
-- Utilizes Android `ACCESS_FINE_LOCATION` to verify that staff members submitting attendance are within the designated geographic perimeter of the school campus.
+- Utilizes Android `ACCESS_FINE_LOCATION` to verify that staff members submitting attendance are within the designated geographic perimeter of the school grounds.
 
 ---
 

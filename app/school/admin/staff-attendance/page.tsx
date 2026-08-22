@@ -778,7 +778,7 @@ export default function AdminStaffAttendanceDashboard() {
             </h1>
           </div>
           <p className="text-xs md:text-sm font-medium text-slate-500 dark:text-slate-400">
-            Monitor real-time biometric check-ins, campus geofencing compliance, audit logs, and attendance reports
+            Monitor real-time biometric check-ins, school geofencing compliance, audit logs, and attendance reports
           </p>
         </div>
 
@@ -1196,7 +1196,7 @@ export default function AdminStaffAttendanceDashboard() {
                 className="h-9 px-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
               >
                 <option value="all">GPS: All Statuses</option>
-                <option value="verified">GPS: Verified Campus</option>
+                <option value="verified">GPS: Verified School</option>
                 <option value="unverified">GPS: Unverified / Outside</option>
               </select>
             </div>
@@ -1348,7 +1348,7 @@ export default function AdminStaffAttendanceDashboard() {
                               ) : rec.checkInLatitude ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-bold">
                                   <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                  Outside Campus
+                                  Outside School
                                 </span>
                               ) : null}
                             </div>
@@ -1731,14 +1731,14 @@ export default function AdminStaffAttendanceDashboard() {
 
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
-                      <MapPin className="w-4 h-4 text-emerald-600" /> Campus Geofence Check:
+                      <MapPin className="w-4 h-4 text-emerald-600" /> School Geofence Check:
                     </span>
                     {detailRecord.geofenceVerified ? (
                       <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[11px]">
                         Inside Boundary {detailRecord.geofenceDistance ? `(${Math.round(detailRecord.geofenceDistance)}m)` : "✓"}
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-[11px]">Outside Campus / None</Badge>
+                      <Badge variant="outline" className="text-amber-600 border-amber-500/30 text-[11px]">Outside School / None</Badge>
                     )}
                   </div>
                 </div>

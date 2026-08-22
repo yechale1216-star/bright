@@ -152,7 +152,7 @@ export default function Page() {
             <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
               <h3 className="text-base font-bold text-emerald-400">2. Staff Biometric Face Self-Attendance</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Sub-second AI neural face vector verification combined with campus GPS geofencing. Enforces authentic on-premise check-in and check-out from staff mobile devices with total biometric privacy and zero raw photo storage.
+                Sub-second AI neural face vector verification combined with school GPS geofencing. Enforces authentic on-premise check-in and check-out from staff mobile devices with total biometric privacy and zero raw photo storage.
               </p>
             </article>
 
