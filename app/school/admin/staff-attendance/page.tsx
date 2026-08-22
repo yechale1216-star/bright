@@ -628,6 +628,57 @@ export default function AdminStaffAttendanceDashboard() {
 
   // Export to CSV
   const handleExportCSV = () => {
+    if (activeTab === "reports" && reportData?.staffSummary) {
+      if (!reportData.staffSummary.length) {
+        notifications.error("Export Notice", "No attendance report records available to export.")
+        return
+      }
+
+      const headers = [
+        "Staff Name",
+        "Email",
+        "Role",
+        "Start Date",
+        "End Date",
+        ...(isSessionMode ? ["Session"] : []),
+        "Total Days Logged",
+        "Present (On-Time)",
+        "Late",
+        "Absent",
+        "On Leave / Permission",
+        "Biometric Verified (%)",
+      ]
+
+      const rows = reportData.staffSummary.map((item: any) => {
+        const bioPct = item.totalRecords > 0 ? Math.round((item.faceVerified / item.totalRecords) * 100) : 0
+        return [
+          `"${item.user?.full_name || ""}"`,
+          `"${item.user?.email || ""}"`,
+          `"${item.user?.role || ""}"`,
+          `"${startDate}"`,
+          `"${endDate}"`,
+          ...(isSessionMode ? [`"${staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter}"`] : []),
+          item.totalRecords,
+          item.present,
+          item.late,
+          item.absent,
+          item.onLeave,
+          `"${bioPct}%"`,
+        ]
+      })
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e: any[]) => e.join(","))].join("\n")
+      const encodedUri = encodeURI(csvContent)
+      const link = document.createElement("a")
+      link.setAttribute("href", encodedUri)
+      link.setAttribute("download", `Staff_Attendance_Report_${startDate}_to_${endDate}${isSessionMode ? `_${sessionFilter}` : ""}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      notifications.success("Report Exported", "Report CSV download started successfully.")
+      return
+    }
+
     if (!records.length) {
       notifications.error("Export Notice", "No attendance records available to export.")
       return
@@ -680,7 +731,7 @@ export default function AdminStaffAttendanceDashboard() {
       ]
     })
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n")
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e: any[]) => e.join(","))].join("\n")
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
@@ -1345,57 +1396,83 @@ export default function AdminStaffAttendanceDashboard() {
       {activeTab === "reports" && (
         <div className="space-y-6">
           {/* Report Date Controls */}
-          <div className="rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 shadow-xl shadow-slate-900/5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-950/70 border border-white/40 dark:border-white/10 rounded-xl px-3 h-10">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Start Date</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-                />
-              </div>
+          <div className="rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 shadow-xl shadow-slate-900/5 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-950/70 border border-white/40 dark:border-white/10 rounded-xl px-3 h-10">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Start Date</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
 
-              <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-950/70 border border-white/40 dark:border-white/10 rounded-xl px-3 h-10">
-                <span className="text-[10px] uppercase font-bold text-slate-400">End Date</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-                />
-              </div>
+                <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-950/70 border border-white/40 dark:border-white/10 rounded-xl px-3 h-10">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">End Date</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
 
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="h-10 px-3.5 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
-              >
-                <option value="all">All Roles</option>
-                {dynamicRoleOptions.map((r) => (
-                  <option key={r.key} value={r.key}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="h-10 px-3.5 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
+                >
+                  <option value="all">All Roles</option>
+                  {dynamicRoleOptions.map((r) => (
+                    <option key={r.key} value={r.key}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+
+                <Button
+                  onClick={fetchReport}
+                  disabled={reportLoading}
+                  className="h-10 px-4 rounded-xl text-xs font-bold bg-primary text-white gap-2 shadow-md"
+                >
+                  <BarChart3 className={`w-3.5 h-3.5 ${reportLoading ? "animate-spin" : ""}`} /> Generate Report
+                </Button>
+              </div>
 
               <Button
-                onClick={fetchReport}
-                disabled={reportLoading}
-                className="h-10 px-4 rounded-xl text-xs font-bold bg-primary text-white gap-2 shadow-md"
+                variant="outline"
+                onClick={handleExportCSV}
+                className="h-10 px-4 rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 gap-2"
               >
-                <BarChart3 className={`w-3.5 h-3.5 ${reportLoading ? "animate-spin" : ""}`} /> Generate Report
+                <Download className="w-4 h-4" /> Export Report (CSV)
               </Button>
             </div>
 
-            <Button
-              variant="outline"
-              onClick={handleExportCSV}
-              className="h-10 px-4 rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 gap-2"
-            >
-              <Download className="w-4 h-4" /> Export Report (CSV)
-            </Button>
+            {/* Session Filter Tabs — visible in session mode */}
+            {isSessionMode && (
+              <div className="flex items-center gap-2 w-full pt-2.5 border-t border-slate-100 dark:border-slate-800/60">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0 hidden sm:block">Session</span>
+                <div className="flex flex-1 gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-white/40 dark:border-white/10">
+                  {staffSessions.map((sess: any) => (
+                    <button
+                      key={sess.id}
+                      type="button"
+                      onClick={() => setSessionFilter(sess.id)}
+                      className={cn(
+                        "flex-1 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5",
+                        sessionFilter === sess.id
+                          ? "bg-primary text-white shadow-md shadow-primary/30 scale-[1.02]"
+                          : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                      )}
+                    >
+                      {sess.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {reportLoading ? (
@@ -1446,9 +1523,18 @@ export default function AdminStaffAttendanceDashboard() {
 
               {/* Staff Aggregate Roster */}
               <div className="rounded-[28px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl overflow-hidden">
-                <div className="p-5 border-b border-white/40 dark:border-white/10">
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">Staff Member Performance Summary</h3>
-                  <p className="text-xs text-slate-500">Per-employee cumulative breakdown between {startDate} and {endDate}</p>
+                <div className="p-5 border-b border-white/40 dark:border-white/10 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">Staff Member Performance Summary</h3>
+                    <p className="text-xs text-slate-500">
+                      Per-employee cumulative breakdown between {startDate} and {endDate}
+                    </p>
+                  </div>
+                  {isSessionMode && (
+                    <Badge variant="outline" className="text-xs font-bold uppercase border-primary/30 text-primary">
+                      {staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter} Session
+                    </Badge>
+                  )}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[700px]">
