@@ -305,7 +305,7 @@ export function evaluateFaceQuality(
   // 1. Detection Score Check
   const minScore = mode === "enroll" ? 0.65 : 0.45
   if (detectionScore < minScore) {
-    issues.push("Detection confidence low. Look directly at the camera.")
+    issues.push("Look directly at the camera and keep your face inside the guide.")
   }
 
   // 2. Face Size & Resolution Check
@@ -314,9 +314,9 @@ export function evaluateFaceQuality(
   const faceAreaRatio = (box.width * box.height) / (videoWidth * videoHeight)
 
   if (!isAdequateSize || faceAreaRatio < 0.04) {
-    issues.push("Move closer to the camera.")
+    issues.push("Move closer until your face is clearly detected.")
   } else if (faceAreaRatio > 0.75) {
-    issues.push("Move slightly back from the camera.")
+    issues.push("Move slightly farther from the camera.")
   }
 
   // 3. Centering & Bounds Check
@@ -331,7 +331,7 @@ export function evaluateFaceQuality(
     box.y + box.height <= videoHeight
 
   if (!isCenteredX || !isCenteredY || !isWithinFrame) {
-    issues.push("Center your face inside the guide frame.")
+    issues.push("Center your face inside the guide.")
   }
 
   const isProperlyPositioned = isAdequateSize && isCenteredX && isCenteredY && isWithinFrame
@@ -352,11 +352,11 @@ export function evaluateFaceQuality(
   const lighting = analyzeImageLighting(videoElement, box)
   if (!lighting.isGood) {
     if (lighting.brightness < 42) {
-      issues.push("Lighting is too dark. Move to a well-lit area.")
+      issues.push("Move to a well-lit area and avoid dark shadows.")
     } else if (lighting.brightness > 225) {
-      issues.push("Too much glare/backlight. Avoid bright background lights.")
+      issues.push("Move to a well-lit area and avoid strong light behind you.")
     } else if (lighting.contrast < 16) {
-      issues.push("Image contrast is too low.")
+      issues.push("Hold camera steady in good lighting.")
     }
   }
 
@@ -441,7 +441,7 @@ export function evaluateLiveness(
     return {
       isLive: false,
       confidence: 0.2,
-      reason: "Static image detected. Live movement required.",
+      reason: "Follow the on-screen instruction and perform the requested action naturally.",
       temporalVariance: avgVariance,
       ear: avgEar,
     }
@@ -452,7 +452,7 @@ export function evaluateLiveness(
     return {
       isLive: false,
       confidence: 0.4,
-      reason: "Excessive movement. Please hold still.",
+      reason: "Keep your head steady unless instructed to move.",
       temporalVariance: avgVariance,
       ear: avgEar,
     }

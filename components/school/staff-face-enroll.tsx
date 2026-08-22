@@ -179,7 +179,7 @@ export function StaffFaceEnrollModal({
                     Enroll Face: {selectedStaff.full_name}
                   </DialogTitle>
                   <DialogDescription className="text-xs">
-                    Select front or back camera and tap Start. Biometric landmarks are captured automatically once aligned.
+                    Position your face inside the guide in good lighting and follow the 5 sample prompts.
                   </DialogDescription>
                 </div>
               </div>

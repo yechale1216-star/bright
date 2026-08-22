@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -13,9 +13,20 @@ import {
   FlipHorizontal,
   User,
   ShieldCheck,
-  ShieldAlert,
   XCircle,
-  X,
+  Sun,
+  SunMedium,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Glasses,
+  Users,
 } from "lucide-react"
 import {
   useFaceRecognition,
@@ -49,10 +60,67 @@ export type ScanStatus =
   | "timeout"
   | "error"
 
-const REQUIRED_ENROLL_SAMPLES = 5
-const MIN_SAMPLE_GAP_MS = 180
+export interface EnrollStepConfig {
+  step: number
+  key: string
+  label: string
+  shortName: string
+  instruction: string
+  prompt: string
+  icon: "user" | "left" | "right" | "up" | "confirm"
+}
 
-// User-friendly status labels without exposing technical details or thresholds
+export const ENROLL_STEPS: EnrollStepConfig[] = [
+  {
+    step: 1,
+    key: "front",
+    label: "Step 1 of 5: Front View",
+    shortName: "Front",
+    instruction: "Look directly at the camera with a natural expression.",
+    prompt: "Look straight at the camera and keep your face inside the guide.",
+    icon: "user",
+  },
+  {
+    step: 2,
+    key: "left",
+    label: "Step 2 of 5: Slight Left",
+    shortName: "Turn Left",
+    instruction: "Turn your head slightly to your left.",
+    prompt: "Turn your head slightly to the left for sample 2.",
+    icon: "left",
+  },
+  {
+    step: 3,
+    key: "right",
+    label: "Step 3 of 5: Slight Right",
+    shortName: "Turn Right",
+    instruction: "Turn your head slightly to your right.",
+    prompt: "Turn your head slightly to the right for sample 3.",
+    icon: "right",
+  },
+  {
+    step: 4,
+    key: "up",
+    label: "Step 4 of 5: Tilt Up",
+    shortName: "Tilt Up",
+    instruction: "Tilt your chin slightly up.",
+    prompt: "Tilt your chin slightly up for sample 4.",
+    icon: "up",
+  },
+  {
+    step: 5,
+    key: "confirm",
+    label: "Step 5 of 5: Final Check",
+    shortName: "Hold Steady",
+    instruction: "Look straight at the camera and hold steady.",
+    prompt: "Look straight ahead to complete registration.",
+    icon: "confirm",
+  },
+]
+
+const REQUIRED_ENROLL_SAMPLES = 5
+const MIN_SAMPLE_GAP_MS = 250
+
 const STATE_CONFIG: Record<
   ScanStatus,
   { label: string; scanLineColor: string; frameColor: string; frameShadow: string; showScanLine: boolean }
@@ -60,7 +128,7 @@ const STATE_CONFIG: Record<
   idle: {
     label: "Ready to scan — press Start Camera",
     scanLineColor: "rgba(147,51,234,0.4)",
-    frameColor: "rgba(147,51,234,0.25)",
+    frameColor: "rgba(147,51,234,0.3)",
     frameShadow: "0 0 16px rgba(147,51,234,0.15)",
     showScanLine: false,
   },
@@ -72,7 +140,7 @@ const STATE_CONFIG: Record<
     showScanLine: false,
   },
   detecting: {
-    label: "No face detected. Please look at the camera.",
+    label: "Look directly at the camera and keep your face inside the guide.",
     scanLineColor: "rgba(147,51,234,0.85)",
     frameColor: "rgba(147,51,234,0.5)",
     frameShadow: "0 0 22px rgba(147,51,234,0.3)",
@@ -86,7 +154,7 @@ const STATE_CONFIG: Record<
     showScanLine: true,
   },
   capturing: {
-    label: "Capturing biometric samples…",
+    label: "Capturing biometric samples… Keep your head steady.",
     scanLineColor: "rgba(16,185,129,1)",
     frameColor: "rgba(16,185,129,0.8)",
     frameShadow: "0 0 32px rgba(16,185,129,0.5)",
@@ -107,14 +175,14 @@ const STATE_CONFIG: Record<
     showScanLine: false,
   },
   not_recognized: {
-    label: "Face could not be verified. Please position clearly and try again.",
+    label: "Look directly at the camera and keep your face inside the guide.",
     scanLineColor: "rgba(251,191,36,0.8)",
     frameColor: "rgba(251,191,36,0.5)",
     frameShadow: "0 0 22px rgba(251,191,36,0.3)",
     showScanLine: true,
   },
   multiple_faces: {
-    label: "Please make sure only your face is visible.",
+    label: "Only one person should be visible in the camera.",
     scanLineColor: "rgba(244,63,94,0.8)",
     frameColor: "rgba(244,63,94,0.5)",
     frameShadow: "0 0 22px rgba(244,63,94,0.3)",
@@ -128,7 +196,7 @@ const STATE_CONFIG: Record<
     showScanLine: false,
   },
   timeout: {
-    label: "Verification timed out. Please position your face clearly in the camera and try again.",
+    label: "Scanning timed out. Please position your face in good light and try again.",
     scanLineColor: "rgba(244,63,94,0.8)",
     frameColor: "rgba(244,63,94,0.5)",
     frameShadow: "0 0 22px rgba(244,63,94,0.3)",
@@ -144,8 +212,8 @@ const STATE_CONFIG: Record<
 }
 
 const CAMERA_INIT_TIMEOUT_MS = 8000
-const SCAN_TIMEOUT_MS = 25000
-const LOOP_INTERVAL_MS = 75
+const SCAN_TIMEOUT_MS = 30000
+const LOOP_INTERVAL_MS = 60
 
 export function FaceVerificationCamera({
   mode,
@@ -158,15 +226,20 @@ export function FaceVerificationCamera({
   const frameContainerRef = useRef<HTMLDivElement | null>(null)
   const animFrameRef = useRef<number | null>(null)
   const scanLineRef = useRef<HTMLDivElement | null>(null)
-  const scanDirRef = useRef(1) // 1 = down, -1 = up
-  const scanPosRef = useRef(0) // 0..100 percent
+  const scanDirRef = useRef(1)
+  const scanPosRef = useRef(0)
 
-  // Camera setup & start control state
+  // Camera & guidance state
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
   const [scanStatus, setScanStatus] = useState<ScanStatus>("idle")
   const [isCameraReady, setIsCameraReady] = useState(false)
   const [activeGuidance, setActiveGuidance] = useState<string>("")
+  const [guidanceIcon, setGuidanceIcon] = useState<string>("user")
   const [sampleCount, setSampleCount] = useState<number>(0)
+  const [showTips, setShowTips] = useState(false)
+
+  // Tracking quality & alignment
+  const [isFaceAligned, setIsFaceAligned] = useState(false)
 
   // Lifecycle guards & timers
   const mountedRef = useRef(true)
@@ -179,6 +252,7 @@ export function FaceVerificationCamera({
   // Multi-sample enrollment buffer & matching verification counters
   const sampleBufferRef = useRef<FaceSampleItem[]>([])
   const lastSampleTimeRef = useRef<number>(0)
+  const sampleAlignmentStartRef = useRef<number>(0)
   const consecutiveMatchesRef = useRef<number>(0)
   const nonMatchFramesRef = useRef<number>(0)
 
@@ -219,6 +293,7 @@ export function FaceVerificationCamera({
       videoRef.current.srcObject = null
     }
     setIsCameraReady(false)
+    setIsFaceAligned(false)
     resetLivenessHistory()
   }, [resetLivenessHistory])
 
@@ -227,7 +302,7 @@ export function FaceVerificationCamera({
     const el = scanLineRef.current
     if (!el || !mountedRef.current) return
 
-    const SPEED = 0.55
+    const SPEED = 0.65
     scanPosRef.current += SPEED * scanDirRef.current
     if (scanPosRef.current >= 96) {
       scanPosRef.current = 96
@@ -276,10 +351,17 @@ export function FaceVerificationCamera({
       if (!mountedRef.current) return
       setScanStatus("initializing")
       setIsCameraReady(false)
-      setActiveGuidance("")
+      setIsFaceAligned(false)
+      setActiveGuidance(
+        mode === "enroll"
+          ? ENROLL_STEPS[0].prompt
+          : "Look directly at the camera and keep your face inside the guide."
+      )
+      setGuidanceIcon("user")
       setSampleCount(0)
       sampleBufferRef.current = []
       lastSampleTimeRef.current = 0
+      sampleAlignmentStartRef.current = 0
       consecutiveMatchesRef.current = 0
       nonMatchFramesRef.current = 0
       verificationLockedRef.current = false
@@ -295,6 +377,7 @@ export function FaceVerificationCamera({
           stopCameraStream()
           setScanStatus("error")
           setActiveGuidance("Camera is unavailable. Please check camera permission and try again.")
+          setGuidanceIcon("error")
           onFailed?.("Camera is unavailable. Please check camera permission and try again.")
         }
       }, CAMERA_INIT_TIMEOUT_MS)
@@ -324,16 +407,22 @@ export function FaceVerificationCamera({
 
         setIsCameraReady(true)
         setScanStatus("detecting")
-        setActiveGuidance("No face detected. Please look at the camera.")
+        setActiveGuidance(
+          mode === "enroll"
+            ? ENROLL_STEPS[0].prompt
+            : "Look directly at the camera and keep your face inside the guide."
+        )
+        setGuidanceIcon("user")
 
-        // Start overall scanning timeout (25s)
+        // Start scanning timeout (30s)
         if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current)
         scanTimeoutRef.current = setTimeout(() => {
           if (mountedRef.current && !verificationLockedRef.current) {
             verificationLockedRef.current = true
             stopCameraStream()
             setScanStatus("timeout")
-            setActiveGuidance("Verification timed out. Please position your face clearly in the camera and try again.")
+            setActiveGuidance("Scanning timed out. Please position your face in good light and try again.")
+            setGuidanceIcon("timeout")
           }
         }, SCAN_TIMEOUT_MS)
       } catch {
@@ -343,10 +432,11 @@ export function FaceVerificationCamera({
         stopCameraStream()
         setScanStatus("error")
         setActiveGuidance("Camera is unavailable. Please check camera permission and try again.")
+        setGuidanceIcon("error")
         onFailed?.("Camera is unavailable. Please check camera permission and try again.")
       }
     },
-    [facingMode, onFailed, stopCameraStream]
+    [facingMode, mode, onFailed, stopCameraStream]
   )
 
   const handleStopAndReset = () => {
@@ -356,6 +446,8 @@ export function FaceVerificationCamera({
     setSampleCount(0)
     sampleBufferRef.current = []
     setActiveGuidance("")
+    setGuidanceIcon("user")
+    setIsFaceAligned(false)
     consecutiveMatchesRef.current = 0
     nonMatchFramesRef.current = 0
   }
@@ -369,6 +461,82 @@ export function FaceVerificationCamera({
       stopCameraStream()
     }
   }, [stopScanAnimation, stopCameraStream])
+
+  // ─── Real-Time Dynamic Guidance Evaluator ───
+  const updateDynamicGuidance = useCallback(
+    (detection: FaceDetectionResult, currentSampleIdx: number) => {
+      // 1. Multiple Faces
+      if (detection.multipleFaces) {
+        setScanStatus("multiple_faces")
+        setActiveGuidance("Only one person should be visible in the camera.")
+        setGuidanceIcon("multiple")
+        setIsFaceAligned(false)
+        return false
+      }
+
+      // 2. No Face Detected
+      if (!detection.detected || !detection.descriptor) {
+        setScanStatus("detecting")
+        setActiveGuidance("Look directly at the camera and keep your face inside the guide.")
+        setGuidanceIcon("user")
+        setIsFaceAligned(false)
+        return false
+      }
+
+      // 3. Specific Quality Issues
+      if (detection.qualityIssues && detection.qualityIssues.length > 0) {
+        const primaryIssue = detection.qualityIssues[0]
+        setScanStatus("not_recognized")
+        setIsFaceAligned(false)
+
+        if (primaryIssue.includes("well-lit") || primaryIssue.includes("dark")) {
+          setActiveGuidance("Move to a well-lit area and avoid dark shadows.")
+          setGuidanceIcon("sun")
+        } else if (primaryIssue.includes("strong light") || primaryIssue.includes("behind")) {
+          setActiveGuidance("Move to a well-lit area and avoid strong light behind you.")
+          setGuidanceIcon("sun-dim")
+        } else if (primaryIssue.includes("closer")) {
+          setActiveGuidance("Move closer until your face is clearly detected.")
+          setGuidanceIcon("zoom-in")
+        } else if (primaryIssue.includes("farther") || primaryIssue.includes("back")) {
+          setActiveGuidance("Move slightly farther from the camera.")
+          setGuidanceIcon("zoom-out")
+        } else if (primaryIssue.includes("guide") || primaryIssue.includes("Center")) {
+          setActiveGuidance("Look directly at the camera and keep your face inside the guide.")
+          setGuidanceIcon("center")
+        } else if (primaryIssue.includes("Turn") || primaryIssue.includes("straight") || primaryIssue.includes("upright") || primaryIssue.includes("Tilt")) {
+          setActiveGuidance(primaryIssue)
+          setGuidanceIcon("turn")
+        } else {
+          setActiveGuidance(primaryIssue)
+          setGuidanceIcon("user")
+        }
+        return false
+      }
+
+      // 4. Liveness Check
+      if (!detection.isLive) {
+        setScanStatus("not_recognized")
+        setActiveGuidance("Follow the on-screen instruction and perform the requested action naturally.")
+        setGuidanceIcon("sparkles")
+        setIsFaceAligned(false)
+        return false
+      }
+
+      // 5. Well-Aligned State
+      setIsFaceAligned(true)
+
+      if (mode === "enroll") {
+        const step = ENROLL_STEPS[Math.min(currentSampleIdx, ENROLL_STEPS.length - 1)]
+        setGuidanceIcon(step.icon)
+      } else {
+        setGuidanceIcon("user")
+      }
+
+      return true
+    },
+    [mode]
+  )
 
   // ─── Sequential Frame Analysis ───
   const analyzeFrame = useCallback(async () => {
@@ -389,7 +557,7 @@ export function FaceVerificationCamera({
     const vid = videoRef.current
     if (vid.videoWidth === 0 || vid.videoHeight === 0 || vid.readyState < 2) {
       if (!verificationLockedRef.current && mountedRef.current) {
-        loopTimeoutRef.current = setTimeout(analyzeFrame, 75)
+        loopTimeoutRef.current = setTimeout(analyzeFrame, 60)
       }
       return
     }
@@ -401,81 +569,104 @@ export function FaceVerificationCamera({
 
       if (!mountedRef.current || verificationLockedRef.current) return
 
-      // Failure Type 1: Multiple faces detected
-      if (detection.multipleFaces) {
-        setScanStatus("multiple_faces")
-        setActiveGuidance("Please make sure only your face is visible.")
-        return
-      }
+      const currentSampleIdx = sampleBufferRef.current.length
+      const isAligned = updateDynamicGuidance(detection, currentSampleIdx)
 
-      // Failure Type 2: No face detected yet
-      if (!detection.detected || !detection.descriptor) {
-        setScanStatus("detecting")
-        setActiveGuidance("No face detected. Please look at the camera.")
-        return
-      }
-
-      // Failure Type 3: Poor image quality (lighting / blur / off-angle) in enroll mode or initial framing
-      if (detection.qualityIssues && detection.qualityIssues.length > 0 && mode === "enroll") {
-        setScanStatus("not_recognized")
-        setActiveGuidance("Please improve the lighting and position your face clearly.")
+      if (!isAligned || !detection.descriptor) {
+        sampleAlignmentStartRef.current = 0
         return
       }
 
       // ─── ENROLL MODE (Progressive Multi-Sample Registration) ───
       if (mode === "enroll") {
-        // Anti-spoof / Liveness failed during enrollment
-        if (!detection.isLive) {
-          setScanStatus("not_recognized")
-          setActiveGuidance("Face verification could not confirm that you are present. Please try again.")
-          return
+        const now = performance.now()
+
+        if (sampleAlignmentStartRef.current === 0) {
+          sampleAlignmentStartRef.current = now
         }
 
-        if (detection.isProperlyPositioned && detection.isLive && detection.qualityScore >= 0.65) {
-          const now = performance.now()
-          if (now - lastSampleTimeRef.current >= MIN_SAMPLE_GAP_MS) {
-            lastSampleTimeRef.current = now
-            sampleBufferRef.current.push({
-              descriptor: detection.descriptor,
-              qualityScore: detection.qualityScore,
-              landmarks: detection.landmarks,
-              timestamp: now,
-            })
+        const elapsedAlignment = now - sampleAlignmentStartRef.current
+        const timeSinceLastSample = now - lastSampleTimeRef.current
 
-            const currentCount = sampleBufferRef.current.length
-            setSampleCount(currentCount)
-            setScanStatus("capturing")
-            setActiveGuidance(`Capturing sample ${currentCount} of ${REQUIRED_ENROLL_SAMPLES}… Hold still.`)
-            NativeBridge.vibrate(ImpactStyle.Light)
+        // Check if sample step condition is met
+        const activeStep = ENROLL_STEPS[Math.min(currentSampleIdx, ENROLL_STEPS.length - 1)]
+        const pose = detection.poseAngles || { yaw: 0, pitch: 0, roll: 0 }
 
-            if (currentCount >= REQUIRED_ENROLL_SAMPLES) {
-              verificationLockedRef.current = true
-              setScanStatus("matched")
-              setActiveGuidance("Biometric profile successfully registered.")
+        let isTargetAngleReached = true
 
-              const stableResult = synthesizeStableEmbedding(sampleBufferRef.current)
-
-              stopCameraStream()
-              NativeBridge.vibrate(ImpactStyle.Medium)
-              onVerified?.({
-                descriptor: stableResult.descriptor,
-                confidence: stableResult.consistencyScore,
-                samplesCount: stableResult.samplesUsed,
-              })
-              return
-            }
+        if (activeStep.key === "left") {
+          isTargetAngleReached = pose.yaw <= -4 || elapsedAlignment >= 1200
+          if (!isTargetAngleReached) {
+            setActiveGuidance("Turn your head slightly to the left.")
+            setGuidanceIcon("left")
           }
-          return
+        } else if (activeStep.key === "right") {
+          isTargetAngleReached = pose.yaw >= 4 || elapsedAlignment >= 1200
+          if (!isTargetAngleReached) {
+            setActiveGuidance("Turn your head slightly to the right.")
+            setGuidanceIcon("right")
+          }
+        } else if (activeStep.key === "up") {
+          isTargetAngleReached = pose.pitch <= -4 || elapsedAlignment >= 1200
+          if (!isTargetAngleReached) {
+            setActiveGuidance("Tilt your chin slightly up.")
+            setGuidanceIcon("up")
+          }
         }
+
+        if (isTargetAngleReached && timeSinceLastSample >= MIN_SAMPLE_GAP_MS) {
+          lastSampleTimeRef.current = now
+          sampleAlignmentStartRef.current = 0
+
+          sampleBufferRef.current.push({
+            descriptor: detection.descriptor,
+            qualityScore: detection.qualityScore,
+            landmarks: detection.landmarks,
+            timestamp: now,
+          })
+
+          const newCount = sampleBufferRef.current.length
+          setSampleCount(newCount)
+          setScanStatus("capturing")
+          NativeBridge.vibrate(ImpactStyle.Light)
+
+          if (newCount < REQUIRED_ENROLL_SAMPLES) {
+            const nextStep = ENROLL_STEPS[newCount]
+            setActiveGuidance(nextStep.prompt)
+            setGuidanceIcon(nextStep.icon)
+          } else {
+            // All 5 samples captured successfully
+            verificationLockedRef.current = true
+            setScanStatus("matched")
+            setActiveGuidance("✓ Face registration complete! Biometric profile securely created.")
+            setGuidanceIcon("check")
+
+            const stableResult = synthesizeStableEmbedding(sampleBufferRef.current)
+
+            stopCameraStream()
+            NativeBridge.vibrate(ImpactStyle.Medium)
+            onVerified?.({
+              descriptor: stableResult.descriptor,
+              confidence: stableResult.consistencyScore,
+              samplesCount: stableResult.samplesUsed,
+            })
+            return
+          }
+        } else if (isTargetAngleReached) {
+          setActiveGuidance(`Keep your head steady — capturing sample ${currentSampleIdx + 1} of 5…`)
+          setGuidanceIcon("camera")
+        }
+
         return
       }
 
-      // ─── VERIFY MODE (Fast Self-Attendance Identity Verification) ───
+      // ─── VERIFY MODE (Fast Self-Attendance Verification) ───
       if (!enrolledDescriptor || enrolledDescriptor.length === 0) {
         verificationLockedRef.current = true
         stopCameraStream()
         setScanStatus("no_enrolled")
         setActiveGuidance("No registered face found for this account. Please contact school administration.")
+        setGuidanceIcon("error")
         return
       }
 
@@ -486,11 +677,11 @@ export function FaceVerificationCamera({
         consecutiveMatchesRef.current++
         nonMatchFramesRef.current = 0
 
-        // Require 2 consecutive matching frames (or single very clear match) for confirmed identity
         if (consecutiveMatchesRef.current >= 2 || matchResult.confidence >= 0.82) {
           verificationLockedRef.current = true
           setScanStatus("matched")
-          setActiveGuidance("Identity verified successfully.")
+          setActiveGuidance("✓ Identity verified successfully.")
+          setGuidanceIcon("check")
           stopCameraStream()
           NativeBridge.vibrate(ImpactStyle.Light)
           onVerified?.({
@@ -500,22 +691,19 @@ export function FaceVerificationCamera({
           return
         }
       } else {
-        // ─── Face Mismatch (Biometric Verification Failed) ───
-        // Face was successfully detected and compared with enrolled descriptor, but does not match!
-        // Immediately lock verification, stop the camera and release all active loops & streams.
         verificationLockedRef.current = true
         consecutiveMatchesRef.current = 0
         nonMatchFramesRef.current = 0
 
         stopCameraStream()
-
         setScanStatus("mismatched")
         setActiveGuidance("Face does not match.")
+        setGuidanceIcon("error")
         NativeBridge.vibrate(ImpactStyle.Heavy)
         return
       }
     } catch {
-      // Continue to next frame gracefully
+      // Continue next frame
     } finally {
       isAnalyzingRef.current = false
       if (mountedRef.current && !verificationLockedRef.current && isCameraReady) {
@@ -532,9 +720,10 @@ export function FaceVerificationCamera({
     verifyFaceMatch,
     onVerified,
     stopCameraStream,
+    updateDynamicGuidance,
   ])
 
-  // Trigger analysis loop when camera and models are ready
+  // Trigger analysis loop
   useEffect(() => {
     if (
       !isCameraReady ||
@@ -563,9 +752,40 @@ export function FaceVerificationCamera({
     scanStatus === "not_recognized" ||
     scanStatus === "mismatched"
 
+  const renderGuidanceIcon = () => {
+    switch (guidanceIcon) {
+      case "sun":
+        return <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+      case "sun-dim":
+        return <SunMedium className="w-4 h-4 text-amber-400 shrink-0" />
+      case "zoom-in":
+        return <Maximize2 className="w-4 h-4 text-sky-400 shrink-0" />
+      case "zoom-out":
+        return <Minimize2 className="w-4 h-4 text-sky-400 shrink-0" />
+      case "left":
+        return <ArrowLeft className="w-4 h-4 text-indigo-400 animate-pulse shrink-0" />
+      case "right":
+        return <ArrowRight className="w-4 h-4 text-indigo-400 animate-pulse shrink-0" />
+      case "up":
+        return <ArrowUp className="w-4 h-4 text-indigo-400 animate-pulse shrink-0" />
+      case "sparkles":
+        return <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+      case "multiple":
+        return <Users className="w-4 h-4 text-rose-400 shrink-0" />
+      case "camera":
+        return <Camera className="w-4 h-4 text-emerald-400 animate-bounce shrink-0" />
+      case "check":
+        return <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+      case "error":
+        return <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+      default:
+        return <User className="w-4 h-4 text-primary shrink-0" />
+    }
+  }
+
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-3 select-none">
-      {/* ─── 0. CAMERA SELECTION CONTROLS (BEFORE SCANNING / IDLE) ─── */}
+      {/* ─── 0. CAMERA SELECTION & ENROLLMENT STEPPER ─── */}
       {scanStatus === "idle" && (
         <div className="w-full flex items-center justify-between p-1.5 rounded-2xl bg-muted/60 border border-border/60">
           <button
@@ -595,13 +815,54 @@ export function FaceVerificationCamera({
         </div>
       )}
 
+      {/* ─── STEP PROGRESS BAR (ENROLL MODE) ─── */}
+      {mode === "enroll" && (
+        <div className="w-full bg-muted/40 p-2.5 rounded-2xl border border-border/50 space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground px-1">
+            <span className="text-foreground flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+              <span>Biometric Registration</span>
+            </span>
+            <span className="text-primary font-mono">
+              {sampleCount}/{REQUIRED_ENROLL_SAMPLES} Samples
+            </span>
+          </div>
+
+          <div className="grid grid-cols-5 gap-1.5">
+            {ENROLL_STEPS.map((s, idx) => {
+              const isDone = idx < sampleCount
+              const isCurrent = idx === sampleCount && scanStatus !== "idle" && scanStatus !== "matched"
+              return (
+                <div
+                  key={s.key}
+                  className={`py-1 px-1 rounded-lg text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                    isDone
+                      ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40"
+                      : isCurrent
+                      ? "bg-primary/20 text-primary border border-primary/50 shadow-sm"
+                      : "bg-muted/60 text-muted-foreground/60 border border-transparent"
+                  }`}
+                >
+                  <span className="text-[10px] font-black leading-none">{s.step}</span>
+                  <span className="text-[8px] font-semibold truncate max-w-full leading-none">
+                    {s.shortName}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ─── 1. CAMERA VIEWPORT ─── */}
       <div
         ref={frameContainerRef}
         className="relative w-full aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-950 flex items-center justify-center"
         style={{
-          boxShadow: cfg.frameShadow,
-          border: `2px solid ${cfg.frameColor}`,
+          boxShadow: isFaceAligned
+            ? "0 0 30px rgba(16,185,129,0.4)"
+            : cfg.frameShadow,
+          border: `2.5px solid ${isFaceAligned ? "rgba(16,185,129,0.85)" : cfg.frameColor}`,
           transition: "border-color 0.25s ease, box-shadow 0.25s ease",
         }}
       >
@@ -617,24 +878,39 @@ export function FaceVerificationCamera({
         />
 
         {/* Dark vignette overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/60 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/65 pointer-events-none" />
+
+        {/* ─── Center Oval Face Guide ─── */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div
+            className={`w-[66%] h-[68%] rounded-[50%] border-2 transition-all duration-300 ${
+              isFaceAligned
+                ? "border-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.6)]"
+                : scanStatus === "capturing"
+                ? "border-primary shadow-[0_0_20px_rgba(147,51,234,0.5)]"
+                : isFailedState
+                ? "border-rose-400/80 shadow-[0_0_20px_rgba(244,63,94,0.4)]"
+                : "border-white/40 border-dashed"
+            }`}
+          />
+        </div>
 
         {/* ── Corner bracket markers ── */}
-        <div className="absolute top-5 left-5 pointer-events-none" style={{ width: 26, height: 26 }}>
-          <div className="absolute top-0 left-0 w-full h-[3px] rounded-full" style={{ background: cfg.frameColor }} />
-          <div className="absolute top-0 left-0 w-[3px] h-full rounded-full" style={{ background: cfg.frameColor }} />
+        <div className="absolute top-5 left-5 pointer-events-none" style={{ width: 24, height: 24 }}>
+          <div className="absolute top-0 left-0 w-full h-[3px] rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
+          <div className="absolute top-0 left-0 w-[3px] h-full rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
         </div>
-        <div className="absolute top-5 right-5 pointer-events-none" style={{ width: 26, height: 26 }}>
-          <div className="absolute top-0 right-0 w-full h-[3px] rounded-full" style={{ background: cfg.frameColor }} />
-          <div className="absolute top-0 right-0 w-[3px] h-full rounded-full" style={{ background: cfg.frameColor }} />
+        <div className="absolute top-5 right-5 pointer-events-none" style={{ width: 24, height: 24 }}>
+          <div className="absolute top-0 right-0 w-full h-[3px] rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
+          <div className="absolute top-0 right-0 w-[3px] h-full rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
         </div>
-        <div className="absolute bottom-16 left-5 pointer-events-none" style={{ width: 26, height: 26 }}>
-          <div className="absolute bottom-0 left-0 w-full h-[3px] rounded-full" style={{ background: cfg.frameColor }} />
-          <div className="absolute bottom-0 left-0 w-[3px] h-full rounded-full" style={{ background: cfg.frameColor }} />
+        <div className="absolute bottom-20 left-5 pointer-events-none" style={{ width: 24, height: 24 }}>
+          <div className="absolute bottom-0 left-0 w-full h-[3px] rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
+          <div className="absolute bottom-0 left-0 w-[3px] h-full rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
         </div>
-        <div className="absolute bottom-16 right-5 pointer-events-none" style={{ width: 26, height: 26 }}>
-          <div className="absolute bottom-0 right-0 w-full h-[3px] rounded-full" style={{ background: cfg.frameColor }} />
-          <div className="absolute bottom-0 right-0 w-[3px] h-full rounded-full" style={{ background: cfg.frameColor }} />
+        <div className="absolute bottom-20 right-5 pointer-events-none" style={{ width: 24, height: 24 }}>
+          <div className="absolute bottom-0 right-0 w-full h-[3px] rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
+          <div className="absolute bottom-0 right-0 w-[3px] h-full rounded-full" style={{ background: isFaceAligned ? "rgba(16,185,129,0.9)" : cfg.frameColor }} />
         </div>
 
         {/* ── PROMINENT START BUTTON & IDLE OVERLAY ── */}
@@ -646,11 +922,11 @@ export function FaceVerificationCamera({
 
             <div className="space-y-1">
               <h3 className="text-base font-bold text-white">
-                {mode === "enroll" ? "Biometric Registration" : "Self-Attendance Verification"}
+                {mode === "enroll" ? "Biometric Registration" : "Self-Attendance Scanner"}
               </h3>
               <p className="text-xs text-neutral-300 max-w-[220px]">
                 {mode === "enroll"
-                  ? "Position your face in the center of the camera"
+                  ? "Look directly at the camera and follow the simple 5-step guide"
                   : "Look directly at the camera to verify your identity"}
               </p>
             </div>
@@ -674,7 +950,7 @@ export function FaceVerificationCamera({
           </div>
         )}
 
-        {/* ── Mismatch Overlay: Red ❌ Icon, "Face does not match.", "Please try again.", "Try Again" Button ── */}
+        {/* ── Mismatch Overlay ── */}
         {scanStatus === "mismatched" && (
           <div className="relative z-20 flex flex-col items-center justify-center p-6 text-center gap-4 animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.4)] text-rose-500">
@@ -686,7 +962,7 @@ export function FaceVerificationCamera({
                 Face does not match.
               </h3>
               <p className="text-xs sm:text-sm text-rose-200 font-medium">
-                Please try again.
+                Please look directly at the camera and try again.
               </p>
             </div>
 
@@ -739,7 +1015,7 @@ export function FaceVerificationCamera({
             className="backdrop-blur-md px-2.5 py-1 text-[10px] sm:text-[11px] font-bold tracking-wider uppercase"
             style={{
               background: "rgba(0,0,0,0.75)",
-              border: `1px solid ${cfg.frameColor}`,
+              border: `1px solid ${isFaceAligned ? "rgba(16,185,129,0.7)" : cfg.frameColor}`,
               color:
                 scanStatus === "matched"
                   ? "#6ee7b7"
@@ -756,68 +1032,33 @@ export function FaceVerificationCamera({
               ? "Verified"
               : scanStatus === "mismatched"
               ? "Mismatch"
-              : "Face Verification"}
+              : "Face Scanner"}
           </Badge>
         </div>
 
-        {/* ── Progressive Enrollment Sample Dots (Enroll Mode) ── */}
-        {mode === "enroll" && isCameraReady && scanStatus !== "idle" && (
-          <div className="absolute top-12 left-0 right-0 flex items-center justify-center gap-1.5 pointer-events-none z-10">
-            {Array.from({ length: REQUIRED_ENROLL_SAMPLES }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                  i < sampleCount
-                    ? "bg-emerald-400 scale-125 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
-                    : i === sampleCount
-                    ? "bg-primary/80 animate-pulse scale-110"
-                    : "bg-white/30"
-                }`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* ── Bottom status pill inside viewport (when scanning/detecting/analyzing) ── */}
+        {/* ── DYNAMIC SINGLE INSTRUCTION PILL (INSIDE VIEWPORT) ── */}
         {scanStatus !== "mismatched" && scanStatus !== "idle" && (
-          <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 pointer-events-none z-10">
+          <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 pointer-events-none z-20">
             <div
-              className="rounded-xl px-3 py-2.5 flex items-center gap-2 backdrop-blur-md"
+              className="rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 backdrop-blur-lg shadow-lg transition-all duration-200"
               style={{
-                background: "rgba(0,0,0,0.80)",
-                border: `1px solid ${cfg.frameColor}`,
+                background: isFaceAligned
+                  ? "rgba(16,185,129,0.92)"
+                  : isFailedState
+                  ? "rgba(225,29,72,0.90)"
+                  : "rgba(15,23,42,0.92)",
+                border: `1px solid ${
+                  isFaceAligned
+                    ? "rgba(16,185,129,0.95)"
+                    : isFailedState
+                    ? "rgba(244,63,94,0.6)"
+                    : "rgba(255,255,255,0.2)"
+                }`,
               }}
             >
-              {cfg.showScanLine && (
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{
-                    background: cfg.scanLineColor,
-                    boxShadow: `0 0 6px ${cfg.scanLineColor}`,
-                    animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite",
-                  }}
-                />
-              )}
-              {scanStatus === "matched" && (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              )}
-              {isFailedState && (
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              )}
+              {renderGuidanceIcon()}
 
-              <span
-                className="text-xs font-semibold leading-tight flex-1"
-                style={{
-                  color:
-                    scanStatus === "matched"
-                      ? "#6ee7b7"
-                      : scanStatus === "not_recognized"
-                      ? "#fde68a"
-                      : isFailedState
-                      ? "#fca5a5"
-                      : "#f1f5f9",
-                }}
-              >
+              <span className="text-xs font-bold leading-tight flex-1 text-white">
                 {activeGuidance || cfg.label}
               </span>
             </div>
@@ -825,77 +1066,9 @@ export function FaceVerificationCamera({
         )}
       </div>
 
-      {/* ─── 2. BELOW-FRAME STATUS STRIP ─── */}
-      <div
-        className="w-full rounded-2xl px-4 py-3 flex items-center justify-between gap-3 transition-all duration-200"
-        style={{
-          background:
-            scanStatus === "matched"
-              ? "rgba(16,185,129,0.12)"
-              : scanStatus === "mismatched"
-              ? "rgba(244,63,94,0.12)"
-              : isFailedState
-              ? "rgba(244,63,94,0.08)"
-              : "rgba(147,51,234,0.08)",
-          border: `1px solid ${
-            scanStatus === "mismatched"
-              ? "rgba(244,63,94,0.4)"
-              : cfg.frameColor.replace(/[\d.]+\)$/, "0.3)")
-          }`,
-        }}
-      >
-        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-          <span
-            className={`text-xs font-bold leading-snug truncate ${
-              scanStatus === "mismatched"
-                ? "text-rose-600 dark:text-rose-400"
-                : "text-foreground"
-            }`}
-          >
-            {scanStatus === "idle"
-              ? "Camera Ready"
-              : scanStatus === "matched"
-              ? "✓ Verification Successful"
-              : scanStatus === "mismatched"
-              ? "Face does not match."
-              : scanStatus === "initializing"
-              ? "Starting camera…"
-              : scanStatus === "capturing"
-              ? `Capturing Sample ${sampleCount} of ${REQUIRED_ENROLL_SAMPLES}…`
-              : scanStatus === "timeout" || scanStatus === "not_recognized"
-              ? "Verification Needed"
-              : "Scanning Face"}
-          </span>
-          <span className="text-[11px] text-muted-foreground font-medium truncate">
-            {scanStatus === "mismatched"
-              ? "Please try again."
-              : activeGuidance ||
-                (scanStatus === "idle"
-                  ? "Press Start Camera to verify"
-                  : scanStatus === "matched"
-                  ? "Identity confirmed"
-                  : "Keep your face inside the frame")}
-          </span>
-        </div>
-
-        {/* Live scanning pulse or checkmark or mismatch icon */}
-        {cfg.showScanLine && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
-            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Live</span>
-          </div>
-        )}
-        {scanStatus === "matched" && (
-          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-        )}
-        {scanStatus === "mismatched" && (
-          <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
-        )}
-      </div>
-
-      {/* ─── 3. ACTION CONTROLS & CAMERA SWITCHING ─── */}
+      {/* ─── 2. BELOW-FRAME STATUS & ACTION BUTTONS ─── */}
       <div className="w-full flex items-center justify-between gap-2 pt-0.5">
-        {/* Switch camera button when scanning (not when matched or mismatched) */}
+        {/* Switch camera button */}
         {scanStatus !== "idle" && scanStatus !== "matched" && scanStatus !== "mismatched" && (
           <Button
             type="button"
@@ -909,7 +1082,7 @@ export function FaceVerificationCamera({
           </Button>
         )}
 
-        {/* Immediate retry button on timeout, not recognized, error, or mismatched */}
+        {/* Immediate retry button */}
         {(scanStatus === "error" || scanStatus === "timeout" || scanStatus === "not_recognized" || scanStatus === "mismatched") && (
           <Button
             type="button"
@@ -940,6 +1113,73 @@ export function FaceVerificationCamera({
           >
             Cancel
           </Button>
+        )}
+      </div>
+
+      {/* ─── 3. CLEAR STEP-BY-STEP USER GUIDE DRAWER / ACCORDION ─── */}
+      <div className="w-full border border-border/60 rounded-2xl bg-muted/30 overflow-hidden text-xs">
+        <button
+          type="button"
+          onClick={() => setShowTips(!showTips)}
+          className="w-full p-3 flex items-center justify-between font-bold text-foreground hover:bg-muted/50 transition-colors text-left"
+        >
+          <span className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-primary" />
+            <span>Registration Guide & Best Practices</span>
+          </span>
+          {showTips ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {showTips && (
+          <div className="p-3.5 pt-0 space-y-2 text-muted-foreground border-t border-border/40 bg-card/40">
+            <div className="flex items-start gap-2 pt-2">
+              <Sun className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">Lighting: </span>
+                Move to a well-lit area and avoid strong light or windows behind you.
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <User className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">Face Position: </span>
+                Look directly at the camera and keep your face inside the guide.
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Maximize2 className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">Distance: </span>
+                Move closer or farther until your face is clearly detected in the frame.
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Glasses className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">Obstructions: </span>
+                Remove sunglasses, hats, or masks covering your eyes, nose, or mouth.
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Users className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">Single Person: </span>
+                Only one person should be visible in the camera.
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">5 Quick Samples: </span>
+                Follow on-screen cues for Front, Left, Right, Up, and Center poses.
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
