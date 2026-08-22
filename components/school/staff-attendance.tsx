@@ -627,9 +627,6 @@ export function StaffAttendance() {
                 {calendarStatus.isHoliday ? "Holiday" : "Non-Working Day"}
               </Badge>
             </div>
-            <p className="text-xs opacity-80 mt-0.5">
-              Attendance tracking is disabled today per admin configuration. Absences are not tracked.
-            </p>
           </div>
         </div>
       )}

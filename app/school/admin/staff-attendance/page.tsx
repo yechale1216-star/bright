@@ -868,9 +868,6 @@ export default function AdminStaffAttendanceDashboard() {
                 {stats.isHoliday ? "Official Holiday" : "Non-Working Day"}
               </Badge>
             </div>
-            <p className="text-xs opacity-80 mt-0.5">
-              Attendance is not required on this date. Staff are not marked absent or penalized.
-            </p>
           </div>
         </motion.div>
       )}
