@@ -25,6 +25,8 @@ import {
   ArrowUp,
   Info,
   Users,
+  ShieldAlert,
+  Lock,
 } from "lucide-react"
 import {
   useFaceRecognition,
@@ -41,8 +43,15 @@ import { cn } from "@/lib/utils/utils"
 export interface FaceVerificationCameraProps {
   mode: "enroll" | "verify"
   enrolledDescriptor?: number[] | null
+  attemptCount?: number
+  maxAttempts?: number
+  isLocked?: boolean
+  lockMessage?: string | null
+  attendanceMode?: "daily" | "session_based"
+  sessionName?: string
   onVerified?: (result: { descriptor: number[]; confidence?: number; samplesCount?: number }) => void
   onFailed?: (error: string) => void
+  onAttemptFailed?: (details: { reason: string }) => Promise<{ isLocked: boolean; attemptCount: number; remainingAttempts: number; lockMessage?: string | null } | void> | void
   onCancel?: () => void
 }
 
@@ -312,8 +321,15 @@ function getLocalizedGuidance(guidance: string, lang: "en" | "am"): string {
 export function FaceVerificationCamera({
   mode,
   enrolledDescriptor,
+  attemptCount = 0,
+  maxAttempts = 5,
+  isLocked = false,
+  lockMessage,
+  attendanceMode = "daily",
+  sessionName,
   onVerified,
   onFailed,
+  onAttemptFailed,
   onCancel,
 }: FaceVerificationCameraProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -339,6 +355,23 @@ export function FaceVerificationCamera({
   useEffect(() => {
     setGuideLanguage(appLanguage)
   }, [appLanguage])
+
+  // Attempt tracking state
+  const [localAttemptCount, setLocalAttemptCount] = useState<number>(attemptCount ?? 0)
+  const [localIsLocked, setLocalIsLocked] = useState<boolean>(isLocked ?? false)
+  const [localLockMessage, setLocalLockMessage] = useState<string>(lockMessage ?? "")
+
+  useEffect(() => {
+    if (attemptCount !== undefined) setLocalAttemptCount(attemptCount)
+  }, [attemptCount])
+
+  useEffect(() => {
+    if (isLocked !== undefined) setLocalIsLocked(isLocked)
+  }, [isLocked])
+
+  useEffect(() => {
+    if (lockMessage !== undefined) setLocalLockMessage(lockMessage || "")
+  }, [lockMessage])
 
   // Camera & guidance state
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
@@ -815,6 +848,37 @@ export function FaceVerificationCamera({
           setActiveGuidance("Face does not match your registered profile. Attendance was not recorded.")
           setGuidanceIcon("error")
           NativeBridge.vibrate(ImpactStyle.Heavy)
+
+          // Asynchronously record the failed attempt on the server
+          if (onAttemptFailed) {
+            Promise.resolve(onAttemptFailed({ reason: "Face mismatch" })).then((res) => {
+              if (res) {
+                setLocalAttemptCount(res.attemptCount)
+                setLocalIsLocked(res.isLocked)
+                if (res.lockMessage) setLocalLockMessage(res.lockMessage)
+              } else {
+                setLocalAttemptCount((prev) => {
+                  const nextCount = prev + 1
+                  if (nextCount >= maxAttempts) setLocalIsLocked(true)
+                  return nextCount
+                })
+              }
+            }).catch((err) => {
+              console.warn("[FaceVerificationCamera] Failed to record attempt:", err)
+              setLocalAttemptCount((prev) => {
+                const nextCount = prev + 1
+                if (nextCount >= maxAttempts) setLocalIsLocked(true)
+                return nextCount
+              })
+            })
+          } else {
+            setLocalAttemptCount((prev) => {
+              const nextCount = prev + 1
+              if (nextCount >= maxAttempts) setLocalIsLocked(true)
+              return nextCount
+            })
+          }
+
           onFailed?.("Face does not match your registered profile. Attendance was not recorded.")
           return
         }
@@ -836,6 +900,9 @@ export function FaceVerificationCamera({
     enrolledDescriptor,
     verifyFaceMatch,
     onVerified,
+    onFailed,
+    onAttemptFailed,
+    maxAttempts,
     stopCameraStream,
     updateDynamicGuidance,
   ])
@@ -1056,58 +1123,121 @@ export function FaceVerificationCamera({
           </div>
         )}
 
-        {/* ── Mismatch Overlay ── */}
+        {/* ── Mismatch / Lock Overlay ── */}
         {scanStatus === "mismatched" && (
           <div
-            className="relative z-20 flex flex-col items-center justify-center p-8 text-center gap-5 animate-in zoom-in-95 duration-200 w-full h-full"
-            style={{ background: "radial-gradient(ellipse at 50% 100%, rgba(120,0,0,0.55) 0%, rgba(10,0,0,0.92) 70%)" }}
+            className="relative z-20 flex flex-col items-center justify-center p-6 sm:p-8 text-center gap-4 animate-in zoom-in-95 duration-200 w-full h-full"
+            style={{ background: "radial-gradient(ellipse at 50% 100%, rgba(120,0,0,0.65) 0%, rgba(10,0,0,0.95) 70%)" }}
           >
-            {/* MISMATCH badge — top left, speech-bubble style */}
-            <div className="absolute top-4 left-4 z-10">
+            {/* Top badges */}
+            <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
               <span
-                className="inline-flex items-center px-3 py-1 rounded-lg border border-rose-500/80 text-rose-400 text-[11px] font-black tracking-widest uppercase"
-                style={{ background: "rgba(20,0,0,0.85)", letterSpacing: "0.12em" }}
+                className={`inline-flex items-center px-3 py-1 rounded-lg border text-[11px] font-black tracking-widest uppercase ${
+                  localIsLocked || localAttemptCount >= maxAttempts
+                    ? "border-rose-500 bg-rose-950/90 text-rose-300"
+                    : "border-rose-500/80 text-rose-400 bg-neutral-950/85"
+                }`}
+                style={{ letterSpacing: "0.12em" }}
               >
-                MISMATCH
+                {localIsLocked || localAttemptCount >= maxAttempts ? "LOCKED" : "MISMATCH"}
+              </span>
+
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-black/60 border border-white/15 text-white/90">
+                {guideLanguage === "am"
+                  ? `ሙከራ ${Math.min(localAttemptCount || 1, maxAttempts)} ከ ${maxAttempts}`
+                  : `Attempt ${Math.min(localAttemptCount || 1, maxAttempts)} of ${maxAttempts}`}
               </span>
             </div>
 
-            {/* Double-ring glowing X icon */}
-            <div className="relative flex items-center justify-center">
-              {/* Outer glow ring */}
-              <div
-                className="w-24 h-24 rounded-full border border-rose-600/50 absolute"
-                style={{ boxShadow: "0 0 32px rgba(220,38,38,0.5), inset 0 0 20px rgba(180,0,0,0.2)" }}
-              />
-              {/* Inner solid ring with X */}
-              <div
-                className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10"
-                style={{ boxShadow: "0 0 20px rgba(239,68,68,0.7)" }}
-              >
-                <XCircle className="w-9 h-9 stroke-[1.5]" />
+            {/* Icon */}
+            {localIsLocked || localAttemptCount >= maxAttempts ? (
+              <div className="relative flex items-center justify-center mt-3">
+                <div
+                  className="w-24 h-24 rounded-full border border-rose-600/50 absolute animate-pulse"
+                  style={{ boxShadow: "0 0 32px rgba(220,38,38,0.6), inset 0 0 20px rgba(180,0,0,0.3)" }}
+                />
+                <div
+                  className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10 bg-rose-950/40"
+                  style={{ boxShadow: "0 0 20px rgba(239,68,68,0.7)" }}
+                >
+                  <ShieldAlert className="w-9 h-9 stroke-[1.5]" />
+                </div>
               </div>
+            ) : (
+              <div className="relative flex items-center justify-center mt-3">
+                <div
+                  className="w-24 h-24 rounded-full border border-rose-600/50 absolute"
+                  style={{ boxShadow: "0 0 32px rgba(220,38,38,0.5), inset 0 0 20px rgba(180,0,0,0.2)" }}
+                />
+                <div
+                  className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10"
+                  style={{ boxShadow: "0 0 20px rgba(239,68,68,0.7)" }}
+                >
+                  <XCircle className="w-9 h-9 stroke-[1.5]" />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1 max-w-xs">
+              {localIsLocked || localAttemptCount >= maxAttempts ? (
+                <>
+                  <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                    {guideLanguage === "am"
+                      ? "የተፈቀደው ከፍተኛ የሙከራ ገደብ አልቋል።"
+                      : "Maximum verification attempts reached."}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-rose-300 font-semibold">
+                    {guideLanguage === "am"
+                      ? (attendanceMode === "session_based"
+                          ? "እባክዎ በሚቀጥለው ክፍለ-ጊዜ እንደገና ይሞክሩ።"
+                          : "እባክዎ ነገ እንደገና ይሞክሩ።")
+                      : (attendanceMode === "session_based"
+                          ? `Please try again in the next session.`
+                          : "Please try again tomorrow.")}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                    {guideLanguage === "am" ? "ፊትዎ አልተዛመደም።" : "Face does not match."}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-rose-300/90 font-semibold">
+                    {guideLanguage === "am"
+                      ? `እባክዎ እንደገና ይሞክሩ (${Math.max(0, maxAttempts - localAttemptCount)} ሙከራዎች ቀርተዋል)`
+                      : `Please try again (${Math.max(0, maxAttempts - localAttemptCount)} attempts remaining)`}
+                  </p>
+                </>
+              )}
             </div>
 
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-white tracking-wide">Face does not match.</h3>
-              <p className="text-sm text-rose-300/90 font-semibold">Please try again.</p>
-            </div>
-
-            <Button
-              type="button"
-              onClick={() => {
-                verificationLockedRef.current = false
-                startCamera(facingMode)
-              }}
-              className="h-12 px-10 rounded-2xl font-bold text-base gap-2.5 border-0 text-white active:scale-95 transition-transform"
-              style={{
-                background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
-                boxShadow: "0 4px 20px rgba(244,63,94,0.5)",
-              }}
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Try Again</span>
-            </Button>
+            {localIsLocked || localAttemptCount >= maxAttempts ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  stopCameraStream()
+                  onCancel?.()
+                }}
+                className="h-11 px-8 rounded-xl font-bold text-sm bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 active:scale-95 transition-transform"
+              >
+                {guideLanguage === "am" ? "ዝጋ" : "Close"}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  verificationLockedRef.current = false
+                  startCamera(facingMode)
+                }}
+                className="h-12 px-10 rounded-2xl font-bold text-base gap-2.5 border-0 text-white active:scale-95 transition-transform"
+                style={{
+                  background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
+                  boxShadow: "0 4px 20px rgba(244,63,94,0.5)",
+                }}
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>{guideLanguage === "am" ? "እንደገና ሞክር" : "Try Again"}</span>
+              </Button>
+            )}
           </div>
         )}
 
@@ -1162,8 +1292,8 @@ export function FaceVerificationCamera({
               : scanStatus === "matched"
                 ? "Verified"
                 : scanStatus === "mismatched"
-                  ? "Mismatch"
-                  : "Face Scanner"}
+                  ? (localIsLocked || localAttemptCount >= maxAttempts ? "Locked" : "Mismatch")
+                  : `Face Scanner · ${Math.max(0, maxAttempts - localAttemptCount)} left`}
           </Badge>
         </div>
 
@@ -1212,8 +1342,8 @@ export function FaceVerificationCamera({
           </Button>
         )}
 
-        {/* Immediate retry button */}
-        {(scanStatus === "error" || scanStatus === "timeout" || scanStatus === "not_recognized" || scanStatus === "mismatched") && (
+        {/* Immediate retry button — only shown when NOT locked */}
+        {!localIsLocked && localAttemptCount < maxAttempts && (scanStatus === "error" || scanStatus === "timeout" || scanStatus === "not_recognized" || scanStatus === "mismatched") && (
           <Button
             type="button"
             variant={scanStatus === "mismatched" ? "destructive" : "default"}
@@ -1225,7 +1355,7 @@ export function FaceVerificationCamera({
             className="flex-1 gap-1.5 rounded-xl font-bold"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Try Again
+            {guideLanguage === "am" ? "እንደገና ሞክር" : "Try Again"}
           </Button>
         )}
 
@@ -1241,7 +1371,9 @@ export function FaceVerificationCamera({
             }}
             className="text-muted-foreground text-xs ml-auto rounded-xl hover:bg-muted/60"
           >
-            Cancel
+            {localIsLocked || localAttemptCount >= maxAttempts
+              ? (guideLanguage === "am" ? "ዝጋ" : "Close")
+              : (guideLanguage === "am" ? "ይቅር" : "Cancel")}
           </Button>
         )}
       </div>

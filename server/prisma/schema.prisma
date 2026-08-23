@@ -49,6 +49,7 @@ model User {
   staffAttendance            StaffAttendance[]
   faceEnrollment             StaffFaceEnrollment? @relation("FaceEnrollmentUser")
   enrolledFaces              StaffFaceEnrollment[] @relation("FaceEnrollmentAdmin")
+  faceAttempts               StaffFaceAttempt[]
 
   @@index([email])
 }
@@ -1005,4 +1006,22 @@ model StaffAttendance {
   @@index([status])
   @@index([session])
   @@map("staff_attendance")
+}
+
+model StaffFaceAttempt {
+  id            String    @id @default(uuid())
+  userId        String
+  date          String    // YYYY-MM-DD
+  session       String    @default("daily") // 'daily' | 'morning' | 'afternoon' | custom
+  attemptCount  Int       @default(0)
+  isLocked      Boolean   @default(false)
+  lockedAt      DateTime?
+  lastAttemptAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, session])
+  @@index([userId, date, session])
+  @@map("staff_face_attempts")
 }

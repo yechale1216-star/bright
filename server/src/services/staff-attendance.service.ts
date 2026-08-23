@@ -304,6 +304,148 @@ export function normaliseSessionKey(raw?: string | null): string {
   return raw.toLowerCase().trim();
 }
 
+export const MAX_FACE_VERIFICATION_ATTEMPTS = 5;
+
+let isAttemptTableInitialized = false;
+
+export async function ensureStaffFaceAttemptTable() {
+  if (isAttemptTableInitialized) return;
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "staff_face_attempts" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "date" TEXT NOT NULL,
+        "session" TEXT NOT NULL DEFAULT 'daily',
+        "attemptCount" INTEGER NOT NULL DEFAULT 0,
+        "isLocked" BOOLEAN NOT NULL DEFAULT false,
+        "lockedAt" TIMESTAMP(3),
+        "lastAttemptAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "staff_face_attempts_userId_date_session_key" 
+      ON "staff_face_attempts"("userId", "date", "session");
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "staff_face_attempts_userId_date_session_idx" 
+      ON "staff_face_attempts"("userId", "date", "session");
+    `);
+    isAttemptTableInitialized = true;
+  } catch (err) {
+    console.warn('[StaffAttendance] ensureStaffFaceAttemptTable warning:', err);
+    isAttemptTableInitialized = true;
+  }
+}
+
+export async function getVerificationAttemptStatus(
+  userId: string,
+  dateInput?: string,
+  sessionInput?: string,
+  modeInput?: string
+): Promise<{
+  userId: string;
+  date: string;
+  session: string;
+  attemptCount: number;
+  maxAttempts: number;
+  remainingAttempts: number;
+  isLocked: boolean;
+  lockMessage: string | null;
+}> {
+  await ensureStaffFaceAttemptTable();
+  const { dateStr } = normalizeStaffDate(dateInput);
+  const isSessionMode = modeInput === 'session_based';
+  const sessionKey = isSessionMode ? normaliseSessionKey(sessionInput || 'morning') : 'daily';
+
+  let record: any = null;
+  try {
+    const results: any[] = await prisma.$queryRawUnsafe(
+      `SELECT * FROM "staff_face_attempts" WHERE "userId" = $1 AND "date" = $2 AND "session" = $3 LIMIT 1;`,
+      userId,
+      dateStr,
+      sessionKey
+    );
+    record = results && results.length > 0 ? results[0] : null;
+  } catch (err) {
+    console.warn('[StaffAttendance] Error reading staff_face_attempts:', err);
+  }
+
+  const attemptCount = record ? Number(record.attemptCount || 0) : 0;
+  const isLocked = Boolean(record?.isLocked || attemptCount >= MAX_FACE_VERIFICATION_ATTEMPTS);
+  const remainingAttempts = Math.max(0, MAX_FACE_VERIFICATION_ATTEMPTS - attemptCount);
+
+  let lockMessage: string | null = null;
+  if (isLocked) {
+    if (sessionKey === 'daily') {
+      lockMessage = 'Maximum verification attempts reached. Please try again tomorrow.';
+    } else {
+      const sessLabel = sessionKey === 'morning' ? 'Morning' : sessionKey === 'afternoon' ? 'Afternoon' : sessionKey.toUpperCase();
+      lockMessage = `Maximum verification attempts reached for the ${sessLabel} session. Please try again in the next session.`;
+    }
+  }
+
+  return {
+    userId,
+    date: dateStr,
+    session: sessionKey,
+    attemptCount,
+    maxAttempts: MAX_FACE_VERIFICATION_ATTEMPTS,
+    remainingAttempts,
+    isLocked,
+    lockMessage,
+  };
+}
+
+export async function recordFailedVerificationAttempt(
+  userId: string,
+  dateInput?: string,
+  sessionInput?: string,
+  modeInput?: string,
+  _reason?: string
+): Promise<{
+  userId: string;
+  date: string;
+  session: string;
+  attemptCount: number;
+  maxAttempts: number;
+  remainingAttempts: number;
+  isLocked: boolean;
+  lockMessage: string | null;
+}> {
+  await ensureStaffFaceAttemptTable();
+  const { dateStr } = normalizeStaffDate(dateInput);
+  const isSessionMode = modeInput === 'session_based';
+  const sessionKey = isSessionMode ? normaliseSessionKey(sessionInput || 'morning') : 'daily';
+
+  try {
+    const id = `${userId}_${dateStr}_${sessionKey}`;
+    await prisma.$executeRawUnsafe(
+      `
+      INSERT INTO "staff_face_attempts" ("id", "userId", "date", "session", "attemptCount", "isLocked", "lockedAt", "lastAttemptAt", "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, $4, 1, false, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT ("userId", "date", "session")
+      DO UPDATE SET
+        "attemptCount" = "staff_face_attempts"."attemptCount" + 1,
+        "isLocked" = CASE WHEN ("staff_face_attempts"."attemptCount" + 1) >= 5 THEN true ELSE "staff_face_attempts"."isLocked" END,
+        "lockedAt" = CASE WHEN ("staff_face_attempts"."attemptCount" + 1) >= 5 AND "staff_face_attempts"."lockedAt" IS NULL THEN CURRENT_TIMESTAMP ELSE "staff_face_attempts"."lockedAt" END,
+        "lastAttemptAt" = CURRENT_TIMESTAMP,
+        "updatedAt" = CURRENT_TIMESTAMP;
+      `,
+      id,
+      userId,
+      dateStr,
+      sessionKey
+    );
+  } catch (err) {
+    console.error('[StaffAttendance] Error recording failed attempt:', err);
+  }
+
+  return await getVerificationAttemptStatus(userId, dateStr, sessionKey, modeInput);
+}
+
 /**
  * Check-in for a staff member (self or admin-assisted)
  */
@@ -328,63 +470,7 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
 
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
-
-  let locVerified = false;
-  let locDistance: number | null = null;
-  if (settings?.staff_geo_required !== false) {
-    const geoResult = validateGeofence(data, settings);
-    locVerified = geoResult.locVerified;
-    locDistance = geoResult.locDistance;
-  } else {
-    locVerified = data.locationVerified ?? true;
-    locDistance = data.locationDistance ?? null;
-  }
-
-  const isFaceRequired = settings?.staff_face_required ?? true;
-  if (isFaceRequired) {
-    // 1:1 Biometric Verification: authenticated staff account -> registered template -> live face
-    const enrollment = await prisma.staffFaceEnrollment.findFirst({
-      where: { userId }
-    });
-
-    if (!enrollment || !enrollment.descriptor) {
-      throw new Error('Face biometric profile not registered for your account. Please enroll your face first.');
-    }
-
-    if (!data.faceVerified) {
-      throw new Error('Face does not match your registered profile. Attendance was not recorded.');
-    }
-
-    let enrolledVector: number[] = [];
-    if (Array.isArray(enrollment.descriptor)) {
-      enrolledVector = enrollment.descriptor as unknown as number[];
-    } else if (enrollment.descriptor && typeof enrollment.descriptor === 'object' && Array.isArray((enrollment.descriptor as any).vector)) {
-      enrolledVector = (enrollment.descriptor as any).vector;
-    }
-
-    if (enrolledVector.length !== 128) {
-      throw new Error('Corrupted registered biometric profile. Please re-enroll your face.');
-    }
-
-    // Cryptographic 1:1 server-side verification if live faceDescriptor is attached
-    if (data.faceDescriptor && Array.isArray(data.faceDescriptor)) {
-      const match = verifyDescriptorMatch(data.faceDescriptor, enrolledVector);
-      if (!match.isMatch) {
-        throw new Error('Face does not match your registered profile. Attendance was not recorded.');
-      }
-    }
-  }
-
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
-  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
-
-  const now = new Date();
-  const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
-    timeZone: 'Africa/Addis_Ababa', 
-    hour12: false, 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
 
   let sessionKey: string;
   let expectedEndTime: string;
@@ -414,6 +500,70 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
     absenceCutoffTime = schedule.absenceCutoffTime;
     allowCheckinAfterCutoff = (settings as any)?.allow_staff_checkin_after_cutoff ?? false;
   }
+
+  // ─── Enforce Maximum Verification Attempts Lock ───────────────────────────
+  const attemptStatus = await getVerificationAttemptStatus(userId, dateStr, sessionKey, attendanceMode);
+  if (attemptStatus.isLocked) {
+    throw new Error(attemptStatus.lockMessage || 'Maximum verification attempts reached. Please try again tomorrow.');
+  }
+
+  let locVerified = false;
+  let locDistance: number | null = null;
+  if (settings?.staff_geo_required !== false) {
+    const geoResult = validateGeofence(data, settings);
+    locVerified = geoResult.locVerified;
+    locDistance = geoResult.locDistance;
+  } else {
+    locVerified = data.locationVerified ?? true;
+    locDistance = data.locationDistance ?? null;
+  }
+
+  const isFaceRequired = settings?.staff_face_required ?? true;
+  if (isFaceRequired) {
+    // 1:1 Biometric Verification: authenticated staff account -> registered template -> live face
+    const enrollment = await prisma.staffFaceEnrollment.findFirst({
+      where: { userId }
+    });
+
+    if (!enrollment || !enrollment.descriptor) {
+      throw new Error('Face biometric profile not registered for your account. Please enroll your face first.');
+    }
+
+    if (!data.faceVerified) {
+      await recordFailedVerificationAttempt(userId, dateStr, sessionKey, attendanceMode, 'Face mismatch');
+      throw new Error('Face does not match your registered profile. Attendance was not recorded.');
+    }
+
+    let enrolledVector: number[] = [];
+    if (Array.isArray(enrollment.descriptor)) {
+      enrolledVector = enrollment.descriptor as unknown as number[];
+    } else if (enrollment.descriptor && typeof enrollment.descriptor === 'object' && Array.isArray((enrollment.descriptor as any).vector)) {
+      enrolledVector = (enrollment.descriptor as any).vector;
+    }
+
+    if (enrolledVector.length !== 128) {
+      throw new Error('Corrupted registered biometric profile. Please re-enroll your face.');
+    }
+
+    // Cryptographic 1:1 server-side verification if live faceDescriptor is attached
+    if (data.faceDescriptor && Array.isArray(data.faceDescriptor)) {
+      const match = verifyDescriptorMatch(data.faceDescriptor, enrolledVector);
+      if (!match.isMatch) {
+        await recordFailedVerificationAttempt(userId, dateStr, sessionKey, attendanceMode, 'Biometric descriptor mismatch');
+        throw new Error('Face does not match your registered profile. Attendance was not recorded.');
+      }
+    }
+  }
+
+  const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
+
+  const now = new Date();
+  const currentTimeHHMM = now.toLocaleTimeString('en-US', { 
+    timeZone: 'Africa/Addis_Ababa', 
+    hour12: false, 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
 
   if (earliestCheckIn && isTimeBefore(currentTimeHHMM, earliestCheckIn)) {
     throw new Error(`Check-in is not open yet. Earliest allowed check-in is ${formatCivilTime(earliestCheckIn)}.`);
@@ -454,47 +604,60 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
   });
 
   if (existing && existing.checkInTime) {
-    const sessLabel = attendanceMode === 'session_based' ? ` (${sessionKey} session)` : '';
-    throw new Error(`Staff is already checked in for ${dateStr}${sessLabel} at ${existing.checkInTime.toISOString()}`);
+    throw new Error('Attendance check-in has already been recorded for this session.');
   }
 
-  if (existing) {
-    return await prisma.staffAttendance.update({
-      where: { id: existing.id },
-      data: {
-        status,
-        checkInTime: now,
-        checkInLatitude: data.latitude ?? null,
-        checkInLongitude: data.longitude ?? null,
-        geofenceVerified: locVerified,
-        geofenceDistance: locDistance,
-        faceVerified: data.faceVerified ?? false,
-        faceConfidence: data.faceConfidence ?? null,
-        remarks: remarks ?? existing.remarks,
+  const result = await prisma.staffAttendance.upsert({
+    where: {
+      userId_date_session: {
+        userId,
+        date: startDate,
+        session: sessionKey,
       }
-    });
-  }
-
-  return await prisma.staffAttendance.create({
-    data: {
+    },
+    create: {
       userId,
       date: startDate,
       session: sessionKey,
       status,
       checkInTime: now,
-      checkInLatitude: data.latitude ?? null,
-      checkInLongitude: data.longitude ?? null,
+      checkInLatitude: data.latitude,
+      checkInLongitude: data.longitude,
       geofenceVerified: locVerified,
       geofenceDistance: locDistance,
       faceVerified: data.faceVerified ?? false,
-      faceConfidence: data.faceConfidence ?? null,
-      remarks: remarks ?? null,
+      faceConfidence: data.faceConfidence,
+      remarks,
+    },
+    update: {
+      status,
+      checkInTime: now,
+      checkInLatitude: data.latitude,
+      checkInLongitude: data.longitude,
+      geofenceVerified: locVerified,
+      geofenceDistance: locDistance,
+      faceVerified: data.faceVerified ?? false,
+      faceConfidence: data.faceConfidence,
+      remarks,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          full_name: true,
+          email: true,
+          role: true,
+          profile_photo: true,
+        }
+      }
     }
   });
+
+  return result;
 }
 
 /**
- * Check-out for a staff member. Supports daily and session-based modes.
+ * Check-out for a staff member (self or admin-assisted)
  */
 export async function checkOut(userId: string, _schoolId?: string, data: {
   date?: string;
@@ -510,6 +673,28 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
 } = {}) {
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+  const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
+
+  let sessionKey: string;
+  let earlyDepartureCutoffTime: string;
+
+  if (attendanceMode === 'session_based') {
+    if (!data.session) throw new Error('Session is required when staff attendance mode is session-based.');
+    const sessions = getConfiguredSessions(settings);
+    const sess = findSession(sessions, data.session);
+    if (!sess) throw new Error(`Session "${data.session}" is not configured or is inactive.`);
+    sessionKey = sess.id.toLowerCase();
+    earlyDepartureCutoffTime = computeSessionThresholds(sess).earlyDepartureCutoffTime;
+  } else {
+    sessionKey = 'daily';
+    earlyDepartureCutoffTime = computeWorkingScheduleThresholds(settings).earlyDepartureCutoffTime;
+  }
+
+  // ─── Enforce Maximum Verification Attempts Lock ───────────────────────────
+  const attemptStatus = await getVerificationAttemptStatus(userId, dateStr, sessionKey, attendanceMode);
+  if (attemptStatus.isLocked) {
+    throw new Error(attemptStatus.lockMessage || 'Maximum verification attempts reached. Please try again tomorrow.');
+  }
 
   let locVerified = false;
   let locDistance: number | null = null;
@@ -534,6 +719,7 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
     }
 
     if (!data.faceVerified) {
+      await recordFailedVerificationAttempt(userId, dateStr, sessionKey, attendanceMode, 'Face mismatch');
       throw new Error('Face does not match your registered profile. Attendance was not recorded.');
     }
 
@@ -552,12 +738,12 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
     if (data.faceDescriptor && Array.isArray(data.faceDescriptor)) {
       const match = verifyDescriptorMatch(data.faceDescriptor, enrolledVector);
       if (!match.isMatch) {
+        await recordFailedVerificationAttempt(userId, dateStr, sessionKey, attendanceMode, 'Biometric descriptor mismatch');
         throw new Error('Face does not match your registered profile. Attendance was not recorded.');
       }
     }
   }
 
-  const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
   const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
 
   if (!workingDayInfo.isWorkingDay) {
@@ -577,21 +763,6 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
     hour: '2-digit', 
     minute: '2-digit' 
   });
-
-  let sessionKey: string;
-  let earlyDepartureCutoffTime: string;
-
-  if (attendanceMode === 'session_based') {
-    if (!data.session) throw new Error('Session is required when staff attendance mode is session-based.');
-    const sessions = getConfiguredSessions(settings);
-    const sess = findSession(sessions, data.session);
-    if (!sess) throw new Error(`Session "${data.session}" is not configured or is inactive.`);
-    sessionKey = sess.id.toLowerCase();
-    earlyDepartureCutoffTime = computeSessionThresholds(sess).earlyDepartureCutoffTime;
-  } else {
-    sessionKey = 'daily';
-    earlyDepartureCutoffTime = computeWorkingScheduleThresholds(settings).earlyDepartureCutoffTime;
-  }
 
   const existing = await prisma.staffAttendance.findFirst({
     where: {

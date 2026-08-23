@@ -28,6 +28,8 @@ router.post('/check-in', blockNonStaff, staffAttendanceController.checkIn);
 router.post('/check-out', blockNonStaff, staffAttendanceController.checkOut);
 router.get('/my', blockNonStaff, staffAttendanceController.getMyAttendance);
 router.get('/face-descriptor/:userId?', blockNonStaff, staffAttendanceController.getEnrolledDescriptor);
+router.get('/attempt-status', blockNonStaff, staffAttendanceController.getAttemptStatus);
+router.post('/record-failed-attempt', blockNonStaff, staffAttendanceController.recordFailedAttempt);
 router.post('/sync', blockNonStaff, staffAttendanceController.bulkSync);
 
 // Face enrollment (staff self-service or admin assisted)

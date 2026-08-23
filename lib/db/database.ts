@@ -783,6 +783,59 @@ class Database extends BaseDatabase {
     return result.data
   }
 
+  async getStaffFaceAttemptStatus(params: {
+    date?: string;
+    session?: string;
+    mode?: string;
+  } = {}): Promise<{
+    userId: string;
+    date: string;
+    session: string;
+    attemptCount: number;
+    maxAttempts: number;
+    remainingAttempts: number;
+    isLocked: boolean;
+    lockMessage?: string | null;
+  }> {
+    const query = new URLSearchParams()
+    if (params.date) query.append("date", params.date)
+    if (params.session) query.append("session", params.session)
+    if (params.mode) query.append("mode", params.mode)
+    query.append("_t", Date.now().toString())
+
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/attempt-status?${query.toString()}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data
+  }
+
+  async recordStaffFaceFailedAttempt(payload: {
+    date?: string;
+    session?: string;
+    mode?: string;
+    reason?: string;
+  } = {}): Promise<{
+    userId: string;
+    date: string;
+    session: string;
+    attemptCount: number;
+    maxAttempts: number;
+    remainingAttempts: number;
+    isLocked: boolean;
+    lockMessage?: string | null;
+  }> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/staff-attendance/record-failed-attempt`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(payload),
+      }
+    )
+    return result.data
+  }
+
   async getMyStaffAttendance(filters: {
     date?: string;
     startDate?: string;

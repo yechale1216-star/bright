@@ -130,6 +130,15 @@ export function StaffAttendance() {
   const [capturedLocation, setCapturedLocation] = useState<GeofenceLocationData | null>(null)
   const isSubmittingAttendanceRef = useRef(false)
 
+  // Face verification attempt tracking (server-authoritative)
+  const [faceAttemptStatus, setFaceAttemptStatus] = useState<{
+    attemptCount: number
+    maxAttempts: number
+    remainingAttempts: number
+    isLocked: boolean
+    lockMessage?: string | null
+  } | null>(null)
+
   // Admin view filters & modals
   const [activeTab, setActiveTab] = useState<"self" | "admin_overview">("self")
   const [searchTerm, setSearchTerm] = useState("")
@@ -155,6 +164,16 @@ export function StaffAttendance() {
       setTodayRecord(dailyRec || null)
     }
   }, [myHistory, selectedDate, selectedSession, isSessionMode])
+
+  // Fetch face attempt status whenever date/session changes (guards against server-side lock)
+  useEffect(() => {
+    if (!sessionReady) return
+    const session = isSessionMode ? selectedSession : "daily"
+    const attendanceMode = isSessionMode ? "session_based" : "daily"
+    db.getStaffFaceAttemptStatus({ date: selectedDate, session, mode: attendanceMode })
+      .then((status) => setFaceAttemptStatus(status))
+      .catch(() => setFaceAttemptStatus(null))
+  }, [selectedDate, selectedSession, isSessionMode, sessionReady])
 
   // 1. Sync currentUser from auth context whenever sessionReady or authUser changes.
   //    This resolves the mount-time race where authService.getCurrentUser() returns null
@@ -849,14 +868,28 @@ export function StaffAttendance() {
                   ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
                   : undefined
                 const btnState = getCheckInButtonState(todayRecord, settings, currentSess, undefined, calendarStatus)
+                const isFaceLocked = faceAttemptStatus?.isLocked === true
 
                 return (
                   <div className="space-y-2 pt-2">
+                    {/* Face Verification Lock Warning */}
+                    {isFaceLocked && (
+                      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-[11px] font-semibold bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-300">
+                        <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-500" />
+                        <span>
+                          {faceAttemptStatus?.lockMessage ||
+                            (isSessionMode
+                              ? "Face verification locked for this session. Try again in the next session."
+                              : "Face verification locked for today. Please try again tomorrow.")}
+                        </span>
+                      </div>
+                    )}
+
                     <Button
                       onClick={() => startAttendanceWorkflow("checkin")}
-                      disabled={!btnState.canCheckIn || verificationStep !== "idle"}
+                      disabled={!btnState.canCheckIn || verificationStep !== "idle" || isFaceLocked}
                       className={`w-full h-12 text-base font-bold gap-2 shadow-md transition-all ${
-                        btnState.canCheckIn
+                        btnState.canCheckIn && !isFaceLocked
                           ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                           : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
                       }`}
@@ -868,7 +901,7 @@ export function StaffAttendance() {
                     </Button>
 
                     {/* Contextual helper text explaining why check-in is disabled */}
-                    {!btnState.canCheckIn && !todayRecord?.checkInTime && btnState.helperText && (
+                    {!btnState.canCheckIn && !todayRecord?.checkInTime && btnState.helperText && !isFaceLocked && (
                       <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
                         btnState.isNonWorkingDay
                           ? "bg-purple-500/10 border border-purple-500/20 text-purple-800 dark:text-purple-300"
@@ -883,7 +916,7 @@ export function StaffAttendance() {
 
                     <Button
                       onClick={() => startAttendanceWorkflow("checkout")}
-                      disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle" || calendarStatus?.isWorkingDay === false}
+                      disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle" || calendarStatus?.isWorkingDay === false || isFaceLocked}
                       variant="outline"
                       className="w-full h-12 text-base font-bold gap-2 border-primary/40 hover:bg-primary/5"
                     >
@@ -1392,7 +1425,29 @@ export function StaffAttendance() {
               <FaceVerificationCamera
                 mode="verify"
                 enrolledDescriptor={enrolledDescriptor}
+                attemptCount={faceAttemptStatus?.attemptCount ?? 0}
+                maxAttempts={faceAttemptStatus?.maxAttempts ?? 5}
+                isLocked={faceAttemptStatus?.isLocked ?? false}
+                lockMessage={faceAttemptStatus?.lockMessage}
+                attendanceMode={isSessionMode ? "session_based" : "daily"}
+                sessionName={isSessionMode ? selectedSession : undefined}
                 onVerified={handleFaceVerified}
+                onAttemptFailed={async ({ reason }) => {
+                  try {
+                    const session = isSessionMode ? selectedSession : "daily"
+                    const mode = isSessionMode ? "session_based" : "daily"
+                    const result = await db.recordStaffFaceFailedAttempt({
+                      date: selectedDate,
+                      session,
+                      mode,
+                      reason,
+                    })
+                    setFaceAttemptStatus(result)
+                    return result
+                  } catch (err) {
+                    console.warn("[StaffAttendance] Failed to record attempt:", err)
+                  }
+                }}
                 onFailed={(err) => {
                   // Only escalate to the parent error state for NON-RETRIABLE failures
                   // (e.g. camera hardware unavailable, no enrolled descriptor).

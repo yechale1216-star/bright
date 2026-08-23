@@ -250,3 +250,42 @@ export const processAbsences = async (req: AuthenticatedRequest, res: Response, 
     res.status(400).json({ success: false, message: error.message || 'Failed to process automatic absences' });
   }
 };
+
+export const getAttemptStatus = async (req: AuthenticatedRequest, res: Response, _next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    const { date, session, mode } = req.query;
+    const status = await staffAttendanceService.getVerificationAttemptStatus(
+      userId,
+      date as string,
+      session as string,
+      mode as string
+    );
+    res.status(200).json({ success: true, data: status });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to get verification attempt status' });
+  }
+};
+
+export const recordFailedAttempt = async (req: AuthenticatedRequest, res: Response, _next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    const { date, session, mode, reason } = req.body || {};
+    const result = await staffAttendanceService.recordFailedVerificationAttempt(
+      userId,
+      date,
+      session,
+      mode,
+      reason
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to record failed attempt' });
+  }
+};
