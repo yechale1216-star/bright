@@ -947,18 +947,25 @@ export function FaceVerificationCamera({
 
         {/* ── Mismatch Overlay ── */}
         {scanStatus === "mismatched" && (
-          <div className="relative z-20 flex flex-col items-center justify-center p-6 text-center gap-4 animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.4)] text-rose-500">
-              <XCircle className="w-10 h-10 stroke-[2.2]" />
+          <div className="relative z-20 flex flex-col items-center justify-center p-8 text-center gap-4 animate-in zoom-in-95 duration-200 w-full h-full">
+            {/* MISMATCH badge — top left */}
+            <div className="absolute top-4 left-4">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md border border-rose-500/60 bg-black/80 text-rose-400 text-[10px] font-bold tracking-widest uppercase">
+                MISMATCH
+              </span>
+            </div>
+
+            {/* Glowing X icon */}
+            <div
+              className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500"
+              style={{ boxShadow: "0 0 32px rgba(239,68,68,0.6)" }}
+            >
+              <XCircle className="w-9 h-9 stroke-[1.8]" />
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
-                Face does not match your registered profile. Attendance was not recorded.
-              </h3>
-              <p className="text-xs sm:text-sm text-rose-200 font-medium">
-                Identity verification failed. Only the registered staff member can check in with this account.
-              </p>
+              <h3 className="text-base font-bold text-white tracking-wide">Face does not match.</h3>
+              <p className="text-xs text-rose-300/80 font-medium">Please try again.</p>
             </div>
 
             <Button
@@ -967,7 +974,7 @@ export function FaceVerificationCamera({
                 verificationLockedRef.current = false
                 startCamera(facingMode)
               }}
-              className="h-11 px-6 rounded-xl font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-lg gap-2 active:scale-95 transition-transform"
+              className="h-10 px-8 rounded-full font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-lg gap-2 active:scale-95 transition-transform border-0"
             >
               <RotateCcw className="w-4 h-4" />
               <span>Try Again</span>

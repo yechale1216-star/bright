@@ -28,6 +28,7 @@ import {
   UserX,
   History,
   FileSpreadsheet,
+  RotateCcw,
 } from "lucide-react"
 import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
@@ -1358,7 +1359,7 @@ export function StaffAttendance() {
                   }`}
                 >
                   <MapPin className="w-4 h-4 shrink-0" />
-                  <span>1. Geofence Location</span>
+                  <span>1. Geofence</span>
                   {capturedLocation?.locationVerified && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
                 </div>
 
@@ -1366,11 +1367,13 @@ export function StaffAttendance() {
                   className={`p-2.5 rounded-lg border flex items-center gap-2 ${
                     verificationStep === "success"
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      : verificationStep === "error"
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 font-semibold"
                       : "bg-muted/40 text-muted-foreground border-border/40"
                   }`}
                 >
-                  <Camera className="w-4 h-4 shrink-0" />
-                  <span>2. Face Biometric</span>
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  <span>2. Face Auth</span>
                   {verificationStep === "success" && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
                 </div>
               </div>
@@ -1426,31 +1429,49 @@ export function StaffAttendance() {
               </div>
             )}
 
-            {/* Error state */}
+            {/* Error state — mismatch card matching screenshot 2 */}
             {verificationStep === "error" && (
-              <div className="text-center py-6 space-y-3">
-                <XCircle className="w-12 h-12 text-rose-500 mx-auto" />
-                <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">{stepMessage}</p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
-                  {(stepMessage.includes("enroll") || stepMessage.includes("registered") || stepMessage.includes("biometric")) && (
-                    <Button
-                      variant="default"
-                      onClick={() => {
-                        setIsVerificationModalOpen(false)
-                        setIsFaceEnrollModalOpen(true)
-                      }}
-                      className="gap-2 w-full sm:w-auto bg-primary font-bold shadow-md"
+              <div className="flex flex-col items-center gap-0 animate-in zoom-in-95 duration-200">
+                {/* Camera-frame card */}
+                <div
+                  className="relative w-full rounded-2xl overflow-hidden bg-[#0d0d0d] border border-rose-500/60"
+                  style={{ boxShadow: "0 0 32px rgba(239,68,68,0.35), inset 0 0 0 1px rgba(239,68,68,0.15)" }}
+                >
+                  {/* Corner brackets */}
+                  <span className="absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 border-rose-500/70 rounded-tl-sm" />
+                  <span className="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-rose-500/70 rounded-tr-sm" />
+                  <span className="absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-rose-500/70 rounded-bl-sm" />
+                  <span className="absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-rose-500/70 rounded-br-sm" />
+
+                  {/* MISMATCH badge */}
+                  <div className="absolute top-4 left-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md border border-rose-500/60 bg-[#0d0d0d] text-rose-400 text-[10px] font-bold tracking-widest uppercase">
+                      MISMATCH
+                    </span>
+                  </div>
+
+                  {/* Body */}
+                  <div className="flex flex-col items-center justify-center py-10 px-6 gap-4 text-center">
+                    {/* Glowing X icon */}
+                    <div
+                      className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500"
+                      style={{ boxShadow: "0 0 28px rgba(239,68,68,0.55)" }}
                     >
-                      <Camera className="w-4 h-4" /> Register Face Biometrics
+                      <XCircle className="w-9 h-9 stroke-[1.8]" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-white tracking-wide">Face does not match.</h3>
+                      <p className="text-xs text-rose-300/80 font-medium">Please try again.</p>
+                    </div>
+
+                    <Button
+                      onClick={() => startAttendanceWorkflow(actionType)}
+                      className="h-10 px-8 rounded-full font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-lg gap-2 active:scale-95 transition-transform border-0"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Try Again
                     </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={() => startAttendanceWorkflow(actionType)}
-                    className="gap-2 w-full sm:w-auto"
-                  >
-                    <RefreshCw className="w-4 h-4" /> Try Again
-                  </Button>
+                  </div>
                 </div>
               </div>
             )}
