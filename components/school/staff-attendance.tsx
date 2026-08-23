@@ -1394,8 +1394,22 @@ export function StaffAttendance() {
                 enrolledDescriptor={enrolledDescriptor}
                 onVerified={handleFaceVerified}
                 onFailed={(err) => {
-                  setVerificationStep("error")
-                  setStepMessage(err || "Face does not match your registered profile. Attendance was not recorded.")
+                  // Only escalate to the parent error state for NON-RETRIABLE failures
+                  // (e.g. camera hardware unavailable, no enrolled descriptor).
+                  // For face mismatches the FaceVerificationCamera already shows its own
+                  // "Face does not match" overlay with a correct camera-only retry button —
+                  // transitioning to parent "error" here would unmount the camera and
+                  // force a geofence re-run on the next attempt.
+                  const isFaceMismatch =
+                    !err ||
+                    err.toLowerCase().includes("does not match") ||
+                    err.toLowerCase().includes("mismatch")
+                  if (!isFaceMismatch) {
+                    // Camera is broken / no enrolled face — let parent handle recovery
+                    setVerificationStep("error")
+                    setStepMessage(err || "Face verification failed. Please try again.")
+                  }
+                  // For mismatches: camera's own overlay handles retry — do nothing here
                 }}
                 onCancel={() => setIsVerificationModalOpen(false)}
               />
@@ -1483,7 +1497,21 @@ export function StaffAttendance() {
                     </div>
 
                     <Button
-                      onClick={() => startAttendanceWorkflow(actionType)}
+                      onClick={() => {
+                        // If geofence already succeeded in this session, preserve the
+                        // capturedLocation and jump straight to the face-auth step.
+                        // This is the fix for the "Face Mismatch → Geofence → Face Scanner"
+                        // regression — we NEVER re-run geofence for a face-auth failure.
+                        if (capturedLocation) {
+                          isSubmittingAttendanceRef.current = false
+                          setVerificationStep("face_verification")
+                          setStepMessage("Reinitializing face scanner...")
+                        } else {
+                          // capturedLocation is null → geofence was what failed (or the
+                          // session was cancelled and restarted). Run the full flow.
+                          startAttendanceWorkflow(actionType)
+                        }
+                      }}
                       className="h-12 px-10 rounded-2xl font-bold text-base gap-2.5 border-0 active:scale-95 transition-transform"
                       style={{
                         background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
