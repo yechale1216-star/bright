@@ -56,8 +56,9 @@ export interface FaceMatchResult {
   similarityScore: number // Cosine similarity
 }
 
-export const DEFAULT_MATCH_THRESHOLD = 0.45 // Strict threshold for face descriptor matching
-export const FAST_SELF_ATTENDANCE_THRESHOLD = 0.42 // Calibrated for high security: strictly rejects other people while reliably matching enrolled staff member
+export const DEFAULT_MATCH_THRESHOLD = 0.40 // Strict threshold for face descriptor matching
+export const FAST_SELF_ATTENDANCE_THRESHOLD = 0.38 // Calibrated for high security: strictly rejects other people while reliably matching enrolled staff member
+export const MIN_COSINE_SIMILARITY = 0.90 // Strict cosine similarity minimum for 1:1 biometric identity match
 
 // Module-level singletons for model caching across hook instances
 let globalFaceApi: any = null
@@ -305,6 +306,16 @@ export function useFaceRecognition() {
       enrolledDescriptor: number[],
       threshold = FAST_SELF_ATTENDANCE_THRESHOLD
     ): FaceMatchResult => {
+      // Validate both descriptors are 128-dimensional finite float arrays
+      if (!isValidFaceDescriptor(liveDescriptor) || !isValidFaceDescriptor(enrolledDescriptor)) {
+        return {
+          isMatch: false,
+          distance: 1.0,
+          confidence: 0,
+          similarityScore: 0,
+        }
+      }
+
       // Normalize both vectors to guarantee unit metric calculations
       const normLive = normalizeL2Vector(liveDescriptor)
       const normEnrolled = normalizeL2Vector(enrolledDescriptor)
@@ -313,9 +324,9 @@ export function useFaceRecognition() {
       const cosineSim = calculateCosineSimilarity(normLive, normEnrolled)
       
       // Strict dual verification:
-      // Euclidean distance must be <= threshold (0.42) AND Cosine Similarity must be >= 0.80
+      // Euclidean distance must be <= threshold (0.38) AND Cosine Similarity must be >= 0.90
       // This strictly prevents other people/impostors from being accepted.
-      const isMatch = distance <= threshold && cosineSim >= 0.80
+      const isMatch = distance <= threshold && cosineSim >= MIN_COSINE_SIMILARITY
       const confidence = Math.max(0, Math.min(1, 1 - distance))
 
       return {

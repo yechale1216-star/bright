@@ -661,12 +661,13 @@ export function FaceVerificationCamera({
       }
 
       // ─── VERIFY MODE (Fast Self-Attendance Verification) ───
-      if (!enrolledDescriptor || enrolledDescriptor.length === 0) {
+      if (!enrolledDescriptor || !Array.isArray(enrolledDescriptor) || enrolledDescriptor.length !== 128) {
         verificationLockedRef.current = true
         stopCameraStream()
         setScanStatus("no_enrolled")
         setActiveGuidance("No registered face found for this account. Please contact school administration.")
         setGuidanceIcon("error")
+        onFailed?.("Face biometric profile not registered for your account. Please enroll your face first.")
         return
       }
 
@@ -677,7 +678,8 @@ export function FaceVerificationCamera({
         consecutiveMatchesRef.current++
         nonMatchFramesRef.current = 0
 
-        if (consecutiveMatchesRef.current >= 2 || matchResult.confidence >= 0.82) {
+        // Require at least 2 consecutive passing frames to ensure temporal biometric stability
+        if (consecutiveMatchesRef.current >= 2) {
           verificationLockedRef.current = true
           setScanStatus("matched")
           setActiveGuidance("✓ Identity verified successfully.")
@@ -691,16 +693,20 @@ export function FaceVerificationCamera({
           return
         }
       } else {
-        verificationLockedRef.current = true
+        nonMatchFramesRef.current++
         consecutiveMatchesRef.current = 0
-        nonMatchFramesRef.current = 0
 
-        stopCameraStream()
-        setScanStatus("mismatched")
-        setActiveGuidance("Face does not match.")
-        setGuidanceIcon("error")
-        NativeBridge.vibrate(ImpactStyle.Heavy)
-        return
+        // Allow up to 3 non-matching/noisy frames while detecting before firmly locking and failing
+        if (nonMatchFramesRef.current >= 3) {
+          verificationLockedRef.current = true
+          stopCameraStream()
+          setScanStatus("mismatched")
+          setActiveGuidance("Face does not match your registered profile. Attendance was not recorded.")
+          setGuidanceIcon("error")
+          NativeBridge.vibrate(ImpactStyle.Heavy)
+          onFailed?.("Face does not match your registered profile. Attendance was not recorded.")
+          return
+        }
       }
     } catch {
       // Continue next frame
@@ -948,10 +954,10 @@ export function FaceVerificationCamera({
 
             <div className="space-y-1">
               <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
-                Face does not match.
+                Face does not match your registered profile. Attendance was not recorded.
               </h3>
               <p className="text-xs sm:text-sm text-rose-200 font-medium">
-                Please look directly at the camera and try again.
+                Identity verification failed. Only the registered staff member can check in with this account.
               </p>
             </div>
 

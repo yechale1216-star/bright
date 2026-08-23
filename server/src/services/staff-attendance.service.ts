@@ -45,6 +45,67 @@ export function isTimeBefore(currentHHMM: string, targetHHMM: string): boolean {
 }
 
 /**
+ * 1:1 Biometric Verification: Compares live face descriptor against enrolled profile.
+ * Dual-metric requirement: L2 Euclidean distance <= 0.38 AND Cosine similarity >= 0.90
+ */
+export function verifyDescriptorMatch(
+  liveDescriptor: number[],
+  enrolledDescriptor: number[],
+  maxDistance = 0.38,
+  minCosine = 0.90
+): { isMatch: boolean; distance: number; cosineSim: number } {
+  if (
+    !liveDescriptor ||
+    !enrolledDescriptor ||
+    !Array.isArray(liveDescriptor) ||
+    !Array.isArray(enrolledDescriptor) ||
+    liveDescriptor.length !== 128 ||
+    enrolledDescriptor.length !== 128
+  ) {
+    return { isMatch: false, distance: 1.0, cosineSim: 0 };
+  }
+
+  let normLiveSq = 0;
+  let normEnrolledSq = 0;
+  for (let i = 0; i < 128; i++) {
+    const l = liveDescriptor[i];
+    const e = enrolledDescriptor[i];
+    if (typeof l !== 'number' || typeof e !== 'number' || isNaN(l) || isNaN(e) || !isFinite(l) || !isFinite(e)) {
+      return { isMatch: false, distance: 1.0, cosineSim: 0 };
+    }
+    normLiveSq += l * l;
+    normEnrolledSq += e * e;
+  }
+
+  const normLive = Math.sqrt(normLiveSq);
+  const normEnrolled = Math.sqrt(normEnrolledSq);
+
+  if (normLive === 0 || normEnrolled === 0 || isNaN(normLive) || isNaN(normEnrolled)) {
+    return { isMatch: false, distance: 1.0, cosineSim: 0 };
+  }
+
+  let dot = 0;
+  let distSq = 0;
+  for (let i = 0; i < 128; i++) {
+    const l = liveDescriptor[i] / normLive;
+    const e = enrolledDescriptor[i] / normEnrolled;
+    dot += l * e;
+    const diff = l - e;
+    distSq += diff * diff;
+  }
+
+  const distance = Math.sqrt(distSq);
+  const cosineSim = Math.max(-1.0, Math.min(1.0, dot));
+
+  const isMatch = distance <= maxDistance && cosineSim >= minCosine;
+  return {
+    isMatch,
+    distance: Math.round(distance * 1000) / 1000,
+    cosineSim: Math.round(cosineSim * 1000) / 1000,
+  };
+}
+
+/**
  * Dynamically computes staff working schedule cutoffs from school settings with runtime safety checks.
  */
 export function computeWorkingScheduleThresholds(settings?: any): {
@@ -255,6 +316,7 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
   locationDistance?: number | null;
   faceVerified?: boolean;
   faceConfidence?: number | null;
+  faceDescriptor?: number[] | null;
   remarks?: string;
 } = {}) {
   const user = await prisma.user.findFirst({
@@ -279,8 +341,38 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
   }
 
   const isFaceRequired = settings?.staff_face_required ?? true;
-  if (isFaceRequired && !data.faceVerified) {
-    throw new Error('Face verification failed or is required for staff check-in.');
+  if (isFaceRequired) {
+    // 1:1 Biometric Verification: authenticated staff account -> registered template -> live face
+    const enrollment = await prisma.staffFaceEnrollment.findFirst({
+      where: { userId }
+    });
+
+    if (!enrollment || !enrollment.descriptor) {
+      throw new Error('Face biometric profile not registered for your account. Please enroll your face first.');
+    }
+
+    if (!data.faceVerified) {
+      throw new Error('Face does not match your registered profile. Attendance was not recorded.');
+    }
+
+    let enrolledVector: number[] = [];
+    if (Array.isArray(enrollment.descriptor)) {
+      enrolledVector = enrollment.descriptor as unknown as number[];
+    } else if (enrollment.descriptor && typeof enrollment.descriptor === 'object' && Array.isArray((enrollment.descriptor as any).vector)) {
+      enrolledVector = (enrollment.descriptor as any).vector;
+    }
+
+    if (enrolledVector.length !== 128) {
+      throw new Error('Corrupted registered biometric profile. Please re-enroll your face.');
+    }
+
+    // Cryptographic 1:1 server-side verification if live faceDescriptor is attached
+    if (data.faceDescriptor && Array.isArray(data.faceDescriptor)) {
+      const match = verifyDescriptorMatch(data.faceDescriptor, enrolledVector);
+      if (!match.isMatch) {
+        throw new Error('Face does not match your registered profile. Attendance was not recorded.');
+      }
+    }
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
@@ -413,6 +505,7 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
   locationDistance?: number | null;
   faceVerified?: boolean;
   faceConfidence?: number | null;
+  faceDescriptor?: number[] | null;
   remarks?: string;
 } = {}) {
   const settings = await prisma.schoolSettings.findFirst();
@@ -430,8 +523,38 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
   }
 
   const isFaceRequired = settings?.staff_face_required ?? true;
-  if (isFaceRequired && !data.faceVerified) {
-    throw new Error('Face verification failed or is required for staff check-out.');
+  if (isFaceRequired) {
+    // 1:1 Biometric Verification: authenticated staff account -> registered template -> live face
+    const enrollment = await prisma.staffFaceEnrollment.findFirst({
+      where: { userId }
+    });
+
+    if (!enrollment || !enrollment.descriptor) {
+      throw new Error('Face biometric profile not registered for your account. Please enroll your face first.');
+    }
+
+    if (!data.faceVerified) {
+      throw new Error('Face does not match your registered profile. Attendance was not recorded.');
+    }
+
+    let enrolledVector: number[] = [];
+    if (Array.isArray(enrollment.descriptor)) {
+      enrolledVector = enrollment.descriptor as unknown as number[];
+    } else if (enrollment.descriptor && typeof enrollment.descriptor === 'object' && Array.isArray((enrollment.descriptor as any).vector)) {
+      enrolledVector = (enrollment.descriptor as any).vector;
+    }
+
+    if (enrolledVector.length !== 128) {
+      throw new Error('Corrupted registered biometric profile. Please re-enroll your face.');
+    }
+
+    // Cryptographic 1:1 server-side verification if live faceDescriptor is attached
+    if (data.faceDescriptor && Array.isArray(data.faceDescriptor)) {
+      const match = verifyDescriptorMatch(data.faceDescriptor, enrolledVector);
+      if (!match.isMatch) {
+        throw new Error('Face does not match your registered profile. Attendance was not recorded.');
+      }
+    }
   }
 
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);

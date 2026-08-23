@@ -49,14 +49,14 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(dist).toBe(0)
     })
 
-    test("similar face descriptors (same person) should be well within matching threshold (<= 0.50)", () => {
+    test("similar face descriptors (same person) should be well within matching threshold (<= 0.38)", () => {
       const dist = calculateEuclideanDistance(mockDescriptorA, mockDescriptorSimilar)
-      expect(dist).toBeLessThan(0.50)
+      expect(dist).toBeLessThan(0.38)
     })
 
-    test("different face descriptors (different people) should exceed matching threshold (> 0.50)", () => {
+    test("different face descriptors (different people) should exceed matching threshold (> 0.38)", () => {
       const dist = calculateEuclideanDistance(mockDescriptorA, mockDescriptorDifferent)
-      expect(dist).toBeGreaterThan(0.50)
+      expect(dist).toBeGreaterThan(0.38)
     })
 
     test("should return max distance if one of the descriptors is missing or invalid", () => {

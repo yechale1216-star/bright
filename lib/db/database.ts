@@ -732,6 +732,7 @@ class Database extends BaseDatabase {
     session?: string        // 'daily' in daily mode; session id in session_based mode
     faceVerified?: boolean
     faceConfidence?: number | null
+    faceDescriptor?: number[] | null
     remarks?: string
   }, locationData?: any): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(
@@ -759,6 +760,7 @@ class Database extends BaseDatabase {
     session?: string        // 'daily' in daily mode; session id in session_based mode
     faceVerified?: boolean
     faceConfidence?: number | null
+    faceDescriptor?: number[] | null
     remarks?: string
   }, locationData?: any): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(

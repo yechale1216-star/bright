@@ -198,10 +198,12 @@ export function StaffAttendance() {
         })
         setMyHistory(history)
 
-        // Fetch enrolled face descriptor
-        const descriptorData = await db.getStaffFaceDescriptor()
-        if (descriptorData?.descriptor) {
+        // Fetch enrolled face descriptor strictly for activeUser.id
+        const descriptorData = await db.getStaffFaceDescriptor(activeUser.id)
+        if (descriptorData?.descriptor && Array.isArray(descriptorData.descriptor) && descriptorData.descriptor.length === 128) {
           setEnrolledDescriptor(descriptorData.descriptor)
+        } else {
+          setEnrolledDescriptor(null)
         }
       }
 
@@ -221,6 +223,11 @@ export function StaffAttendance() {
       }
     }
   }, [authUser, selectedDate, isSessionMode])
+
+  // Reset cached enrolled template whenever the authenticated user ID changes
+  useEffect(() => {
+    setEnrolledDescriptor(null)
+  }, [currentUser?.id, authUser?.id])
 
   // 2. Load data when auth is ready or selectedDate changes.
   //    Also subscribe to resume/visibility/online events.
@@ -305,21 +312,23 @@ export function StaffAttendance() {
       // Step 2: Face Verification Check
       const isFaceRequired = (settings?.staffFaceRequired ?? settings?.staff_face_required) !== false
       if (isFaceRequired) {
-        let activeDescriptor = enrolledDescriptor
-        if (!activeDescriptor || activeDescriptor.length !== 128) {
-          const desc = await db.getStaffFaceDescriptor()
-          if (desc?.descriptor && desc.descriptor.length === 128) {
-            activeDescriptor = desc.descriptor
-            setEnrolledDescriptor(desc.descriptor)
-          }
+        const targetUserId = currentUser?.id || authUser?.id
+        if (!targetUserId) {
+          setVerificationStep("error")
+          setStepMessage("Authentication required to verify face attendance.")
+          return
         }
 
-        if (!activeDescriptor || activeDescriptor.length !== 128) {
+        // Always query fresh 1:1 template strictly for the authenticated staff account to prevent stale cross-user leakage
+        const desc = await db.getStaffFaceDescriptor(targetUserId)
+        if (!desc?.descriptor || !Array.isArray(desc.descriptor) || desc.descriptor.length !== 128) {
+          setEnrolledDescriptor(null)
           setVerificationStep("error")
           setStepMessage("Face biometric profile not registered for your account. Please enroll your face first.")
           return
         }
 
+        setEnrolledDescriptor(desc.descriptor)
         setVerificationStep("face_verification")
         setStepMessage("Geofence verified! Initializing automatic biometric scanner...")
       } else {
@@ -344,13 +353,14 @@ export function StaffAttendance() {
     await commitAttendance(actionType, capturedLocation, {
       faceVerified: true,
       confidence: faceResult.confidence || 1.0,
+      descriptor: faceResult.descriptor,
     })
   }
 
   const commitAttendance = async (
     type: "checkin" | "checkout",
     location: GeofenceLocationData | null,
-    face: { faceVerified: boolean; confidence?: number }
+    face: { faceVerified: boolean; confidence?: number; descriptor?: number[] }
   ) => {
     const isOnline = typeof navigator !== "undefined" && navigator.onLine
 
@@ -403,6 +413,7 @@ export function StaffAttendance() {
             session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
+            faceDescriptor: face.descriptor,
           },
           location
         )
@@ -413,6 +424,7 @@ export function StaffAttendance() {
             session: sessPayload,
             faceVerified: face.faceVerified,
             faceConfidence: face.confidence,
+            faceDescriptor: face.descriptor,
           },
           location
         )
@@ -1380,7 +1392,7 @@ export function StaffAttendance() {
                 onVerified={handleFaceVerified}
                 onFailed={(err) => {
                   setVerificationStep("error")
-                  setStepMessage(err)
+                  setStepMessage(err || "Face does not match your registered profile. Attendance was not recorded.")
                 }}
                 onCancel={() => setIsVerificationModalOpen(false)}
               />
