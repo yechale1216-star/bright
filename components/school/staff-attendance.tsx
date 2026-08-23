@@ -1429,47 +1429,69 @@ export function StaffAttendance() {
               </div>
             )}
 
-            {/* Error state — mismatch card matching screenshot 2 */}
+            {/* Error state — mismatch card matching reference design */}
             {verificationStep === "error" && (
-              <div className="flex flex-col items-center gap-0 animate-in zoom-in-95 duration-200">
+              <div className="flex flex-col items-center gap-0 animate-in zoom-in-95 duration-300">
                 {/* Camera-frame card */}
                 <div
-                  className="relative w-full rounded-2xl overflow-hidden bg-[#0d0d0d] border border-rose-500/60"
-                  style={{ boxShadow: "0 0 32px rgba(239,68,68,0.35), inset 0 0 0 1px rgba(239,68,68,0.15)" }}
+                  className="relative w-full rounded-2xl overflow-hidden border border-rose-600/70"
+                  style={{
+                    background: "radial-gradient(ellipse at 50% 100%, rgba(120,0,0,0.55) 0%, rgba(20,0,0,0.97) 60%, #0d0102 100%)",
+                    boxShadow: "0 0 0 1.5px rgba(220,38,38,0.5), 0 0 40px rgba(200,0,0,0.4), inset 0 0 60px rgba(150,0,0,0.15)",
+                  }}
                 >
-                  {/* Corner brackets */}
-                  <span className="absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 border-rose-500/70 rounded-tl-sm" />
-                  <span className="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-rose-500/70 rounded-tr-sm" />
-                  <span className="absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-rose-500/70 rounded-bl-sm" />
-                  <span className="absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-rose-500/70 rounded-br-sm" />
+                  {/* Corner brackets — top-left */}
+                  <span className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-rose-500 rounded-tl" />
+                  {/* Corner brackets — top-right */}
+                  <span className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-rose-500 rounded-tr" />
+                  {/* Corner brackets — bottom-left */}
+                  <span className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-rose-500 rounded-bl" />
+                  {/* Corner brackets — bottom-right */}
+                  <span className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-rose-500 rounded-br" />
 
-                  {/* MISMATCH badge */}
-                  <div className="absolute top-4 left-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md border border-rose-500/60 bg-[#0d0d0d] text-rose-400 text-[10px] font-bold tracking-widest uppercase">
+                  {/* MISMATCH badge — top-left, speech-bubble style */}
+                  <div className="absolute top-4 left-4 z-10">
+                    <span
+                      className="inline-flex items-center px-3 py-1 rounded-lg border border-rose-500/80 text-rose-400 text-[11px] font-black tracking-widest uppercase"
+                      style={{ background: "rgba(20,0,0,0.85)", letterSpacing: "0.12em" }}
+                    >
                       MISMATCH
                     </span>
                   </div>
 
                   {/* Body */}
-                  <div className="flex flex-col items-center justify-center py-10 px-6 gap-4 text-center">
-                    {/* Glowing X icon */}
-                    <div
-                      className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500"
-                      style={{ boxShadow: "0 0 28px rgba(239,68,68,0.55)" }}
-                    >
-                      <XCircle className="w-9 h-9 stroke-[1.8]" />
+                  <div className="flex flex-col items-center justify-center py-14 px-6 gap-5 text-center">
+                    {/* Double-ring glowing X icon */}
+                    <div className="relative flex items-center justify-center">
+                      {/* Outer glow ring */}
+                      <div
+                        className="w-24 h-24 rounded-full border border-rose-600/50 absolute"
+                        style={{ boxShadow: "0 0 32px rgba(220,38,38,0.5), inset 0 0 20px rgba(180,0,0,0.2)" }}
+                      />
+                      {/* Inner solid ring with X */}
+                      <div
+                        className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10"
+                        style={{ boxShadow: "0 0 20px rgba(239,68,68,0.7)" }}
+                      >
+                        <XCircle className="w-9 h-9 stroke-[1.5]" />
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <h3 className="text-base font-bold text-white tracking-wide">Face does not match.</h3>
-                      <p className="text-xs text-rose-300/80 font-medium">Please try again.</p>
+                    <div className="space-y-1.5">
+                      <h3 className="text-lg font-black text-white tracking-wide">Face does not match.</h3>
+                      <p className="text-sm text-rose-300/90 font-semibold">Please try again.</p>
                     </div>
 
                     <Button
                       onClick={() => startAttendanceWorkflow(actionType)}
-                      className="h-10 px-8 rounded-full font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-lg gap-2 active:scale-95 transition-transform border-0"
+                      className="h-12 px-10 rounded-2xl font-bold text-base gap-2.5 border-0 active:scale-95 transition-transform"
+                      style={{
+                        background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
+                        boxShadow: "0 4px 20px rgba(244,63,94,0.5)",
+                      }}
                     >
-                      <RotateCcw className="w-4 h-4" /> Try Again
+                      <RotateCcw className="w-4 h-4" />
+                      Try Again
                     </Button>
                   </div>
                 </div>

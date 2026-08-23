@@ -947,25 +947,39 @@ export function FaceVerificationCamera({
 
         {/* ── Mismatch Overlay ── */}
         {scanStatus === "mismatched" && (
-          <div className="relative z-20 flex flex-col items-center justify-center p-8 text-center gap-4 animate-in zoom-in-95 duration-200 w-full h-full">
-            {/* MISMATCH badge — top left */}
-            <div className="absolute top-4 left-4">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md border border-rose-500/60 bg-black/80 text-rose-400 text-[10px] font-bold tracking-widest uppercase">
+          <div
+            className="relative z-20 flex flex-col items-center justify-center p-8 text-center gap-5 animate-in zoom-in-95 duration-200 w-full h-full"
+            style={{ background: "radial-gradient(ellipse at 50% 100%, rgba(120,0,0,0.55) 0%, rgba(10,0,0,0.92) 70%)" }}
+          >
+            {/* MISMATCH badge — top left, speech-bubble style */}
+            <div className="absolute top-4 left-4 z-10">
+              <span
+                className="inline-flex items-center px-3 py-1 rounded-lg border border-rose-500/80 text-rose-400 text-[11px] font-black tracking-widest uppercase"
+                style={{ background: "rgba(20,0,0,0.85)", letterSpacing: "0.12em" }}
+              >
                 MISMATCH
               </span>
             </div>
 
-            {/* Glowing X icon */}
-            <div
-              className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500"
-              style={{ boxShadow: "0 0 32px rgba(239,68,68,0.6)" }}
-            >
-              <XCircle className="w-9 h-9 stroke-[1.8]" />
+            {/* Double-ring glowing X icon */}
+            <div className="relative flex items-center justify-center">
+              {/* Outer glow ring */}
+              <div
+                className="w-24 h-24 rounded-full border border-rose-600/50 absolute"
+                style={{ boxShadow: "0 0 32px rgba(220,38,38,0.5), inset 0 0 20px rgba(180,0,0,0.2)" }}
+              />
+              {/* Inner solid ring with X */}
+              <div
+                className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10"
+                style={{ boxShadow: "0 0 20px rgba(239,68,68,0.7)" }}
+              >
+                <XCircle className="w-9 h-9 stroke-[1.5]" />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-white tracking-wide">Face does not match.</h3>
-              <p className="text-xs text-rose-300/80 font-medium">Please try again.</p>
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black text-white tracking-wide">Face does not match.</h3>
+              <p className="text-sm text-rose-300/90 font-semibold">Please try again.</p>
             </div>
 
             <Button
@@ -974,7 +988,11 @@ export function FaceVerificationCamera({
                 verificationLockedRef.current = false
                 startCamera(facingMode)
               }}
-              className="h-10 px-8 rounded-full font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white shadow-lg gap-2 active:scale-95 transition-transform border-0"
+              className="h-12 px-10 rounded-2xl font-bold text-base gap-2.5 border-0 text-white active:scale-95 transition-transform"
+              style={{
+                background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
+                boxShadow: "0 4px 20px rgba(244,63,94,0.5)",
+              }}
             >
               <RotateCcw className="w-4 h-4" />
               <span>Try Again</span>
