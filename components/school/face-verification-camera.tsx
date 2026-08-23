@@ -784,7 +784,7 @@ export function FaceVerificationCamera({
   }
 
   return (
-    <div className="w-full max-w-sm mx-auto flex flex-col items-center gap-3 select-none">
+    <div className="w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center gap-3 select-none">
       {/* ─── 0. CAMERA SELECTION & ENROLLMENT STEPPER ─── */}
       {scanStatus === "idle" && (
         <div className="w-full flex items-center justify-between p-1.5 rounded-2xl bg-muted/60 border border-border/60">
@@ -856,7 +856,7 @@ export function FaceVerificationCamera({
         ref={frameContainerRef}
         className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-950 flex items-center justify-center"
         style={{
-          height: 'min(45vh, 340px)',
+          height: 'min(55vh, 460px)',
           boxShadow: isFaceAligned
             ? "0 0 30px rgba(16,185,129,0.4)"
             : cfg.frameShadow,
