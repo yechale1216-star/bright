@@ -35,6 +35,8 @@ import {
 } from "@/lib/hooks/use-face-recognition"
 import { NativeBridge } from "@/lib/utils/native-bridge"
 import { ImpactStyle } from "@capacitor/haptics"
+import { useLanguage } from "@/lib/context/language-context"
+import { cn } from "@/lib/utils/utils"
 
 export interface FaceVerificationCameraProps {
   mode: "enroll" | "verify"
@@ -215,6 +217,98 @@ const STATE_CONFIG: Record<
   },
 }
 
+const VERIFICATION_GUIDE_ITEMS = {
+  en: [
+    {
+      title: "Good lighting",
+      desc: "Make sure your face is clearly visible and well lit.",
+      icon: Sun,
+      color: "text-amber-500",
+    },
+    {
+      title: "Face centered",
+      desc: "Look directly at the camera and keep your face inside the guide.",
+      icon: User,
+      color: "text-blue-500",
+    },
+    {
+      title: "One face only",
+      desc: "Make sure only your face is visible.",
+      icon: Users,
+      color: "text-rose-500",
+    },
+    {
+      title: "Correct distance",
+      desc: "Move closer or farther until your face is clearly visible.",
+      icon: Maximize2,
+      color: "text-indigo-500",
+    },
+    {
+      title: "Stay steady",
+      desc: "Keep your face steady while verification is performed.",
+      icon: CheckCircle2,
+      color: "text-emerald-500",
+    },
+  ],
+  am: [
+    {
+      title: "ጥሩ ብርሃን",
+      desc: "ፊትዎ በግልጽ እንዲታይ በቂ ብርሃን ያለበት ቦታ ይጠቀሙ።",
+      icon: Sun,
+      color: "text-amber-500",
+    },
+    {
+      title: "ፊትዎን መሃል ያድርጉ",
+      desc: "በቀጥታ ወደ ካሜራው ይመልከቱ እና ፊትዎን በመመሪያው ውስጥ ያቆዩ።",
+      icon: User,
+      color: "text-blue-500",
+    },
+    {
+      title: "አንድ ፊት ብቻ",
+      desc: "በካሜራው ውስጥ የእርስዎ ፊት ብቻ እንዲታይ ያረጋግጡ።",
+      icon: Users,
+      color: "text-rose-500",
+    },
+    {
+      title: "ትክክለኛ ርቀት",
+      desc: "ፊትዎ በግልጽ እስኪታይ ድረስ ቀረብ ወይም ራቅ ይበሉ።",
+      icon: Maximize2,
+      color: "text-indigo-500",
+    },
+    {
+      title: "ጸንተው ይቆዩ",
+      desc: "ማረጋገጫው እስኪጠናቀቅ ፊትዎን ሳያንቀሳቅሱ ይቆዩ።",
+      icon: CheckCircle2,
+      color: "text-emerald-500",
+    },
+  ],
+}
+
+function getLocalizedGuidance(guidance: string, lang: "en" | "am"): string {
+  if (lang === "en") return guidance
+  const map: Record<string, string> = {
+    "Look directly at the camera and keep your face inside the guide.":
+      "በቀጥታ ወደ ካሜራው ይመልከቱ እና ፊትዎን በመመሪያው ውስጥ ያቆዩ።",
+    "Move to a well-lit area and avoid dark shadows.":
+      "ወደ በቂ ብርሃን ወዳለበት ቦታ ይሂዱ እና ጥላን ያስወግዱ።",
+    "Move to a well-lit area and avoid strong light behind you.":
+      "ወደ በቂ ብርሃን ወዳለበት ቦታ ይሂዱ እና ከጀርባ ያለን ጠንካራ ብርሃን ያስወግዱ።",
+    "Move closer until your face is clearly detected.":
+      "ፊትዎ በግልጽ እስኪታይ ድረስ ቀረብ ይበሉ።",
+    "Move slightly farther from the camera.":
+      "ትንሽ ከካሜራው ራቅ ይበሉ።",
+    "Only one person should be visible in the camera.":
+      "በካሜራው ውስጥ የእርስዎ ፊት ብቻ እንዲታይ ያረጋግጡ።",
+    "Follow the on-screen instruction and perform the requested action naturally.":
+      "በማያ ገጹ ላይ የሚታየውን መመሪያ ይከተሉ እና እርምጃውን በተፈጥሯዊ ሁኔታ ያከናውኑ።",
+    "Verifying identity…": "ማንነትን በማረጋገጥ ላይ…",
+    "✓ Identity verified successfully.": "✓ ማንነትዎ በተሳካ ሁኔታ ተረጋግጧል።",
+    "Face does not match your registered profile. Attendance was not recorded.":
+      "ፊትዎ ከተመዘገበው መረጃ ጋር አይዛመድም።",
+  }
+  return map[guidance] || guidance
+}
+
 export function FaceVerificationCamera({
   mode,
   enrolledDescriptor,
@@ -228,6 +322,23 @@ export function FaceVerificationCamera({
   const scanLineRef = useRef<HTMLDivElement | null>(null)
   const scanDirRef = useRef(1)
   const scanPosRef = useRef(0)
+
+  // Language integration with safe fallback
+  let appLanguage: "en" | "am" = "en"
+  try {
+    const langContext = useLanguage()
+    if (langContext && (langContext.language === "am" || langContext.language === "en")) {
+      appLanguage = langContext.language
+    }
+  } catch {
+    // Fallback to 'en'
+  }
+
+  const [guideLanguage, setGuideLanguage] = useState<"en" | "am">(appLanguage)
+
+  useEffect(() => {
+    setGuideLanguage(appLanguage)
+  }, [appLanguage])
 
   // Camera & guidance state
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user")
@@ -1150,56 +1261,126 @@ export function FaceVerificationCamera({
       {/* ─── Guide Popup Dialog ─── */}
       <Dialog open={showGuide} onOpenChange={setShowGuide}>
         <DialogContent className="max-w-sm rounded-2xl p-5">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Info className="w-4 h-4 text-primary" />
-              Registration Guide
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3.5 text-sm text-muted-foreground mt-1">
-            <div className="flex items-start gap-2.5">
-              <Sun className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">Good lighting: </span>
-                Move to a well-lit area. Avoid strong light or windows directly behind you.
+          {mode === "enroll" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-base">
+                  <Info className="w-4 h-4 text-primary" />
+                  Registration Guide
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3.5 text-sm text-muted-foreground mt-1">
+                <div className="flex items-start gap-2.5">
+                  <Sun className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-foreground">Good lighting: </span>
+                    Move to a well-lit area. Avoid strong light or windows directly behind you.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <User className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-foreground">Face centered: </span>
+                    Look directly at the camera and keep your face inside the oval guide.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Maximize2 className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-foreground">Correct distance: </span>
+                    Move closer or farther until your face fills the guide clearly.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Users className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-foreground">One face only: </span>
+                    Only one person should be visible in the camera at a time.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <Sparkles className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-foreground">Follow prompts: </span>
+                    Complete all 5 poses — Front, Turn Left, Turn Right, Tilt Up, Hold Steady.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-foreground">Stay steady: </span>
+                    Hold each pose briefly so the camera captures a clean sample.
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <User className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">Face centered: </span>
-                Look directly at the camera and keep your face inside the oval guide.
+            </>
+          ) : (
+            <>
+              <DialogHeader className="space-y-0">
+                <div className="flex items-center justify-between gap-2 pr-6">
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    <Info className="w-4 h-4 text-primary" />
+                    <span>{guideLanguage === "am" ? "የፊት ማረጋገጫ መመሪያ" : "Verification Guide"}</span>
+                  </DialogTitle>
+
+                  {/* Language Toggle: አማ | EN */}
+                  <div className="flex items-center p-0.5 rounded-lg bg-muted border border-border/60 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setGuideLanguage("am")}
+                      className={cn(
+                        "px-2 py-0.5 rounded-md transition-all font-bold",
+                        guideLanguage === "am"
+                          ? "bg-primary text-primary-foreground shadow-xs font-black"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      አማ
+                    </button>
+                    <span className="text-muted-foreground/40 text-[10px] px-0.5 select-none">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setGuideLanguage("en")}
+                      className={cn(
+                        "px-2 py-0.5 rounded-md transition-all font-bold",
+                        guideLanguage === "en"
+                          ? "bg-primary text-primary-foreground shadow-xs font-black"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      EN
+                    </button>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-3.5 text-sm text-muted-foreground mt-3">
+                {VERIFICATION_GUIDE_ITEMS[guideLanguage].map((item, idx) => {
+                  const IconComp = item.icon
+                  return (
+                    <div key={idx} className="flex items-start gap-2.5">
+                      <IconComp className={cn("w-4 h-4 shrink-0 mt-0.5", item.color)} />
+                      <div>
+                        <span className="font-semibold text-foreground">{item.title} — </span>
+                        <span>{item.desc}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Dynamic liveness/action display if camera is actively guiding */}
+                {activeGuidance && (
+                  <div className="mt-3 pt-2.5 border-t border-border/40 flex items-start gap-2 text-xs text-primary bg-primary/5 p-2 rounded-xl">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-primary" />
+                    <div>
+                      <span className="font-bold">{guideLanguage === "am" ? "የአሁኑ መመሪያ፡ " : "Current Action: "}</span>
+                      <span>{getLocalizedGuidance(activeGuidance, guideLanguage)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <Maximize2 className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">Correct distance: </span>
-                Move closer or farther until your face fills the guide clearly.
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <Users className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">One face only: </span>
-                Only one person should be visible in the camera at a time.
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">Follow prompts: </span>
-                Complete all 5 poses — Front, Turn Left, Turn Right, Tilt Up, Hold Steady.
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">Stay steady: </span>
-                Hold each pose briefly so the camera captures a clean sample.
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
