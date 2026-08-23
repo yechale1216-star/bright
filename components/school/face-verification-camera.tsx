@@ -49,7 +49,7 @@ export interface FaceVerificationCameraProps {
   lockMessage?: string | null
   attendanceMode?: "daily" | "session_based"
   sessionName?: string
-  onVerified?: (result: { descriptor: number[]; confidence?: number; samplesCount?: number }) => void
+  onVerified?: (result: { descriptor: number[]; confidence?: number; samplesCount?: number }) => Promise<void> | void
   onFailed?: (error: string) => void
   onAttemptFailed?: (details: { reason: string }) => Promise<{ isLocked: boolean; attemptCount: number; remainingAttempts: number; lockMessage?: string | null } | void> | void
   onCancel?: () => void
@@ -779,21 +779,56 @@ export function FaceVerificationCamera({
             setActiveGuidance(nextStep.prompt)
             setGuidanceIcon(nextStep.icon)
           } else {
-            // All 5 samples captured successfully
+            // All 5 samples captured successfully — synthesize template
             verificationLockedRef.current = true
-            setScanStatus("matched")
-            setActiveGuidance("✓ Face registration complete! Biometric profile securely created.")
-            setGuidanceIcon("check")
+            stopCameraStream()
+            setScanStatus("analyzing")
+            setActiveGuidance(
+              guideLanguage === "am"
+                ? "የባዮሜትሪክ መረጃን ከአገልጋይ ጋር በማረጋገጥ ላይ..."
+                : "Validating biometric profile with server..."
+            )
+            setGuidanceIcon("camera")
 
             const stableResult = synthesizeStableEmbedding(sampleBufferRef.current)
 
-            stopCameraStream()
-            NativeBridge.vibrate(ImpactStyle.Medium)
-            onVerified?.({
-              descriptor: stableResult.descriptor,
-              confidence: stableResult.consistencyScore,
-              samplesCount: stableResult.samplesUsed,
-            })
+            try {
+              if (onVerified) {
+                await Promise.resolve(
+                  onVerified({
+                    descriptor: stableResult.descriptor,
+                    confidence: stableResult.consistencyScore,
+                    samplesCount: stableResult.samplesUsed,
+                  })
+                )
+              }
+              if (mountedRef.current) {
+                setScanStatus("matched")
+                setActiveGuidance(
+                  guideLanguage === "am"
+                    ? "✓ የፊት ምዝገባ በተሳካ ሁኔታ ተጠናቋል!"
+                    : "✓ Face registration complete! Biometric profile securely created."
+                )
+                setGuidanceIcon("check")
+                NativeBridge.vibrate(ImpactStyle.Medium)
+              }
+            } catch (err: any) {
+              if (mountedRef.current) {
+                setScanStatus("error")
+                const isDuplicate =
+                  err?.code === "FACE_ALREADY_REGISTERED" ||
+                  err?.message?.toLowerCase()?.includes("already registered")
+                const errorMsg = isDuplicate
+                  ? (guideLanguage === "am"
+                      ? "ይህ ፊት አስቀድሞ በሌላ ሠራተኛ ተመዝግቧል።"
+                      : "This face is already registered to another staff member.")
+                  : (err?.message || "Registration failed. Please try again.")
+                setActiveGuidance(errorMsg)
+                setGuidanceIcon("error")
+                NativeBridge.vibrate(ImpactStyle.Heavy)
+                onFailed?.(errorMsg)
+              }
+            }
             return
           }
         } else if (isTargetAngleReached) {
@@ -1238,6 +1273,62 @@ export function FaceVerificationCamera({
                 <span>{guideLanguage === "am" ? "እንደገና ሞክር" : "Try Again"}</span>
               </Button>
             )}
+          </div>
+        )}
+
+        {/* ── Enrollment Error / Duplicate Face Overlay ── */}
+        {mode === "enroll" && scanStatus === "error" && (
+          <div
+            className="relative z-20 flex flex-col items-center justify-center p-6 sm:p-8 text-center gap-4 animate-in zoom-in-95 duration-200 w-full h-full"
+            style={{ background: "radial-gradient(ellipse at 50% 100%, rgba(140,10,20,0.85) 0%, rgba(10,0,0,0.98) 70%)" }}
+          >
+            {/* Top badge */}
+            <div className="absolute top-4 left-4 z-10">
+              <span
+                className="inline-flex items-center px-3 py-1 rounded-lg border border-rose-500 text-[11px] font-black tracking-widest uppercase bg-rose-950/90 text-rose-300"
+                style={{ letterSpacing: "0.12em" }}
+              >
+                {activeGuidance.toLowerCase().includes("already registered") || activeGuidance.includes("በሌላ")
+                  ? "DUPLICATE FACE"
+                  : "REGISTRATION REJECTED"}
+              </span>
+            </div>
+
+            {/* Glowing Icon */}
+            <div className="relative flex items-center justify-center mt-3">
+              <div
+                className="w-24 h-24 rounded-full border border-rose-600/60 absolute animate-pulse"
+                style={{ boxShadow: "0 0 36px rgba(220,38,38,0.7), inset 0 0 20px rgba(180,0,0,0.4)" }}
+              />
+              <div
+                className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-400 relative z-10 bg-rose-950/60"
+                style={{ boxShadow: "0 0 24px rgba(239,68,68,0.8)" }}
+              >
+                <ShieldAlert className="w-9 h-9 stroke-[1.5]" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5 max-w-xs">
+              <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                {activeGuidance.toLowerCase().includes("already registered") || activeGuidance.includes("በሌላ")
+                  ? (guideLanguage === "am" ? "ይህ ፊት አስቀድሞ ተመዝግቧል" : "Face Already Registered")
+                  : (guideLanguage === "am" ? "ምዝገባው አልተሳካም" : "Registration Failed")}
+              </h3>
+              <p className="text-xs sm:text-sm text-rose-300 font-semibold leading-relaxed">
+                {activeGuidance || (guideLanguage === "am" ? "የባዮሜትሪክ መረጃው በአገልጋዩ ተቀባይነት አላገኘም።" : "Biometric registration was rejected by the server.")}
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              onClick={() => {
+                stopCameraStream()
+                onCancel?.()
+              }}
+              className="h-11 px-8 rounded-xl font-bold text-sm bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 active:scale-95 transition-transform"
+            >
+              {guideLanguage === "am" ? "ዝጋ" : "Close"}
+            </Button>
           </div>
         )}
 

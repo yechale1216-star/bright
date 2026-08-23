@@ -102,7 +102,12 @@ export const enrollFace = async (req: AuthenticatedRequest, res: Response, _next
     );
     res.status(200).json({ success: true, data: result, message: 'Staff face biometric template registered successfully' });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Failed to enroll face' });
+    const statusCode = error.code === 'FACE_ALREADY_REGISTERED' ? 409 : 400;
+    res.status(statusCode).json({
+      success: false,
+      code: error.code || 'ENROLLMENT_FAILED',
+      message: error.message || 'Failed to enroll face',
+    });
   }
 };
 

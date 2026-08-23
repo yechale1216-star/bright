@@ -26,6 +26,7 @@ export class RequestError extends Error {
       | "parse"
       | "unknown",
     public readonly status?: number,
+    public readonly code?: string,
   ) {
     super(message)
     this.name = "RequestError"
@@ -139,13 +140,15 @@ export async function apiFetch<T = unknown>(
   const response = await fetchWithTimeout(url, options)
 
   if (!response.ok) {
-    // Try to extract a server-provided error message
+    // Try to extract a server-provided error message and code
     let serverMessage = `HTTP ${response.status}: ${response.statusText}`
+    let serverCode: string | undefined = undefined
     try {
       const ct = response.headers.get("content-type") ?? ""
       if (ct.includes("application/json")) {
         const body = await response.json()
         serverMessage = body?.message || body?.error || serverMessage
+        serverCode = body?.code
       }
     } catch {
       // ignore
@@ -158,7 +161,7 @@ export async function apiFetch<T = unknown>(
       window.dispatchEvent(new CustomEvent("zetime:unauthorized"))
     }
 
-    throw new RequestError(serverMessage, type, response.status)
+    throw new RequestError(serverMessage, type, response.status, serverCode)
   }
 
   // Parse JSON body

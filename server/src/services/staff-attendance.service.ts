@@ -874,7 +874,9 @@ export async function enrollFace(
       if (otherVec.length === 128) {
         const match = verifyDescriptorMatch(normalizedDescriptor, otherVec);
         if (match.isMatch) {
-          throw new Error('This face is already registered to another staff member.');
+          const err: any = new Error('This face is already registered to another staff member.');
+          err.code = 'FACE_ALREADY_REGISTERED';
+          throw err;
         }
       }
     }

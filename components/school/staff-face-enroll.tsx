@@ -148,11 +148,12 @@ export function StaffFaceEnrollModal({
     isSavingEnrollmentRef.current = true
     setIsSavingEnrollment(true)
     try {
+      // Authoritative backend registration check
       await db.enrollStaffFace(selectedStaff.id, result.descriptor, isReplaceMode)
       const countStr = result.samplesCount ? `${result.samplesCount} biometric samples` : "5 biometric samples"
       notifications.success(
         "Face Registered",
-        `Stable biometric template synthesized from ${countStr} for ${selectedStaff.full_name}.`
+        `Biometric template registered successfully from ${countStr} for ${selectedStaff.full_name}.`
       )
       setIsEnrollCameraOpen(false)
       setSelectedStaff(null)
@@ -160,7 +161,19 @@ export function StaffFaceEnrollModal({
       await loadStaff()
       if (onEnrolled) onEnrolled()
     } catch (err: any) {
-      notifications.error("Enrollment Failed", err.message || "Failed to save biometric face template")
+      const isDuplicate =
+        err?.code === "FACE_ALREADY_REGISTERED" ||
+        err?.message?.toLowerCase()?.includes("already registered")
+      if (isDuplicate) {
+        notifications.error(
+          "Registration Rejected",
+          "This face is already registered to another staff member. Duplicate registrations are strictly forbidden."
+        )
+      } else {
+        notifications.error("Enrollment Failed", err.message || "Failed to save biometric face template")
+      }
+      // Re-throw so FaceVerificationCamera immediately halts capture and renders the error screen
+      throw err
     } finally {
       setIsSavingEnrollment(false)
       isSavingEnrollmentRef.current = false
