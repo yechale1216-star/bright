@@ -922,13 +922,13 @@ class Database extends BaseDatabase {
     return result.data
   }
 
-  async enrollStaffFace(userId: string, descriptor: number[]): Promise<any> {
+  async enrollStaffFace(userId: string, descriptor: number[], replaceExisting = false): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/staff-attendance/face-enroll`,
       {
         method: "POST",
         headers: this.getApiHeaders(),
-        body: JSON.stringify({ userId, descriptor }),
+        body: JSON.stringify({ userId, descriptor, replaceExisting }),
       }
     )
     return result.data

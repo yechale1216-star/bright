@@ -634,8 +634,19 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
 
 /**
  * Face enrollment for a staff member (admin or self-service)
+ * Enforces strong duplication prevention:
+ * 1. Checks if the target staff member already has a profile (rejects unless replaceExisting is true).
+ * 2. Checks if the biometric template is already registered to any OTHER staff member (cross-account duplicate detection).
+ * 3. Uses a database transaction to prevent concurrent race conditions.
+ * 4. Logs an audit trail on creation and replacement.
  */
-export async function enrollFace(adminUserId: string, targetUserId: string, _schoolId?: string, descriptor?: number[]) {
+export async function enrollFace(
+  adminUserId: string,
+  targetUserId: string,
+  _schoolId?: string,
+  descriptor?: number[],
+  replaceExisting = false
+) {
   if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
     throw new Error('Invalid face descriptor: exactly 128 numerical feature values are required.');
   }
@@ -665,19 +676,95 @@ export async function enrollFace(adminUserId: string, targetUserId: string, _sch
     throw new Error('Staff member not found');
   }
 
-  // Atomic upsert to prevent race conditions or duplicate biometric registrations
-  return await prisma.staffFaceEnrollment.upsert({
-    where: { userId: targetUserId },
-    create: {
-      userId: targetUserId,
-      descriptor: normalizedDescriptor,
-      enrolledBy: adminUserId,
-    },
-    update: {
-      descriptor: normalizedDescriptor,
-      enrolledBy: adminUserId,
-      updatedAt: new Date(),
+  return await prisma.$transaction(async (tx) => {
+    // 1. Check if the target staff member already has an enrolled profile
+    const existingEnrollment = await tx.staffFaceEnrollment.findUnique({
+      where: { userId: targetUserId }
+    });
+
+    if (existingEnrollment && !replaceExisting) {
+      throw new Error('Biometric profile already registered for this staff member.');
     }
+
+    // 2. Cross-account duplicate detection:
+    // Check if this captured face is already registered to ANY OTHER staff member
+    const otherEnrollments = await tx.staffFaceEnrollment.findMany({
+      where: { userId: { not: targetUserId } }
+    });
+
+    for (const other of otherEnrollments) {
+      let otherVec: number[] = [];
+      if (Array.isArray(other.descriptor)) {
+        otherVec = other.descriptor as unknown as number[];
+      } else if (other.descriptor && typeof other.descriptor === 'object' && Array.isArray((other.descriptor as any).vector)) {
+        otherVec = (other.descriptor as any).vector;
+      }
+
+      if (otherVec.length === 128) {
+        const match = verifyDescriptorMatch(normalizedDescriptor, otherVec);
+        if (match.isMatch) {
+          throw new Error('This face is already registered to another staff member.');
+        }
+      }
+    }
+
+    // 3. Perform the enrollment / update
+    let result: any;
+    if (existingEnrollment) {
+      result = await tx.staffFaceEnrollment.update({
+        where: { userId: targetUserId },
+        data: {
+          descriptor: normalizedDescriptor,
+          enrolledBy: adminUserId,
+          updatedAt: new Date(),
+        }
+      });
+
+      // 4. Audit trail for replacement / re-registration
+      await tx.auditLog.create({
+        data: {
+          user_id: adminUserId,
+          action: 'STAFF_FACE_RE_ENROLLED',
+          entity_type: 'staff_face_enrollment',
+          entity_id: existingEnrollment.id,
+          old_values: {
+            enrolledAt: existingEnrollment.enrolledAt,
+            enrolledBy: existingEnrollment.enrolledBy,
+            targetUserId,
+          },
+          new_values: {
+            replacedBy: adminUserId,
+            replacedAt: new Date(),
+            targetUserId,
+          },
+        }
+      });
+    } else {
+      result = await tx.staffFaceEnrollment.create({
+        data: {
+          userId: targetUserId,
+          descriptor: normalizedDescriptor,
+          enrolledBy: adminUserId,
+        }
+      });
+
+      // Audit trail for initial enrollment
+      await tx.auditLog.create({
+        data: {
+          user_id: adminUserId,
+          action: 'STAFF_FACE_ENROLLED',
+          entity_type: 'staff_face_enrollment',
+          entity_id: targetUserId,
+          new_values: {
+            enrolledBy: adminUserId,
+            enrolledAt: new Date(),
+            targetUserId,
+          },
+        }
+      });
+    }
+
+    return result;
   });
 }
 

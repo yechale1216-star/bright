@@ -47,6 +47,8 @@ export function StaffFaceEnrollModal({
   const [selectedStaff, setSelectedStaff] = useState<StaffUser | null>(null)
   const [isEnrollCameraOpen, setIsEnrollCameraOpen] = useState(false)
   const [isSavingEnrollment, setIsSavingEnrollment] = useState(false)
+  const [isReplaceMode, setIsReplaceMode] = useState(false)
+  const [replaceConfirmStaff, setReplaceConfirmStaff] = useState<StaffUser | null>(null)
 
   const getHeaders = (): Record<string, string> => {
     if (typeof window === "undefined") return {}
@@ -91,6 +93,8 @@ export function StaffFaceEnrollModal({
     if (open) {
       loadStaff()
       setSearchTerm("")
+      setIsReplaceMode(false)
+      setReplaceConfirmStaff(null)
 
       if (preselectedUserId) {
         // If a specific user was preselected, open camera immediately after load
@@ -100,6 +104,7 @@ export function StaffFaceEnrollModal({
           email: "",
           role: "",
         })
+        setIsReplaceMode(true) // Preselected user from admin action allows replacement
         setIsEnrollCameraOpen(true)
       } else {
         setSelectedStaff(null)
@@ -118,8 +123,22 @@ export function StaffFaceEnrollModal({
   }, [staffList, searchTerm])
 
   const handleStartEnroll = (staff: StaffUser) => {
-    setSelectedStaff(staff)
+    if (staff.faceEnrollment?.id) {
+      // Profile already exists -> ask admin for explicit replacement confirmation
+      setReplaceConfirmStaff(staff)
+    } else {
+      setSelectedStaff(staff)
+      setIsReplaceMode(false)
+      setIsEnrollCameraOpen(true)
+    }
+  }
+
+  const handleConfirmReplace = () => {
+    if (!replaceConfirmStaff) return
+    setSelectedStaff(replaceConfirmStaff)
+    setIsReplaceMode(true)
     setIsEnrollCameraOpen(true)
+    setReplaceConfirmStaff(null)
   }
 
   const isSavingEnrollmentRef = useRef(false)
@@ -129,7 +148,7 @@ export function StaffFaceEnrollModal({
     isSavingEnrollmentRef.current = true
     setIsSavingEnrollment(true)
     try {
-      await db.enrollStaffFace(selectedStaff.id, result.descriptor)
+      await db.enrollStaffFace(selectedStaff.id, result.descriptor, isReplaceMode)
       const countStr = result.samplesCount ? `${result.samplesCount} biometric samples` : "5 biometric samples"
       notifications.success(
         "Face Registered",
@@ -137,6 +156,7 @@ export function StaffFaceEnrollModal({
       )
       setIsEnrollCameraOpen(false)
       setSelectedStaff(null)
+      setIsReplaceMode(false)
       await loadStaff()
       if (onEnrolled) onEnrolled()
     } catch (err: any) {
@@ -149,6 +169,7 @@ export function StaffFaceEnrollModal({
 
   const handleCameraCancel = () => {
     setIsEnrollCameraOpen(false)
+    setIsReplaceMode(false)
     if (preselectedUserId) {
       // If opened for a specific user, close the whole modal
       onOpenChange(false)
@@ -173,11 +194,18 @@ export function StaffFaceEnrollModal({
                     <ArrowLeft className="w-5 h-5" />
                   </button>
                 )}
-                <div>
-                  <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-                    <Camera className="w-5 h-5 text-primary" />
-                    Enroll Face: {selectedStaff.full_name}
-                  </DialogTitle>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                      <Camera className="w-5 h-5 text-primary" />
+                      Enroll Face: {selectedStaff.full_name}
+                    </DialogTitle>
+                    {isReplaceMode && (
+                      <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-semibold">
+                        Re-registering (Replaces Existing)
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             </DialogHeader>
@@ -311,6 +339,43 @@ export function StaffFaceEnrollModal({
           </div>
         )}
       </DialogContent>
+
+      {/* ─── Replace / Re-register Confirmation Modal ─── */}
+      <Dialog open={!!replaceConfirmStaff} onOpenChange={(openState) => { if (!openState) setReplaceConfirmStaff(null) }}>
+        <DialogContent className="max-w-md rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <ShieldAlert className="w-5 h-5 text-amber-500" />
+              Replace Existing Biometric Profile?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1.5 leading-relaxed">
+              <strong className="text-foreground">{replaceConfirmStaff?.full_name}</strong> already has a registered biometric face profile.
+              Re-registering will overwrite their existing template. This replacement action will be logged in the system audit trail.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-end gap-2.5 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setReplaceConfirmStaff(null)}
+              className="rounded-xl text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmReplace}
+              className="rounded-xl text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Replace & Re-register
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

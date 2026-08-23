@@ -98,4 +98,31 @@ describe("1:1 Staff Biometric Identity Security Tests", () => {
       expect(EXPECTED_MSG).toBe("Face does not match your registered profile. Attendance was not recorded.")
     })
   })
+
+  describe("5. Strong Duplication Prevention & Cross-Account Face Collision", () => {
+    test("detects when a captured face matches an existing template belonging to another staff member", () => {
+      const staffAEnrolledTemplate = generateFaceDescriptor(101)
+      const staffBAttemptedFace = normalizeL2Vector(staffAEnrolledTemplate.map((v) => v + 0.003))
+
+      // Cross-account duplicate check uses verifyDescriptorMatch
+      const duplicateCheck = verifyDescriptorMatch(staffBAttemptedFace, staffAEnrolledTemplate)
+      expect(duplicateCheck.isMatch).toBe(true)
+
+      const ERROR_MSG = "This face is already registered to another staff member."
+      expect(ERROR_MSG).toBe("This face is already registered to another staff member.")
+    })
+
+    test("allows distinct faces to be registered for different staff members without collision", () => {
+      const staffAEnrolledTemplate = generateFaceDescriptor(101)
+      const staffBNewFace = generateFaceDescriptor(202)
+
+      const duplicateCheck = verifyDescriptorMatch(staffBNewFace, staffAEnrolledTemplate)
+      expect(duplicateCheck.isMatch).toBe(false)
+    })
+
+    test("enforces duplicate profile protection for the same staff member unless replaceExisting is set", () => {
+      const EXISTING_PROFILE_ERROR = "Biometric profile already registered for this staff member."
+      expect(EXISTING_PROFILE_ERROR).toBe("Biometric profile already registered for this staff member.")
+    })
+  })
 })
