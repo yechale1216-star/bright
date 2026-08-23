@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Camera,
   RefreshCw,
@@ -23,9 +24,6 @@ import {
   ArrowRight,
   ArrowUp,
   Info,
-  ChevronDown,
-  ChevronUp,
-  Glasses,
   Users,
 } from "lucide-react"
 import {
@@ -238,7 +236,7 @@ export function FaceVerificationCamera({
   const [activeGuidance, setActiveGuidance] = useState<string>("")
   const [guidanceIcon, setGuidanceIcon] = useState<string>("user")
   const [sampleCount, setSampleCount] = useState<number>(0)
-  const [showTips, setShowTips] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
 
   // Tracking quality & alignment
   const [isFaceAligned, setIsFaceAligned] = useState(false)
@@ -856,8 +854,9 @@ export function FaceVerificationCamera({
       {/* ─── 1. CAMERA VIEWPORT ─── */}
       <div
         ref={frameContainerRef}
-        className="relative w-full aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-950 flex items-center justify-center"
+        className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-950 flex items-center justify-center"
         style={{
+          height: 'min(45vh, 340px)',
           boxShadow: isFaceAligned
             ? "0 0 30px rgba(16,185,129,0.4)"
             : cfg.frameShadow,
@@ -917,16 +916,9 @@ export function FaceVerificationCamera({
               <Camera className="w-8 h-8" />
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-white">
-                {mode === "enroll" ? "Biometric Registration" : "Self-Attendance Scanner"}
-              </h3>
-              <p className="text-xs text-neutral-300 max-w-[220px]">
-                {mode === "enroll"
-                  ? "Look directly at the camera and follow the simple 5-step guide"
-                  : "Look directly at the camera to verify your identity"}
-              </p>
-            </div>
+            <h3 className="text-base font-bold text-white">
+              {mode === "enroll" ? "Biometric Registration" : "Self-Attendance Scanner"}
+            </h3>
 
             <Button
               type="button"
@@ -1112,72 +1104,73 @@ export function FaceVerificationCamera({
         )}
       </div>
 
-      {/* ─── 3. CLEAR STEP-BY-STEP USER GUIDE DRAWER / ACCORDION ─── */}
-      <div className="w-full border border-border/60 rounded-2xl bg-muted/30 overflow-hidden text-xs">
+      {/* ─── 3. GUIDE BUTTON ─── */}
+      <div className="w-full flex items-center justify-end">
         <button
           type="button"
-          onClick={() => setShowTips(!showTips)}
-          className="w-full p-3 flex items-center justify-between font-bold text-foreground hover:bg-muted/50 transition-colors text-left"
+          onClick={() => setShowGuide(true)}
+          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors px-3 py-1.5 rounded-xl hover:bg-muted/50"
         >
-          <span className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-primary" />
-            <span>Registration Guide & Best Practices</span>
-          </span>
-          {showTips ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <Info className="w-3.5 h-3.5" />
+          <span>Guide</span>
         </button>
+      </div>
 
-        {showTips && (
-          <div className="p-3.5 pt-0 space-y-2 text-muted-foreground border-t border-border/40 bg-card/40">
-            <div className="flex items-start gap-2 pt-2">
+      {/* ─── Guide Popup Dialog ─── */}
+      <Dialog open={showGuide} onOpenChange={setShowGuide}>
+        <DialogContent className="max-w-sm rounded-2xl p-5">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Info className="w-4 h-4 text-primary" />
+              Registration Guide
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3.5 text-sm text-muted-foreground mt-1">
+            <div className="flex items-start gap-2.5">
               <Sun className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-foreground">Lighting: </span>
-                Move to a well-lit area and avoid strong light or windows behind you.
+                <span className="font-semibold text-foreground">Good lighting: </span>
+                Move to a well-lit area. Avoid strong light or windows directly behind you.
               </div>
             </div>
-
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-2.5">
               <User className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-foreground">Face Position: </span>
-                Look directly at the camera and keep your face inside the guide.
+                <span className="font-semibold text-foreground">Face centered: </span>
+                Look directly at the camera and keep your face inside the oval guide.
               </div>
             </div>
-
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-2.5">
               <Maximize2 className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-foreground">Distance: </span>
-                Move closer or farther until your face is clearly detected in the frame.
+                <span className="font-semibold text-foreground">Correct distance: </span>
+                Move closer or farther until your face fills the guide clearly.
               </div>
             </div>
-
-            <div className="flex items-start gap-2">
-              <Glasses className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground">Obstructions: </span>
-                Remove sunglasses, hats, or masks covering your eyes, nose, or mouth.
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-2.5">
               <Users className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-foreground">Single Person: </span>
-                Only one person should be visible in the camera.
+                <span className="font-semibold text-foreground">One face only: </span>
+                Only one person should be visible in the camera at a time.
               </div>
             </div>
-
-            <div className="flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-foreground">5 Quick Samples: </span>
-                Follow on-screen cues for Front, Left, Right, Up, and Center poses.
+                <span className="font-semibold text-foreground">Follow prompts: </span>
+                Complete all 5 poses — Front, Turn Left, Turn Right, Tilt Up, Hold Steady.
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-foreground">Stay steady: </span>
+                Hold each pose briefly so the camera captures a clean sample.
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

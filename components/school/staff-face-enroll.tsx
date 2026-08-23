@@ -178,14 +178,11 @@ export function StaffFaceEnrollModal({
                     <Camera className="w-5 h-5 text-primary" />
                     Enroll Face: {selectedStaff.full_name}
                   </DialogTitle>
-                  <DialogDescription className="text-xs">
-                    Position your face inside the guide in good lighting and follow the 5 sample prompts.
-                  </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center py-2">
               <FaceVerificationCamera
                 mode="enroll"
                 onVerified={handleFaceCaptured}
