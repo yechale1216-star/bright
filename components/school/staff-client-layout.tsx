@@ -69,7 +69,24 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
     lastScrollY.current = currentScrollY
   }
 
-  if (!isMounted || !sessionReady) return <PageSkeleton variant="dashboard" />
+  if (!isMounted || !sessionReady) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none -z-10">
+          <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-primary/10 rounded-full blur-[100px]" />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-indigo-500/10 rounded-full blur-[120px]" />
+        </div>
+        <div className="relative flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full border-2 border-primary/20 animate-ping absolute" />
+          <div className="w-12 h-12 rounded-full border-3 border-transparent border-t-primary border-r-indigo-500 animate-spin" />
+          <div className="w-3.5 h-3.5 rounded-full bg-primary animate-pulse absolute" />
+        </div>
+        <p className="text-xs font-semibold text-muted-foreground animate-pulse">
+          Initializing Staff Portal...
+        </p>
+      </div>
+    )
+  }
 
   const isCommunicationPage = pathname?.includes('/communication')
 

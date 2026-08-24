@@ -259,6 +259,7 @@ export function StaffDashboard() {
   const isCheckedOut = Boolean(todayRecord?.checkOutTime)
 
   const workStatus = useMemo(() => {
+    // 1. Checked in and actively on duty
     if (isCheckedIn && !isCheckedOut) {
       return {
         label: "Active / On Duty",
@@ -267,6 +268,7 @@ export function StaffDashboard() {
         subtitle: workingDuration ? `Duration: ${workingDuration}` : "Currently at school",
       }
     }
+    // 2. Shift fully completed
     if (isCheckedIn && isCheckedOut) {
       return {
         label: "Shift Completed",
@@ -275,55 +277,82 @@ export function StaffDashboard() {
         subtitle: "Check-in & check-out logged",
       }
     }
-    if (calendarStatus && !calendarStatus.isWorkingDay) {
-      return {
-        label: calendarStatus.isHoliday ? "Holiday" : "Non-Working Day",
-        badgeClass: calendarStatus.isHoliday
-          ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
-          : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
-        dotColor: calendarStatus.isHoliday ? "bg-purple-500" : "bg-amber-500",
-        subtitle: calendarStatus.displayReason || (calendarStatus.holidayName ? `Holiday — ${calendarStatus.holidayName}` : "Scheduled non-working day"),
-      }
+    // 3. All pre-check-in states — derived from attendanceDisplay (single source of truth).
+    //    This eliminates duplicate calendarStatus logic and keeps Card 4 in sync with Card 1.
+    switch (attendanceDisplay.checkIn.status) {
+      case "ABSENT":
+        return {
+          label: "Absent",
+          badgeClass: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+          dotColor: "bg-rose-500",
+          subtitle: "Missed check-in cutoff",
+        }
+      case "LEAVE":
+        return {
+          label: "On Leave",
+          badgeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+          dotColor: "bg-blue-500",
+          subtitle: "Approved leave day",
+        }
+      case "PERMISSION":
+        return {
+          label: "Permission",
+          badgeClass: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
+          dotColor: "bg-purple-500",
+          subtitle: "Approved permission",
+        }
+      case "HOLIDAY":
+      case "NON_WORKING_DAY":
+        // Holiday Banner already gives the full notice; Card 4 shows a concise label
+        return {
+          label: "Day Off",
+          badgeClass: "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20",
+          dotColor: "bg-slate-400",
+          subtitle: attendanceDisplay.checkIn.titleLabel,
+        }
+      case "PENDING":
+        return {
+          label: "Pending Check-In",
+          badgeClass: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
+          dotColor: "bg-sky-500",
+          subtitle: "Check-in window is open",
+        }
+      default:
+        // NOT_STARTED: current time is before shift start
+        return {
+          label: "Not Started",
+          badgeClass: "bg-muted text-muted-foreground border-border",
+          dotColor: "bg-muted-foreground/50",
+          subtitle: "Shift hasn't started yet",
+        }
     }
-    return {
-      label: "Not Started",
-      badgeClass: "bg-muted text-muted-foreground border-border",
-      dotColor: "bg-muted-foreground/50",
-      subtitle: "Arrival check-in pending",
-    }
-  }, [isCheckedIn, isCheckedOut, workingDuration, calendarStatus])
+  }, [isCheckedIn, isCheckedOut, workingDuration, attendanceDisplay])
 
   const GreetingIcon = greeting.icon
 
-  // ─── Loading Skeleton ───
+  // ─── Modern Spinner Loading State ───
   if (isLoading) {
     return (
-      <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-6 animate-pulse">
-        <div className="rounded-[28px] bg-white/40 dark:bg-slate-900/40 border border-white/20 dark:border-white/10 p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <div className="w-16 h-16 rounded-2xl bg-muted/60 shrink-0" />
-              <div className="space-y-2 flex-1">
-                <div className="h-4 w-32 bg-muted/60 rounded-md" />
-                <div className="h-7 w-48 bg-muted/80 rounded-md" />
-                <div className="h-3.5 w-40 bg-muted/50 rounded-md" />
-              </div>
-            </div>
-            <div className="w-full sm:w-44 h-11 bg-muted/50 rounded-xl" />
-          </div>
+      <div className="relative min-h-[60vh] flex flex-col items-center justify-center space-y-4 max-w-5xl mx-auto px-4">
+        {/* Ambient Glow */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+          <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-cyan-500/10 rounded-full blur-[120px]" />
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="p-5 rounded-[24px] bg-white/40 dark:bg-slate-900/40 border border-white/20 dark:border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-9 h-9 rounded-xl bg-muted/60" />
-                <div className="w-16 h-4 bg-muted/40 rounded" />
-              </div>
-              <div className="h-6 w-24 bg-muted/80 rounded" />
-              <div className="h-3 w-32 bg-muted/40 rounded" />
-            </div>
-          ))}
+        <div className="relative flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full border-2 border-primary/20 animate-ping absolute" />
+          <div className="w-12 h-12 rounded-full border-3 border-transparent border-t-primary border-r-indigo-500 animate-spin" />
+          <div className="w-3.5 h-3.5 rounded-full bg-primary animate-pulse absolute" />
+        </div>
+
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+            Loading Staff Dashboard
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Syncing attendance, schedule & biometrics...
+          </p>
         </div>
       </div>
     )
@@ -536,9 +565,16 @@ export function StaffDashboard() {
               {attendanceDisplay.checkIn.titleLabel}
             </span>
             <div className="mt-1.5">
-              <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
-                {attendanceDisplay.overallStatus.replace("_", " ")}
-              </Badge>
+              {/* Show latenessFormatted for LATE; hide badge when it would duplicate the titleLabel */}
+              {attendanceDisplay.checkIn.status === "LATE" && attendanceDisplay.checkIn.latenessFormatted ? (
+                <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                  {attendanceDisplay.checkIn.latenessFormatted}
+                </Badge>
+              ) : !["ABSENT", "HOLIDAY", "NON_WORKING_DAY", "LEAVE", "PERMISSION"].includes(attendanceDisplay.checkIn.status) ? (
+                <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                  {attendanceDisplay.overallStatus.replace(/_/g, " ")}
+                </Badge>
+              ) : null}
             </div>
           </div>
         </div>

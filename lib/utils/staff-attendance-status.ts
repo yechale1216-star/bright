@@ -676,3 +676,121 @@ export function getCheckInButtonState(
     badgeVariant: "default",
   }
 }
+
+export interface CheckOutButtonState {
+  canCheckOut: boolean
+  isBeforeCheckIn: boolean
+  isAlreadyCheckedOut: boolean
+  isAfterLatestCheckout: boolean
+  isNonWorkingDay?: boolean
+  buttonText: string
+  helperText?: string
+  badgeVariant?: "default" | "secondary" | "destructive" | "outline"
+}
+
+/**
+ * Computes whether the staff check-out button is active or inactive,
+ * strictly following admin-configured attendance time rules:
+ * 0. Non-Working Day / Holiday -> Inactive ("Closed — [Reason]")
+ * 1. Not checked in yet -> Inactive ("Check-In Required First")
+ * 2. Already checked out -> Inactive ("Already Checked Out")
+ * 3. After Latest Checkout Time -> Inactive ("Check-Out Closed")
+ * 4. During Allowed Window -> Active ("Session Departure" / "Staff Check-Out")
+ */
+export function getCheckOutButtonState(
+  record?: any,
+  settings?: any,
+  sessionConfig?: any,
+  dateInput?: Date | string | number | null,
+  calendarStatus?: any
+): CheckOutButtonState {
+  // 0. Non-working day / Holiday check — hard disable
+  if (calendarStatus && calendarStatus.isWorkingDay === false) {
+    const reason = calendarStatus.displayReason || (calendarStatus.isHoliday ? (calendarStatus.holidayName ? `Holiday — ${calendarStatus.holidayName}` : "Holiday") : (calendarStatus.isWeekend ? `Weekend — ${calendarStatus.dayOfWeek}` : "Non-Working Day"))
+    return {
+      canCheckOut: false,
+      isBeforeCheckIn: false,
+      isAlreadyCheckedOut: false,
+      isAfterLatestCheckout: false,
+      isNonWorkingDay: true,
+      buttonText: `Closed — ${reason}`,
+      helperText: `Check-out is unavailable today: ${reason}.`,
+      badgeVariant: "outline",
+    }
+  }
+
+  // 1. Not checked in yet
+  if (!record || !record.checkInTime) {
+    return {
+      canCheckOut: false,
+      isBeforeCheckIn: true,
+      isAlreadyCheckedOut: false,
+      isAfterLatestCheckout: false,
+      buttonText: "Check-In Required First",
+      helperText: "You must record check-in arrival before checking out.",
+    }
+  }
+
+  // 2. Already checked out
+  if (record.checkOutTime) {
+    return {
+      canCheckOut: false,
+      isBeforeCheckIn: false,
+      isAlreadyCheckedOut: true,
+      isAfterLatestCheckout: false,
+      buttonText: "Already Checked Out",
+      helperText: "Check-out already recorded for this session/day.",
+    }
+  }
+
+  // Get current time in Africa/Addis_Ababa
+  let currentTimeHHMM: string
+  if (dateInput) {
+    currentTimeHHMM = getHHMMFromDate(dateInput)
+  } else {
+    currentTimeHHMM = new Date().toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Africa/Addis_Ababa",
+    })
+  }
+
+  let expectedEndTime = "17:00"
+  let latestCheckOutTime = "18:00"
+
+  if (sessionConfig) {
+    expectedEndTime = sessionConfig.endTime || "12:30"
+    const offset = sessionConfig.latestCheckOutOffsetMinutes ?? 60
+    latestCheckOutTime = sessionConfig.latestCheckoutTime || sessionConfig.latestCheckOutTime || addMinutesToHHMM(expectedEndTime, offset)
+  } else if (settings) {
+    expectedEndTime = settings.staffWorkEndTime || settings.staff_work_end_time || "17:00"
+    const offset = Number(settings.staffLatestCheckoutOffsetMinutes ?? settings.staff_latest_checkout_offset_minutes ?? 60)
+    latestCheckOutTime = settings.staffLatestCheckoutTime || settings.staff_latest_checkout_time || addMinutesToHHMM(expectedEndTime, offset)
+  }
+
+  // 3. Current time is after latest allowed checkout time -> closed
+  if (latestCheckOutTime && isHHMMAfter(currentTimeHHMM, latestCheckOutTime)) {
+    return {
+      canCheckOut: false,
+      isBeforeCheckIn: false,
+      isAlreadyCheckedOut: false,
+      isAfterLatestCheckout: true,
+      buttonText: "Check-out closed for this session.",
+      helperText: `Check-out closed for this session. Latest checkout deadline (${formatCivilTime(latestCheckOutTime)}) has passed.`,
+      badgeVariant: "destructive",
+    }
+  }
+
+  // 4. Allowed check-out window is open
+  return {
+    canCheckOut: true,
+    isBeforeCheckIn: false,
+    isAlreadyCheckedOut: false,
+    isAfterLatestCheckout: false,
+    buttonText: sessionConfig ? "Session Departure" : "Staff Check-Out",
+    helperText: `Check-out window open until ${formatCivilTime(latestCheckOutTime)}`,
+    badgeVariant: "default",
+  }
+}
+

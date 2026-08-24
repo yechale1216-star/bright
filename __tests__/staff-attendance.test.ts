@@ -5,6 +5,7 @@ import {
   getStaffCheckOutStatus,
   getStaffAttendanceDisplay,
   getCheckInButtonState,
+  getCheckOutButtonState,
 } from "../lib/utils/staff-attendance-status"
 
 describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
@@ -654,6 +655,93 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
 
       expect(state.canCheckIn).toBe(false)
       expect(state.buttonText).toBe("Already Checked In")
+    })
+  })
+
+  describe("6. Admin-Configured Checkout Time Rules (getCheckOutButtonState)", () => {
+    const mockSettings = {
+      staff_attendance_mode: "session_based",
+      staff_work_start_time: "08:00",
+      staff_work_end_time: "17:00",
+      staff_latest_checkout_time: "18:00",
+    }
+
+    const mockSession = {
+      id: "morning",
+      name: "Morning",
+      startTime: "08:00",
+      endTime: "12:30",
+      lateGraceMinutes: 15,
+      earlyDepartureToleranceMinutes: 15,
+      absenceCutoffMinutes: 90,
+      absenceCutoffTime: "09:30",
+      earliestCheckinTime: "06:00",
+      latestCheckoutTime: "13:30",
+      allowCheckinAfterCutoff: false,
+      isActive: true,
+    }
+
+    test("Check-out button is INACTIVE when staff has NOT checked in yet", () => {
+      const mockTimeValid = new Date("2026-08-20T09:45:00.000Z") // 12:45 PM
+      const state = getCheckOutButtonState(null, mockSettings, mockSession, mockTimeValid)
+
+      expect(state.canCheckOut).toBe(false)
+      expect(state.isBeforeCheckIn).toBe(true)
+      expect(state.isAlreadyCheckedOut).toBe(false)
+      expect(state.buttonText).toBe("Check-In Required First")
+    })
+
+    test("Check-out button is INACTIVE when staff has already checked out", () => {
+      const existingRecord = {
+        id: "rec_checked_out",
+        checkInTime: "2026-08-20T05:05:00.000Z",
+        checkOutTime: "2026-08-20T09:35:00.000Z",
+      }
+      const mockTimeValid = new Date("2026-08-20T09:45:00.000Z")
+      const state = getCheckOutButtonState(existingRecord, mockSettings, mockSession, mockTimeValid)
+
+      expect(state.canCheckOut).toBe(false)
+      expect(state.isAlreadyCheckedOut).toBe(true)
+      expect(state.buttonText).toBe("Already Checked Out")
+    })
+
+    test("Check-out button is ACTIVE during valid checkout window (e.g. 12:45 PM <= 13:30 PM)", () => {
+      const existingRecord = {
+        id: "rec_active",
+        checkInTime: "2026-08-20T05:05:00.000Z",
+      }
+      // 12:45 PM in Africa/Addis_Ababa = 09:45 UTC
+      const mockTimeValid = new Date("2026-08-20T09:45:00.000Z")
+      const state = getCheckOutButtonState(existingRecord, mockSettings, mockSession, mockTimeValid)
+
+      expect(state.canCheckOut).toBe(true)
+      expect(state.isAfterLatestCheckout).toBe(false)
+      expect(state.buttonText).toBe("Session Departure")
+      expect(state.helperText).toContain("open until 1:30 PM")
+    })
+
+    test("Check-out button is INACTIVE after latestCheckoutTime passes (e.g. 13:45 PM > 13:30 PM)", () => {
+      const existingRecord = {
+        id: "rec_active",
+        checkInTime: "2026-08-20T05:05:00.000Z",
+      }
+      // 01:45 PM in Africa/Addis_Ababa = 10:45 UTC
+      const mockTimeLate = new Date("2026-08-20T10:45:00.000Z")
+      const state = getCheckOutButtonState(existingRecord, mockSettings, mockSession, mockTimeLate)
+
+      expect(state.canCheckOut).toBe(false)
+      expect(state.isAfterLatestCheckout).toBe(true)
+      expect(state.buttonText).toBe("Check-out closed for this session.")
+      expect(state.helperText).toContain("Latest checkout deadline (1:30 PM) has passed")
+    })
+
+    test("Check-out button is INACTIVE on non-working days", () => {
+      const calendarStatus = { isWorkingDay: false, isHoliday: true, holidayName: "Meskel" }
+      const state = getCheckOutButtonState(null, mockSettings, mockSession, new Date(), calendarStatus)
+
+      expect(state.canCheckOut).toBe(false)
+      expect(state.isNonWorkingDay).toBe(true)
+      expect(state.buttonText).toContain("Holiday — Meskel")
     })
   })
 })

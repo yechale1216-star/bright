@@ -677,6 +677,7 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
 
   let sessionKey: string;
   let earlyDepartureCutoffTime: string;
+  let latestCheckOutTime: string;
 
   if (attendanceMode === 'session_based') {
     if (!data.session) throw new Error('Session is required when staff attendance mode is session-based.');
@@ -684,10 +685,14 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
     const sess = findSession(sessions, data.session);
     if (!sess) throw new Error(`Session "${data.session}" is not configured or is inactive.`);
     sessionKey = sess.id.toLowerCase();
-    earlyDepartureCutoffTime = computeSessionThresholds(sess).earlyDepartureCutoffTime;
+    const thresholds = computeSessionThresholds(sess);
+    earlyDepartureCutoffTime = thresholds.earlyDepartureCutoffTime;
+    latestCheckOutTime = thresholds.latestCheckOut;
   } else {
     sessionKey = 'daily';
-    earlyDepartureCutoffTime = computeWorkingScheduleThresholds(settings).earlyDepartureCutoffTime;
+    const schedule = computeWorkingScheduleThresholds(settings);
+    earlyDepartureCutoffTime = schedule.earlyDepartureCutoffTime;
+    latestCheckOutTime = schedule.latestCheckOut;
   }
 
   // ─── Enforce Maximum Verification Attempts Lock ───────────────────────────
@@ -763,6 +768,11 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
     hour: '2-digit', 
     minute: '2-digit' 
   });
+
+  if (latestCheckOutTime && isTimeAfter(currentTimeHHMM, latestCheckOutTime)) {
+    const sessLabel = attendanceMode === 'session_based' ? ` for the ${sessionKey} session` : ' for today';
+    throw new Error(`Check-out is closed${sessLabel}. The latest checkout time (${formatCivilTime(latestCheckOutTime)}) has passed.`);
+  }
 
   const existing = await prisma.staffAttendance.findFirst({
     where: {

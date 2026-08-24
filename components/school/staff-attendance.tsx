@@ -46,9 +46,8 @@ import {
 } from "@/lib/utils/staff-attendance-offline-store"
 import {
   getStaffAttendanceDisplay,
-  getStaffCheckInStatus,
-  getStaffCheckOutStatus,
   getCheckInButtonState,
+  getCheckOutButtonState,
   addMinutesToHHMM,
 } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
@@ -307,6 +306,17 @@ export function StaffAttendance() {
       return
     }
 
+    if (type === "checkout") {
+      const currentSess = isSessionMode
+        ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
+        : undefined
+      const coState = getCheckOutButtonState(todayRecord, settings, currentSess, undefined, calendarStatus)
+      if (!coState.canCheckOut) {
+        notifications.error("Check-Out Unavailable", coState.helperText || coState.buttonText)
+        return
+      }
+    }
+
     setActionType(type)
     setIsVerificationModalOpen(true)
     setVerificationStep("getting_location")
@@ -525,47 +535,29 @@ export function StaffAttendance() {
     })
   }, [allStaffAttendance, searchTerm, statusFilter])
 
-  // ─── INITIAL LOADING SKELETON ───
+  // ─── Modern Spinner Loading State ───
   if (isLoading && myHistory.length === 0 && allStaffAttendance.length === 0) {
     return (
-      <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-pulse">
-        {/* Header Banner Skeleton */}
-        <div className="p-6 rounded-2xl bg-card/70 border border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <div className="h-8 w-64 bg-muted/80 rounded-md" />
-            <div className="h-4 w-80 bg-muted/50 rounded-md" />
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-36 h-9 bg-muted/60 rounded-xl" />
-          </div>
+      <div className="relative min-h-[60vh] flex flex-col items-center justify-center space-y-4 max-w-7xl mx-auto px-4">
+        {/* Ambient Glow */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+          <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-cyan-500/10 rounded-full blur-[120px]" />
         </div>
 
-        {/* Self Check-In / Action Card Skeleton */}
-        <div className="p-6 rounded-3xl bg-card/70 border border-border/60 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1.5">
-              <div className="h-5 w-44 bg-muted/70 rounded" />
-              <div className="h-3.5 w-60 bg-muted/40 rounded" />
-            </div>
-            <div className="w-28 h-8 bg-muted/50 rounded-full" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div className="h-32 rounded-2xl bg-muted/40" />
-            <div className="h-32 rounded-2xl bg-muted/40" />
-          </div>
+        <div className="relative flex items-center justify-center">
+          <div className="w-14 h-14 rounded-full border-2 border-primary/20 animate-ping absolute" />
+          <div className="w-12 h-12 rounded-full border-3 border-transparent border-t-primary border-r-indigo-500 animate-spin" />
+          <div className="w-3.5 h-3.5 rounded-full bg-primary animate-pulse absolute" />
         </div>
 
-        {/* History Table Skeleton */}
-        <div className="p-5 rounded-2xl bg-card/70 border border-border/60 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="h-5 w-36 bg-muted/70 rounded" />
-            <div className="h-8 w-28 bg-muted/50 rounded-lg" />
-          </div>
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-12 rounded-xl bg-muted/30 w-full" />
-            ))}
-          </div>
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+            Loading Attendance Portal
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Checking location, biometrics & schedule...
+          </p>
         </div>
       </div>
     )
@@ -868,6 +860,7 @@ export function StaffAttendance() {
                   ? staffSessions.find((s: any) => s.id.toLowerCase() === selectedSession.toLowerCase()) || staffSessions[0]
                   : undefined
                 const btnState = getCheckInButtonState(todayRecord, settings, currentSess, undefined, calendarStatus)
+                const checkOutBtnState = getCheckOutButtonState(todayRecord, settings, currentSess, undefined, calendarStatus)
                 const isFaceLocked = faceAttemptStatus?.isLocked === true
 
                 return (
@@ -916,17 +909,31 @@ export function StaffAttendance() {
 
                     <Button
                       onClick={() => startAttendanceWorkflow("checkout")}
-                      disabled={!todayRecord?.checkInTime || !!todayRecord?.checkOutTime || verificationStep !== "idle" || calendarStatus?.isWorkingDay === false || isFaceLocked}
+                      disabled={!checkOutBtnState.canCheckOut || verificationStep !== "idle" || isFaceLocked}
                       variant="outline"
-                      className="w-full h-12 text-base font-bold gap-2 border-primary/40 hover:bg-primary/5"
+                      className={`w-full h-12 text-base font-bold gap-2 transition-all ${
+                        checkOutBtnState.canCheckOut && !isFaceLocked
+                          ? "border-primary/40 hover:bg-primary/5 text-foreground"
+                          : "bg-muted text-muted-foreground cursor-not-allowed opacity-60 border-border"
+                      }`}
                     >
                       <LogOut className="w-5 h-5" />
                       {todayRecord?.checkOutTime
                         ? "Checked Out ✓"
-                        : isSessionMode
-                        ? `Session Departure`
-                        : "Staff Check-Out"}
+                        : checkOutBtnState.buttonText}
                     </Button>
+
+                    {/* Contextual helper text explaining why check-out is disabled */}
+                    {!checkOutBtnState.canCheckOut && !todayRecord?.checkOutTime && !checkOutBtnState.isBeforeCheckIn && checkOutBtnState.helperText && !isFaceLocked && (
+                      <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
+                        checkOutBtnState.isNonWorkingDay
+                          ? "bg-purple-500/10 border border-purple-500/20 text-purple-800 dark:text-purple-300"
+                          : "bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300"
+                      }`}>
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <span>{checkOutBtnState.helperText}</span>
+                      </div>
+                    )}
                   </div>
                 )
               })()}
@@ -1213,7 +1220,7 @@ export function StaffAttendance() {
                           <Badge
                             className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkIn.badgeColor}`}
                           >
-                            {display.checkIn.label}
+                            {display.checkIn.titleLabel}
                           </Badge>
                         </div>
                         <div className="p-2 rounded-lg bg-muted/40 space-y-1">
@@ -1224,7 +1231,7 @@ export function StaffAttendance() {
                           <Badge
                             className={`text-[9px] font-extrabold uppercase py-0 px-1.5 ${display.checkOut.badgeColor}`}
                           >
-                            {display.checkOut.label}
+                            {display.checkOut.titleLabel}
                           </Badge>
                         </div>
                       </div>
