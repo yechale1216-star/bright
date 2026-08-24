@@ -36,7 +36,7 @@ export function Spinner({ size = 'md', className, ...props }: SpinnerProps) {
       {...props}
     >
       <svg
-        className="w-full h-full animate-spin [animation-duration:0.8s] [animation-timing-function:linear]"
+        className="w-full h-full animate-[spin_1.2s_steps(12,end)_infinite]"
         viewBox="0 0 48 48"
         fill="currentColor"
         xmlns="http://www.w3.org/2000/svg"
