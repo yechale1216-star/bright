@@ -1,0 +1,88 @@
+[33ma495112[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33m9b264ab[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{1}: reset: moving to HEAD~1
+[33mee01a7e[m[33m ([m[1;31morigin/AHS[m[33m, [m[1;32mAHS[m[33m)[m HEAD@{2}: merge AHS: Fast-forward
+[33m9b264ab[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{3}: checkout: moving from AHS to main
+[33mee01a7e[m[33m ([m[1;31morigin/AHS[m[33m, [m[1;32mAHS[m[33m)[m HEAD@{4}: commit: fix(staff-attendance): enforce session-end auto-closure and INCOMPLETE_SESSION work status
+[33m9b264ab[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{5}: checkout: moving from main to AHS
+[33m9b264ab[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{6}: merge AHS: Fast-forward
+[33m4a0fc71[m HEAD@{7}: checkout: moving from AHS to main
+[33m9b264ab[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{8}: commit: feat(staff-attendance): optimize staff verification flow, face enrollments, and sync services
+[33ma495112[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{9}: commit: feat(biometrics): enforce backend authoritative face enrollment validation and duplicate check
+[33mb93a8b6[m HEAD@{10}: commit: feat(staff-attendance): implement secure face verification maximum attempt limit and session lock
+[33m794f9fa[m HEAD@{11}: commit: feat: add አማ / EN language toggle to staff face verification guide
+[33mdc4f711[m HEAD@{12}: commit: fix: skip geofence re-run on face-auth retry in staff checkout flow
+[33mfc203fe[m HEAD@{13}: commit: feat: redesign MISMATCH screen to match reference design
+[33m1f149ac[m HEAD@{14}: commit: fix(ui): replace mismatch error state with camera-frame card UI; remove Register Biometrics button
+[33m0e6203c[m HEAD@{15}: commit: feat(biometrics): implement strong duplication prevention for staff face registration
+[33m221ec76[m HEAD@{16}: commit: fix(security): enforce strict 1:1 staff biometric identity verification
+[33mb5ce544[m HEAD@{17}: commit: fix(ui): increase biometric camera viewport height and container width
+[33mf86ffd4[m HEAD@{18}: commit: fix: make biometric registration modal fully responsive
+[33m8868493[m HEAD@{19}: commit: refactor(terminology): rename campus to school and remove optional attendance message
+[33mb8eae27[m HEAD@{20}: commit: feat(biometrics): add dynamic step-by-step guidance and multi-sample enrollment flow
+[33m8f1d8c7[m HEAD@{21}: commit: style: remove generic subtitle message from staff and admin holiday banners
+[33m770d2f1[m HEAD@{22}: commit: feat: enforce non-working days and holidays in staff attendance
+[33mabf8dab[m HEAD@{23}: commit: fix: remove all multi-tenant schoolId guards for single-school migration
+[33m4a0fc71[m HEAD@{24}: checkout: moving from main to AHS
+[33m4a0fc71[m HEAD@{25}: merge AHS: Fast-forward
+[33me687b51[m HEAD@{26}: checkout: moving from AHS to main
+[33m4a0fc71[m HEAD@{27}: commit: chore(db): add initial admin and school setup script
+[33m754906d[m HEAD@{28}: commit: feat(staff-attendance): add morning and afternoon filtering tabs to staff attendance report
+[33me687b51[m HEAD@{29}: commit: ui(settings): consolidate save buttons into single global Save All Settings in header
+[33mb146846[m HEAD@{30}: commit: fix(settings): persist system settings end-to-end to PostgreSQL single source of truth
+[33m368241c[m HEAD@{31}: commit: fix(settings): add prominent top and bottom Save Schedule Settings action bars to Staff Schedule tab
+[33mef84495[m HEAD@{32}: commit: feat(staff-portal): complete glassmorphic redesign of staff dashboard, attendance, and profile
+[33ma91ec1a[m HEAD@{33}: commit: fix(staff-attendance): respect saved absolute checkin/checkout/cutoff times in session thresholds
+[33mccdfaee[m HEAD@{34}: commit: feat: session filter tabs Morning/Afternoon only, fully responsive (mobile/tablet/desktop)
+[33m00a6687[m HEAD@{35}: commit: feat: convert session filter from dropdown to tabs in admin staff attendance
+[33m2c72833[m HEAD@{36}: checkout: moving from main to AHS
+[33m2c72833[m HEAD@{37}: merge AHS: Fast-forward
+[33m48bc4f1[m HEAD@{38}: checkout: moving from AHS to main
+[33m2c72833[m HEAD@{39}: commit: fix(staff-attendance): remove face verification filter dropdown from admin staff attendance
+[33m48bc4f1[m HEAD@{40}: checkout: moving from main to AHS
+[33m48bc4f1[m HEAD@{41}: merge AHS: Fast-forward
+[33m099b5d2[m HEAD@{42}: checkout: moving from AHS to main
+[33m48bc4f1[m HEAD@{43}: commit: refactor(settings): move GPS geofencing configuration from student rules to general settings
+[33m099b5d2[m HEAD@{44}: checkout: moving from main to AHS
+[33m099b5d2[m HEAD@{45}: merge AHS: Fast-forward
+[33m7a7ffe7[m HEAD@{46}: checkout: moving from AHS to main
+[33m099b5d2[m HEAD@{47}: commit: fix(nav): update TopNav school name to ADDIS HIWOT SCHOOL and simplify school settings
+[33m7a7ffe7[m HEAD@{48}: checkout: moving from main to AHS
+[33m7a7ffe7[m HEAD@{49}: merge AHS: Fast-forward
+[33m0fe0bd9[m HEAD@{50}: checkout: moving from AHS to main
+[33m7a7ffe7[m HEAD@{51}: commit: fix(server): remove obsolete multi-tenant School table migration from startup
+[33m0fe0bd9[m HEAD@{52}: checkout: moving from main to AHS
+[33m0fe0bd9[m HEAD@{53}: merge AHS: Fast-forward
+[33m54127f7[m HEAD@{54}: checkout: moving from AHS to main
+[33m0fe0bd9[m HEAD@{55}: commit: feat(seo): enhance SEO and AI discoverability for Addis Hiwot school platform with Yechale attribution
+[33m54127f7[m HEAD@{56}: checkout: moving from main to AHS
+[33m54127f7[m HEAD@{57}: merge AHS: Fast-forward
+[33m27ec8d5[m HEAD@{58}: checkout: moving from AHS to main
+[33m54127f7[m HEAD@{59}: commit: fix(attendance): handle biometric face mismatch with immediate camera release and retry prompt
+[33m27ec8d5[m HEAD@{60}: checkout: moving from main to AHS
+[33m27ec8d5[m HEAD@{61}: checkout: moving from AHS to main
+[33m27ec8d5[m HEAD@{62}: checkout: moving from main to AHS
+[33m27ec8d5[m HEAD@{63}: merge AHS: Fast-forward
+[33mbc9d8d9[m HEAD@{64}: checkout: moving from AHS to main
+[33m27ec8d5[m HEAD@{65}: commit: fix(settings): resolve school info saving issue by adding backend school routes and streamlining settings persistence
+[33mbc9d8d9[m HEAD@{66}: checkout: moving from main to AHS
+[33mbc9d8d9[m HEAD@{67}: merge AHS: Fast-forward
+[33m4683abe[m HEAD@{68}: checkout: moving from AHS to main
+[33mbc9d8d9[m HEAD@{69}: commit: fix(staff-attendance): implement consistent 4-state check-in/out status lifecycle (Pending→AwaitingCheckIn, Checked-In→NotCheckedOut, Absent→NotApplicable, CheckedOut→CheckedOut)
+[33m4683abe[m HEAD@{70}: checkout: moving from main to AHS
+[33m4683abe[m HEAD@{71}: merge AHS: Fast-forward
+[33mb927989[m HEAD@{72}: checkout: moving from AHS to main
+[33m4683abe[m HEAD@{73}: commit: fix(staff-attendance): fix school settings hydration, support snake_case/camelCase mode, and enable self-face enrollment from check-in dialog
+[33mb927989[m HEAD@{74}: checkout: moving from main to AHS
+[33mb927989[m HEAD@{75}: merge AHS: Fast-forward
+[33mef99464[m HEAD@{76}: checkout: moving from AHS to main
+[33mb927989[m HEAD@{77}: commit: fix(build): fix tsconfig paths and useFaceRecognition type signatures for clean Vercel production build
+[33mef99464[m HEAD@{78}: checkout: moving from main to AHS
+[33mef99464[m HEAD@{79}: merge AHS: Fast-forward
+[33m59bfa9e[m HEAD@{80}: checkout: moving from AHS to main
+[33mef99464[m HEAD@{81}: commit: feat(ui): add dedicated loading skeletons for staff portal dashboard and staff attendance
+[33m59bfa9e[m HEAD@{82}: checkout: moving from main to AHS
+[33m59bfa9e[m HEAD@{83}: merge AHS: Fast-forward
+[33m55e5927[m HEAD@{84}: checkout: moving from AHS to main
+[33m59bfa9e[m HEAD@{85}: commit: fix(biometrics): enforce strict dual-metric face matching and explicit enrollment validation before verification
+[33m55e5927[m HEAD@{86}: checkout: moving from main to AHS
+[33m55e5927[m HEAD@{87}: merge
