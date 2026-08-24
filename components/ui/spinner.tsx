@@ -7,9 +7,9 @@ interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const sizeMap = {
   sm: 'w-5 h-5',
-  md: 'w-8 h-8',
-  lg: 'w-11 h-11',
-  xl: 'w-14 h-14',
+  md: 'w-9 h-9',
+  lg: 'w-14 h-14',
+  xl: 'w-18 h-18',
 }
 
 const BLADES = [
@@ -36,7 +36,7 @@ export function Spinner({ size = 'md', className, ...props }: SpinnerProps) {
       {...props}
     >
       <svg
-        className="w-full h-full animate-[spin_1.2s_steps(12,end)_infinite]"
+        className="w-full h-full animate-[spin_1.6s_steps(12,end)_infinite]"
         viewBox="0 0 48 48"
         fill="currentColor"
         xmlns="http://www.w3.org/2000/svg"
@@ -57,7 +57,3 @@ export function Spinner({ size = 'md', className, ...props }: SpinnerProps) {
     </div>
   )
 }
-
-
-
-
