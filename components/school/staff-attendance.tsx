@@ -29,6 +29,7 @@ import {
   History,
   FileSpreadsheet,
   RotateCcw,
+  Loader2,
 } from "lucide-react"
 import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
@@ -535,30 +536,11 @@ export function StaffAttendance() {
     })
   }, [allStaffAttendance, searchTerm, statusFilter])
 
-  // ─── Modern Spinner Loading State ───
+  // ─── Clean Spinner Loading State ───
   if (isLoading && myHistory.length === 0 && allStaffAttendance.length === 0) {
     return (
-      <div className="relative min-h-[60vh] flex flex-col items-center justify-center space-y-4 max-w-7xl mx-auto px-4">
-        {/* Ambient Glow */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-          <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
-          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-cyan-500/10 rounded-full blur-[120px]" />
-        </div>
-
-        <div className="relative flex items-center justify-center">
-          <div className="w-14 h-14 rounded-full border-2 border-primary/20 animate-ping absolute" />
-          <div className="w-12 h-12 rounded-full border-3 border-transparent border-t-primary border-r-indigo-500 animate-spin" />
-          <div className="w-3.5 h-3.5 rounded-full bg-primary animate-pulse absolute" />
-        </div>
-
-        <div className="space-y-1 text-center">
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-            Loading Attendance Portal
-          </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Checking location, biometrics & schedule...
-          </p>
-        </div>
+      <div className="flex items-center justify-center min-h-[55vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
