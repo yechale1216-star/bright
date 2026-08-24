@@ -34,8 +34,8 @@ import {
   ScanFace,
   MapPin,
   CalendarDays,
-  Loader2,
 } from "lucide-react"
+import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/context/auth-context"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
@@ -331,11 +331,11 @@ export function StaffDashboard() {
 
   const GreetingIcon = greeting.icon
 
-  // ─── Clean Spinner Loading State ───
+  // ─── Modern Spinner Loading State ───
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[55vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-[55vh] animate-in fade-in duration-300">
+        <Spinner size="lg" className="text-primary" />
       </div>
     )
   }

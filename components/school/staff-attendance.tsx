@@ -29,8 +29,8 @@ import {
   History,
   FileSpreadsheet,
   RotateCcw,
-  Loader2,
 } from "lucide-react"
+import { Spinner } from "@/components/ui/spinner"
 import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { useAuth } from "@/lib/context/auth-context"
@@ -536,11 +536,11 @@ export function StaffAttendance() {
     })
   }, [allStaffAttendance, searchTerm, statusFilter])
 
-  // ─── Clean Spinner Loading State ───
+  // ─── Modern Spinner Loading State ───
   if (isLoading && myHistory.length === 0 && allStaffAttendance.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[55vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-[55vh] animate-in fade-in duration-300">
+        <Spinner size="lg" className="text-primary" />
       </div>
     )
   }

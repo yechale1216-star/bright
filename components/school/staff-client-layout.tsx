@@ -23,7 +23,7 @@ import { TopNav } from '@/components/layout/top-nav'
 import { notifications } from '@/lib/utils/notifications'
 import { DeveloperBrand } from '@/components/developer-brand'
 import { useUnread } from '@/lib/context/unread-context'
-import { Loader2 } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 const navItems = [
   { href: '/school/staff', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -71,8 +71,8 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
 
   if (!isMounted || !sessionReady) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex items-center justify-center animate-in fade-in duration-300">
+        <Spinner size="xl" className="text-primary" />
       </div>
     )
   }
