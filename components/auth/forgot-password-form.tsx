@@ -3,13 +3,14 @@
 import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { Logo } from "@/components/logo"
-import { ArrowLeft, Mail, Loader2, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Mail, CheckCircle2 } from "lucide-react"
 
 interface ForgotPasswordFormProps {
   onBackToLogin: () => void
@@ -127,7 +128,7 @@ export function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordFormProps) {
           <Button type="submit" className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98]" disabled={isLoading}>
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size="sm" className="text-white mr-2" />
                 Sending...
               </>
             ) : (

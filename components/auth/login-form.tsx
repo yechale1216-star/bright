@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { authService, type LoginCredentials } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
-import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, Phone } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Phone } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { useLanguage } from "@/lib/context/language-context"
 import { useSchool } from "@/lib/context/school-context"
@@ -22,6 +22,7 @@ import { useAuth } from "@/lib/context/auth-context"
 import { clearMessageCache } from "@/lib/utils/message-cache"
 
 import { PhoneInput } from "@/components/ui/phone-input"
+import { Spinner } from "@/components/ui/spinner"
 
 interface LoginFormProps {
   onLoginSuccess: (user?: any) => void
@@ -314,7 +315,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
             </div>
 
             <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Sign In <ArrowRight className="ml-2 h-4 w-4" /></>}
+              {isLoading ? <Spinner size="sm" className="text-white" /> : <>Sign In <ArrowRight className="ml-2 h-4 w-4" /></>}
             </Button>
           </form>
         ) : (
@@ -396,7 +397,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Spinner size="sm" className="text-primary-foreground mr-2" />
                   {t("signing_in")}
                 </>
               ) : (

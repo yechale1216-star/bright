@@ -5,8 +5,9 @@ import {
   ArrowLeft, Key, UserPlus, Star, ClipboardList, Edit, MoreVertical,
   MessageSquare, Volume2, VolumeX, LogOut, Sliders, Shield,
   Trash2, Image as ImageIcon, FileText, Link as LinkIcon, Bookmark,
-  Check, Search, Camera, Loader2, CheckCircle2, X, Users, Info
+  Check, Search, Camera, CheckCircle2, X, Users, Info
 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -681,7 +682,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
               Cancel
             </Button>
             <Button onClick={handleSaveEdit} disabled={isSavingEdit} className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">
-              {isSavingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isSavingEdit ? <Spinner size="sm" className="text-white mr-2" /> : null}
               Save Changes
             </Button>
           </DialogFooter>
@@ -712,7 +713,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
             <ScrollArea className="h-60 pr-2">
               {isLoadingContacts ? (
                 <div className="py-10 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> Loading contacts...
+                  <Spinner size="sm" className="text-emerald-400" /> Loading contacts...
                 </div>
               ) : contacts.length === 0 ? (
                 <div className="py-10 text-center text-xs text-slate-500">
@@ -764,7 +765,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
               disabled={isAddingMembers || selectedContacts.length === 0} 
               className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold"
             >
-              {isAddingMembers ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isAddingMembers ? <Spinner size="sm" className="text-white mr-2" /> : null}
               Add ({selectedContacts.length}) Members
             </Button>
           </DialogFooter>

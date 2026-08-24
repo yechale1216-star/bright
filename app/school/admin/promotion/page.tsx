@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -925,9 +926,8 @@ export default function StudentPromotionPage() {
                             
                             <CardContent className="p-4">
                               {loadingStudents ? (
-                                <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
-                                  <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                  <span className="font-bold text-xs tracking-wider text-slate-500/80">Loading student roster...</span>
+                                <div className="flex items-center justify-center py-20">
+                                  <Spinner size="md" className="text-primary" />
                                 </div>
                               ) : filteredStudents.length === 0 ? (
                                 <div className="py-20 text-center text-slate-400 font-medium">

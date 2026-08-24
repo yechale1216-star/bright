@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Spinner } from "@/components/ui/spinner"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { Logo } from "@/components/logo"
-import { Eye, EyeOff, CheckCircle2, Lock, Loader2, XCircle } from "lucide-react"
+import { Eye, EyeOff, CheckCircle2, Lock, XCircle } from "lucide-react"
 
 interface ResetPasswordFormProps {
   token: string
@@ -85,7 +86,7 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
     return (
       <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-pulse relative z-10">
         <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
-          <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 animate-spin" />
+          <Spinner size="md" className="text-primary" />
           <p className="typography-label text-slate-600 dark:text-slate-400">Verifying reset token...</p>
         </CardContent>
       </Card>
@@ -200,7 +201,7 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
           >
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size="sm" className="text-white mr-2" />
                 Resetting...
               </>
             ) : (

@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { Spinner } from '@/components/ui/spinner'
 
 const TeacherManagement = dynamic(
   () => import('@/components/school/teacher-management').then(mod => mod.TeacherManagement),
@@ -8,7 +9,7 @@ const TeacherManagement = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <Spinner size="md" className="text-primary" />
       </div>
     )
   }

@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { Suspense } from "react"
+import { Spinner } from "@/components/ui/spinner"
 
 function GradeDrillDownContent() {
   const params = useParams()
@@ -62,9 +63,8 @@ function GradeDrillDownContent() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[400px] gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-muted-foreground font-medium">Loading student details...</p>
+      <div className="flex items-center justify-center h-[400px]">
+        <Spinner size="lg" className="text-primary" />
       </div>
     )
   }
@@ -193,9 +193,8 @@ function GradeDrillDownContent() {
 export default function GradeDrillDownPage() {
   return (
     <Suspense fallback={
-      <div className="flex flex-col items-center justify-center h-[400px] gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-muted-foreground font-medium">Loading analytics...</p>
+      <div className="flex items-center justify-center h-[400px]">
+        <Spinner size="lg" className="text-primary" />
       </div>
     }>
       <GradeDrillDownContent />

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Search, Plus, Shield, User, Filter, CheckCircle2, XCircle, Mail, Phone, Lock,
-  Edit, Trash2, Power, Loader2, ArrowLeft, MoreHorizontal, ShieldCheck, Sparkles, Users, Activity, X,
+  Edit, Trash2, Power, ArrowLeft, MoreHorizontal, ShieldCheck, Sparkles, Users, Activity, X,
   Camera, ShieldAlert, ScanFace, Tag, Check, AlertTriangle, Layers, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'

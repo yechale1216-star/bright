@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -371,9 +372,8 @@ export function AcademicYearManagementTab() {
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-40 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
-                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        <span className="font-bold text-xs text-slate-500">Loading academic years...</span>
+                      <div className="flex items-center justify-center">
+                        <Spinner size="md" className="text-primary" />
                       </div>
                     </TableCell>
                   </TableRow>

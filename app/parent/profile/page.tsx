@@ -19,7 +19,6 @@ import {
   Clock,
   Lock,
   KeyRound,
-  Loader2,
   Camera,
   Upload,
   X,
@@ -32,6 +31,7 @@ import { notifications } from "@/lib/utils/notifications"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { useLanguage } from "@/lib/context/language-context"
 import { useSchool } from "@/lib/context/school-context"
 import { cn } from "@/lib/utils/utils"
@@ -448,7 +448,7 @@ export default function ProfilePage() {
                   >
                     {isUpdatingProfile ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Spinner size="sm" className="text-white mr-2" />
                         {t("saving")}
                       </>
                     ) : (
@@ -545,7 +545,7 @@ export default function ProfilePage() {
               >
                 {isChangingPassword ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Spinner size="sm" className="text-white mr-2" />
                     {t("updating")}...
                   </>
                 ) : (

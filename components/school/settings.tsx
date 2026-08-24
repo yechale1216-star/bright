@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -256,7 +257,7 @@ export function Settings() {
           >
             {isSaving ? (
               <>
-                <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Spinner size="sm" className="text-primary-foreground" />
                 <span>Saving...</span>
               </>
             ) : (
@@ -673,7 +674,7 @@ export function Settings() {
             className="h-12 px-8 rounded-2xl bg-primary text-white font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/30 active:scale-95 transition-all outline-none"
           >
             {isSaving ? (
-              <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Spinner size="sm" className="text-white" />
             ) : (
               "Save All"
             )}

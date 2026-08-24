@@ -4,6 +4,7 @@ import { AuthWrapper } from '@/components/auth/auth-wrapper'
 import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/auth/auth'
 import { Suspense } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 
 function LoginContent() {
   const router = useRouter()
@@ -51,7 +52,7 @@ export default function LoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <Spinner size="lg" className="text-primary" />
       </div>
     }>
       <LoginContent />

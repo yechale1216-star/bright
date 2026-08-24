@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/utils/supabase';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -201,7 +202,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                   <div className="h-24 w-24 rounded-full bg-secondary flex items-center justify-center border-4 border-background shadow-inner overflow-hidden relative">
                     {uploadingAvatar ? (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <Spinner size="sm" className="text-primary" />
                       </div>
                     ) : avatar ? (
                       <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />

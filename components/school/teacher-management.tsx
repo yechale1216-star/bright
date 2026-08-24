@@ -29,6 +29,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils/utils"
 
 import { Input } from "@/components/ui/input"
@@ -916,7 +917,7 @@ export function TeacherManagement() {
                       className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md px-6 py-2 transition-all flex items-center justify-center min-w-[120px]"
                     >
                       {isSaving ? (
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <Spinner size="sm" className="text-white" />
                       ) : editingTeacher ? (
                         "Update Record"
                       ) : (
@@ -1033,8 +1034,7 @@ export function TeacherManagement() {
                 
                 {isLoadingAssignments ? (
                   <div className="py-8 text-center bg-slate-50/50 dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    <span className="text-xs text-slate-500">Loading class assignments...</span>
+                    <Spinner size="sm" className="text-primary mx-auto mb-2" />
                   </div>
                 ) : assignments.length === 0 ? (
                   <div className="py-8 text-center bg-slate-50/50 dark:bg-slate-900/30 border border-dashed border-slate-200/50 dark:border-slate-800/50 rounded-2xl text-slate-400">

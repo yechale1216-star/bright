@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -1521,7 +1522,7 @@ export function AttendanceTracking() {
                       title={`Save attendance for ${student.name}`}
                     >
                       {savingStudentId === student.id ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <Spinner size="sm" className="text-white" />
                       ) : attendance.isDirty ? (
                         <Save className="w-4 h-4" />
                       ) : (
@@ -1624,7 +1625,7 @@ export function AttendanceTracking() {
                           title={`Save attendance for ${student.name}`}
                         >
                           {savingStudentId === student.id ? (
-                            <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            <Spinner size="sm" className="text-current" />
                           ) : attendance.isDirty ? (
                             <Save className="w-3.5 h-3.5" />
                           ) : attendance.status ? (
@@ -2046,7 +2047,7 @@ export function AttendanceTracking() {
             className="h-12 px-8 rounded-2xl bg-primary text-white font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/30 active:scale-95 transition-all outline-none"
           >
             {isSaving ? (
-              <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <Spinner size="sm" className="text-white" />
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />

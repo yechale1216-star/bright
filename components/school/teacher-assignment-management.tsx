@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Trash2, Plus, GraduationCap, Users, CheckCircle2, RefreshCw, Pencil } from "lucide-react"
 
@@ -445,7 +446,7 @@ export function TeacherAssignmentManagement() {
                     className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md px-6 min-w-[140px] flex items-center justify-center"
                   >
                     {isAssigning ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <Spinner size="sm" className="text-white" />
                     ) : (
                       <><Plus className="w-4 h-4 mr-2" />{isEditing ? "Update Assignment" : "Assign Teacher"}</>
                     )}

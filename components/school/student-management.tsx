@@ -20,6 +20,7 @@ import { ValidationService } from "@/lib/utils/validation"
 import { authService } from "@/lib/auth/auth"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { DataStateView } from "@/components/ui/data-state-view"
 import { MobileCard, MobileCardList } from "@/components/ui/mobile-card"
 import { NativeBridge } from "@/lib/utils/native-bridge"
@@ -1258,7 +1259,7 @@ export function StudentManagement() {
                       <Button type="submit" className="typography-card-title w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-600/10 transition-all active:scale-[0.98]" disabled={isSaving}>
                         {isSaving ? (
                           <div className="flex items-center gap-2">
-                            <div className="h-4 w-4 border-2 border-emerald-foreground border-t-transparent rounded-full animate-spin" />
+                            <Spinner size="sm" className="text-white" />
                             Saving...
                           </div>
                         ) : editingStudent ? "Update Student Profile" : "Enroll Student"}
@@ -1505,7 +1506,7 @@ export function StudentManagement() {
                             className="h-9 w-9 rounded-xl hover:bg-red-500/10 hover:text-red-600 transition-all text-muted-foreground"
                           >
                             {deletingId === student.id ? (
-                              <div className="h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                              <Spinner size="sm" className="text-destructive" />
                             ) : (
                               <Trash2 className="w-4 h-4" />
                             )}
@@ -1587,7 +1588,7 @@ export function StudentManagement() {
                             className="h-8 w-8 rounded-lg hover:bg-red-500/10 hover:text-red-500"
                           >
                             {deletingId === student.id
-                              ? <div className="h-3.5 w-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                              ? <Spinner size="sm" className="text-destructive" />
                               : <Trash2 className="w-3.5 h-3.5" />
                             }
                           </Button>
