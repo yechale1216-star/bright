@@ -41,7 +41,6 @@ import { useCalendar } from "@/lib/context/calendar-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
-import { StaffFaceEnrollModal } from "@/components/school/staff-face-enroll"
 import { getStaffAttendanceDisplay, addMinutesToHHMM } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 
@@ -61,7 +60,6 @@ export function StaffDashboard() {
   const [recentNotifications, setRecentNotifications] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
-  const [isFaceEnrollModalOpen, setIsFaceEnrollModalOpen] = useState(false)
   const [allAttendance, setAllAttendance] = useState<any[]>([])
 
   // Live active work duration tracker
@@ -407,14 +405,10 @@ export function StaffDashboard() {
                 <span className="font-bold">Face ID Active</span>
               </Badge>
             ) : (
-              <button
-                type="button"
-                onClick={() => setIsFaceEnrollModalOpen(true)}
-                className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-xs active:scale-95"
-              >
-                <ScanFace className="w-4 h-4 shrink-0" />
-                <span>Enroll Face ID</span>
-              </button>
+              <Badge variant="outline" className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shadow-xs">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>Face ID Pending</span>
+              </Badge>
             )}
 
             <Button
@@ -821,19 +815,7 @@ export function StaffDashboard() {
         </div>
       </div>
 
-      {/* ─── 8. DIRECT FACE ENROLLMENT MODAL ─── */}
-      {user?.id && (
-        <StaffFaceEnrollModal
-          open={isFaceEnrollModalOpen}
-          onOpenChange={setIsFaceEnrollModalOpen}
-          preselectedUserId={user.id}
-          preselectedUserName={user.name || "Staff Member"}
-          onEnrolled={() => {
-            loadData()
-            notifications.success("Biometrics Active", "Your face has been registered for automatic attendance.")
-          }}
-        />
-      )}
+
     </div>
   )
 }

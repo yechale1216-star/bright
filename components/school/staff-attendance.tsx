@@ -36,10 +36,16 @@ import { authService } from "@/lib/auth/auth"
 import { useAuth } from "@/lib/context/auth-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { useCalendar } from "@/lib/context/calendar-context"
-import { resolveLocationData, GeofenceLocationData } from "@/lib/utils/geofence"
+import { resolveLocationData, GeofenceLocationData, GeofenceValidationError } from "@/lib/utils/geofence"
 import { notifications } from "@/lib/utils/notifications"
 import { FaceVerificationCamera } from "@/components/school/face-verification-camera"
 import { StaffFaceEnrollModal } from "@/components/school/staff-face-enroll"
+import dynamic from "next/dynamic"
+
+const GeofenceAttendanceMap = dynamic(
+  () => import("@/components/school/geofence-map-picker").then((m) => m.GeofenceAttendanceMap),
+  { ssr: false }
+)
 import {
   queueOfflineStaffCheckIn,
   getOfflineStaffQueue,
@@ -56,7 +62,8 @@ import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 type VerificationStep =
   | "idle"
   | "getting_location"
-  | "verifying_geofence"
+  | "geofence_error"
+  | "face_not_enrolled"
   | "face_verification"
   | "saving"
   | "success"
@@ -125,6 +132,15 @@ export function StaffAttendance() {
   const [actionType, setActionType] = useState<"checkin" | "checkout">("checkin")
   const [verificationStep, setVerificationStep] = useState<VerificationStep>("idle")
   const [stepMessage, setStepMessage] = useState("")
+  const [geofenceError, setGeofenceError] = useState<{
+    title?: string
+    message: string
+    distance?: number | null
+    allowedRadius?: number | null
+    code?: string
+    userLatitude?: number | null
+    userLongitude?: number | null
+  } | null>(null)
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
   const [capturedLocation, setCapturedLocation] = useState<GeofenceLocationData | null>(null)
@@ -323,6 +339,7 @@ export function StaffAttendance() {
     setVerificationStep("getting_location")
     setStepMessage("Verifying school location...")
     setCapturedLocation(null)
+    setGeofenceError(null)
     isSubmittingAttendanceRef.current = false
 
     try {
@@ -339,6 +356,7 @@ export function StaffAttendance() {
         { isStaff: true, suppressSuccessToast: true }
       )
       setCapturedLocation(location)
+      setGeofenceError(null)
 
       // Step 2: Face Verification Check
       const isFaceRequired = (settings?.staffFaceRequired ?? settings?.staff_face_required) !== false
@@ -354,7 +372,7 @@ export function StaffAttendance() {
         const desc = await db.getStaffFaceDescriptor(targetUserId)
         if (!desc?.descriptor || !Array.isArray(desc.descriptor) || desc.descriptor.length !== 128) {
           setEnrolledDescriptor(null)
-          setVerificationStep("error")
+          setVerificationStep("face_not_enrolled")
           setStepMessage("Face biometric profile not registered for your account. Please enroll your face first.")
           return
         }
@@ -368,8 +386,37 @@ export function StaffAttendance() {
       }
     } catch (geoErr: any) {
       console.error("Geofence verification failed:", geoErr)
-      setVerificationStep("error")
-      setStepMessage(geoErr.message || "Location verification failed. You must be on school grounds.")
+      setCapturedLocation(null)
+      setVerificationStep("geofence_error")
+
+      const isOutside =
+        geoErr?.code === "OUTSIDE_BOUNDARY" ||
+        geoErr?.message?.toLowerCase().includes("outside") ||
+        geoErr?.message?.toLowerCase().includes("boundary")
+      const isPerm =
+        geoErr?.code === "PERMISSION_DENIED" ||
+        geoErr?.message?.toLowerCase().includes("permission")
+      const isGpsOff =
+        geoErr?.code === "GPS_DISABLED" ||
+        geoErr?.message?.toLowerCase().includes("gps")
+
+      setGeofenceError({
+        title: isOutside
+          ? "Outside School Boundary"
+          : isPerm || isGpsOff
+          ? "GPS Location Required"
+          : "Location Verification Failed",
+        message: isOutside
+          ? "You are currently outside the designated school boundary. Attendance can only be recorded within school grounds."
+          : isPerm || isGpsOff
+          ? "Location access is required for attendance. Please enable GPS and grant location permission."
+          : geoErr?.message || "Location access is required for attendance. Please enable GPS and grant location permission.",
+        distance: geoErr?.distance ?? null,
+        allowedRadius: geoErr?.allowedRadius ?? (Number(settings?.allowedRadiusMeters) || 200),
+        code: geoErr?.code || (isOutside ? "OUTSIDE_BOUNDARY" : undefined),
+        userLatitude: geoErr?.userLatitude,
+        userLongitude: geoErr?.userLongitude,
+      })
     }
   }
 
@@ -494,15 +541,28 @@ export function StaffAttendance() {
       }, 1500)
     } catch (err: any) {
       console.error("Attendance submission error:", err)
-      setVerificationStep("error")
-      const rawMsg = err.message || ""
-      let friendlyMsg = "Unable to complete attendance right now. Please try again."
-      if (rawMsg.toLowerCase().includes("already") || rawMsg.toLowerCase().includes("recorded")) {
-        friendlyMsg = "Attendance already recorded for this session."
-      } else if (rawMsg.toLowerCase().includes("location") || rawMsg.toLowerCase().includes("geofence")) {
-        friendlyMsg = "Location verification failed. You must be on school grounds."
+      const rawMsg = err?.message || ""
+      const isGeoError =
+        rawMsg.toLowerCase().includes("boundary") ||
+        rawMsg.toLowerCase().includes("location") ||
+        rawMsg.toLowerCase().includes("geofence")
+
+      if (isGeoError) {
+        setVerificationStep("geofence_error")
+        setGeofenceError({
+          title: "Outside School Boundary",
+          message: rawMsg || "Attendance submission blocked: You are outside the school boundary.",
+          code: "OUTSIDE_BOUNDARY",
+          allowedRadius: Number(settings?.allowedRadiusMeters) || 200,
+        })
+      } else {
+        setVerificationStep("error")
+        let friendlyMsg = rawMsg || "Unable to complete attendance right now. Please try again."
+        if (rawMsg.toLowerCase().includes("already") || rawMsg.toLowerCase().includes("recorded")) {
+          friendlyMsg = "Attendance already recorded for this session."
+        }
+        setStepMessage(friendlyMsg)
       }
-      setStepMessage(friendlyMsg)
       isSubmittingAttendanceRef.current = false
     }
   }
@@ -1371,25 +1431,32 @@ export function StaffAttendance() {
             {/* Step Indicators — hide during active camera scan */}
             {verificationStep !== "face_verification" && (
               <div className="grid grid-cols-2 gap-2 text-xs">
+                {/* 1. Geofence Step Indicator */}
                 <div
-                  className={`p-2.5 rounded-lg border flex items-center gap-2 ${
+                  className={`p-2.5 rounded-lg border flex items-center gap-2 transition-colors ${
                     capturedLocation?.locationVerified
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
                       : verificationStep === "getting_location"
-                      ? "bg-amber-500/10 border-amber-500/30 text-amber-700 animate-pulse font-semibold"
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 animate-pulse font-semibold"
+                      : verificationStep === "geofence_error"
+                      ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 font-semibold"
                       : "bg-muted/40 text-muted-foreground border-border/40"
                   }`}
                 >
                   <MapPin className="w-4 h-4 shrink-0" />
                   <span>1. Geofence</span>
                   {capturedLocation?.locationVerified && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
+                  {verificationStep === "geofence_error" && <XCircle className="w-3.5 h-3.5 ml-auto text-rose-500" />}
                 </div>
 
+                {/* 2. Face Auth Step Indicator */}
                 <div
-                  className={`p-2.5 rounded-lg border flex items-center gap-2 ${
+                  className={`p-2.5 rounded-lg border flex items-center gap-2 transition-colors ${
                     verificationStep === "success"
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-semibold"
-                      : verificationStep === "error"
+                      : verificationStep === "face_not_enrolled"
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold"
+                      : verificationStep === "error" && capturedLocation?.locationVerified
                       ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 font-semibold"
                       : "bg-muted/40 text-muted-foreground border-border/40"
                   }`}
@@ -1397,6 +1464,10 @@ export function StaffAttendance() {
                   <ShieldCheck className="w-4 h-4 shrink-0" />
                   <span>2. Face Auth</span>
                   {verificationStep === "success" && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-emerald-500" />}
+                  {verificationStep === "face_not_enrolled" && <AlertCircle className="w-3.5 h-3.5 ml-auto text-amber-500" />}
+                  {verificationStep === "error" && capturedLocation?.locationVerified && (
+                    <XCircle className="w-3.5 h-3.5 ml-auto text-rose-500" />
+                  )}
                 </div>
               </div>
             )}
@@ -1406,6 +1477,128 @@ export function StaffAttendance() {
               <div className="text-center py-8 space-y-3">
                 <RefreshCw className="w-8 h-8 animate-spin text-primary mx-auto" />
                 <p className="text-sm font-medium text-muted-foreground">{stepMessage}</p>
+              </div>
+            )}
+
+            {/* Step 1 Error: Outside School Boundary / Geofence Blocked */}
+            {verificationStep === "geofence_error" && (
+              <div className="flex flex-col items-center gap-0 animate-in zoom-in-95 duration-300">
+                <div
+                  className="relative w-full rounded-2xl overflow-hidden border border-rose-600/70 p-6 sm:p-7"
+                  style={{
+                    background: "radial-gradient(ellipse at 50% 100%, rgba(120,15,20,0.6) 0%, rgba(20,5,5,0.98) 65%, #0d0102 100%)",
+                    boxShadow: "0 0 0 1.5px rgba(220,38,38,0.4), 0 0 35px rgba(200,0,0,0.3), inset 0 0 50px rgba(150,0,0,0.12)",
+                  }}
+                >
+                  {/* Top Badge */}
+                  <div className="flex items-center justify-between mb-5">
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-rose-500/80 text-rose-400 text-[11px] font-black tracking-widest uppercase"
+                      style={{ background: "rgba(20,0,0,0.85)", letterSpacing: "0.12em" }}
+                    >
+                      <MapPin className="w-3 h-3 text-rose-400" />
+                      {geofenceError?.code === "OUTSIDE_BOUNDARY" ? "OUTSIDE BOUNDARY" : "GEOFENCE BLOCKED"}
+                    </span>
+                    {geofenceError?.allowedRadius && (
+                      <span className="text-[11px] font-mono text-rose-200/70 bg-black/50 px-2.5 py-0.5 rounded-full border border-white/10">
+                        Allowed: {geofenceError.allowedRadius}m
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Body */}
+                  <div className="flex flex-col items-center justify-center gap-4 text-center">
+                    {/* Glowing MapPin icon */}
+                    <div className="relative flex items-center justify-center my-1">
+                      <div
+                        className="w-20 h-20 rounded-full border border-rose-600/50 absolute animate-pulse"
+                        style={{ boxShadow: "0 0 32px rgba(220,38,38,0.5), inset 0 0 20px rgba(180,0,0,0.2)" }}
+                      />
+                      <div
+                        className="w-14 h-14 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10 bg-rose-950/40"
+                        style={{ boxShadow: "0 0 20px rgba(239,68,68,0.6)" }}
+                      >
+                        <MapPin className="w-7 h-7 stroke-[1.75]" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 max-w-sm">
+                      <h3 className="text-lg font-black text-white tracking-wide">
+                        {geofenceError?.title || "Outside School Boundary"}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-rose-200/90 font-medium leading-relaxed">
+                        {geofenceError?.message || "Location access is required for attendance. Please enable GPS and grant location permission."}
+                      </p>
+                      {geofenceError?.distance != null && (
+                        <div className="mt-2.5 p-2 rounded-xl bg-black/60 border border-rose-500/30 text-xs font-mono text-rose-300">
+                          Recorded Distance: <span className="font-bold text-white">{geofenceError.distance.toLocaleString()}m</span> away (Allowed: {geofenceError.allowedRadius ?? 200}m)
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live Geofence Mini Map (if school coords are available) */}
+                    {settings?.schoolLatitude != null && settings?.schoolLongitude != null && (
+                      <div className="w-full pt-1">
+                        <GeofenceAttendanceMap
+                          schoolLatitude={Number(settings.schoolLatitude)}
+                          schoolLongitude={Number(settings.schoolLongitude)}
+                          allowedRadiusMeters={Number(geofenceError?.allowedRadius) || Number(settings.allowedRadiusMeters) || 200}
+                          userLatitude={geofenceError?.userLatitude}
+                          userLongitude={geofenceError?.userLongitude}
+                          distanceMeters={geofenceError?.distance}
+                          isInside={false}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full pt-3">
+                      <Button
+                        onClick={() => startAttendanceWorkflow(actionType)}
+                        className="w-full sm:flex-1 h-11 rounded-xl font-bold text-sm gap-2 border-0 active:scale-95 transition-transform"
+                        style={{
+                          background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
+                          boxShadow: "0 4px 16px rgba(244,63,94,0.4)",
+                        }}
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Retry Location Check
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsVerificationModalOpen(false)}
+                        className="w-full sm:w-auto h-11 px-5 rounded-xl text-xs font-semibold bg-neutral-900/80 border-neutral-700 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2 Error: Face Biometric Profile Not Enrolled */}
+            {verificationStep === "face_not_enrolled" && (
+              <div className="text-center py-6 px-4 space-y-5 animate-in zoom-in-95 duration-200">
+                <div className="relative mx-auto w-16 h-16">
+                  <div className="w-16 h-16 rounded-full bg-amber-500/10 border-2 border-amber-500 flex items-center justify-center shadow-[0_0_24px_rgba(245,158,11,0.3)]">
+                    <Camera className="w-8 h-8 text-amber-500" />
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-w-sm mx-auto">
+                  <h3 className="text-base font-bold text-foreground">Face Biometric Profile Missing</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Your face biometric profile has not been registered. Biometric enrollment must be performed by a school administrator. Please contact your school admin to register your face.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsVerificationModalOpen(false)}
+                    className="h-10 px-6 rounded-xl text-xs font-semibold"
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1449,9 +1642,9 @@ export function StaffAttendance() {
                     err.toLowerCase().includes("does not match") ||
                     err.toLowerCase().includes("mismatch")
                   if (!isFaceMismatch) {
-                    // Camera is broken / no enrolled face — let parent handle recovery
+                    // Camera is broken / hardware failure — let parent handle recovery
                     setVerificationStep("error")
-                    setStepMessage(err || "Face verification failed. Please try again.")
+                    setStepMessage(err || "Face verification camera error. Please try again.")
                   }
                   // For mismatches: camera's own overlay handles retry — do nothing here
                 }}
@@ -1487,85 +1680,43 @@ export function StaffAttendance() {
               </div>
             )}
 
-            {/* Error state — mismatch card matching reference design */}
+            {/* General Submission / Hardware Error state */}
             {verificationStep === "error" && (
-              <div className="flex flex-col items-center gap-0 animate-in zoom-in-95 duration-300">
-                {/* Camera-frame card */}
-                <div
-                  className="relative w-full rounded-2xl overflow-hidden border border-rose-600/70"
-                  style={{
-                    background: "radial-gradient(ellipse at 50% 100%, rgba(120,0,0,0.55) 0%, rgba(20,0,0,0.97) 60%, #0d0102 100%)",
-                    boxShadow: "0 0 0 1.5px rgba(220,38,38,0.5), 0 0 40px rgba(200,0,0,0.4), inset 0 0 60px rgba(150,0,0,0.15)",
-                  }}
-                >
-                  {/* Corner brackets — top-left */}
-                  <span className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-rose-500 rounded-tl" />
-                  {/* Corner brackets — top-right */}
-                  <span className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-rose-500 rounded-tr" />
-                  {/* Corner brackets — bottom-left */}
-                  <span className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-rose-500 rounded-bl" />
-                  {/* Corner brackets — bottom-right */}
-                  <span className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-rose-500 rounded-br" />
-
-                  {/* MISMATCH badge — top-left, speech-bubble style */}
-                  <div className="absolute top-4 left-4 z-10">
-                    <span
-                      className="inline-flex items-center px-3 py-1 rounded-lg border border-rose-500/80 text-rose-400 text-[11px] font-black tracking-widest uppercase"
-                      style={{ background: "rgba(20,0,0,0.85)", letterSpacing: "0.12em" }}
-                    >
-                      MISMATCH
-                    </span>
+              <div className="text-center py-6 px-4 space-y-5 animate-in zoom-in-95 duration-200">
+                <div className="relative mx-auto w-16 h-16">
+                  <div className="w-16 h-16 rounded-full bg-rose-500/10 border-2 border-rose-500 flex items-center justify-center shadow-[0_0_24px_rgba(244,63,94,0.3)]">
+                    <AlertCircle className="w-8 h-8 text-rose-500" />
                   </div>
-
-                  {/* Body */}
-                  <div className="flex flex-col items-center justify-center py-14 px-6 gap-5 text-center">
-                    {/* Double-ring glowing X icon */}
-                    <div className="relative flex items-center justify-center">
-                      {/* Outer glow ring */}
-                      <div
-                        className="w-24 h-24 rounded-full border border-rose-600/50 absolute"
-                        style={{ boxShadow: "0 0 32px rgba(220,38,38,0.5), inset 0 0 20px rgba(180,0,0,0.2)" }}
-                      />
-                      {/* Inner solid ring with X */}
-                      <div
-                        className="w-16 h-16 rounded-full border-2 border-rose-500 flex items-center justify-center text-rose-500 relative z-10"
-                        style={{ boxShadow: "0 0 20px rgba(239,68,68,0.7)" }}
-                      >
-                        <XCircle className="w-9 h-9 stroke-[1.5]" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <h3 className="text-lg font-black text-white tracking-wide">Face does not match.</h3>
-                      <p className="text-sm text-rose-300/90 font-semibold">Please try again.</p>
-                    </div>
-
-                    <Button
-                      onClick={() => {
-                        // If geofence already succeeded in this session, preserve the
-                        // capturedLocation and jump straight to the face-auth step.
-                        // This is the fix for the "Face Mismatch → Geofence → Face Scanner"
-                        // regression — we NEVER re-run geofence for a face-auth failure.
-                        if (capturedLocation) {
-                          isSubmittingAttendanceRef.current = false
-                          setVerificationStep("face_verification")
-                          setStepMessage("Reinitializing face scanner...")
-                        } else {
-                          // capturedLocation is null → geofence was what failed (or the
-                          // session was cancelled and restarted). Run the full flow.
-                          startAttendanceWorkflow(actionType)
-                        }
-                      }}
-                      className="h-12 px-10 rounded-2xl font-bold text-base gap-2.5 border-0 active:scale-95 transition-transform"
-                      style={{
-                        background: "linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)",
-                        boxShadow: "0 4px 20px rgba(244,63,94,0.5)",
-                      }}
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Try Again
-                    </Button>
-                  </div>
+                </div>
+                <div className="space-y-1.5 max-w-sm mx-auto">
+                  <h3 className="text-base font-bold text-foreground">Attendance Verification Notice</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {stepMessage || "Unable to complete attendance right now. Please try again."}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <Button
+                    onClick={() => {
+                      if (capturedLocation?.locationVerified) {
+                        isSubmittingAttendanceRef.current = false
+                        setVerificationStep("face_verification")
+                        setStepMessage("Reinitializing face scanner...")
+                      } else {
+                        startAttendanceWorkflow(actionType)
+                      }
+                    }}
+                    className="h-10 px-5 rounded-xl font-semibold text-xs gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Try Again
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsVerificationModalOpen(false)}
+                    className="h-10 px-4 rounded-xl text-xs"
+                  >
+                    Close
+                  </Button>
                 </div>
               </div>
             )}
@@ -1573,16 +1724,14 @@ export function StaffAttendance() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── FACE ENROLLMENT MODAL (Self & Admin) ─── */}
-      {currentUser?.id && (
+      {/* ─── FACE ENROLLMENT MODAL (Admin Only) ─── */}
+      {isAdmin && (
         <StaffFaceEnrollModal
           open={isFaceEnrollModalOpen}
           onOpenChange={setIsFaceEnrollModalOpen}
-          preselectedUserId={currentUser.id}
-          preselectedUserName={currentUser.name || "Staff Member"}
           onEnrolled={() => {
             loadInitialData()
-            notifications.success("Biometrics Active", "Your face has been registered for automatic attendance.")
+            notifications.success("Biometrics Active", "Staff face biometric registered successfully.")
           }}
         />
       )}

@@ -1,4 +1,4 @@
-import { calculateDistanceMeters } from "../lib/utils/geofence"
+import { calculateDistanceMeters, GeofenceValidationError } from "../lib/utils/geofence"
 import { calculateEuclideanDistance } from "../lib/hooks/use-face-recognition"
 import {
   getStaffCheckInStatus,
@@ -9,7 +9,7 @@ import {
 } from "../lib/utils/staff-attendance-status"
 
 describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
-  describe("1. Geofencing Distance Calculations (Haversine)", () => {
+  describe("1. Geofencing Distance Calculations & Error Isolation", () => {
     // Addis Ababa University Main Campus Coordinates: 9.0477, 38.7618
     const schoolLat = 9.0477
     const schoolLon = 38.7618
@@ -34,6 +34,19 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       const userLon = 38.7618
       const distance = calculateDistanceMeters(userLat, userLon, schoolLat, schoolLon)
       expect(distance).toBeGreaterThan(500)
+    })
+
+    test("GeofenceValidationError carries correct metadata without contaminating face auth state", () => {
+      const error = new GeofenceValidationError("Outside school boundary! You are 5586215m away (Allowed: 200m).", {
+        code: "OUTSIDE_BOUNDARY",
+        distance: 5586215,
+        allowedRadius: 200,
+      })
+      expect(error.code).toBe("OUTSIDE_BOUNDARY")
+      expect(error.distance).toBe(5586215)
+      expect(error.allowedRadius).toBe(200)
+      expect(error.message).toContain("Outside school boundary")
+      expect(error.name).toBe("GeofenceValidationError")
     })
   })
 

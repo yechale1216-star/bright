@@ -85,8 +85,8 @@ export const enrollFace = async (req: AuthenticatedRequest, res: Response, _next
     const targetUserId = userId || callerUserId;
 
     const isAdmin = role === 'admin' || role === 'school_admin';
-    if (!isAdmin && callerUserId !== targetUserId) {
-      return res.status(403).json({ success: false, message: 'Forbidden: Staff can only enroll their own face template.' });
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Staff face biometric enrollment must be performed by a school administrator.' });
     }
 
     if (!targetUserId || !descriptor) {

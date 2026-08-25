@@ -18,12 +18,18 @@ import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
-import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save } from "lucide-react"
+import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock } from "lucide-react"
 import { useCalendar } from "@/lib/context/calendar-context"
+import dynamic from "next/dynamic"
 
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
 import { StaffScheduleSettingsTab } from "@/components/school/staff-schedule-settings-tab"
 import { validateAllScheduleSettings } from "@/lib/utils/schedule-validation"
+
+const GeofenceMapPicker = dynamic(
+  () => import("@/components/school/geofence-map-picker").then((m) => m.GeofenceMapPicker),
+  { ssr: false, loading: () => <div className="h-96 rounded-3xl bg-muted/50 animate-pulse flex items-center justify-center text-xs text-muted-foreground font-bold">Loading interactive map...</div> }
+)
 
 export function Settings() {
   const { calendarPreference, setCalendarPreference } = useCalendar()
@@ -33,29 +39,6 @@ export function Settings() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [user, setUser] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
-
-  const detectCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      notifications.error("Geolocation Unsupported", "Your browser does not support GPS location detection.")
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = parseFloat(pos.coords.latitude.toFixed(6))
-        const lon = parseFloat(pos.coords.longitude.toFixed(6))
-        setSettings((prev: any) => ({
-          ...prev,
-          schoolLatitude: lat,
-          schoolLongitude: lon,
-        }))
-        notifications.success("Location Set", `Coordinates detected: ${lat}, ${lon}`)
-      },
-      (err) => {
-        notifications.error("Location Failed", err.message || "Failed to retrieve device location. Check GPS permissions.")
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }
 
   useEffect(() => {
     loadSettings()
@@ -382,86 +365,42 @@ export function Settings() {
 
               <Separator />
 
-              {/* School GPS & Geofencing Settings */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="flex items-center gap-2 font-bold text-foreground">
-                      <MapPin className="h-4 w-4 text-primary" /> Restrict Attendance to School Location (Geofencing)
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verify teacher &amp; staff GPS proximity against configured school coordinates during attendance.
+              {/* School GPS & Interactive Geofencing Map */}
+              <div className="space-y-4 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-800/30">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                        <MapPin className="h-4 w-4" />
+                      </div>
+                      <Label className="font-bold text-sm text-foreground">
+                        School GPS Geofence Configuration
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Staff location is verified against this boundary on every Check-In and Check-Out. Attendance is automatically blocked outside the boundary.
                     </p>
                   </div>
-                  <Switch
-                    checked={settings.restrictLocation ?? false}
-                    onCheckedChange={(checked) => setSettings({ ...settings, restrictLocation: checked })}
-                  />
+                  <Badge variant="secondary" className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] uppercase tracking-wider h-7 px-3 rounded-xl gap-1 shrink-0">
+                    <Lock className="w-3 h-3" /> Always Required
+                  </Badge>
                 </div>
 
-                {settings.restrictLocation && (
-                  <div className="bg-muted/40 border rounded-2xl p-4 sm:p-5 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-foreground">School Geographic Coordinates</span>
-                      <Button type="button" variant="outline" size="sm" onClick={detectCurrentLocation} className="rounded-xl font-semibold gap-1.5">
-                        <Navigation className="h-4 w-4 text-primary" /> Detect My Location
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor="schoolLatitude">School Latitude</Label>
-                        <Input
-                          id="schoolLatitude"
-                          type="number"
-                          step="any"
-                          placeholder="e.g. 9.030000"
-                          value={settings.schoolLatitude ?? ""}
-                          onChange={(e) => setSettings({ ...settings, schoolLatitude: e.target.value })}
-                          className="mt-1.5"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="schoolLongitude">School Longitude</Label>
-                        <Input
-                          id="schoolLongitude"
-                          type="number"
-                          step="any"
-                          placeholder="e.g. 38.740000"
-                          value={settings.schoolLongitude ?? ""}
-                          onChange={(e) => setSettings({ ...settings, schoolLongitude: e.target.value })}
-                          className="mt-1.5"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="allowedRadiusMeters">Allowed Radius (meters)</Label>
-                        <Input
-                          id="allowedRadiusMeters"
-                          type="number"
-                          min="10"
-                          max="5000"
-                          placeholder="200"
-                          value={settings.allowedRadiusMeters ?? 200}
-                          onChange={(e) => setSettings({ ...settings, allowedRadiusMeters: parseInt(e.target.value) || 200 })}
-                          className="mt-1.5"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                      <div>
-                        <Label>Allow Attendance Outside School</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Enable bypass to allow recording attendance outside school radius when needed.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={settings.allowOutsideAttendance ?? true}
-                        onCheckedChange={(checked) => setSettings({ ...settings, allowOutsideAttendance: checked })}
-                      />
-                    </div>
-                  </div>
-                )}
+                <GeofenceMapPicker
+                  latitude={settings.schoolLatitude}
+                  longitude={settings.schoolLongitude}
+                  radiusMeters={settings.allowedRadiusMeters}
+                  address={settings.schoolAddress}
+                  onChange={({ latitude, longitude, radiusMeters, address: newAddress }) => {
+                    setSettings((prev: any) => ({
+                      ...prev,
+                      schoolLatitude: latitude,
+                      schoolLongitude: longitude,
+                      allowedRadiusMeters: radiusMeters,
+                      ...(newAddress ? { schoolAddress: newAddress } : {}),
+                    }))
+                  }}
+                />
               </div>
             </CardContent>
           </Card>

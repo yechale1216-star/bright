@@ -32,8 +32,8 @@ router.get('/attempt-status', blockNonStaff, staffAttendanceController.getAttemp
 router.post('/record-failed-attempt', blockNonStaff, staffAttendanceController.recordFailedAttempt);
 router.post('/sync', blockNonStaff, staffAttendanceController.bulkSync);
 
-// Face enrollment (staff self-service or admin assisted)
-router.post('/face-enroll', blockNonStaff, staffAttendanceController.enrollFace);
+// Face enrollment (admin only)
+router.post('/face-enroll', authorize(['admin', 'school_admin']), staffAttendanceController.enrollFace);
 
 // Admin-only management
 router.get('/stats', authorize(['admin', 'school_admin']), staffAttendanceController.getStats);

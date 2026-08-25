@@ -28,7 +28,6 @@ import { notifications } from "@/lib/utils/notifications"
 import { API_URL } from "@/lib/api-config"
 import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 import { db } from "@/lib/db/database"
-import { StaffFaceEnrollModal } from "@/components/school/staff-face-enroll"
 
 export function StaffProfile() {
   const { user } = useAuth()
@@ -46,7 +45,6 @@ export function StaffProfile() {
 
   // Face ID state
   const [hasFaceEnrolled, setHasFaceEnrolled] = useState(false)
-  const [isFaceEnrollModalOpen, setIsFaceEnrollModalOpen] = useState(false)
 
   const checkFaceStatus = useCallback(async () => {
     try {
@@ -221,19 +219,10 @@ export function StaffProfile() {
                     <ShieldAlert className="w-6 h-6" />
                   </div>
                   <span className="font-bold text-xs text-amber-700 dark:text-amber-300">Not Enrolled</span>
-                  <p className="text-[10px] text-slate-500">Register your face to enable 1-tap instant check-in</p>
+                  <p className="text-[10px] text-slate-500">Biometric face registration is managed by school administrators. Please contact your school admin.</p>
                 </div>
               )}
             </div>
-
-            <Button
-              type="button"
-              onClick={() => setIsFaceEnrollModalOpen(true)}
-              className="w-full h-10 rounded-xl font-bold text-xs bg-gradient-to-r from-primary to-indigo-600 text-white shadow-lg shadow-primary/25 active:scale-95 gap-2"
-            >
-              <Camera className="w-4 h-4" />
-              <span>{hasFaceEnrolled ? "Re-Enroll Face ID" : "Enroll Face Biometrics"}</span>
-            </Button>
           </div>
         </div>
 
@@ -357,20 +346,6 @@ export function StaffProfile() {
           </div>
         </div>
       </div>
-
-      {/* Direct Face Enrollment Modal */}
-      {user?.id && (
-        <StaffFaceEnrollModal
-          open={isFaceEnrollModalOpen}
-          onOpenChange={setIsFaceEnrollModalOpen}
-          preselectedUserId={user.id}
-          preselectedUserName={name || user.name || "Staff Member"}
-          onEnrolled={() => {
-            checkFaceStatus()
-            notifications.success("Biometrics Active", "Your face has been enrolled successfully.")
-          }}
-        />
-      )}
     </div>
   )
 }
