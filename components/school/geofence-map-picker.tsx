@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
@@ -330,7 +330,7 @@ export function GeofenceMapPicker({
 
         notifications.success(
           "Location Locked",
-          `Google Earth GPS locked: ${lat}, ${lon} (Accuracy: ±${accuracy}m)`
+          `School coordinates centered at: ${lat}, ${lon}`
         )
         setIsDetectingLocation(false)
       },
@@ -357,7 +357,7 @@ export function GeofenceMapPicker({
         const data = await res.json()
         setSearchResults(data || [])
         if (!data || data.length === 0) {
-          notifications.info("No Results", "No matching locations found. Try a nearby school or landmark name.")
+          notifications.info("No Results", "No matching locations found. Try a nearby landmark or address.")
         }
       }
     } catch {
@@ -399,7 +399,7 @@ export function GeofenceMapPicker({
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search school name, landmark, or street in Addis Ababa..."
+            placeholder="Search school name, landmark, or address..."
             className="pl-10 pr-24 h-11 rounded-2xl bg-card border-border/80 text-sm shadow-sm"
           />
           <Button
@@ -544,14 +544,8 @@ export function GeofenceMapPicker({
               </div>
             </div>
 
-            {gpsAccuracy != null && (
-              <Badge variant="secondary" className="bg-white/10 text-white border-white/10 text-[10px] font-mono h-7">
-                GPS Accuracy: ±{gpsAccuracy}m
-              </Badge>
-            )}
-
-            <div className="text-[10px] text-slate-300 font-medium hidden lg:block">
-              💡 Tap anywhere on the map to set school center
+            <div className="text-[11px] text-slate-300 font-medium hidden sm:flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+              <span>💡 Tap anywhere on map to set school center</span>
             </div>
           </div>
         </div>
