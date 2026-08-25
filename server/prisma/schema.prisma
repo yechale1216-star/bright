@@ -50,7 +50,6 @@ model User {
   faceEnrollment             StaffFaceEnrollment? @relation("FaceEnrollmentUser")
   enrolledFaces              StaffFaceEnrollment[] @relation("FaceEnrollmentAdmin")
   faceAttempts               StaffFaceAttempt[]
-  passwordResetTokens        PasswordResetToken[]
 
   @@index([email])
 }
@@ -1025,24 +1024,4 @@ model StaffFaceAttempt {
   @@unique([userId, date, session])
   @@index([userId, date, session])
   @@map("staff_face_attempts")
-}
-
-model PasswordResetToken {
-  id          String    @id @default(uuid())
-  userId      String
-  identifier  String    // normalized email or phone (e.g. +2519...)
-  tokenHash   String    // SHA-256 of raw token or OTP — never stored plain
-  type        String    @default("EMAIL_LINK") // "EMAIL_LINK" | "PHONE_OTP"
-  expiresAt   DateTime
-  usedAt      DateTime?
-  attempts    Int       @default(0)
-  maxAttempts Int       @default(5)
-  createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([identifier])
-  @@index([tokenHash])
-  @@index([expiresAt])
-  @@map("password_reset_tokens")
 }

@@ -43,7 +43,6 @@ export interface AuthResponse {
   user?: User
   error?: string
   availableSchools?: any[]
-  method?: string
 }
 
 export interface SignupCredentials {
@@ -698,18 +697,17 @@ class AuthService {
   }
   
   // ─── PASSWORD RESET ───────────────────────────────────────────────────────
-  async requestPasswordReset(identifier: string, method: 'email' | 'phone' = 'email'): Promise<AuthResponse> {
+  async requestPasswordReset(email: string): Promise<AuthResponse> {
     try {
       const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, method }),
+        body: JSON.stringify({ email }),
       })
       const data = await res.json()
       return { 
-        success: res.ok, 
-        message: data.message || "Request processed",
-        method: data.method,
+        success: res.ok && data.success, 
+        message: data.message || "Request processed" 
       }
     } catch (error) {
       return { success: false, message: "Network error", error: "Failed to connect to server" }
@@ -718,7 +716,7 @@ class AuthService {
   
   async verifyResetToken(token: string): Promise<{ success: boolean; valid: boolean; email?: string }> {
     try {
-      const res = await fetch(`${API_URL}/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`)
+      const res = await fetch(`${API_URL}/api/auth/verify-reset-token?token=${token}`)
       const data = await res.json()
       return { 
         success: res.ok && data.success, 
@@ -729,43 +727,13 @@ class AuthService {
       return { success: false, valid: false }
     }
   }
-
-  async verifyResetOTP(phone: string, otp: string): Promise<{ success: boolean; valid: boolean; message?: string }> {
-    try {
-      const res = await fetch(`${API_URL}/api/auth/verify-reset-code`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, otp }),
-      })
-      const data = await res.json()
-      return { 
-        success: res.ok && data.success, 
-        valid: data.valid || false,
-        message: data.message,
-      }
-    } catch (error) {
-      return { success: false, valid: false, message: "Network error" }
-    }
-  }
   
-  async resetPassword(
-    tokenOrPayload: string | { token?: string; phone?: string; otp?: string; password: string },
-    password?: string
-  ): Promise<AuthResponse> {
+  async resetPassword(token: string, password: string): Promise<AuthResponse> {
     try {
-      let body: Record<string, string | undefined>
-      if (typeof tokenOrPayload === 'string') {
-        // Legacy: resetPassword(token, password)
-        body = { token: tokenOrPayload, password }
-      } else {
-        // New: resetPassword({ token?, phone?, otp?, password })
-        body = tokenOrPayload as any
-      }
-
       const res = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ token, password }),
       })
       const data = await res.json()
       return { 
@@ -776,7 +744,6 @@ class AuthService {
       return { success: false, message: "Network error", error: "Failed to connect to server" }
     }
   }
-
 
   isAuthenticated(): boolean { return this.getCurrentUser() !== null }
   isAdmin(): boolean { return this.getCurrentUser()?.role === "admin" || false }
