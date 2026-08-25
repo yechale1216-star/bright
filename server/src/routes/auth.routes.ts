@@ -208,62 +208,88 @@ router.post('/logout', async (req: Request, res: Response) => {
 
 router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Email is required' });
+    const { email, phone, identifier, method } = req.body;
+    const rawIdentifier = identifier || email || phone;
+    const resolvedMethod = method || (phone && !email ? 'phone' : 'email');
+
+    if (!rawIdentifier) {
+      return res.status(400).json({ success: false, message: 'Email or phone number is required.' });
     }
 
-    const token = await userService.createPasswordResetToken(email);
-    
-    // We send success even if user not found for security (prevent email enumeration)
-    if (token) {
-      await sendResetPasswordEmail(email, token);
-    }
+    // Always call service (anti-enumeration: service silently no-ops if user not found)
+    await userService.requestPasswordReset(rawIdentifier, resolvedMethod);
 
+    // Anti-enumeration: always return the same generic success
     res.status(200).json({ 
       success: true, 
-      message: 'If an account with that email exists, we have sent password reset instructions.' 
+      message: 'If an account exists with those details, password reset instructions have been sent.',
+      method: resolvedMethod,
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Verify Reset Token
+// Verify Reset Token (email link) — GET
 router.get('/verify-reset-token', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { token } = req.query;
     if (!token || typeof token !== 'string') {
-      return res.status(400).json({ success: false, message: 'Token is required' });
+      return res.status(400).json({ success: false, valid: false, message: 'Token is required.' });
     }
 
-    const user = await userService.getUserByResetToken(token);
-    if (!user) {
-      return res.status(400).json({ success: false, valid: false, message: 'Invalid or expired token' });
-    }
-
-    res.status(200).json({ success: true, valid: true, email: user.email });
+    const result = await userService.verifyResetTokenOrCode({ token });
+    res.status(200).json({ success: true, valid: true, email: result.email });
   } catch (error) {
-    next(error);
+    const msg = error instanceof Error ? error.message : 'Invalid or expired token.';
+    res.status(400).json({ success: false, valid: false, message: msg });
   }
 });
 
-// Reset Password
-router.post('/reset-password', async (req: Request, res: Response, next: NextFunction) => {
+// Verify Reset Code (phone OTP) — POST
+router.post('/verify-reset-code', otpLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token, password } = req.body;
-    if (!token || !password) {
-      return res.status(400).json({ success: false, message: 'Token and password are required' });
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, message: 'Phone number and OTP are required.' });
     }
 
-    await userService.resetPasswordByToken(token, password);
+    const result = await userService.verifyResetTokenOrCode({ phone, otp });
+    // Return minimal info — valid only, not email (phone flow doesn't need it)
+    res.status(200).json({ success: true, valid: result.valid });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Invalid or expired OTP.';
+    res.status(400).json({ success: false, valid: false, message: msg });
+  }
+});
+
+// Reset Password — supports both email link token and phone OTP
+router.post('/reset-password', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token, phone, otp, password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'New password is required.' });
+    }
+
+    if (!token && !(phone && otp)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Provide either a reset token (email) or phone + OTP (phone reset).' 
+      });
+    }
+
+    await userService.resetPasswordWithTokenOrCode({ token, phone, otp, password });
 
     res.status(200).json({ 
       success: true, 
       message: 'Password successfully reset. You can now login with your new password.' 
     });
   } catch (error) {
-    res.status(400).json({ success: false, message: error instanceof Error ? error.message : 'Failed to reset password' });
+    res.status(400).json({ 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to reset password.' 
+    });
   }
 });
 
