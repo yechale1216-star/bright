@@ -5,7 +5,6 @@ import * as userService from '../services/user.service';
 import * as schoolService from '../services/school.service';
 import { getMemberships } from '../services/auth_resolution.service';
 import { generateToken, verifyToken } from '../utils/jwt';
-import { sendResetPasswordEmail, sendVerificationEmail } from '../utils/email';
 import { validateSignup } from '../middleware/validate';
 import prisma from '../config/db';
 import jwt from 'jsonwebtoken';
@@ -213,16 +212,11 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res:
       return res.status(400).json({ success: false, message: 'Email is required' });
     }
 
-    const token = await userService.createPasswordResetToken(email);
-    
-    // We send success even if user not found for security (prevent email enumeration)
-    if (token) {
-      await sendResetPasswordEmail(email, token);
-    }
+    await userService.createPasswordResetToken(email);
 
     res.status(200).json({ 
       success: true, 
-      message: 'If an account with that email exists, we have sent password reset instructions.' 
+      message: 'If an account with that email exists, password reset instructions will be processed.' 
     });
   } catch (error) {
     next(error);
@@ -402,28 +396,22 @@ router.post('/resend-verification', otpLimiter, async (req: Request, res: Respon
       }
     });
 
-    await sendVerificationEmail(user.email, verificationCode);
-
     res.status(200).json({
       success: true,
-      message: 'If an unverified account exists with that email, a new code has been sent.'
+      message: 'If an unverified account exists with that email, a new code has been generated.'
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Health-check route for email service
+// Health-check route for email service (Resend / SMTP removed)
 router.get('/email-health', async (_req: Request, res: Response) => {
-  const hasSmtp = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
-  const hasApiKey = !!process.env.RESEND_API_KEY;
   res.status(200).json({
     success: true,
-    provider: hasSmtp ? 'smtp' : (hasApiKey ? 'resend' : 'none'),
-    configured: hasSmtp || hasApiKey,
-    message: hasSmtp 
-      ? `SMTP is configured for ${process.env.EMAIL_USER}` 
-      : (hasApiKey ? 'Resend API key is configured.' : 'Neither SMTP nor Resend is configured.'),
+    provider: 'none',
+    configured: false,
+    message: 'Email infrastructure has been removed. Awaiting new email delivery configuration.',
   });
 });
 

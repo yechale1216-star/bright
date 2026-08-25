@@ -8,7 +8,7 @@ const envPath = path.resolve(
 dotenv.config({ path: envPath });
 
 // Validate critical environment variables
-const requiredEnv = ['RESEND_API_KEY', 'APP_URL', 'DATABASE_URL'];
+const requiredEnv = ['APP_URL', 'DATABASE_URL'];
 const missingEnv = requiredEnv.filter((key) => !process.env[key]);
 if (missingEnv.length > 0) {
   console.error(`[EnvError] Missing required env vars: ${missingEnv.join(', ')}`);

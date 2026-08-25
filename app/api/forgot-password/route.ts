@@ -61,66 +61,16 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Send reset email
-    const resetLink = `${appUrl}/reset-password?token=${resetToken}`
-
-    const emailContent = `
-Hello ${user.full_name || user.email},
-
-We received a request to reset your password. Click the link below to reset it:
-
-${resetLink}
-
-This link will expire in 1 hour.
-
-If you didn't request this, you can ignore this email.
-
-Best regards,
-Smart Attendance System
-    `.trim()
-
-    const response = await fetch(`${appUrl}/api/send-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: email,
-        subject: "Reset Your Password",
-        text: emailContent,
-        html: emailContent.replace(/\n/g, "<br>"),
-      }),
-    })
-
-    if (!response.ok) {
-      console.error("Failed to send reset email - Status:", response.status)
-      // Still return success for security
-      return NextResponse.json({
-        success: true,
-        message: "If an account with this email exists, you'll receive reset instructions shortly.",
-      })
-    }
-
-    let emailData
-    try {
-      emailData = await response.json()
-    } catch (parseError) {
-      console.error("Error parsing email response:", parseError)
-      // Email was sent but we couldn't parse response, still consider it success
-      return NextResponse.json({
-        success: true,
-        message: "If an account with this email exists, you'll receive reset instructions shortly.",
-      })
-    }
-
-    console.log("Reset email sent successfully")
+    // Email delivery will be handled by the next password-reset system implementation
     return NextResponse.json({
       success: true,
-      message: "If an account with this email exists, you'll receive reset instructions shortly.",
+      message: "If an account with this email exists, password reset instructions will be processed.",
     })
   } catch (error) {
     console.error("Forgot password error:", error)
     return NextResponse.json({
       success: true,
-      message: "If an account with this email exists, you'll receive reset instructions shortly.",
+      message: "If an account with this email exists, password reset instructions will be processed.",
     })
   }
 }
