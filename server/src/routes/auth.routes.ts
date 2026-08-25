@@ -267,6 +267,34 @@ router.post('/reset-password', async (req: Request, res: Response, next: NextFun
   }
 });
 
+// Change Password (authenticated user changes their own password)
+router.post('/change-password', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Resolve user from JWT (cookie or Authorization header)
+    const rawToken = (req as any).cookies?.attendance_token || req.headers.authorization?.split(' ')[1];
+    if (!rawToken) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const { verifyToken } = require('../utils/jwt');
+    const decoded = verifyToken(rawToken);
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+    }
+
+    await userService.changePassword(decoded.id, currentPassword, newPassword);
+
+    res.status(200).json({ success: true, message: 'Password updated successfully.' });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error instanceof Error ? error.message : 'Failed to update password.' });
+  }
+});
+
 // POST /api/auth/push-token — save or refresh the FCM push token for the authenticated user
 // Called by NativeBridge every time the app starts or the FCM token rotates.
 router.post('/push-token', pushTokenLimiter, async (req: Request, res: Response, next: NextFunction) => {

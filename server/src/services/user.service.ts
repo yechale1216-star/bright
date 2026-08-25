@@ -309,3 +309,34 @@ export const getUserByResetToken = async (token: string) => {
     },
   });
 };
+
+export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Verify current password against stored hash
+  const isMatch = verifyPassword(currentPassword, user.password_hash);
+  if (!isMatch) {
+    throw new Error('Current password is incorrect.');
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('New password must be at least 6 characters.');
+  }
+
+  const hashedPassword = !newPassword.startsWith('$2')
+    ? bcrypt.hashSync(newPassword, 10)
+    : newPassword;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password_hash: hashedPassword,
+    },
+  });
+
+  return { success: true };
+};
+
