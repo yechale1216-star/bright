@@ -108,6 +108,26 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
   } catch (error) { next(error); }
 });
 
+// Change / Update Password for authenticated user
+router.post(['/change-password', '/update-password'], async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: 'New password is required' });
+    }
+
+    await userService.changePassword(userId, currentPassword, newPassword);
+    res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to update password' });
+  }
+});
+
 // Delete user (Admin only)
 router.delete('/:id', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

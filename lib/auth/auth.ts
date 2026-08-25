@@ -250,6 +250,22 @@ class AuthService {
     }
   }
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string; error?: string }> {
+    try {
+      const res = await apiFetch<{ success: boolean; message?: string }>(`${API_URL}/api/auth/change-password`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (res && res.success) {
+        return { success: true, message: res.message || "Password updated successfully" };
+      }
+      return { success: false, message: res?.message || "Failed to update password", error: "Update failed" };
+    } catch (error: any) {
+      return { success: false, message: error?.message || "Server connection failed", error: "Connection error" };
+    }
+  }
+
   async updateParentProfile(phone: string, data: { name: string, email: string, address?: string, profile_photo?: string | null }): Promise<{ success: boolean; message: string; error?: string; user?: User }> {
     try {
       const res = await fetch(`${API_URL}/api/parent/profile/${phone}`, {

@@ -267,8 +267,8 @@ router.post('/reset-password', async (req: Request, res: Response, next: NextFun
   }
 });
 
-// Change Password (authenticated user changes their own password)
-router.post('/change-password', async (req: Request, res: Response, next: NextFunction) => {
+// Change / Update Password (authenticated user changes their own password)
+router.post(['/change-password', '/update-password'], async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Resolve user from JWT (cookie or Authorization header)
     const rawToken = (req as any).cookies?.attendance_token || req.headers.authorization?.split(' ')[1];

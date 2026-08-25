@@ -174,16 +174,29 @@ export const createUser = async (data: any) => {
 };
 
 export const updateUser = async (id: string, data: any, _schoolId?: string) => {
+  const currentUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { id },
+        { teacher_id: id },
+      ],
+    },
+  });
+
+  if (!currentUser) {
+    throw new Error('User not found');
+  }
+
+  const targetUserId = currentUser.id;
   const updateData: any = {};
   if (data.full_name !== undefined) updateData.full_name = data.full_name;
   if (data.email !== undefined) updateData.email = data.email;
   
   if (data.phone !== undefined) {
     const cleanPhone = data.phone.trim();
-    const currentUser = await prisma.user.findUnique({ where: { id } });
-    if (currentUser?.role === 'teacher' && cleanPhone) {
+    if (currentUser.role === 'teacher' && cleanPhone) {
       const existing = await prisma.user.findFirst({
-        where: { phone: cleanPhone, role: 'teacher', id: { not: id } }
+        where: { phone: cleanPhone, role: 'teacher', id: { not: targetUserId } }
       });
       if (existing) {
         throw new Error('Phone already registered for another teacher.');
@@ -205,7 +218,7 @@ export const updateUser = async (id: string, data: any, _schoolId?: string) => {
   if (data.profile_photo !== undefined) updateData.profile_photo = data.profile_photo;
 
   const user = await prisma.user.update({ 
-    where: { id }, 
+    where: { id: targetUserId }, 
     data: updateData 
   });
 
@@ -310,16 +323,25 @@ export const getUserByResetToken = async (token: string) => {
   });
 };
 
-export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+export const changePassword = async (userId: string, currentPassword?: string, newPassword?: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { id: userId },
+        { teacher_id: userId },
+      ],
+    },
+  });
   if (!user) {
     throw new Error('User not found');
   }
 
-  // Verify current password against stored hash
-  const isMatch = verifyPassword(currentPassword, user.password_hash);
-  if (!isMatch) {
-    throw new Error('Current password is incorrect.');
+  // Verify current password against stored hash if provided
+  if (currentPassword) {
+    const isMatch = verifyPassword(currentPassword, user.password_hash);
+    if (!isMatch) {
+      throw new Error('Current password is incorrect.');
+    }
   }
 
   if (!newPassword || newPassword.length < 6) {
@@ -331,7 +353,7 @@ export const changePassword = async (userId: string, currentPassword: string, ne
     : newPassword;
 
   await prisma.user.update({
-    where: { id: userId },
+    where: { id: user.id },
     data: {
       password_hash: hashedPassword,
     },

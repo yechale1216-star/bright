@@ -614,7 +614,7 @@ class Database extends BaseDatabase {
       `${API_URL}/api/users/${userId}`,
       {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getApiHeaders(),
         body: JSON.stringify({ full_name: profileData.name }),
       }
     )
@@ -625,7 +625,7 @@ class Database extends BaseDatabase {
       `${API_URL}/api/users/${userId}`,
       {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getApiHeaders(),
         body: JSON.stringify({ password_hash: newPassword }),
       }
     )

@@ -213,11 +213,6 @@ export function StaffFaceEnrollModal({
                       <Camera className="w-5 h-5 text-primary" />
                       Enroll Face: {selectedStaff.full_name}
                     </DialogTitle>
-                    {isReplaceMode && (
-                      <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-semibold">
-                        Re-registering (Replaces Existing)
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </div>
