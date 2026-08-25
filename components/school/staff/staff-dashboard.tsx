@@ -187,14 +187,53 @@ export function StaffDashboard() {
       setTodayRecord(null)
       return
     }
-    const todayRecs = allAttendance.filter((r) => r.date?.split("T")[0] === todayStr)
+
+    const normalizeDateStr = (d: any) => {
+      if (!d) return ""
+      if (typeof d === "string") return d.split("T")[0]
+      if (d instanceof Date) return d.toISOString().split("T")[0]
+      try {
+        return new Date(d).toISOString().split("T")[0]
+      } catch {
+        return ""
+      }
+    }
+
+    const todayRecs = allAttendance.filter((r) => normalizeDateStr(r.date) === todayStr)
+    if (!todayRecs.length) {
+      setTodayRecord(null)
+      return
+    }
+
     if (isSessionMode) {
+      // 1. Priority: Any session that is actively checked-in and on duty
+      const activeDutyRec = todayRecs.find((r) => r.checkInTime && !r.checkOutTime)
+      if (activeDutyRec) {
+        setTodayRecord(activeDutyRec)
+        return
+      }
+
+      // 2. Current time-of-day resolution in Africa/Addis_Ababa
+      const currentHour = new Date().toLocaleTimeString("en-US", {
+        timeZone: "Africa/Addis_Ababa",
+        hour12: false,
+        hour: "2-digit",
+      })
+      const isMorningHours = parseInt(currentHour, 10) < 13
+
       const morningRec = todayRecs.find((r) => (r.session || "morning").toLowerCase() === "morning")
       const afternoonRec = todayRecs.find((r) => (r.session || "").toLowerCase() === "afternoon")
-      setTodayRecord(afternoonRec || morningRec || todayRecs[0] || null)
+
+      if (isMorningHours) {
+        setTodayRecord(morningRec || afternoonRec || todayRecs[0] || null)
+      } else {
+        setTodayRecord(afternoonRec || morningRec || todayRecs[0] || null)
+      }
     } else {
+      // Daily mode: prioritize checked-in record if present
+      const checkedInRec = todayRecs.find((r) => r.checkInTime)
       const dailyRec = todayRecs.find((r) => !r.session || r.session === "daily") || todayRecs[0]
-      setTodayRecord(dailyRec || null)
+      setTodayRecord(checkedInRec || dailyRec || null)
     }
   }, [allAttendance, todayStr, isSessionMode])
 
