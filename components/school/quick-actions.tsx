@@ -43,6 +43,13 @@ export function QuickActions({ onNavigate }: QuickActionsProps) {
       color: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30",
     },
     {
+      title: "Grade Analytics",
+      description: "Grade & section attendance breakdown",
+      action: () => onNavigate("attendance-by-grade"),
+      icon: <BarChart3 className="w-6 h-6 text-indigo-600 dark:text-indigo-500" />,
+      color: "bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30",
+    },
+    {
       title: "Weekly Report",
       description: "Generate last 7 days attendance report",
       action: handleGenerateReport,
@@ -52,11 +59,24 @@ export function QuickActions({ onNavigate }: QuickActionsProps) {
   ]
 
   const adminActions = [
-    ...teacherActions,
+    {
+      title: "Take Attendance",
+      description: "Quickly navigate to attendance tracking",
+      action: handleQuickAttendance,
+      icon: <ClipboardCheck className="w-6 h-6 text-blue-600 dark:text-blue-500" />,
+      color: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30",
+    },
+    {
+      title: "Grade Analytics",
+      description: "Grade & section attendance breakdown",
+      action: () => onNavigate("attendance-by-grade"),
+      icon: <BarChart3 className="w-6 h-6 text-indigo-600 dark:text-indigo-500" />,
+      color: "bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30",
+    },
     {
       title: "Manage Teachers",
       description: "Assign teachers to classes and subjects",
-      action: () => onNavigate("assignments"),
+      action: () => onNavigate("teacher-assignments"),
       icon: <UserCog className="w-6 h-6 text-green-600 dark:text-green-500" />,
       color: "bg-green-500/10 hover:bg-green-500/20 border-green-500/30",
     },

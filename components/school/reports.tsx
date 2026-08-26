@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Download, Printer, Calendar, Users, UserCheck, Clock, UserX, AlertTriangle, TrendingUp, TrendingDown, PieChart as PieChartIcon, Search } from "lucide-react"
+import { Download, Printer, Calendar, Users, UserCheck, Clock, UserX, AlertTriangle, TrendingUp, TrendingDown, Search } from "lucide-react"
 import { db, type Student } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { ValidationService } from "@/lib/utils/validation"
@@ -15,8 +15,7 @@ import { parseJsonResponse } from "@/lib/utils/parse-json-response"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from "recharts"
 import { cn } from "@/lib/utils/utils"
 import { useCalendar } from "@/lib/context/calendar-context"
@@ -500,15 +499,6 @@ export function Reports() {
     totalStats.averageAttendance = Math.round((totalStats.averageAttendance / totalStats.totalStudents) * 100) / 100
   }
 
-  // --- Analytics Dashboard Data Pre-processing ---
-  const COLORS = ['#16a34a', '#ca8a04', '#dc2626', '#2563eb']
-  const statusData = [
-    { name: 'Present', value: totalStats.totalPresent },
-    { name: 'Late', value: totalStats.totalLate },
-    { name: 'Absent', value: totalStats.totalAbsent },
-    { name: 'Excused', value: totalStats.totalExcused },
-  ].filter(d => d.value > 0)
-
   // Grade Comparison Bar Chart
   const gradeData: any[] = []
   const gradeGroups: any = {}
@@ -524,42 +514,6 @@ export function Reports() {
       attendanceRate: Math.round(gradeGroups[g].totalRate / gradeGroups[g].count * 10) / 10
     })
   }
-
-  // Trend Area Chart
-  const trendDataMap: any = {}
-  
-  if (startDate && endDate) {
-    const start = new Date(startDate + "T00:00:00")
-    const end = new Date(endDate + "T00:00:00")
-    const current = new Date(start)
-    
-    while (current <= end) {
-      const d = current.toLocaleDateString('en-CA') // YYYY-MM-DD
-      trendDataMap[d] = { date: d, present: 0, late: 0, absent: 0, excused: 0, total: 0 }
-      current.setDate(current.getDate() + 1)
-    }
-  }
-
-  const filteredStudentIds = new Set(filteredReports.map(r => r.student.id))
-  rawAttendance.forEach(record => {
-    if (filteredStudentIds.has(record.student_id)) {
-      const d = record.attendance_date
-      if (trendDataMap[d]) {
-        trendDataMap[d].total++
-        const status = record.status?.toLowerCase()
-        if (status === "present") trendDataMap[d].present++
-        else if (status === "late") trendDataMap[d].late++
-        else if (status === "absent") trendDataMap[d].absent++
-        else if (status === "excused") trendDataMap[d].excused++
-      }
-    }
-  })
-  
-  const trendData = Object.values(trendDataMap).sort((a: any, b: any) => a.date.localeCompare(b.date)).map((d: any) => ({
-    ...d,
-    date: formatDate(d.date + "T00:00:00", { weekday: "short", day: "numeric" }),
-    rate: d.total > 0 ? Math.round(((d.present + d.late) / d.total) * 100) : 0
-  }))
 
   if (!mounted) return null
 
@@ -760,111 +714,29 @@ export function Reports() {
         </div>
       )}
 
-      {/* Analytics Dashboard Charts */}
-      {filteredReports.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center gap-2 px-2">
-              <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="typography-card-title text-foreground">Attendance Trends</h3>
-            </div>
-            <div className="h-[300px] w-full p-6 bg-white dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                    itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
-                    labelStyle={{ color: 'var(--foreground)', marginBottom: '4px' }}
-                    formatter={(value: number) => [`${value}%`, 'Attendance Rate']}
-                  />
-                  <Area type="monotone" dataKey="rate" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorRate)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+      {/* Grade Performance Chart */}
+      {filteredReports.length > 0 && gradeData.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-2">
+            <TrendingDown className="w-5 h-5 text-purple-600 dark:text-purple-400 rotate-180" />
+            <h3 className="typography-card-title text-foreground">Performance by Grade</h3>
           </div>
-
-          <Card className="border-none shadow-sm bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-slate-800">
-            <CardHeader className="pb-0 border-none">
-              <CardTitle className="typography-card-title flex items-center gap-2">
-                <PieChartIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                Status Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full mt-4 p-2 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-700">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={85}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {statusData.map((entry, index) => {
-                        const getColor = (name: string) => {
-                          switch (name.toLowerCase()) {
-                            case 'present': return '#16a34a' // Green
-                            case 'late': return '#ca8a04'    // Yellow
-                            case 'absent': return '#dc2626'  // Red
-                            case 'excused': return '#2563eb' // Blue
-                            default: return '#888888'
-                          }
-                        }
-                        return <Cell key={`cell-${index}`} fill={getColor(entry.name)} />
-                      })}
-                    </Pie>
-                    <RechartsTooltip 
-                      contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      itemStyle={{ color: 'var(--foreground)', fontWeight: 'bold' }}
-                      labelStyle={{ color: 'var(--muted-foreground)' }}
-                      formatter={(value: number, name: string) => [
-                        `${value} Student${value !== 1 ? 's' : ''}`, 
-                        name
-                      ]}
-                    />
-                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {gradeData.length > 0 && (
-            <div className="lg:col-span-3 space-y-4">
-              <div className="flex items-center gap-2 px-2">
-                <TrendingDown className="w-5 h-5 text-purple-600 dark:text-purple-400 rotate-180" />
-                <h3 className="typography-card-title text-foreground">Performance by Grade</h3>
-              </div>
-              <div className="h-[300px] w-full p-6 bg-white dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={gradeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                    <XAxis dataKey="grade" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                    <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
-                    <RechartsTooltip 
-                      contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
-                      formatter={(value: number) => [`${value}%`, 'Avg Attendance']}
-                      cursor={{fill: 'var(--muted)', opacity: 0.2}}
-                    />
-                    <Bar dataKey="attendanceRate" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={60} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+          <div className="h-[300px] w-full p-6 bg-white dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={gradeData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="grade" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
+                <RechartsTooltip 
+                  contentStyle={{ backgroundColor: 'var(--card)', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                  itemStyle={{ color: 'var(--primary)', fontWeight: 'bold' }}
+                  formatter={(value: number) => [`${value}%`, 'Avg Attendance']}
+                  cursor={{fill: 'var(--muted)', opacity: 0.2}}
+                />
+                <Bar dataKey="attendanceRate" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={60} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 

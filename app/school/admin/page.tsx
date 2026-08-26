@@ -1,6 +1,6 @@
 'use client'
 
-import { Dashboard } from '@/components/school/dashboard'
+import { AdminDashboard } from '@/components/school/admin-dashboard'
 import { useRouter } from 'next/navigation'
 
 export default function SchoolAdminDashboard() {
@@ -18,6 +18,8 @@ export default function SchoolAdminDashboard() {
       'settings': '/school/admin/settings',
       'attendance-by-grade': '/school/admin/attendance-by-grade',
       'users-and-roles': '/school/admin/users-and-roles',
+      'academic-years': '/school/admin/academic-years',
+      'discipline': '/school/admin/discipline',
     }
 
     const path = tabToPath[tab]
@@ -30,7 +32,8 @@ export default function SchoolAdminDashboard() {
 
   return (
     <div className="p-4 md:p-8">
-      <Dashboard onNavigate={handleNavigate} />
+      <AdminDashboard onNavigate={handleNavigate} />
     </div>
   )
 }
+

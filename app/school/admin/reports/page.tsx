@@ -1,9 +1,5 @@
-import { Reports } from '@/components/school/reports'
+import { redirect } from 'next/navigation'
 
 export default function ReportsPage() {
-  return (
-    <div className="p-4 md:p-8">
-      <Reports />
-    </div>
-  )
+  redirect('/school/admin/attendance?tab=reports')
 }

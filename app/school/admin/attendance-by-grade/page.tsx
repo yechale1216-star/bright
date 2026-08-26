@@ -1,9 +1,5 @@
-import { AttendanceByGrade } from '@/components/school/attendance-by-grade'
+import { redirect } from 'next/navigation'
 
 export default function AttendanceByGradePage() {
-  return (
-    <div className="p-4 md:p-8">
-      <AttendanceByGrade />
-    </div>
-  )
+  redirect('/school/admin/attendance?tab=analytics')
 }

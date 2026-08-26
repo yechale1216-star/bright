@@ -422,3 +422,8 @@ export const DisciplineApi = {
     return data.data;
   }
 };
+
+export const disciplineService = DisciplineApi;
+export type DisciplineIncident = StudentDiscipline;
+export default DisciplineApi;
+

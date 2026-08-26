@@ -61,9 +61,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     { title: "Communication & Chat", href: role === "parent" ? "/parent/communication" : role === "teacher" ? "/school/teacher/communication" : "/school/admin/communication", icon: MessageSquare },
     { title: "Students", href: "/school/admin/students", icon: Users, roles: ["admin", "school_admin"] },
     { title: "Teachers", href: "/school/admin/teachers", icon: User, roles: ["admin", "school_admin"] },
-    { title: "Attendance", href: role === "teacher" ? "/school/teacher/attendance" : role === "parent" ? "/parent/attendance" : "/school/admin/attendance", icon: CheckSquare },
-    { title: "Analytics & Grades", href: "/school/admin/attendance-by-grade", icon: BarChart2, roles: ["admin", "school_admin"] },
-    { title: "Reports", href: role === "teacher" ? "/school/teacher/reports" : "/school/admin/reports", icon: BookOpen },
+    { title: "Student Attendance", href: role === "teacher" ? "/school/teacher/attendance" : role === "parent" ? "/parent/attendance" : "/school/admin/attendance", icon: CheckSquare },
+    { title: "Grade Analytics", href: "/school/admin/attendance?tab=analytics", icon: BarChart2, roles: ["admin", "school_admin"] },
+    { title: "Attendance Reports", href: role === "teacher" ? "/school/teacher/reports" : "/school/admin/attendance?tab=reports", icon: BookOpen },
     { title: "Discipline", href: role === "parent" ? "/parent/discipline" : role === "discipline_officer" ? "/school/discipline-officer" : "/school/admin/discipline", icon: ShieldAlert, roles: ["admin", "school_admin", "super_admin", "discipline_officer", "parent"] },
     { title: "Settings", href: "/school/admin/settings", icon: Settings, roles: ["admin", "school_admin"] },
   ]

@@ -1,6 +1,6 @@
 'use client'
 
-import { Dashboard } from '@/components/school/dashboard'
+import { StudentAttendanceOverview } from '@/components/school/student-attendance-overview'
 import { useRouter } from 'next/navigation'
 
 export default function TeacherDashboard() {
@@ -22,7 +22,7 @@ export default function TeacherDashboard() {
 
   return (
     <div className="p-4 md:p-8">
-      <Dashboard onNavigate={handleNavigate} />
+      <StudentAttendanceOverview onNavigate={handleNavigate} />
     </div>
   )
 }

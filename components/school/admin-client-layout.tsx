@@ -96,10 +96,8 @@ export default function SchoolAdminClientLayout({
     { href: '/school/admin/teachers', icon: <User className="w-5 h-5" />, label: 'Teachers', show: true },
     { href: '/school/admin/users-and-roles', icon: <ShieldCheck className="w-5 h-5" />, label: 'Users & Roles', show: true },
     { href: '/school/admin/teacher-assignments', icon: <BookOpen className="w-5 h-5" />, label: 'Assignments', show: true },
-    { href: '/school/admin/attendance', icon: <CheckSquare className="w-5 h-5" />, label: 'Attendance', show: true },
+    { href: '/school/admin/attendance', icon: <CheckSquare className="w-5 h-5" />, label: 'Student Attendance', show: true },
     { href: '/school/admin/staff-attendance', icon: <UserCheck className="w-5 h-5" />, label: 'Staff Attendance', show: true },
-    { href: '/school/admin/attendance-by-grade', icon: <BarChart2 className="w-5 h-5" />, label: 'Analytics', show: true },
-    { href: '/school/admin/reports', icon: <BookOpen className="w-5 h-5" />, label: 'Reports', show: true },
     { href: '/school/admin/discipline', icon: <ShieldAlert className="w-5 h-5" />, label: 'Discipline', show: true },
     { href: '/school/admin/promotion', icon: <TrendingUp className="w-5 h-5" />, label: 'Promotion', show: true },
     { href: '/school/admin/settings', icon: <Settings className="w-5 h-5" />, label: 'Settings', show: true },
@@ -246,9 +244,9 @@ export default function SchoolAdminClientLayout({
                   )}>
                     <div className="flex items-stretch justify-around h-16 px-2">
                       <MobileTabLink href="/school/admin" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" active={isActive('/school/admin')} />
+                      <MobileTabLink href="/school/admin/students" icon={<Users className="w-5 h-5" />} label="Students" active={isActive('/school/admin/students')} />
+                      <MobileTabLink href="/school/admin/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Attendance" active={isActive('/school/admin/attendance')} />
                       <MobileTabLink href="/school/admin/announcements" icon={<Megaphone className="w-5 h-5" />} label="Alerts" active={isActive('/school/admin/announcements')} />
-                      <MobileTabLink href="/school/admin/attendance-by-grade" icon={<BarChart2 className="w-5 h-5" />} label="Stats" active={isActive('/school/admin/attendance-by-grade')} />
-                      <MobileTabLink href="/school/admin/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Presence" active={isActive('/school/admin/attendance')} />
                       <MobileTabLink href="/school/admin/communication" icon={<MessageCircle className="w-5 h-5" />} label="Chat" active={isActive('/school/admin/communication')} badge={totalUnreadCount > 0 ? totalUnreadCount : undefined} />
                     </div>
                   </nav>
