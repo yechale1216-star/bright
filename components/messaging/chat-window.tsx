@@ -1152,15 +1152,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
                   rendered.push(<UnreadSeparator key="unread-messages-separator" />);
                 }
 
-                // ── Date Separator ─────────────────────────────────────────
-                const msgDateKey = message.createdAt
-                  ? getLocalDateKey(message.createdAt)
-                  : null;
+                // ── Date Separator (Telegram-Style Chat Day) ───────────────
+                const messageDate = resolveMessageDate(message);
+                const msgDateKey = getLocalDateKey(messageDate);
                 if (msgDateKey && msgDateKey !== lastDateKey) {
                   rendered.push(
                     <DateSeparator
                       key={`date-sep-${msgDateKey}`}
-                      date={getMessageDateLabel(message.createdAt || message.timestamp)}
+                      date={getMessageDateLabel(messageDate)}
                     />
                   );
                   lastDateKey = msgDateKey;
@@ -3197,12 +3196,10 @@ const MessageBubble = React.memo(({
 });
 
 const DateSeparator = ({ date }: { date: string }) => (
-  <div className="flex items-center justify-center my-4 px-4 select-none">
-    <div className="flex-1 h-px bg-border/40" />
-    <span className="mx-3 px-3 py-1 rounded-full text-[11px] font-semibold text-muted-foreground bg-secondary/50 backdrop-blur-sm shadow-sm border border-border/30 tracking-wide whitespace-nowrap">
+  <div className="sticky top-2 z-20 flex items-center justify-center my-3 select-none pointer-events-none">
+    <span className="pointer-events-auto inline-flex items-center justify-center px-3.5 py-1 rounded-full text-[11.5px] font-semibold tracking-wide text-foreground/90 dark:text-slate-100 bg-background/85 dark:bg-slate-900/80 backdrop-blur-md shadow-xs border border-border/50 dark:border-white/10 transition-all">
       {date}
     </span>
-    <div className="flex-1 h-px bg-border/40" />
   </div>
 );
 
@@ -3217,18 +3214,41 @@ const UnreadSeparator = () => (
 );
 
 /**
- * Returns a human-readable date label for a message timestamp:
- * "Today", "Yesterday", or a full locale date like "August 10, 2026".
- * Uses the local (device) timezone so it matches the user's experience.
+ * Safely resolves the date for a message, checking createdAt, created_at,
+ * or parsing timestamp/fallback so date grouping never fails.
  */
-function getMessageDateLabel(dateInput: string | Date | number): string {
-  const msgDate = new Date(dateInput);
+function resolveMessageDate(message: Message): Date {
+  if (message.createdAt) {
+    const d = new Date(message.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const rawCreatedAt = (message as any).created_at;
+  if (rawCreatedAt) {
+    const d = new Date(rawCreatedAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (message.timestamp) {
+    const d = new Date(message.timestamp);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
+/**
+ * Returns a Telegram-style human-readable chat day label:
+ * - "Today"
+ * - "Yesterday"
+ * - "Wednesday, March 4" (within the last 6 days)
+ * - "March 4" (within current year)
+ * - "March 4, 2025" (other years)
+ */
+function getMessageDateLabel(d: Date): string {
   const now = new Date();
 
-  const toMidnight = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const toMidnight = (dt: Date) =>
+    new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
 
-  const msgMidnight = toMidnight(msgDate);
+  const msgMidnight = toMidnight(d);
   const todayMidnight = toMidnight(now);
 
   const diffMs = todayMidnight.getTime() - msgMidnight.getTime();
@@ -3237,18 +3257,29 @@ function getMessageDateLabel(dateInput: string | Date | number): string {
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
 
-  return msgDate.toLocaleDateString(undefined, {
-    year: 'numeric',
+  // If within the last 6 days, show weekday + date e.g. "Sunday, March 8"
+  if (diffDays > 1 && diffDays < 7) {
+    return d.toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  // Telegram-style: omit year if within current year
+  const isSameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString(undefined, {
     month: 'long',
     day: 'numeric',
+    ...(isSameYear ? {} : { year: 'numeric' }),
   });
 }
 
 /**
  * Returns a YYYY-MM-DD string in local timezone for grouping purposes.
  */
-function getLocalDateKey(dateInput: string | Date | number): string {
-  const d = new Date(dateInput);
+function getLocalDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
 

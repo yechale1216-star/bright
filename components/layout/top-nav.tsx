@@ -101,9 +101,6 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
               <h1 className="text-sm md:text-lg font-black tracking-tight text-foreground truncate uppercase">
                 {schoolName}
               </h1>
-              <p className="text-[9px] md:text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest truncate">
-                {user?.role?.replace('_', ' ')} Portal
-              </p>
             </div>
           </div>
 

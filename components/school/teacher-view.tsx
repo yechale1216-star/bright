@@ -94,34 +94,81 @@ export function TeacherView() {
 
       // Use teacherId if available, otherwise fallback to the user id
       // The backend service is capable of resolving user.id to teacher.id
-      const targetId = currentUser.teacherId || currentUser.id
+      const targetId = (currentUser as any).teacher_id || currentUser.teacherId || currentUser.id
       
-      const assignmentsData = await db.getTeacherAssignments(currentUser.schoolId || "single-school", targetId)
+      let assignmentsData = await db.getTeacherAssignments(currentUser.schoolId || "single-school", targetId)
+
+      if (!assignmentsData || assignmentsData.length === 0) {
+        try {
+          const allAssignments = await db.getTeacherAssignments(currentUser.schoolId || "single-school")
+          assignmentsData = (allAssignments || []).filter((a: any) =>
+            a.teacher_id === currentUser.id ||
+            a.teacher_id === (currentUser as any).teacher_id ||
+            a.teacherId === currentUser.id ||
+            a.teacher?.id === currentUser.id ||
+            a.teacher?.id === (currentUser as any).teacher_id ||
+            a.teacher?.user_id === currentUser.id ||
+            (currentUser.email && a.teacher?.email && a.teacher.email.toLowerCase() === currentUser.email.toLowerCase())
+          ) as any
+        } catch (e) {
+          console.warn("Fallback assignment lookup failed in TeacherView:", e)
+        }
+      }
+
       setAssignments(assignmentsData as any)
 
       const allStudents = await db.getStudents(false, "ACTIVE")
       
       // Filter students only for classes assigned to this teacher
-      const filteredStudents = allStudents.filter((student: Student) =>
-        assignmentsData.some((cls: any) => {
-          const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
-          const clsGradeName = String(cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
-          
-          const gradeMatch = studentGrade !== "" && clsGradeName !== "" && studentGrade === clsGradeName
-          
-          const studentSection = (student.section || "").toLowerCase().trim()
-          const clsSectionName = String(cls.section || cls.sectionObj?.name || "").toLowerCase().trim()
-          
-          const sectionMatch = studentSection !== "" && clsSectionName !== "" && studentSection === clsSectionName
+      const filteredStudents = (!assignmentsData || assignmentsData.length === 0)
+        ? []
+        : (allStudents || []).filter((student: Student) => {
+            const isStudentActive = !student.status || student.status.toUpperCase() === "ACTIVE"
+            if (!isStudentActive) return false
 
-          const studentStream = (student.stream || "").toLowerCase().trim()
-          const clsStreamName = String(cls.stream || cls.streamObj?.name || "").toLowerCase().trim()
-          
-          const streamMatch = !cls.streamId || (studentStream !== "" && clsStreamName !== "" && studentStream === clsStreamName)
-          
-          return gradeMatch && sectionMatch && streamMatch
-        }),
-      )
+            return assignmentsData.some((cls: any) => {
+              const studentGrade = String(student.grade || "").toLowerCase().replace(/^grade\s+/i, "").replace(/^g-/i, "").trim()
+              const clsGradeName = String(
+                (typeof cls.grade === "object" && cls.grade !== null ? cls.grade.name : cls.grade) ||
+                cls.gradeObj?.name ||
+                ""
+              ).toLowerCase().replace(/^grade\s+/i, "").replace(/^g-/i, "").trim()
+
+              const gradeMatch = studentGrade !== "" && clsGradeName !== "" && (studentGrade === clsGradeName || studentGrade.replace(/^0+/, "") === clsGradeName.replace(/^0+/, ""))
+              if (!gradeMatch) return false
+
+              const studentSection = String(student.section || "").toLowerCase().replace(/^section\s+/i, "").trim()
+              const clsSectionName = String(
+                (typeof cls.section === "object" && cls.section !== null ? cls.section.name : cls.section) ||
+                cls.sectionObj?.name ||
+                ""
+              ).toLowerCase().replace(/^section\s+/i, "").trim()
+
+              const hasSectionConstraint = clsSectionName !== "" && clsSectionName !== "all" && clsSectionName !== "general"
+              if (hasSectionConstraint) {
+                const sectionMatch = studentSection !== "" && (studentSection === clsSectionName || studentSection.includes(clsSectionName) || clsSectionName.includes(studentSection))
+                if (!sectionMatch) return false
+              }
+
+              const studentStream = String(student.stream || "").toLowerCase().trim()
+              const clsStreamName = String(
+                (typeof cls.stream === "object" && cls.stream !== null ? cls.stream.name : cls.stream) ||
+                cls.streamObj?.name ||
+                cls.streamId ||
+                ""
+              ).toLowerCase().trim()
+
+              const hasStreamConstraint = cls.streamId || (clsStreamName !== "" && clsStreamName !== "all" && clsStreamName !== "general" && clsStreamName !== "none")
+              if (hasStreamConstraint && studentStream && clsStreamName) {
+                if (studentStream !== clsStreamName && !studentStream.includes(clsStreamName) && !clsStreamName.includes(studentStream)) {
+                  return false
+                }
+              }
+
+              return true
+            })
+          })
+
       setStudents(filteredStudents as any)
       if (assignmentsData.length > 0) {
         setSelectedAssignment(assignmentsData[0] as any)
@@ -144,20 +191,47 @@ export function TeacherView() {
   const displayedStudents = useMemo(() => {
     if (!selectedAssignment) return []
     const cls = selectedAssignment as any
-    const clsGradeName = String(cls.grade?.name || cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
-    const clsSectionName = String(cls.section?.name || cls.section || cls.sectionObj?.name || "").toLowerCase().trim()
-    const clsStreamName = String(cls.stream?.name || cls.stream || cls.streamObj?.name || "").toLowerCase().trim()
+    const clsGradeName = String(
+      (typeof cls.grade === "object" && cls.grade !== null ? cls.grade.name : cls.grade) ||
+      cls.gradeObj?.name ||
+      ""
+    ).toLowerCase().replace(/^grade\s+/i, "").replace(/^g-/i, "").trim()
+
+    const clsSectionName = String(
+      (typeof cls.section === "object" && cls.section !== null ? cls.section.name : cls.section) ||
+      cls.sectionObj?.name ||
+      ""
+    ).toLowerCase().replace(/^section\s+/i, "").trim()
+
+    const clsStreamName = String(
+      (typeof cls.stream === "object" && cls.stream !== null ? cls.stream.name : cls.stream) ||
+      cls.streamObj?.name ||
+      cls.streamId ||
+      ""
+    ).toLowerCase().trim()
 
     return students.filter((student: Student) => {
-      const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
-      const studentSection = (student.section || "").toLowerCase().trim()
-      const studentStream = (student.stream || "").toLowerCase().trim()
+      const studentGrade = String(student.grade || "").toLowerCase().replace(/^grade\s+/i, "").replace(/^g-/i, "").trim()
+      const studentSection = String(student.section || "").toLowerCase().replace(/^section\s+/i, "").trim()
+      const studentStream = String(student.stream || "").toLowerCase().trim()
 
-      const gradeMatch = studentGrade !== "" && clsGradeName !== "" && studentGrade === clsGradeName
-      const sectionMatch = studentSection !== "" && clsSectionName !== "" && studentSection === clsSectionName
-      const streamMatch = !cls.streamId || (studentStream !== "" && clsStreamName !== "" && studentStream === clsStreamName)
+      const gradeMatch = studentGrade !== "" && clsGradeName !== "" && (studentGrade === clsGradeName || studentGrade.replace(/^0+/, "") === clsGradeName.replace(/^0+/, ""))
+      if (!gradeMatch) return false
 
-      return gradeMatch && sectionMatch && streamMatch
+      const hasSectionConstraint = clsSectionName !== "" && clsSectionName !== "all" && clsSectionName !== "general"
+      if (hasSectionConstraint) {
+        const sectionMatch = studentSection !== "" && (studentSection === clsSectionName || studentSection.includes(clsSectionName) || clsSectionName.includes(studentSection))
+        if (!sectionMatch) return false
+      }
+
+      const hasStreamConstraint = cls.streamId || (clsStreamName !== "" && clsStreamName !== "all" && clsStreamName !== "general" && clsStreamName !== "none")
+      if (hasStreamConstraint && studentStream && clsStreamName) {
+        if (studentStream !== clsStreamName && !studentStream.includes(clsStreamName) && !clsStreamName.includes(studentStream)) {
+          return false
+        }
+      }
+
+      return true
     })
   }, [selectedAssignment, students])
 

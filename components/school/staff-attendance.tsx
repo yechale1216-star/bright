@@ -725,7 +725,7 @@ export function StaffAttendance() {
 
       {/* ─── SELF-SERVICE CHECK-IN / CHECK-OUT CARD ─── */}
       {(activeTab === "self" || !isAdmin) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           {/* Main Action Card */}
           <Card className="md:col-span-1 border-white/40 dark:border-white/10 shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[28px]">
             <CardHeader className="pb-4">
@@ -1004,7 +1004,7 @@ export function StaffAttendance() {
             </CardHeader>
             <CardContent className="p-0">
               {/* Mobile Card List View (< sm screens) */}
-              <div className="sm:hidden divide-y divide-border/50 max-h-[380px] overflow-y-auto">
+              <div className="sm:hidden divide-y divide-border/50 max-h-[580px] overflow-y-auto">
                 {myHistory.length === 0 ? (
                   <div className="py-8 text-center text-xs text-muted-foreground">
                     No attendance history found.
@@ -1078,7 +1078,7 @@ export function StaffAttendance() {
               </div>
 
               {/* Desktop Table View (>= sm screens) */}
-              <div className="hidden sm:block max-h-[380px] overflow-y-auto">
+              <div className="hidden sm:block max-h-[580px] overflow-y-auto">
                 <Table>
                   <TableHeader className="bg-muted/40 sticky top-0 backdrop-blur-sm">
                     <TableRow>

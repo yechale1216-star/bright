@@ -12,9 +12,7 @@ export default function StaffCommunicationPage() {
         </div>
       }
     >
-      <div className="container mx-auto py-2 h-[calc(100vh-8rem)]">
-        <MessagingCenter />
-      </div>
+      <MessagingCenter />
     </Suspense>
   )
 }

@@ -475,66 +475,77 @@ export function TeacherAssignmentManagement() {
             <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No assignments found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1 md:px-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 px-1 md:px-0">
             {assignments.map((assignment) => {
               const teacherName = assignment.teacher?.full_name || "Unknown Teacher"
               const bgGradient = getAvatarGradient(assignment.teacher?.id || assignment.teacher_id)
+              const gradeName = String(typeof assignment.grade === 'object' ? assignment.grade?.name : (assignment.grade || '')).replace(/^Grade\s+/i, '').trim()
+              const sectionName = typeof assignment.section === 'object' ? assignment.section?.name : (assignment.section || '')
+
               return (
                 <div
                   key={assignment.id}
-                  className="group relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-[32px] border border-slate-100 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-all hover:shadow-md h-[180px] flex flex-col justify-between"
+                  className="group relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-all hover:shadow-md min-h-[170px] flex flex-col justify-between"
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-4">
-                      {assignment.teacher?.profile_photo ? (
-                        <img
-                          src={assignment.teacher.profile_photo}
-                          alt={teacherName}
-                          className="w-14 h-14 rounded-[20px] object-cover border-2 border-white dark:border-slate-800 shadow-sm"
-                        />
-                      ) : (
-                        <div className={`w-14 h-14 rounded-[20px] bg-gradient-to-br ${bgGradient} flex items-center justify-center text-white text-lg font-black shadow-inner`}>
-                          {getInitials(teacherName)}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 leading-none truncate uppercase tracking-normal">
-                          {teacherName}
-                        </h3>
-                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-1.5 flex items-center gap-1.5 truncate">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Grade {String(typeof assignment.grade === 'object' ? assignment.grade?.name : (assignment.grade || '')).replace(/^Grade\s+/i, '').trim()} {typeof assignment.section === 'object' ? assignment.section?.name : (assignment.section || '')}
-                        </p>
+                  {/* Top: Avatar & Full Teacher Name */}
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    {assignment.teacher?.profile_photo ? (
+                      <img
+                        src={assignment.teacher.profile_photo}
+                        alt={teacherName}
+                        className="w-12 h-12 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-sm flex-shrink-0"
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${bgGradient} flex items-center justify-center text-white text-base font-black shadow-inner flex-shrink-0`}>
+                        {getInitials(teacherName)}
                       </div>
-                    </div>
-                    <div className="flex gap-1.5">
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); handleEditAssignment(assignment); }}
-                         className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-primary transition-colors"
-                         title="Edit Assignment"
-                       >
-                         <Pencil className="w-4 h-4" />
-                       </button>
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); handleRemoveAssignment(null, assignment.id); }}
-                         className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-rose-400 hover:text-rose-600 transition-colors"
-                       >
-                         <Trash2 className="w-4 h-4" />
-                       </button>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <h3 
+                        title={teacherName}
+                        className="text-sm md:text-base font-black text-slate-900 dark:text-slate-100 leading-snug break-words uppercase tracking-tight line-clamp-2"
+                      >
+                        {teacherName}
+                      </h3>
+                      <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1.5 truncate">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span className="truncate">Grade {gradeName}{sectionName ? ` - Section ${sectionName}` : ''}</span>
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-50 dark:border-slate-800/50">
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">Stream</span>
-                        <span className="text-xs font-bold text-foreground">
-                          {assignment.stream?.name || (typeof assignment.stream === 'string' && assignment.stream ? assignment.stream : "General")}
-                        </span>
-                      </div>
+                  {/* Bottom: Stream, Action Buttons & Active Pill */}
+                  <div className="flex items-center justify-between pt-3.5 mt-3.5 border-t border-slate-100 dark:border-slate-800/80">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Stream</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
+                        {assignment.stream?.name || (typeof assignment.stream === 'string' && assignment.stream ? assignment.stream : "General")}
+                      </span>
                     </div>
-                    <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                       <span className="text-[9px] font-black text-foreground uppercase tracking-widest">Active</span>
+
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleEditAssignment(assignment); }}
+                          className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors"
+                          title="Edit Assignment"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleRemoveAssignment(null, assignment.id); }}
+                          className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                          title="Delete Assignment"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Active Status Badge */}
+                      <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900">
+                        Active
+                      </span>
                     </div>
                   </div>
                 </div>

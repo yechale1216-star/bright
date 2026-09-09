@@ -39,6 +39,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { db } from "@/lib/db/database"
+import { TeacherAssignmentManagement } from "@/components/school/teacher-assignment-management"
+import { useSearchParams } from "next/navigation"
 
 interface Teacher {
   id: string
@@ -54,7 +56,17 @@ interface Teacher {
   profile_photo?: string
 }
 
-export function TeacherManagement() {
+interface TeacherManagementProps {
+  defaultTab?: "teachers" | "assignments"
+}
+
+export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagementProps) {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+
+  const [activeTab, setActiveTab] = useState<"teachers" | "assignments">(
+    tabParam === "assignments" ? "assignments" : defaultTab
+  )
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [formData, setFormData] = useState({
     full_name: "",
@@ -118,6 +130,29 @@ export function TeacherManagement() {
       clearInterval(pollInterval)
     }
   }, [])
+
+  useEffect(() => {
+    if (tabParam === "assignments" && activeTab !== "assignments") {
+      setActiveTab("assignments")
+    } else if (tabParam === "teachers" && activeTab !== "teachers") {
+      setActiveTab("teachers")
+    }
+  }, [tabParam])
+
+  const handleTabChange = (newTab: "teachers" | "assignments") => {
+    setActiveTab(newTab)
+    try {
+      const url = new URL(window.location.href)
+      if (newTab === "assignments") {
+        url.searchParams.set("tab", "assignments")
+      } else {
+        url.searchParams.delete("tab")
+      }
+      window.history.replaceState({}, "", url.toString())
+    } catch {
+      // ignore
+    }
+  }
 
   // Load teacher assignments when detail modal opens
   useEffect(() => {
@@ -398,59 +433,114 @@ export function TeacherManagement() {
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto w-full">
-      {/* Header Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1 pt-safe">
+      {/* Top Sub-Navigation Tabs: Teachers List & Assignments */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 pt-safe">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-normal">
-              Faculty Directory
+            <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+              Teacher Management
             </h1>
-            {isSyncing && (
+            {isSyncing && activeTab === "teachers" && (
               <span className="inline-flex items-center text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800 animate-pulse">
                 <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Syncing...
               </span>
             )}
           </div>
-          <p className="text-[10px] font-bold text-slate-500/60 dark:text-slate-400/60 uppercase tracking-widest mt-1">
-            Teacher Management & Real-Time Roster
+          <p className="text-xs font-semibold text-muted-foreground mt-0.5">
+            Faculty Directory & Class Allocations
           </p>
         </div>
 
-        <div className="flex gap-2 w-full md:w-auto">
-          <Button 
-            onClick={() => loadData(true, true)} 
-            disabled={isSyncing}
-            variant="outline" 
-            className="flex-1 md:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+        {/* Tab Switcher Pills */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 w-fit">
+          <button
+            type="button"
+            onClick={() => handleTabChange("teachers")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all duration-200",
+              activeTab === "teachers"
+                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+            )}
           >
-            <RefreshCw className={cn("w-4 h-4 mr-2", isSyncing && "animate-spin text-blue-600")} />
-            Sync Roster
-          </Button>
+            <Users className="w-4 h-4" />
+            <span>Teachers List</span>
+            <span className={cn(
+              "ml-1 text-[10px] px-2 py-0.5 rounded-full font-extrabold",
+              activeTab === "teachers"
+                ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400"
+                : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+            )}>
+              {teachers.length}
+            </span>
+          </button>
 
-          <Button 
-            onClick={exportTeacherListToCSV} 
-            disabled={filteredTeachers.length === 0} 
-            variant="outline"
-            className="flex-1 md:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+          <button
+            type="button"
+            onClick={() => handleTabChange("assignments")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all duration-200",
+              activeTab === "assignments"
+                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+            )}
           >
-            <Download className="w-4 h-4 mr-2" />
-            CSV
-          </Button>
-
-          <Button
-            onClick={() => {
-              setEditingTeacher(null)
-              setFormData({ full_name: "", email: "", password: "", phone: "+251", subject: "", qualification: "", experience_years: "" })
-              setShowSuccess(false)
-              setIsFormVisible(true)
-            }}
-            className="hidden md:flex h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-widest px-6 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Teacher
-          </Button>
+            <BookOpen className="w-4 h-4" />
+            <span>Class Assignments</span>
+          </button>
         </div>
       </div>
+
+      {activeTab === "assignments" ? (
+        <TeacherAssignmentManagement />
+      ) : (
+        <>
+          {/* Action Bar for Teachers List */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
+            <div>
+              <h2 className="text-base md:text-lg font-black text-slate-900 dark:text-white uppercase tracking-normal">
+                Faculty Directory
+              </h2>
+              <p className="text-[10px] font-bold text-slate-500/60 dark:text-slate-400/60 uppercase tracking-widest mt-0.5">
+                Active & Registered Teachers Roster
+              </p>
+            </div>
+
+            <div className="flex gap-2 w-full md:w-auto">
+              <Button 
+                onClick={() => loadData(true, true)} 
+                disabled={isSyncing}
+                variant="outline" 
+                className="flex-1 md:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+              >
+                <RefreshCw className={cn("w-4 h-4 mr-2", isSyncing && "animate-spin text-blue-600")} />
+                Sync Roster
+              </Button>
+
+              <Button 
+                onClick={exportTeacherListToCSV} 
+                disabled={filteredTeachers.length === 0} 
+                variant="outline"
+                className="flex-1 md:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                CSV
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setEditingTeacher(null)
+                  setFormData({ full_name: "", email: "", password: "", phone: "+251", subject: "", qualification: "", experience_years: "" })
+                  setShowSuccess(false)
+                  setIsFormVisible(true)
+                }}
+                className="hidden md:flex h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-widest px-6 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Teacher
+              </Button>
+            </div>
+          </div>
 
       {/* Floating Add Button for Mobile */}
       <Button
@@ -620,7 +710,7 @@ export function TeacherManagement() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-1 md:px-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 px-1 md:px-0">
             {filteredTeachers.map((teacher) => {
               const bgGradient = getAvatarGradient(teacher.id)
               const isActive = teacher.is_active !== false
@@ -629,81 +719,57 @@ export function TeacherManagement() {
                 <div 
                   key={teacher.id} 
                   className={cn(
-                    "group relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-[32px] border shadow-sm transition-all hover:shadow-md flex flex-col justify-between cursor-pointer",
+                    "group relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-[28px] border shadow-sm transition-all hover:shadow-md flex flex-col justify-between cursor-pointer",
                     isActive ? "border-slate-100 dark:border-slate-800" : "border-rose-200/60 dark:border-rose-950/60 bg-rose-50/10 dark:bg-rose-950/10"
                   )}
                   onClick={() => setSelectedTeacher(teacher)}
                 >
                   <div>
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        {teacher.profile_photo ? (
-                          <img
-                            src={teacher.profile_photo}
-                            alt={teacher.full_name}
-                            className="w-13 h-13 rounded-[18px] object-cover border-2 border-white dark:border-slate-800 shadow-sm flex-shrink-0"
-                          />
-                        ) : (
-                          <div className={`w-13 h-13 rounded-[18px] bg-gradient-to-br ${bgGradient} flex items-center justify-center text-white text-base font-black shadow-inner flex-shrink-0`}>
-                            {getInitials(teacher.full_name)}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 leading-tight truncate uppercase tracking-normal">
-                            {teacher.full_name}
-                          </h3>
-                          <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mt-1 flex items-center gap-1.5 truncate">
-                            <span className={cn(
-                              "w-1.5 h-1.5 rounded-full flex-shrink-0",
-                              isActive ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
-                            )} />
-                            {teacher.subject || "General Teacher"}
-                          </p>
+                    {/* Teacher Avatar & Full Name Header */}
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {teacher.profile_photo ? (
+                        <img
+                          src={teacher.profile_photo}
+                          alt={teacher.full_name}
+                          className="w-12 h-12 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-sm flex-shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${bgGradient} flex items-center justify-center text-white text-base font-black shadow-inner flex-shrink-0`}>
+                          {getInitials(teacher.full_name)}
                         </div>
-                      </div>
-
-                      {/* Card Action Buttons */}
-                      <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button 
-                          onClick={() => handleToggleStatus(teacher)}
-                          title={isActive ? "Suspend Faculty Member" : "Restore Faculty Member"}
-                          className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center transition-colors",
-                            isActive ? "bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-rose-500" : "bg-rose-100 dark:bg-rose-900/40 text-rose-600 hover:text-emerald-600"
-                          )}
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h3 
+                          title={teacher.full_name}
+                          className="text-sm md:text-base font-black text-slate-900 dark:text-slate-100 leading-snug break-words uppercase tracking-tight line-clamp-2"
                         >
-                          {isActive ? <ShieldCheck className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                        </button>
-                        <button 
-                          onClick={() => handleEdit(teacher)}
-                          title="Edit Teacher Profile"
-                          className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(teacher.id, teacher.full_name)}
-                          title="Delete Teacher"
-                          className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-rose-400 hover:text-rose-600 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {teacher.full_name}
+                        </h3>
+                        <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1.5 truncate">
+                          <span className={cn(
+                            "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                            isActive ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
+                          )} />
+                          <span className="truncate">{teacher.subject || "General Teacher"}</span>
+                        </p>
                       </div>
                     </div>
 
-                    <div className="mt-4 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    {/* Contact Details */}
+                    <div className="mt-3.5 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                       <div className="flex items-center gap-2 truncate">
                         <Mail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                        <span className="truncate">{teacher.email}</span>
+                        <span className="truncate font-medium">{teacher.email}</span>
                       </div>
                       <div className="flex items-center gap-2 truncate">
                         <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                        <span className="truncate">{teacher.phone || "No phone added"}</span>
+                        <span className="truncate font-medium">{teacher.phone || "No phone added"}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80">
+                  {/* Card Footer: Experience, Actions & Status Badge */}
+                  <div className="flex items-center justify-between pt-3.5 mt-3.5 border-t border-slate-100 dark:border-slate-800/80">
                     <div className="flex flex-col">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Experience</span>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -711,9 +777,38 @@ export function TeacherManagement() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleToggleStatus(teacher)}
+                          title={isActive ? "Suspend Faculty Member" : "Restore Faculty Member"}
+                          className={cn(
+                            "w-7 h-7 rounded-lg flex items-center justify-center transition-colors",
+                            isActive ? "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" : "bg-rose-100 dark:bg-rose-900/40 text-rose-600 hover:text-emerald-600"
+                          )}
+                        >
+                          {isActive ? <ShieldCheck className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                        </button>
+                        <button 
+                          onClick={() => handleEdit(teacher)}
+                          title="Edit Teacher Profile"
+                          className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(teacher.id, teacher.full_name)}
+                          title="Delete Teacher"
+                          className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Status Pill */}
                       <span className={cn(
-                        "text-[9px] font-black uppercase px-2.5 py-1 rounded-full border",
+                        "text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border",
                         isActive 
                           ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900" 
                           : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900"
@@ -1107,6 +1202,8 @@ export function TeacherManagement() {
 
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   )

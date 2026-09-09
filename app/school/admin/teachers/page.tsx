@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -18,7 +19,13 @@ const TeacherManagement = dynamic(
 export default function TeachersPage() {
   return (
     <div className="p-4 md:p-8">
-      <TeacherManagement />
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Spinner size="md" className="text-primary" />
+        </div>
+      }>
+        <TeacherManagement />
+      </Suspense>
     </div>
   )
 }

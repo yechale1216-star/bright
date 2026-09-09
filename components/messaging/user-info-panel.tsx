@@ -9,10 +9,8 @@ import {
   Phone,
   Video,
   Smartphone,
-  User,
   MoreVertical,
   Copy,
-  Grid,
   FileText,
   Link as LinkIcon,
   Image as ImageIcon,
@@ -154,7 +152,6 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
   useEffect(() => { fetchShared(); fetchSaved(); }, [fetchShared, fetchSaved]);
 
   const phoneValue  = user?.phone || '+251 915731207';
-  const rawUsername = user?.name ? `@${user.name.toLowerCase().replace(/\s+/g, '')}` : '@username';
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -435,9 +432,8 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
           {/* Info rows */}
           <div className="py-4 space-y-1">
             {[
-              { icon: Smartphone, value: phoneValue, label: 'Mobile',   field: 'phone' },
-              { icon: User,       value: rawUsername, label: 'Username', field: 'username', qr: true },
-            ].map(({ icon: Icon, value, label, field, qr }) => (
+              { icon: Smartphone, value: phoneValue, label: 'Mobile', field: 'phone' },
+            ].map(({ icon: Icon, value, label, field }) => (
               <div key={field} onClick={() => copyToClipboard(value, field)}
                 className="px-6 py-3 flex items-center justify-between hover:bg-secondary/40 active:bg-secondary/70 transition-all cursor-pointer group">
                 <div className="flex items-center gap-4 min-w-0">
@@ -448,7 +444,6 @@ export const UserInfoPanel: React.FC<UserInfoPanelProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {qr && <div className="h-6 w-6 rounded-md bg-secondary/75 border border-border/80 flex items-center justify-center cursor-pointer shadow-sm"><Grid className="h-3.5 w-3.5" /></div>}
                   <button className="text-muted-foreground/50 hover:text-primary transition-colors focus:outline-none">
                     {copiedField === field ? <Check className="h-4 w-4 text-green-500 animate-in zoom-in" /> : <Copy className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />}
                   </button>

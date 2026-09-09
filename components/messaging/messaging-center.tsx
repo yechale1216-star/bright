@@ -476,6 +476,7 @@ export function MessagingCenter() {
         senderAvatar: m.sender?.profile_photo,
         content: m.content,
         timestamp: formatLocalizedTime(m.createdAt, language),
+        createdAt: m.createdAt,
         status: m.readBy && m.readBy.length > 0 ? 'read' : 'sent',
         type: m.type || 'TEXT',
         attachments: m.attachments,
@@ -569,6 +570,7 @@ export function MessagingCenter() {
         senderAvatar: m.sender?.profile_photo,
         content: m.content,
         timestamp: formatLocalizedTime(m.createdAt, language),
+        createdAt: m.createdAt,
         status: m.readBy && m.readBy.length > 0 ? 'read' : 'sent',
         type: m.type || 'TEXT',
         attachments: m.attachments,
@@ -1189,6 +1191,7 @@ export function MessagingCenter() {
         senderName: message.sender?.full_name || 'Unknown',
         content: message.content,
         timestamp: formatLocalizedTime(message.createdAt || new Date(), language),
+        createdAt: message.createdAt || new Date().toISOString(),
         status: 'sent',
         type: message.type || 'TEXT',
         attachments: message.attachments,
@@ -1527,23 +1530,26 @@ export function MessagingCenter() {
       // Case A: Upload finished — swap local-preview bubble with real attachment
       if (options?.replaceTempId) {
         const realTempId = options.replaceTempId;
-        const updatedMessage = {
-          id: realTempId,
-          senderId: user.id,
-          senderName: user.full_name || 'Me',
-          content,
-          timestamp: formatLocalizedTime(new Date(), language),
-          status: 'sending' as const,
-          type: options?.type || 'FILE',
-          attachments: options?.attachment ? [options.attachment] : undefined,
-          isMe: true,
-        };
-        setMessagesByConversation(prev => ({
-          ...prev,
-          [activeConversationId]: (prev[activeConversationId] || []).map(m =>
-            m.id === realTempId ? updatedMessage : m
-          ),
-        }));
+        setMessagesByConversation(prev => {
+          const list = prev[activeConversationId] || [];
+          const existingCreated = list.find((m: any) => m.id === realTempId)?.createdAt;
+          const updatedMessage = {
+            id: realTempId,
+            senderId: user.id,
+            senderName: user.full_name || 'Me',
+            content,
+            timestamp: formatLocalizedTime(new Date(), language),
+            createdAt: existingCreated || new Date().toISOString(),
+            status: 'sending' as const,
+            type: options?.type || 'FILE',
+            attachments: options?.attachment ? [options.attachment] : undefined,
+            isMe: true,
+          };
+          return {
+            ...prev,
+            [activeConversationId]: list.map(m => m.id === realTempId ? updatedMessage : m),
+          };
+        });
         if (!socket || !isConnected) return;
         socket.emit('send_message', {
           conversationId: activeConversationId,
@@ -1566,6 +1572,7 @@ export function MessagingCenter() {
         senderName: user.full_name || 'Me',
         content,
         timestamp: formatLocalizedTime(new Date(), language),
+        createdAt: new Date().toISOString(),
         status: 'sending' as const,
         type: options?.type || 'TEXT',
         attachments: options?.attachment ? [options.attachment] : undefined,

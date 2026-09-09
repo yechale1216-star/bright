@@ -101,45 +101,106 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
       }
       let students: Student[] = []
 
-      if (user?.role === "teacher") {
+      const isTeacherRole = user?.role === "teacher" || (typeof window !== "undefined" && window.location.pathname.startsWith("/school/teacher"))
+
+      if (isTeacherRole) {
+        const teacherTargetId = (user as any).teacher_id || user.teacherId || user.id
         const [assignmentsData, allStudents] = await Promise.all([
-          db.getTeacherAssignments(user.schoolId || "single-school", user.teacherId || user.id),
-          db.getStudents(),
+          db.getTeacherAssignments(user.schoolId || "single-school", teacherTargetId),
+          db.getStudents(false, "ACTIVE"),
         ])
-        const classes = assignmentsData || []
+        let classes = assignmentsData || []
 
-        students = allStudents.filter((student: Student) => {
-          return classes.some((cls: any) => {
-            const studentGrade = (student.grade || "").toLowerCase().replace("grade ", "").trim()
-            const clsGradeName = String(cls.grade || cls.gradeObj?.name || "").toLowerCase().replace("grade ", "").trim()
-            const studentSec = (student.section || "").toLowerCase().replace("section ", "").trim()
-            const clsSecName = String(cls.section || cls.sectionObj?.name || "").toLowerCase().replace("section ", "").trim()
+        // If direct lookup by teacherId returned empty, search all assignments by user id, teacher id or email
+        if (classes.length === 0) {
+          try {
+            const allAssignments = await db.getTeacherAssignments(user.schoolId || "single-school")
+            classes = (allAssignments || []).filter((a: any) =>
+              a.teacher_id === user.id ||
+              a.teacher_id === (user as any).teacher_id ||
+              a.teacherId === user.id ||
+              a.teacher?.id === user.id ||
+              a.teacher?.id === (user as any).teacher_id ||
+              a.teacher?.user_id === user.id ||
+              (user.email && a.teacher?.email && a.teacher.email.toLowerCase() === user.email.toLowerCase())
+            )
+          } catch (e) {
+            console.warn("Fallback assignment lookup failed:", e)
+          }
+        }
 
-            const gradeMatches =
-              studentGrade === clsGradeName ||
-              (student as any).grade_id === cls.grade_id ||
-              student.grade === cls.grade
+        // When a teacher has no assigned classes, they should see 0 students (not the entire school)
+        if (classes.length === 0) {
+          students = []
+        } else {
+          students = (allStudents || []).filter((student: Student) => {
+            const isStudentActive = !student.status || student.status.toUpperCase() === "ACTIVE"
+            if (!isStudentActive) return false
 
-            if (!gradeMatches) return false
+            return classes.some((cls: any) => {
+              // Normalize Student Grade
+              const studentGrade = String(student.grade || "").toLowerCase().replace(/^grade\s+/i, "").replace(/^g-/i, "").trim()
+              const studentGradeId = String((student as any).grade_id || (student as any).gradeId || "").toLowerCase().trim()
 
-            const hasSectionConstraint = clsSecName !== "" && clsSecName !== "all"
-            if (hasSectionConstraint) {
-              const sectionMatches =
-                studentSec === clsSecName ||
-                (student as any).section_id === cls.section_id ||
-                student.section === cls.section
-              if (!sectionMatches) return false
-            }
+              // Normalize Class Grade
+              const clsGradeName = String(
+                (typeof cls.grade === "object" && cls.grade !== null ? cls.grade.name : cls.grade) ||
+                cls.gradeObj?.name ||
+                ""
+              ).toLowerCase().replace(/^grade\s+/i, "").replace(/^g-/i, "").trim()
+              const clsGradeId = String(cls.gradeId || cls.grade_id || (typeof cls.grade === "object" ? cls.grade?.id : "") || "").toLowerCase().trim()
 
-            if (cls.stream && student.stream) {
-              if (cls.stream.toLowerCase() !== student.stream.toLowerCase()) return false
-            }
+              const gradeMatches =
+                (studentGrade !== "" && clsGradeName !== "" && (studentGrade === clsGradeName || studentGrade.replace(/^0+/, "") === clsGradeName.replace(/^0+/, ""))) ||
+                (studentGradeId !== "" && clsGradeId !== "" && studentGradeId === clsGradeId) ||
+                (studentGrade !== "" && clsGradeId !== "" && studentGrade === clsGradeId)
 
-            return true
+              if (!gradeMatches) return false
+
+              // Normalize Student Section
+              const studentSec = String(student.section || "").toLowerCase().replace(/^section\s+/i, "").trim()
+              const studentSecId = String((student as any).section_id || (student as any).sectionId || "").toLowerCase().trim()
+
+              // Normalize Class Section
+              const clsSecName = String(
+                (typeof cls.section === "object" && cls.section !== null ? cls.section.name : cls.section) ||
+                cls.sectionObj?.name ||
+                ""
+              ).toLowerCase().replace(/^section\s+/i, "").trim()
+              const clsSecId = String(cls.sectionId || cls.section_id || (typeof cls.section === "object" ? cls.section?.id : "") || "").toLowerCase().trim()
+
+              const hasSectionConstraint = clsSecName !== "" && clsSecName !== "all" && clsSecName !== "general"
+              if (hasSectionConstraint) {
+                const sectionMatches =
+                  (studentSec !== "" && (studentSec === clsSecName || studentSec.includes(clsSecName) || clsSecName.includes(studentSec))) ||
+                  (studentSecId !== "" && clsSecId !== "" && studentSecId === clsSecId) ||
+                  (studentSec !== "" && clsSecId !== "" && studentSec === clsSecId)
+                if (!sectionMatches) return false
+              }
+
+              // Normalize Stream
+              const studentStream = String(student.stream || (student as any).stream_id || "").toLowerCase().trim()
+              const clsStreamName = String(
+                (typeof cls.stream === "object" && cls.stream !== null ? cls.stream.name : cls.stream) ||
+                cls.streamObj?.name ||
+                cls.streamId ||
+                ""
+              ).toLowerCase().trim()
+
+              const hasStreamConstraint = cls.streamId || (clsStreamName !== "" && clsStreamName !== "all" && clsStreamName !== "general" && clsStreamName !== "none")
+              if (hasStreamConstraint && studentStream && clsStreamName) {
+                if (studentStream !== clsStreamName && !studentStream.includes(clsStreamName) && !clsStreamName.includes(studentStream)) {
+                  return false
+                }
+              }
+
+              return true
+            })
           })
-        })
+        }
       } else {
-        students = await db.getStudents()
+        const allStudents = await db.getStudents(false, "ACTIVE")
+        students = (allStudents || []).filter((s: Student) => !s.status || s.status.toUpperCase() === "ACTIVE")
       }
 
       const todayDate = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })

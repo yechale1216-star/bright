@@ -148,8 +148,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // Calculated Metrics
   const totalStudents = students.length
   const totalTeachers = teachers.length
-  const totalStaff = totalTeachers + 5 // baseline active staff count
-  const activeStaffCount = staffStats?.presentToday || totalTeachers
+  const totalStaff = typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : totalTeachers
+  const activeStaffCount = staffStats
+    ? (typeof staffStats.present === "number" || typeof staffStats.late === "number"
+        ? (staffStats.present || 0) + (staffStats.late || 0)
+        : (staffStats.checkedInCount || totalTeachers))
+    : totalTeachers
 
   // Attendance metrics
   const isPresent = (status?: string) => status?.toLowerCase() === "present" || status?.toLowerCase() === "late"
@@ -487,8 +491,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             href: "/school/admin/students",
           },
           {
-            label: "Teaching Staff",
-            value: totalTeachers,
+            label: "Total Staff",
+            value: totalStaff,
             sub: "Registered",
             icon: Users,
             iconBg: "bg-emerald-50 dark:bg-emerald-900/20",
@@ -514,7 +518,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             iconBg: "bg-purple-50 dark:bg-purple-900/20",
             iconColor: "text-purple-600 dark:text-purple-400",
             valColor: "text-purple-600 dark:text-purple-400",
-            href: "/school/admin/users-and-roles",
+            href: "/school/admin/staff-attendance",
           },
           {
             label: "Open Conduct Cases",
@@ -530,7 +534,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           <div
             key={idx}
             onClick={() => navigateTo(item.href)}
-            className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center gap-1.5 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                navigateTo(item.href)
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center gap-1.5 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/20 select-none"
           >
             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110", item.iconBg, item.iconColor)}>
               <item.icon className="h-5 w-5" />

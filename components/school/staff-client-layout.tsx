@@ -221,12 +221,17 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
-          <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />
+          {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
           <main
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-3.5 sm:p-4 md:p-6 pb-24 md:pb-6"
+            className={cn(
+              "flex-1 flex flex-col min-h-0 relative",
+              isCommunicationPage ? "overflow-hidden" : "overflow-y-auto p-3.5 sm:p-4 md:p-6 pb-24 md:pb-6"
+            )}
           >
-            {children}
+            <div className="flex-1 flex flex-col min-h-0 h-full">
+              {children}
+            </div>
           </main>
           <DeveloperBrand />
 

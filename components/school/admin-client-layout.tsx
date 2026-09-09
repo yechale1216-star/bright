@@ -77,7 +77,7 @@ export default function SchoolAdminClientLayout({
     setSidebarOpen(false)
   }, [pathname])
 
-  const isActive = (path: string) => pathname === path
+  const isActive = (path: string) => pathname === path || (path === '/school/admin/teachers' && pathname?.startsWith('/school/admin/teacher-assignments'))
   const isCommunicationPage = pathname?.includes('/communication')
   const { totalUnreadCount } = useUnread()
 
@@ -95,7 +95,6 @@ export default function SchoolAdminClientLayout({
     { href: '/school/admin/students', icon: <Users className="w-5 h-5" />, label: 'Students', show: true },
     { href: '/school/admin/teachers', icon: <User className="w-5 h-5" />, label: 'Teachers', show: true },
     { href: '/school/admin/users-and-roles', icon: <ShieldCheck className="w-5 h-5" />, label: 'Users & Roles', show: true },
-    { href: '/school/admin/teacher-assignments', icon: <BookOpen className="w-5 h-5" />, label: 'Assignments', show: true },
     { href: '/school/admin/attendance', icon: <CheckSquare className="w-5 h-5" />, label: 'Student Attendance', show: true },
     { href: '/school/admin/staff-attendance', icon: <UserCheck className="w-5 h-5" />, label: 'Staff Attendance', show: true },
     { href: '/school/admin/discipline', icon: <ShieldAlert className="w-5 h-5" />, label: 'Discipline', show: true },

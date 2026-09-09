@@ -5,7 +5,6 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Clock,
   UserCheck,
@@ -24,9 +23,6 @@ import {
   TrendingUp,
   Activity,
   ArrowRight,
-  Sun,
-  Moon,
-  Sunset,
   Briefcase,
   AlertCircle,
   Sparkles,
@@ -39,6 +35,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/context/auth-context"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
+import { useGreeting } from "@/lib/utils/greeting-utils"
+import { cn } from "@/lib/utils/utils"
 import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { getStaffAttendanceDisplay, addMinutesToHHMM } from "@/lib/utils/staff-attendance-status"
@@ -48,6 +46,7 @@ export function StaffDashboard() {
   const { user } = useAuth()
   const { formatDate } = useCalendar()
   const { settings } = useSchoolSettings()
+  const greeting = useGreeting(user?.role || "staff")
 
   const getTodayStr = useCallback(() => {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
@@ -86,14 +85,6 @@ export function StaffDashboard() {
     } catch (_) {}
     return defaults
   }, [settings?.staffSessions, settings?.staff_sessions])
-
-  // Dynamic greeting based on current time
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) return { text: "Good morning", icon: Sun, color: "text-amber-500" }
-    if (hour < 17) return { text: "Good afternoon", icon: Sunset, color: "text-orange-500" }
-    return { text: "Good evening", icon: Moon, color: "text-indigo-400" }
-  }, [])
 
   // Monthly statistics computation
   const monthlyStats = useMemo(() => {
@@ -366,8 +357,6 @@ export function StaffDashboard() {
     }
   }, [isCheckedIn, isCheckedOut, workingDuration, attendanceDisplay])
 
-  const GreetingIcon = greeting.icon
-
   // ─── Modern Spinner Loading State ───
   if (isLoading) {
     return (
@@ -386,82 +375,30 @@ export function StaffDashboard() {
         <div className="absolute -bottom-20 left-1/3 w-96 h-96 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
 
-      {/* ─── 1. HERO BANNER: GLASSMORPHIC WELCOME & PROFILE ─── */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/50 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-5 sm:p-7 shadow-2xl shadow-indigo-500/5">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/15 via-indigo-500/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+      {/* ─── 1. MODERN HEADER WITH TIME-BASED GREETING ─── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+        <div className="space-y-1 w-full md:w-auto">
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
+            {greeting}, <span className="text-primary">{user?.name || "Staff Member"}</span>
+          </h2>
+        </div>
 
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-          {/* Staff Profile Info */}
-          <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
-            <div className="relative shrink-0">
-              <div className="p-1 rounded-[22px] bg-gradient-to-tr from-primary via-indigo-500 to-cyan-400 shadow-lg shadow-primary/20">
-                <Avatar className="w-14 h-14 sm:w-16 sm:h-16 rounded-[18px]">
-                  <AvatarImage src={user?.profile_photo || ""} className="object-cover" />
-                  <AvatarFallback className="bg-slate-950 text-white font-black text-base sm:text-lg">
-                    {user?.name
-                      ?.split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .toUpperCase() || "ST"}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-              <span
-                className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${
-                  isCheckedIn && !isCheckedOut ? "bg-emerald-500 ring-4 ring-emerald-500/20 animate-pulse" : "bg-slate-400"
-                }`}
-                title={isCheckedIn && !isCheckedOut ? "Active on duty" : "Not checked in"}
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                <GreetingIcon className={`w-4 h-4 ${greeting.color}`} />
-                <span>{greeting.text},</span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">
-                {user?.name || "Staff Member"}
-              </h1>
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <Badge className="bg-primary/10 hover:bg-primary/15 text-primary border-primary/20 text-[11px] font-bold capitalize py-0.5 px-2.5 rounded-lg shadow-xs">
-                  {user?.role?.replace("_", " ") || "Staff"}
-                </Badge>
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate hidden sm:inline">
-                  {user?.schoolName || "Addis Hiwot School"}
-                </span>
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  &bull; {formatDate(todayStr)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Status Badges & Refresh */}
-          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-white/20 dark:border-white/10">
-            {enrolledDescriptor ? (
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 gap-1.5 py-1.5 px-3 text-xs rounded-xl shadow-xs">
-                <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span className="font-bold">Face ID Active</span>
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shadow-xs">
-                <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span>Face ID Pending</span>
-              </Badge>
-            )}
-
-            <Button
-              variant="outline"
-              size="sm"
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* Date & Refresh Pill */}
+          <div className="text-xs font-semibold bg-primary/10 text-primary px-3.5 py-2 rounded-full border border-primary/20 shadow-2xs flex items-center gap-2.5">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{formatDate(todayStr)}</span>
+            <button
               onClick={() => loadData()}
-              className="h-9 px-3 rounded-xl border-white/40 dark:border-white/10 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md text-xs font-bold gap-1.5 shadow-xs hover:bg-white/70"
+              className="hover:text-primary-focus transition-colors p-0.5 rounded-full hover:bg-primary/20"
+              title="Refresh Dashboard Data"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
+              <RefreshCw className={cn("w-3.5 h-3.5", isLoading ? "animate-spin" : "")} />
+            </button>
           </div>
         </div>
       </div>
+
 
       {/* ─── Holiday / Non-Working Day Glass Banner ─── */}
       {calendarStatus && !calendarStatus.isWorkingDay && (
@@ -710,63 +647,7 @@ export function StaffDashboard() {
         </div>
       </div>
 
-      {/* ─── 6. QUICK NAVIGATION TILES ─── */}
-      <div className="space-y-3">
-        <div className="px-1">
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
-            Quick Navigation
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Link
-            href="/school/staff/attendance"
-            className="flex items-center justify-between p-4 rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all group active:scale-[0.99] shadow-lg shadow-slate-900/5"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0 group-hover:scale-110 transition-transform">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Attendance Log</p>
-                <p className="text-xs text-slate-500 truncate">Biometrics &amp; 30-day history</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-1 transition-transform" />
-          </Link>
 
-          <Link
-            href="/school/staff/communication"
-            className="flex items-center justify-between p-4 rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all group active:scale-[0.99] shadow-lg shadow-slate-900/5"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Staff Chat</p>
-                <p className="text-xs text-slate-500 truncate">Messages &amp; announcements</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-1 transition-transform" />
-          </Link>
-
-          <Link
-            href="/school/staff/profile"
-            className="flex items-center justify-between p-4 rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all group active:scale-[0.99] shadow-lg shadow-slate-900/5"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 shrink-0 group-hover:scale-110 transition-transform">
-                <User className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">My Profile</p>
-                <p className="text-xs text-slate-500 truncate">Face ID &amp; security</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </div>
-      </div>
 
       {/* ─── 7. ANNOUNCEMENTS & ALERTS FEED ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
