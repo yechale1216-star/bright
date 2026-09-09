@@ -29,6 +29,47 @@ import { useRef } from "react"
 import { apiUrl } from "@/lib/api-config"
 const API_URL = apiUrl;
 
+// Helper to accurately resolve an academic year string or date to the target calendar without double-converting
+function resolveAcademicYear(rawYearStr?: string | null, isEthiopian: boolean = true): number {
+  const now = new Date()
+  const ethNow = toEthiopianDate(now)
+
+  if (!rawYearStr || !rawYearStr.trim()) {
+    return isEthiopian ? ethNow.year : now.getFullYear()
+  }
+
+  const trimmed = rawYearStr.trim()
+  const isExplicitEC = /E\.?C\.?|ዓ\.?ም|ዓመት/i.test(trimmed)
+  const isExplicitGC = /G\.?C\.?|እ\.?ኤ\.?አ/i.test(trimmed)
+
+  const matches = trimmed.match(/\d{4}/g)
+  if (!matches || matches.length === 0) {
+    return isEthiopian ? ethNow.year : now.getFullYear()
+  }
+
+  const firstNum = parseInt(matches[0], 10)
+
+  // Check if the year string already represents an Ethiopian Calendar year
+  const isECYear = isExplicitEC || (!isExplicitGC && firstNum <= 2023 && firstNum >= 1990)
+
+  if (isECYear) {
+    if (isEthiopian) {
+      return firstNum
+    } else {
+      const jdn = ethiopicToJDN(firstNum, 0, 1)
+      const gc = jdnToGregorian(jdn)
+      return gc.getFullYear()
+    }
+  } else {
+    if (isEthiopian) {
+      const ec = toEthiopianDate(new Date(firstNum, 8, 11))
+      return ec.year
+    } else {
+      return firstNum
+    }
+  }
+}
+
 export default function AttendanceHistory() {
   const { t, language } = useLanguage()
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
@@ -36,9 +77,13 @@ export default function AttendanceHistory() {
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
-  // Filters state
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth())
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  // Filters state - initialize correctly according to active calendar/language
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    return language === 'am' ? toEthiopianDate(new Date()).month : new Date().getMonth()
+  })
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    return language === 'am' ? toEthiopianDate(new Date()).year : new Date().getFullYear()
+  })
   const [activeTab, setActiveTab] = useState<"calendar" | "table">("calendar")
   const [attendanceMode, setAttendanceMode] = useState<"daily" | "session">("daily")
   const [sessionFilter, setSessionFilter] = useState<"morning" | "afternoon">("morning")
@@ -59,12 +104,24 @@ export default function AttendanceHistory() {
       if (student) {
         setSelectedStudent(student)
         
+        const token = localStorage.getItem("attendance_token") || ""
+        const schoolId = localStorage.getItem("x-school-id") || student.schoolId || student.school_id || ""
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          ...(schoolId ? { "x-school-id": schoolId } : {})
+        }
+
         // Fetch academic year/settings and attendance concurrently
-        const [settings] = await Promise.all([
+        const [settings, currentYearData] = await Promise.all([
           db.getSettings().catch((err) => {
             console.error("Failed to load school settings:", err)
             return null
           }),
+          fetch(`${API_URL}/api/academic-years/current`, { headers, cache: "no-store" })
+            .then(res => res.ok ? res.json() : null)
+            .then(json => json?.data || null)
+            .catch(() => null),
           fetchStudentAttendance(student.id)
         ])
 
@@ -73,24 +130,21 @@ export default function AttendanceHistory() {
           setAttendanceMode(currentMode as any)
         }
 
-        if (settings?.academicYear) {
-          const yearMatch = settings.academicYear.match(/\d{4}/)
-          if (yearMatch) {
-            const gYear = parseInt(yearMatch[0])
-            if (language === 'am') {
-              const ec = toEthiopianDate(new Date(gYear, 4, 1))
-              setSelectedYear(ec.year)
-            } else {
-              setSelectedYear(gYear)
-            }
-          }
+        const isAm = language === 'am'
+        const now = new Date()
+        const ethNow = toEthiopianDate(now)
+
+        if (currentYearData?.startDate) {
+          const resolvedYear = isAm
+            ? toEthiopianDate(currentYearData.startDate).year
+            : new Date(currentYearData.startDate).getFullYear()
+          setSelectedYear(resolvedYear)
+        } else if (currentYearData?.name) {
+          setSelectedYear(resolveAcademicYear(currentYearData.name, isAm))
+        } else if (settings?.academicYear) {
+          setSelectedYear(resolveAcademicYear(settings.academicYear, isAm))
         } else {
-          const now = new Date()
-          if (language === 'am') {
-            setSelectedYear(toEthiopianDate(now).year)
-          } else {
-            setSelectedYear(now.getFullYear())
-          }
+          setSelectedYear(isAm ? ethNow.year : now.getFullYear())
         }
       }
     }

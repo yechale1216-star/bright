@@ -279,24 +279,10 @@ export function Settings() {
           <Card>
             <CardHeader>
               <CardTitle>General Configuration</CardTitle>
-              <CardDescription>Academic year, system calendar, and school address</CardDescription>
+              <CardDescription>System calendar, contact details, and school address</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="schoolName">School Name</Label>
-                  <Input
-                    id="schoolName"
-                    value={settings.schoolName || ""}
-                    onChange={(e) => setSettings({ ...settings, schoolName: e.target.value })}
-                    placeholder="e.g. Addis Hiwot School"
-                    className="mt-1.5"
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Official name of your institution
-                  </p>
-                </div>
-
                 <div>
                   <Label htmlFor="schoolPhone">School Phone Number</Label>
                   <Input
@@ -308,22 +294,6 @@ export function Settings() {
                   />
                   <p className="text-[11px] text-muted-foreground mt-1">
                     Primary school contact phone
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="academicYear">Academic Year</Label>
-                  <Input
-                    id="academicYear"
-                    value={settings.academicYear || ""}
-                    onChange={(e) => setSettings({ ...settings, academicYear: e.target.value })}
-                    placeholder="e.g. 2026/2018"
-                    className="mt-1.5"
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Active academic year cohort identifier
                   </p>
                 </div>
 

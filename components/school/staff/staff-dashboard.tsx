@@ -42,6 +42,26 @@ import { notifications } from "@/lib/utils/notifications"
 import { getStaffAttendanceDisplay, addMinutesToHHMM } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
 
+// Module-level cache: survives component unmount/remount during client-side navigation.
+// Prevents the full loading spinner and blank-state flicker when navigating back to the dashboard.
+interface StaffDashboardDataCache {
+  hasLoaded: boolean
+  calendarStatus: any
+  allAttendance: any[]
+  enrolledDescriptor: number[] | null
+  announcements: any[]
+  recentNotifications: any[]
+}
+
+let _staffDashboardCache: StaffDashboardDataCache = {
+  hasLoaded: false,
+  calendarStatus: null,
+  allAttendance: [],
+  enrolledDescriptor: null,
+  announcements: [],
+  recentNotifications: [],
+}
+
 export function StaffDashboard() {
   const { user } = useAuth()
   const { formatDate } = useCalendar()
@@ -54,12 +74,12 @@ export function StaffDashboard() {
 
   const [todayStr, setTodayStr] = useState<string>(getTodayStr)
   const [todayRecord, setTodayRecord] = useState<any>(null)
-  const [calendarStatus, setCalendarStatus] = useState<any>(null)
-  const [announcements, setAnnouncements] = useState<any[]>([])
-  const [recentNotifications, setRecentNotifications] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
-  const [allAttendance, setAllAttendance] = useState<any[]>([])
+  const [calendarStatus, setCalendarStatus] = useState<any>(_staffDashboardCache.calendarStatus)
+  const [announcements, setAnnouncements] = useState<any[]>(_staffDashboardCache.announcements)
+  const [recentNotifications, setRecentNotifications] = useState<any[]>(_staffDashboardCache.recentNotifications)
+  const [isLoading, setIsLoading] = useState(!_staffDashboardCache.hasLoaded)
+  const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(_staffDashboardCache.enrolledDescriptor)
+  const [allAttendance, setAllAttendance] = useState<any[]>(_staffDashboardCache.allAttendance)
 
   // Live active work duration tracker
   const [workingDuration, setWorkingDuration] = useState<string>("")
@@ -112,10 +132,17 @@ export function StaffDashboard() {
 
   // Request ID and in-flight guard to prevent race conditions & out-of-order state overwrites
   const loadRequestIdRef = useRef(0)
+  // hasMountedRef is now module-level (_staffDashboardHasMounted) — survives unmount
+  // Keep a ref for volatile values used inside loadData so the callback stays stable (prevents re-mounting on settings changes)
+  const isSessionModeRef = useRef(isSessionMode)
+  const schoolIdRef = useRef(user?.schoolId)
+  useEffect(() => { isSessionModeRef.current = isSessionMode }, [isSessionMode])
+  useEffect(() => { schoolIdRef.current = user?.schoolId }, [user?.schoolId])
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
     const currentReqId = ++loadRequestIdRef.current
-    if (!options?.silent) {
+    // Only show the full loading spinner on the very first ever load before any data is cached
+    if (!options?.silent && !_staffDashboardCache.hasLoaded) {
       setIsLoading(true)
     }
 
@@ -126,14 +153,14 @@ export function StaffDashboard() {
       const [calRes, myAttRes, descRes, annRes, notifRes] = await Promise.allSettled([
         db.isDateWorkingDay(currentToday),
         db.getMyStaffAttendance({
-          mode: isSessionMode ? "session_based" : "daily",
+          mode: isSessionModeRef.current ? "session_based" : "daily",
         }),
         db.getStaffFaceDescriptor(),
         fetch(`/api/announcements?limit=3`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
-            "x-school-id": user?.schoolId || "single-school",
+            "x-school-id": schoolIdRef.current || "single-school",
             "x-requested-role": "staff",
           },
         }).then((r) => r.json()),
@@ -141,7 +168,7 @@ export function StaffDashboard() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
-            "x-school-id": user?.schoolId || "single-school",
+            "x-school-id": schoolIdRef.current || "single-school",
             "x-requested-role": "staff",
           },
         }).then((r) => r.json()),
@@ -151,27 +178,38 @@ export function StaffDashboard() {
 
       if (calRes.status === "fulfilled") {
         setCalendarStatus(calRes.value)
+        _staffDashboardCache.calendarStatus = calRes.value
       }
       if (myAttRes.status === "fulfilled") {
-        setAllAttendance(myAttRes.value || [])
+        const attData = myAttRes.value || []
+        setAllAttendance(attData)
+        _staffDashboardCache.allAttendance = attData
       }
       if (descRes.status === "fulfilled") {
-        setEnrolledDescriptor(descRes.value?.descriptor || null)
+        const descData = descRes.value?.descriptor || null
+        setEnrolledDescriptor(descData)
+        _staffDashboardCache.enrolledDescriptor = descData
       }
       if (annRes.status === "fulfilled" && annRes.value?.success && Array.isArray(annRes.value.data)) {
-        setAnnouncements(annRes.value.data.slice(0, 3))
+        const annData = annRes.value.data.slice(0, 3)
+        setAnnouncements(annData)
+        _staffDashboardCache.announcements = annData
       }
       if (notifRes.status === "fulfilled" && notifRes.value?.success && Array.isArray(notifRes.value.data)) {
-        setRecentNotifications(notifRes.value.data.slice(0, 3))
+        const notifData = notifRes.value.data.slice(0, 3)
+        setRecentNotifications(notifData)
+        _staffDashboardCache.recentNotifications = notifData
       }
     } catch (err) {
       console.error("[StaffDashboard] Error loading attendance data:", err)
     } finally {
       if (currentReqId === loadRequestIdRef.current) {
+        _staffDashboardCache.hasLoaded = true
         setIsLoading(false)
       }
     }
-  }, [getTodayStr, isSessionMode, user?.schoolId])
+  // Stable: reads isSessionMode & schoolId via refs, not as deps
+  }, [getTodayStr])
 
   useEffect(() => {
     if (!allAttendance.length) {
@@ -229,7 +267,8 @@ export function StaffDashboard() {
   }, [allAttendance, todayStr, isSessionMode])
 
   useEffect(() => {
-    loadData()
+    // On first mount: show spinner if not cached. On re-navigation: silent refresh
+    loadData({ silent: _staffDashboardCache.hasLoaded })
 
     const handleChanged = () => {
       loadData({ silent: true })
@@ -259,7 +298,9 @@ export function StaffDashboard() {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       window.removeEventListener("online", handleOnline)
     }
-  }, [loadData])
+  // Only run once on mount; loadData is now stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Live timer for active check-in duration
   useEffect(() => {
@@ -358,7 +399,7 @@ export function StaffDashboard() {
   }, [isCheckedIn, isCheckedOut, workingDuration, attendanceDisplay])
 
   // ─── Modern Spinner Loading State ───
-  if (isLoading) {
+  if (isLoading && !_staffDashboardCache.hasLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[55vh] animate-in fade-in duration-300">
         <Spinner size="lg" className="text-primary" />

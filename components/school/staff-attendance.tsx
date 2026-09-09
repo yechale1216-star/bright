@@ -69,6 +69,24 @@ type VerificationStep =
   | "success"
   | "error"
 
+// Module-level cache: survives component unmount/remount during client-side navigation.
+// Prevents the full loading spinner when navigating between tabs in the staff portal.
+interface StaffAttendanceDataCache {
+  hasLoaded: boolean
+  calendarStatus: any
+  myHistory: any[]
+  allStaffAttendance: any[]
+  enrolledDescriptor: number[] | null
+}
+
+let _staffAttendanceCache: StaffAttendanceDataCache = {
+  hasLoaded: false,
+  calendarStatus: null,
+  myHistory: [],
+  allStaffAttendance: [],
+  enrolledDescriptor: null,
+}
+
 export function StaffAttendance() {
   const { formatDate } = useCalendar()
   const { settings } = useSchoolSettings()
@@ -92,7 +110,7 @@ export function StaffAttendance() {
     reason?: string
     displayReason?: string
     workingDaysList: string[]
-  } | null>(null)
+  } | null>(_staffAttendanceCache.calendarStatus)
 
   // Session-based mode config
   const isSessionMode = (settings?.staffAttendanceMode || settings?.staff_attendance_mode) === "session_based"
@@ -121,9 +139,9 @@ export function StaffAttendance() {
 
   // Current user's attendance status today
   const [todayRecord, setTodayRecord] = useState<any>(null)
-  const [myHistory, setMyHistory] = useState<any[]>([])
-  const [allStaffAttendance, setAllStaffAttendance] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [myHistory, setMyHistory] = useState<any[]>(_staffAttendanceCache.myHistory)
+  const [allStaffAttendance, setAllStaffAttendance] = useState<any[]>(_staffAttendanceCache.allStaffAttendance)
+  const [isLoading, setIsLoading] = useState(!_staffAttendanceCache.hasLoaded)
 
   // Request ID to prevent out-of-order state updates from concurrent fetches
   const loadRequestIdRef = useRef(0)
@@ -142,7 +160,7 @@ export function StaffAttendance() {
     userLongitude?: number | null
   } | null>(null)
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false)
-  const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(null)
+  const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(_staffAttendanceCache.enrolledDescriptor)
   const [capturedLocation, setCapturedLocation] = useState<GeofenceLocationData | null>(null)
   const isSubmittingAttendanceRef = useRef(false)
 
@@ -216,13 +234,14 @@ export function StaffAttendance() {
 
   const loadInitialData = useCallback(async (opts?: { silent?: boolean }) => {
     const currentReqId = ++loadRequestIdRef.current
-    if (!opts?.silent) setIsLoading(true)
+    if (!opts?.silent && !_staffAttendanceCache.hasLoaded) setIsLoading(true)
     const activeUser = authUser || authService.getCurrentUser()
     try {
       // 0. Load working calendar status for selected date
       try {
         const calStatus = await db.isDateWorkingDay(selectedDate)
         setCalendarStatus(calStatus)
+        _staffAttendanceCache.calendarStatus = calStatus
       } catch (calErr) {
         console.warn("Could not check working day status:", calErr)
       }
@@ -233,13 +252,16 @@ export function StaffAttendance() {
           mode: isSessionMode ? "session_based" : "daily",
         })
         setMyHistory(history)
+        _staffAttendanceCache.myHistory = history
 
         // Fetch enrolled face descriptor strictly for activeUser.id
         const descriptorData = await db.getStaffFaceDescriptor(activeUser.id)
         if (descriptorData?.descriptor && Array.isArray(descriptorData.descriptor) && descriptorData.descriptor.length === 128) {
           setEnrolledDescriptor(descriptorData.descriptor)
+          _staffAttendanceCache.enrolledDescriptor = descriptorData.descriptor
         } else {
           setEnrolledDescriptor(null)
+          _staffAttendanceCache.enrolledDescriptor = null
         }
       }
 
@@ -250,11 +272,13 @@ export function StaffAttendance() {
           mode: isSessionMode ? "session_based" : "daily",
         })
         setAllStaffAttendance(allAtt)
+        _staffAttendanceCache.allStaffAttendance = allAtt
       }
     } catch (err: any) {
       console.error("[StaffAttendance] Failed to load attendance data:", err)
     } finally {
       if (currentReqId === loadRequestIdRef.current) {
+        _staffAttendanceCache.hasLoaded = true
         setIsLoading(false)
       }
     }
@@ -270,7 +294,7 @@ export function StaffAttendance() {
   useEffect(() => {
     if (!sessionReady) return
 
-    loadInitialData()
+    loadInitialData({ silent: _staffAttendanceCache.hasLoaded })
     checkOfflineQueue()
 
     const handleDataChanged = () => {
@@ -533,6 +557,9 @@ export function StaffAttendance() {
 
       // Background silent refetch confirms state with backend
       loadInitialData({ silent: true })
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+      }
 
       setTimeout(() => {
         setIsVerificationModalOpen(false)
@@ -597,7 +624,7 @@ export function StaffAttendance() {
   }, [allStaffAttendance, searchTerm, statusFilter])
 
   // ─── Modern Spinner Loading State ───
-  if (isLoading && myHistory.length === 0 && allStaffAttendance.length === 0) {
+  if (isLoading && !_staffAttendanceCache.hasLoaded && myHistory.length === 0 && allStaffAttendance.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[55vh] animate-in fade-in duration-300">
         <Spinner size="lg" className="text-primary" />
