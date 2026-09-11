@@ -337,7 +337,7 @@ export default function ParentDisciplinePage() {
   }, [incidents, activeTab, searchQuery]);
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 max-w-6xl mx-auto pb-24 md:pb-8">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-6xl mx-auto pb-24 md:pb-8 overflow-x-hidden">
 
       {/* ── Ambient Background Blur (Contain overflow to prevent mobile scrollbar jank) ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
@@ -351,53 +351,54 @@ export default function ParentDisciplinePage() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="relative overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl p-4 sm:p-6 md:p-8 shadow-xl shadow-indigo-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        className="relative overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl p-4 sm:p-6 md:p-8 shadow-xl shadow-indigo-500/5 flex flex-col gap-3"
       >
         {/* Subtle decorative shimmer */}
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 pointer-events-none" />
 
-        <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0">
+        {/* Title row */}
+        <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0 flex-1">
           <div className="p-2.5 sm:p-3.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 shrink-0">
             <ShieldAlert className="w-5 h-5 sm:w-7 sm:h-7" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white truncate">
+              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                 {t('student_discipline_title')}
               </h1>
               {selectedStudent && (
-                <span className="hidden xs:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                  <GraduationCap className="w-3 h-3" />
-                  {selectedStudent.fullName}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 max-w-[160px]">
+                  <GraduationCap className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{selectedStudent.fullName}</span>
                 </span>
               )}
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 line-clamp-2">
               {t('discipline_subtitle')}
             </p>
           </div>
         </div>
 
-        {/* Action button bar */}
-        <div className="flex items-center gap-2 w-full sm:w-auto z-10 shrink-0">
+        {/* Action button bar — full width on mobile, auto on desktop */}
+        <div className="flex items-center gap-2 w-full z-10">
           <Button
             variant="outline"
             size="sm"
             onClick={() => fetchParentIncidents(true)}
             disabled={isRefreshing}
-            className="h-10 px-3 rounded-2xl border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm text-slate-700 dark:text-slate-200 active:scale-95 transition-all gap-1.5"
+            className="h-10 w-10 px-0 sm:w-auto sm:px-4 rounded-2xl border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm text-slate-700 dark:text-slate-200 active:scale-95 transition-all shrink-0 flex items-center justify-center gap-1.5"
             title={t('refresh')}
           >
-            <RotateCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-indigo-500")} />
-            <span className="text-xs font-bold hidden xs:inline">{t('refresh')}</span>
+            <RotateCw className={cn("w-4 h-4", isRefreshing && "animate-spin text-indigo-500")} />
+            <span className="text-xs font-bold hidden sm:inline">{t('refresh')}</span>
           </Button>
 
           <Button
             onClick={handleMessageTeacher}
-            className="h-10 px-4 sm:px-5 rounded-2xl gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 active:scale-95 transition-all border border-white/20 flex-1 sm:flex-initial"
+            className="h-10 rounded-2xl gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 active:scale-95 transition-all border border-white/20 flex-1 min-w-0 overflow-hidden"
           >
             <MessageSquare className="w-4 h-4 shrink-0" />
-            <span className="truncate">{t('message_homeroom_teacher')}</span>
+            <span className="truncate block max-w-full">{t('message_homeroom_teacher')}</span>
           </Button>
         </div>
       </motion.div>
@@ -656,22 +657,22 @@ export default function ParentDisciplinePage() {
                       )}
                     </div>
 
-                    {/* Action buttons (Mobile-first grid layout: full width 2 columns on phones, flex on desktop) */}
-                    <div className="grid grid-cols-2 md:flex items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 border-white/40 dark:border-white/10 pt-3 md:pt-0">
+                    {/* Action buttons — flex row, text truncated, overflow safe */}
+                    <div className="flex items-center gap-2 w-full border-t border-white/40 dark:border-white/10 pt-3">
                       {!inc.parentAcknowledged ? (
                         <Button
                           size="sm"
-                          className="h-10 md:h-9 px-3 sm:px-4 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-white/20 shadow-md shadow-emerald-500/20 active:scale-95 transition-all gap-1 justify-center"
+                          className="h-9 flex-1 min-w-0 overflow-hidden rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-white/20 shadow-md shadow-emerald-500/20 active:scale-95 transition-all gap-1 justify-center"
                           onClick={() => {
                             setSelectedIncident(inc);
                             setIsAckModalOpen(true);
                           }}
                         >
                           <Check className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{t('acknowledge_report')}</span>
+                          <span className="truncate block">{t('acknowledge_report')}</span>
                         </Button>
                       ) : (
-                        <div className="inline-flex items-center justify-center gap-1.5 h-10 md:h-9 px-3 rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 backdrop-blur-sm">
+                        <div className="inline-flex items-center justify-center gap-1.5 h-9 flex-1 min-w-0 overflow-hidden rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 backdrop-blur-sm">
                           <Check className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{t('acknowledged')}</span>
                         </div>
@@ -680,14 +681,14 @@ export default function ParentDisciplinePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-10 md:h-9 px-3 sm:px-4 rounded-xl text-xs font-bold border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-indigo-500/30 hover:text-indigo-600 active:scale-95 transition-all gap-1 justify-center"
+                        className="h-9 shrink-0 px-3 rounded-xl text-xs font-bold border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-indigo-500/30 hover:text-indigo-600 active:scale-95 transition-all gap-1 justify-center"
                         onClick={() => {
                           setSelectedIncident(inc);
                           setIsDetailOpen(true);
                         }}
                       >
                         <Eye className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{t('view_details')}</span>
+                        <span className="hidden xs:inline truncate">{t('view_details')}</span>
                       </Button>
                     </div>
                   </motion.div>
