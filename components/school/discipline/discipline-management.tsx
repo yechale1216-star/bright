@@ -1652,38 +1652,121 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
               )}
 
               {previewStudent && (
-                <div className="border border-indigo-200 dark:border-indigo-800 rounded-3xl overflow-hidden shadow-lg p-4 space-y-3 bg-white dark:bg-slate-950">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg">
-                        {(previewStudent.fullName || previewStudent.name || '?').charAt(0).toUpperCase()}
+                <div className="border border-indigo-200 dark:border-indigo-800 rounded-3xl overflow-hidden shadow-xl bg-white dark:bg-slate-950">
+                  {/* ── Profile Header (matches student management style) ── */}
+                  <div className="relative bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-5 pt-5 pb-4">
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 rounded-t-3xl" />
+
+                    {/* Change button */}
+                    <button
+                      type="button"
+                      onClick={() => { setPreviewStudent(null); setShowStudentResults(true); }}
+                      className="absolute top-3 right-3 text-white/60 hover:text-white hover:bg-white/10 rounded-full p-1.5 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+
+                    {/* Avatar + Name + ID */}
+                    <div className="flex items-center gap-4 pr-8">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-900/40 shrink-0">
+                        <span className="text-2xl font-black text-white">
+                          {(previewStudent.fullName || previewStudent.name || '?').charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-base text-slate-900 dark:text-white">{previewStudent.fullName || previewStudent.name}</h3>
-                        <p className="text-xs text-slate-400 font-mono">ID: {previewStudent.student_id}</p>
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-black text-white truncate leading-tight">
+                          {previewStudent.fullName || previewStudent.name}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-white/50 bg-white/10 px-2 py-0.5 rounded-full border border-white/10">
+                            Student Record
+                          </span>
+                          <code className="text-[11px] font-mono text-indigo-400 bg-indigo-400/10 border border-indigo-400/20 px-2 py-0.5 rounded-full">
+                            {previewStudent.student_id}
+                          </code>
+                        </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => { setPreviewStudent(null); setShowStudentResults(true); }}>
-                      Change
+
+                    {/* Quick stat chips */}
+                    <div className="flex gap-2 mt-4 flex-wrap">
+                      {[
+                        { label: previewStudent.grade?.name || previewStudent.grade || '—', sub: 'Grade' },
+                        { label: previewStudent.section?.name || previewStudent.section || '—', sub: 'Section' },
+                        { label: previewStudent.gender || '—', sub: 'Gender' },
+                        ...(previewStudent.stream?.name || previewStudent.stream ? [{ label: previewStudent.stream?.name || previewStudent.stream, sub: 'Stream' }] : []),
+                      ].map((chip) => (
+                        <div key={chip.sub} className="flex flex-col items-center bg-white/8 border border-white/10 rounded-xl px-3 py-2 min-w-[56px]">
+                          <span className="text-[11px] font-black text-white/90 leading-none">{chip.label}</span>
+                          <span className="text-[9px] font-bold uppercase text-white/40 tracking-widest mt-0.5">{chip.sub}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Profile Body ── */}
+                  <div className="p-4 space-y-4">
+                    {/* Student Details */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">Student Details</p>
+                      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                        {[
+                          { icon: <Calendar className="w-4 h-4 opacity-60" />, label: 'Date of Birth', value: previewStudent.date_of_birth || '—' },
+                          { icon: <Tag className="w-4 h-4 opacity-60" />, label: 'Address', value: previewStudent.address || '—' },
+                        ].map((row) => (
+                          <div key={row.label} className="flex justify-between items-center px-4 py-3 bg-slate-50/60 dark:bg-slate-900/40">
+                            <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                              {row.icon}
+                              {row.label}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-right max-w-[55%] truncate">{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Parent / Guardian */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1">Parent / Guardian</p>
+                      <div className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                        {[
+                          { icon: <Users className="w-4 h-4 opacity-60" />, label: 'Name', value: previewStudent.parent_name || previewStudent.parentName || '—' },
+                          { icon: <Phone className="w-4 h-4 opacity-60" />, label: 'Phone', value: previewStudent.parent_phone || previewStudent.parentPhone || '—' },
+                          { icon: <Mail className="w-4 h-4 opacity-60" />, label: 'Email', value: previewStudent.parent_email || previewStudent.parentEmail || 'No email' },
+                          { icon: <UserCheck className="w-4 h-4 opacity-60" />, label: 'Relationship', value: previewStudent.relationshipType || '—' },
+                        ].map((row) => (
+                          <div key={row.label} className="flex justify-between items-center px-4 py-3 bg-slate-50/60 dark:bg-slate-900/40">
+                            <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                              {row.icon}
+                              {row.label}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-right max-w-[55%] truncate">{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Confirm Button ── */}
+                  <div className="px-4 pb-4">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const st = previewStudent;
+                        setFormData((prev) => ({
+                          ...prev,
+                          studentId: st.id,
+                          selectedStudentName: st.fullName || st.name,
+                          selectedStudentGrade: `${st.grade?.name || st.grade || ''} – ${st.section?.name || st.section || ''}`
+                        }));
+                        setCreateStep(2);
+                      }}
+                      className="w-full h-11 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm gap-2 shadow-lg shadow-indigo-500/20"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Confirm – File Incident for This Student
                     </Button>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      const st = previewStudent;
-                      setFormData((prev) => ({
-                        ...prev,
-                        studentId: st.id,
-                        selectedStudentName: st.fullName || st.name,
-                        selectedStudentGrade: `${st.grade?.name || st.grade || ''} – ${st.section?.name || st.section || ''}`
-                      }));
-                      setCreateStep(2);
-                    }}
-                    className="w-full h-11 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Confirm – Use This Student
-                  </Button>
                 </div>
               )}
             </div>
