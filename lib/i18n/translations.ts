@@ -312,6 +312,12 @@ export const translations = {
     report_acknowledged_success: "Discipline report acknowledged successfully",
     report_acknowledge_failed: "Failed to acknowledge report",
     failed_to_load_discipline: "Failed to load discipline reports",
+    filter_all: "All",
+    filter_needs_ack: "Needs Acknowledgment",
+    filter_active: "Active / Open",
+    filter_resolved: "Resolved",
+    search_discipline_placeholder: "Search reports, case #, category...",
+    refresh: "Refresh",
 
     // Incident Categories Translations
     cat_late_arrival: "Late Arrival",
@@ -658,6 +664,12 @@ export const translations = {
     report_acknowledged_success: "የሥነ-ምግባር ሪፖርቱ በስኬት ተረጋግጧል",
     report_acknowledge_failed: "ሪፖርቱን ማረጋገጥ አልተቻለም",
     failed_to_load_discipline: "የሥነ-ምግባር ሪፖርቶችን መጫን አልተቻለም",
+    filter_all: "ሁሉም",
+    filter_needs_ack: "ማረጋገጫ የሚጠብቁ",
+    filter_active: "ክፍት / ንቁ",
+    filter_resolved: "የተፈቱ",
+    search_discipline_placeholder: "ሪፖርቶችን፣ ጉዳይ ቁጥር፣ የግድፈት ዓይነት ፈልግ...",
+    refresh: "አድስ",
 
     // Incident Categories Translations (Amharic)
     cat_late_arrival: "ዘግይቶ መድረስ",

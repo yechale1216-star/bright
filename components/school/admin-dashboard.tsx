@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { notifications } from "@/lib/utils/notifications"
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip
 } from "recharts"
 
 import { db, type Student, type AttendanceRecord } from "@/lib/db/database"
@@ -155,17 +155,108 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         : (staffStats.checkedInCount || totalTeachers))
     : totalTeachers
 
+  const [sessionFilter, setSessionFilter] = useState<"total" | "morning" | "afternoon">("total")
+  const isSessionBased = !settings || settings?.attendanceMode === "session_based" || settings?.attendanceMode === "session"
+
   // Attendance metrics
   const isPresent = (status?: string) => status?.toLowerCase() === "present" || status?.toLowerCase() === "late"
-  const presentCount = todayAttendance.filter(a => a.status?.toLowerCase() === "present").length
-  const lateCount = todayAttendance.filter(a => a.status?.toLowerCase() === "late").length
-  const absentCount = todayAttendance.filter(a => a.status?.toLowerCase() === "absent").length
-  const excusedCount = todayAttendance.filter(a => a.status?.toLowerCase() === "excused").length
-  const submittedAttendanceCount = todayAttendance.length
 
-  const attendanceRate = totalStudents > 0 && submittedAttendanceCount > 0
-    ? Math.round(((presentCount + lateCount) / submittedAttendanceCount) * 100)
-    : 0
+  const resolveFullDay = (m?: string, a?: string): "present" | "late" | "excused" | "absent" | null => {
+    if (!m && !a) return null
+    if (m && !a) return (m.toLowerCase() as any)
+    if (!m && a) return (a.toLowerCase() as any)
+    if (!m || !a) return null
+    const mn = m.toLowerCase()
+    const an = a.toLowerCase()
+    if (mn === "present" && an === "present") return "present"
+    if ((mn === "present" || mn === "late") && (an === "present" || an === "late")) return "late"
+    if (mn === "excused" && an === "excused") return "excused"
+    if (mn === "absent" && an === "absent") return "absent"
+    if (mn === "present" || an === "present" || mn === "late" || an === "late") return "late"
+    if (mn === "excused" || an === "excused") return "excused"
+    return "absent"
+  }
+
+  // School-wide attendance metrics filtered by session (Full Day / Morning / Afternoon)
+  // Scope: ALL active students in the current academic year (totalStudents)
+  const attendanceMetrics = useMemo(() => {
+    if (!isSessionBased || sessionFilter !== "total") {
+      const records = isSessionBased
+        ? todayAttendance.filter(a => a.session?.toLowerCase() === sessionFilter.toLowerCase())
+        : todayAttendance
+
+      const present = records.filter(a => a.status?.toLowerCase() === "present").length
+      const late = records.filter(a => a.status?.toLowerCase() === "late").length
+      const absent = records.filter(a => a.status?.toLowerCase() === "absent").length
+      const excused = records.filter(a => a.status?.toLowerCase() === "excused").length
+      const submitted = records.length
+      const notRecorded = Math.max(0, totalStudents - submitted)
+      const rate = totalStudents > 0 && submitted > 0
+        ? Math.round(((present + late) / totalStudents) * 100)
+        : 0
+
+      return {
+        presentCount: present,
+        lateCount: late,
+        absentCount: absent,
+        excusedCount: excused,
+        submittedCount: submitted,
+        notRecordedCount: notRecorded,
+        attendanceRate: rate,
+      }
+    }
+
+    // Full Day in session-based mode: group by student to pair morning & afternoon
+    const studentGroups: Record<string, { morning?: string; afternoon?: string }> = {}
+    todayAttendance.forEach((a) => {
+      const sId = a.student_id
+      if (!sId) return
+      if (!studentGroups[sId]) studentGroups[sId] = {}
+      const sess = a.session?.toLowerCase()
+      if (sess === "morning") studentGroups[sId].morning = a.status
+      else if (sess === "afternoon") studentGroups[sId].afternoon = a.status
+      else studentGroups[sId].morning = a.status
+    })
+
+    let present = 0
+    let late = 0
+    let absent = 0
+    let excused = 0
+
+    Object.values(studentGroups).forEach(group => {
+      const status = resolveFullDay(group.morning, group.afternoon)
+      if (status === "present") present++
+      else if (status === "late") late++
+      else if (status === "absent") absent++
+      else if (status === "excused") excused++
+    })
+
+    const submitted = Object.keys(studentGroups).length
+    const notRecorded = Math.max(0, totalStudents - submitted)
+    const rate = totalStudents > 0 && submitted > 0
+      ? Math.round(((present + late) / totalStudents) * 100)
+      : 0
+
+    return {
+      presentCount: present,
+      lateCount: late,
+      absentCount: absent,
+      excusedCount: excused,
+      submittedCount: submitted,
+      notRecordedCount: notRecorded,
+      attendanceRate: rate,
+    }
+  }, [todayAttendance, sessionFilter, isSessionBased, totalStudents])
+
+  const {
+    presentCount,
+    lateCount,
+    absentCount,
+    excusedCount,
+    submittedCount,
+    notRecordedCount,
+    attendanceRate
+  } = attendanceMetrics
 
   // Student Breakdown by Grade
   const gradeCounts: Record<string, number> = {}
@@ -220,30 +311,69 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       dayOffset++
     }
 
-    allAttendance.forEach((record) => {
-      const d = record.attendance_date || (record as any).date
-      if (d && trendDataMap[d]) {
+    if (!isSessionBased || sessionFilter !== "total") {
+      allAttendance.forEach((record) => {
+        const d = record.attendance_date || (record as any).date
+        if (!d || !trendDataMap[d]) return
+
+        if (isSessionBased) {
+          const sess = record.session?.toLowerCase()
+          if (sess !== sessionFilter.toLowerCase()) return
+        }
+
         trendDataMap[d].total++
         if (isPresent(record.status)) {
           trendDataMap[d].present++
         }
-      }
-    })
+      })
+    } else {
+      // Full Day session-based: group by (date + student)
+      const dateStudentGroups: Record<string, Record<string, { morning?: string; afternoon?: string }>> = {}
+
+      allAttendance.forEach((record) => {
+        const d = record.attendance_date || (record as any).date
+        if (!d || !trendDataMap[d]) return
+        const sId = record.student_id
+        if (!sId) return
+
+        if (!dateStudentGroups[d]) dateStudentGroups[d] = {}
+        if (!dateStudentGroups[d][sId]) dateStudentGroups[d][sId] = {}
+
+        const sess = record.session?.toLowerCase()
+        if (sess === "morning") dateStudentGroups[d][sId].morning = record.status
+        else if (sess === "afternoon") dateStudentGroups[d][sId].afternoon = record.status
+        else dateStudentGroups[d][sId].morning = record.status
+      })
+
+      Object.entries(dateStudentGroups).forEach(([d, studentsMap]) => {
+        if (!trendDataMap[d]) return
+        trendDataMap[d].total = Object.keys(studentsMap).length
+        Object.values(studentsMap).forEach((group) => {
+          const status = resolveFullDay(group.morning, group.afternoon)
+          if (status === "present" || status === "late") {
+            trendDataMap[d].present++
+          }
+        })
+      })
+    }
 
     return Object.values(trendDataMap)
       .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
       .map((item) => {
         const dateObj = new Date(item.dateStr + "T00:00:00")
         const label = dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-        const rate = item.total > 0 ? Math.round((item.present / item.total) * 100) : 0
+        const rate = totalStudents > 0 && item.total > 0
+          ? Math.round((item.present / totalStudents) * 100)
+          : (item.total > 0 ? Math.round((item.present / item.total) * 100) : 0)
         return {
           date: label,
           rate,
           present: item.present,
-          total: item.total,
+          total: totalStudents > 0 ? totalStudents : item.total,
+          recorded: item.total,
         }
       })
-  }, [allAttendance])
+  }, [allAttendance, sessionFilter, isSessionBased, totalStudents])
 
   // Chart data: Grade Enrollment
   const gradeChartData = useMemo(() => {
@@ -255,16 +385,18 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }, [sortedGrades])
 
   // Chart data: Today's Attendance Status Donut
+  // Includes "Not Recorded" slice for students whose class hasn't been submitted yet
   const statusPieData = useMemo(() => {
     const data = [
       { name: "Present", value: presentCount, color: "#10b981" },
       { name: "Late", value: lateCount, color: "#f59e0b" },
       { name: "Absent", value: absentCount, color: "#ef4444" },
       { name: "Excused", value: excusedCount, color: "#3b82f6" },
+      { name: "Not Recorded", value: notRecordedCount, color: "#cbd5e1" },
     ].filter((item) => item.value > 0)
 
     return data
-  }, [presentCount, lateCount, absentCount, excusedCount])
+  }, [presentCount, lateCount, absentCount, excusedCount, notRecordedCount])
 
   // Recent Students (last 5)
   const recentStudents = useMemo(() => [...students].slice(-5).reverse(), [students])
@@ -399,6 +531,45 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* Session Filter Tabs (Full Day / Morning / Afternoon) */}
+          {isSessionBased && (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <Button
+                variant={sessionFilter === "total" ? "default" : "ghost"}
+                onClick={() => setSessionFilter("total")}
+                size="sm"
+                className={cn(
+                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
+                  sessionFilter === "total" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Full Day
+              </Button>
+              <Button
+                variant={sessionFilter === "morning" ? "default" : "ghost"}
+                onClick={() => setSessionFilter("morning")}
+                size="sm"
+                className={cn(
+                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
+                  sessionFilter === "morning" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Morning
+              </Button>
+              <Button
+                variant={sessionFilter === "afternoon" ? "default" : "ghost"}
+                onClick={() => setSessionFilter("afternoon")}
+                size="sm"
+                className={cn(
+                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
+                  sessionFilter === "afternoon" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Afternoon
+              </Button>
+            </div>
+          )}
+
           {/* Date & Refresh Pill */}
           <div className="text-xs font-semibold bg-primary/10 text-primary px-3.5 py-2 rounded-full border border-primary/20 shadow-2xs flex items-center gap-2.5">
             <Calendar className="w-3.5 h-3.5" />
@@ -503,12 +674,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           {
             label: "Attendance Rate",
             value: `${attendanceRate}%`,
-            sub: `${presentCount + lateCount} Present Today`,
+            sub: `${presentCount + lateCount} of ${totalStudents} Present${sessionFilter !== "total" ? ` (${sessionFilter === "morning" ? "Morning" : "Afternoon"})` : ""}`,
             icon: TrendingUp,
             iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
             iconColor: "text-indigo-600 dark:text-indigo-400",
             valColor: "text-indigo-600 dark:text-indigo-400",
-            href: "/school/admin/attendance",
+            href: `/school/admin/attendance${sessionFilter !== "total" ? `?session=${sessionFilter}` : ""}`,
           },
           {
             label: "Staff On Duty",
@@ -576,7 +747,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
               <h3 className="text-sm font-black text-foreground uppercase tracking-tight">
-                {activeChartTab === "trend" ? "5-Day Attendance Trend" : "Student Enrollment by Grade"}
+                {activeChartTab === "trend"
+                  ? `5-Day Attendance Trend${sessionFilter !== "total" ? ` (${sessionFilter === "morning" ? "Morning" : "Afternoon"})` : ""}`
+                  : "Student Enrollment by Grade"}
               </h3>
             </div>
 
@@ -647,50 +820,62 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         {/* Right Column (1 Col): Today's Status Donut */}
         <Card className="border-none shadow-sm bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-slate-800">
           <CardHeader className="pb-0 border-none">
-            <CardTitle className="typography-card-title flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
-              Today's Status
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="typography-card-title flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
+                Today's Status
+              </CardTitle>
+              {isSessionBased && (
+                <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">
+                  {sessionFilter === "total" ? "Full Day" : `${sessionFilter}`}
+                </Badge>
+              )}
+            </div>
+            {/* School-wide coverage pill */}
+            {!isLoading && totalStudents > 0 && (
+              <p className="text-[11px] font-semibold text-muted-foreground mt-0.5">
+                <span className={cn(
+                  "font-bold",
+                  notRecordedCount === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                )}>
+                  {submittedCount} of {totalStudents}
+                </span>{" "}
+                students recorded
+                {notRecordedCount === 0
+                  ? " · Full coverage ✓"
+                  : ` · ${notRecordedCount} unsubmitted`}
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-[250px] w-full mt-4 bg-slate-100 dark:bg-slate-800/20 animate-pulse rounded-2xl" />
-            ) : statusPieData.length > 0 ? (
-              <div className="h-[250px] w-full mt-4 p-2 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="h-[220px] w-full mt-4 bg-slate-100 dark:bg-slate-800/20 animate-pulse rounded-2xl" />
+            ) : totalStudents > 0 ? (
+              <div className="h-[250px] w-full mt-3 p-2 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-700">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={statusPieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={8}
+                      innerRadius={55}
+                      outerRadius={78}
+                      paddingAngle={5}
                       dataKey="value"
                     >
-                      {statusPieData.map((entry, index) => {
-                        const getColor = (name: string) => {
-                          switch (name.toLowerCase()) {
-                            case "present": return "#10b981" // Green
-                            case "late": return "#f59e0b"    // Yellow
-                            case "absent": return "#ef4444"  // Red
-                            case "excused": return "#3b82f6" // Blue
-                            default: return "#888888"
-                          }
-                        }
-                        return <Cell key={`cell-${index}`} fill={getColor(entry.name)} />
-                      })}
+                      {statusPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
                     </Pie>
                     <RechartsTooltip
                       contentStyle={{ backgroundColor: "var(--card)", borderRadius: "12px", border: "1px solid var(--border)" }}
                       itemStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                       labelStyle={{ color: "var(--muted-foreground)" }}
                       formatter={(value: number, name: string) => [
-                        `${value} Student${value !== 1 ? "s" : ""}`,
+                        `${value} student${value !== 1 ? "s" : ""} (${totalStudents > 0 ? Math.round((value / totalStudents) * 100) : 0}%)`,
                         name
                       ]}
                     />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -699,7 +884,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <div className="p-4 bg-muted rounded-full">
                   <AlertTriangle className="w-8 h-8 opacity-20" />
                 </div>
-                <p className="typography-label">No attendance data for today</p>
+                <p className="typography-label">No students enrolled yet</p>
               </div>
             )}
           </CardContent>

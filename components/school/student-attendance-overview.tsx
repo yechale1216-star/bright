@@ -297,14 +297,16 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
       return a.attendance_date === todayDate
     }).length
 
-    const attendanceRate =
+    // School-wide attendance rate: divide (present + late) by ALL active students (students.length)
+    const hasSubmittedToday =
       isSessionBased && sessionFilter === "total"
         ? Object.keys(sessionFilteredToday).length > 0
-          ? ((presentToday + lateToday + excusedToday) / Object.keys(sessionFilteredToday).length) * 100
-          : 0
         : totalRecentRecords > 0
-          ? (recentAttendance.length / totalRecentRecords) * 100
-          : 0
+
+    const attendanceRate =
+      students.length > 0 && hasSubmittedToday
+        ? Math.round(((presentToday + lateToday) / students.length) * 100)
+        : 0
 
     setStats({
       totalStudents: students.length,
