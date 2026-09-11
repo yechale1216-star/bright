@@ -116,7 +116,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         db.getTeachers().catch(() => []),
         db.getAttendanceByDate(today).catch(() => []),
         db.getAttendance().catch(() => []),
-        db.getStaffAttendanceStats().catch(() => null),
+        db.getStaffAttendanceStats(today).catch(() => null),
         db.getStaffAttendanceStats(today, "morning").catch(() => null),
         db.getStaffAttendanceStats(today, "afternoon").catch(() => null),
         DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
@@ -163,19 +163,28 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const getStaffActive = (st: any) => {
     if (!st) return 0
-    if (typeof st.present === "number" || typeof st.late === "number") {
-      return (st.present || 0) + (st.late || 0)
+    if (typeof st.checkedIn === "number" && st.checkedIn > 0) {
+      return st.checkedIn
     }
-    return st.checkedInCount || 0
+    if (typeof st.present === "number" || typeof st.late === "number" || typeof st.earlyDeparture === "number") {
+      return (st.present || 0) + (st.late || 0) + (st.earlyDeparture || 0)
+    }
+    if (typeof st.checkedInCount === "number") {
+      return st.checkedInCount
+    }
+    return 0
   }
 
+  const isStaffSessionMode =
+    staffStats?.attendanceMode === "session_based" ||
+    (settings?.staffAttendanceMode || (settings as any)?.staff_attendance_mode) === "session_based"
+
+  const dailyActiveStaff = getStaffActive(staffStats)
   const morningActiveStaff = getStaffActive(morningStaffStats)
   const afternoonActiveStaff = getStaffActive(afternoonStaffStats)
-  const activeStaffCount = staffStats
-    ? (typeof staffStats.present === "number" || typeof staffStats.late === "number"
-        ? (staffStats.present || 0) + (staffStats.late || 0)
-        : (staffStats.checkedInCount || totalTeachers))
-    : totalTeachers
+  const activeStaffCount = isStaffSessionMode
+    ? (morningActiveStaff + afternoonActiveStaff)
+    : dailyActiveStaff
 
   const [sessionFilter, setSessionFilter] = useState<"total" | "morning" | "afternoon">("total")
   const isSessionBased = !settings || settings?.attendanceMode === "session_based" || settings?.attendanceMode === "session"
@@ -705,7 +714,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           },
           {
             label: "Staff On Duty",
-            value: sessionFilter === "morning" ? (
+            value: !isStaffSessionMode ? (
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-2xl md:text-3xl font-bold tracking-tight text-purple-600 dark:text-purple-400">{dailyActiveStaff}</span>
+                <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 ml-0.5 flex items-center gap-0.5">
+                  <Clock className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" /> Daily
+                </span>
+              </div>
+            ) : sessionFilter === "morning" ? (
               <div className="flex items-center justify-center gap-1.5">
                 <span className="text-2xl md:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{morningActiveStaff}</span>
                 <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
@@ -737,7 +754,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 </div>
               </div>
             ),
-            sub: sessionFilter === "morning"
+            sub: !isStaffSessionMode
+              ? `${dailyActiveStaff} of ${totalStaff} staff clocked in today`
+              : sessionFilter === "morning"
               ? `Morning: ${morningActiveStaff} of ${totalStaff} on duty`
               : sessionFilter === "afternoon"
               ? `Afternoon: ${afternoonActiveStaff} of ${totalStaff} on duty`
@@ -746,7 +765,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             iconBg: "bg-purple-50 dark:bg-purple-900/20",
             iconColor: "text-purple-600 dark:text-purple-400",
             valColor: "text-purple-600 dark:text-purple-400",
-            href: `/school/admin/staff-attendance${sessionFilter !== "total" ? `?session=${sessionFilter}` : ""}`,
+            href: `/school/admin/staff-attendance${isStaffSessionMode && sessionFilter !== "total" ? `?session=${sessionFilter}` : ""}`,
           },
           {
             label: "Open Conduct Cases",
