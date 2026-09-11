@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Calendar,
   User,
-  Bell,
   LogOut,
   ChevronDown,
   X,
@@ -410,7 +409,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
               <span className="text-[11px] font-black uppercase tracking-tight truncate min-w-0">{selectedStudent.fullName.split(" ")[0]}</span>
               <ChevronDown className="w-3 h-3 opacity-50 shrink-0" />
             </button>
-            {unreadCount > 0 && <Link href="/parent/communication" className="p-2 relative shrink-0"><Bell className="w-4 h-4 text-primary" /><span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-slate-900" /></Link>}
           </div>
         )}
 

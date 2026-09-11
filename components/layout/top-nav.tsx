@@ -18,7 +18,6 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils/utils"
 import { useAuth } from "@/lib/context/auth-context"
 import { useSchool } from "@/lib/context/school-context"
-import { NotificationPopover } from "@/components/ui/notification-popover"
 import { useTheme } from "@/components/theme-provider"
 import { CommandPalette } from "@/components/ui/command-palette"
 import { useCalendar } from "@/lib/context/calendar-context"
@@ -137,8 +136,6 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
             <div className="hidden sm:block">
               <ModeToggle />
             </div>
-            
-            <NotificationPopover />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
