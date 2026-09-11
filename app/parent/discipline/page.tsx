@@ -403,8 +403,8 @@ export default function ParentDisciplinePage() {
         </div>
       </motion.div>
 
-      {/* ── Mobile-First KPI Glanceable Metrics (3-col on all screens) ── */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 w-full max-w-full">
+      {/* ── Mobile-First KPI Glanceable Metrics (1 card per row) ── */}
+      <div className="grid grid-cols-1 gap-2.5 w-full max-w-full">
         {[
           {
             label: t('total_discipline_reports'),
@@ -448,24 +448,25 @@ export default function ParentDisciplinePage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.2, delay: card.delay }}
             className={cn(
-              'group text-left rounded-2xl border p-2.5 sm:p-4 backdrop-blur-xl shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.98] w-full min-w-0 box-border relative overflow-hidden',
+              'group text-left rounded-2xl border px-4 py-3.5 backdrop-blur-xl shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.98] w-full min-w-0 box-border relative overflow-hidden flex items-center gap-3',
               card.isActive
                 ? 'bg-white dark:bg-slate-800 border-primary shadow-md shadow-primary/5 ring-2 ring-primary/20'
                 : 'bg-white/70 dark:bg-slate-900/70 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs',
               card.hoverBorder
             )}
           >
-            <div className="flex items-center justify-between gap-1.5 min-w-0">
-              <span className={cn('p-1.5 rounded-xl border shrink-0', card.bg, card.color)}>
-                {card.icon}
-              </span>
-              <span className={cn('text-base sm:text-2xl font-black tracking-tight shrink-0', card.color)}>
-                {isLoading ? '—' : card.value}
-              </span>
-            </div>
-            <p className="text-[9px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-2 truncate min-w-0" title={card.label}>
+            {/* Left: icon */}
+            <span className={cn('p-2.5 rounded-xl border shrink-0', card.bg, card.color)}>
+              {card.icon}
+            </span>
+            {/* Middle: label */}
+            <p className="flex-1 text-sm font-semibold text-slate-700 dark:text-slate-300 truncate min-w-0">
               {card.label}
             </p>
+            {/* Right: value */}
+            <span className={cn('text-2xl font-black tracking-tight shrink-0', card.color)}>
+              {isLoading ? '—' : card.value}
+            </span>
           </motion.button>
         ))}
       </div>

@@ -358,28 +358,22 @@ export default function AnnouncementsPage() {
         ].map((kpi) => {
           const Icon = kpi.icon
           return (
-            <button
+            <div
               key={kpi.id}
-              onClick={() => setActiveFilter(kpi.id)}
-              className={cn(
-                "p-2.5 sm:p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer active:scale-[0.98] w-full min-w-0 box-border",
-                kpi.active
-                  ? "bg-white dark:bg-slate-800 border-primary shadow-md shadow-primary/5 ring-2 ring-primary/20"
-                  : "bg-white/70 dark:bg-slate-900/70 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
-              )}
+              className="p-3.5 sm:p-5 rounded-2xl border text-left relative overflow-hidden w-full min-w-0 box-border bg-white/70 dark:bg-slate-900/70 border-slate-200/80 dark:border-slate-800/80 shadow-xs"
             >
               <div className="flex items-center justify-between gap-2 min-w-0">
-                <span className={cn("p-1.5 sm:p-2 rounded-xl border shrink-0", kpi.bg, kpi.color)}>
-                  <Icon className={cn("w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0", kpi.pulse && "animate-bounce")} />
+                <span className={cn("p-2 sm:p-2.5 rounded-xl border shrink-0", kpi.bg, kpi.color)}>
+                  <Icon className={cn("w-4 h-4 sm:w-5 sm:h-5 shrink-0", kpi.pulse && "animate-bounce")} />
                 </span>
-                <span className={cn("text-base sm:text-2xl font-black tracking-tight shrink-0", kpi.color)}>
+                <span className={cn("text-xl sm:text-2xl font-black tracking-tight shrink-0", kpi.color)}>
                   {isLoading ? "—" : kpi.count}
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 mt-2 truncate min-w-0" title={kpi.label}>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 mt-2.5 truncate min-w-0" title={kpi.label}>
                 {kpi.label}
               </p>
-            </button>
+            </div>
           )
         })}
       </div>
