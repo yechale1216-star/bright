@@ -244,7 +244,7 @@ export default function AnnouncementsPage() {
   }
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 w-full max-w-5xl mx-auto pb-28 md:pb-12 min-w-0 overflow-hidden animate-in fade-in duration-300">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-5xl mx-auto pb-32 sm:pb-28 md:pb-12 min-w-0 overflow-hidden animate-in fade-in duration-300">
 
       {/* ── Ambient Background Blur (Containment prevents mobile scrollbar jitter) ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 max-w-full">
@@ -293,7 +293,7 @@ export default function AnnouncementsPage() {
               variant="outline"
               size="sm"
               onClick={handleMarkAllAsRead}
-              className="h-8 sm:h-9 px-3 rounded-xl border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 text-xs font-bold gap-1.5 shadow-2xs"
+              className="h-9 px-3.5 rounded-xl border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 text-xs font-bold gap-1.5 shadow-2xs active:scale-95"
             >
               <CheckCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="truncate">{language === "am" ? "ሁሉንም አንብብ" : "Mark All Read"}</span>
@@ -305,7 +305,7 @@ export default function AnnouncementsPage() {
             size="sm"
             onClick={() => fetchAnnouncements(true)}
             disabled={isRefreshing}
-            className="h-8 sm:h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 text-xs font-semibold gap-1.5 shadow-2xs ml-auto"
+            className="h-9 px-3.5 rounded-xl border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 text-xs font-semibold gap-1.5 shadow-2xs ml-auto active:scale-95"
             title={language === "am" ? "ማደስ" : "Refresh Announcements"}
           >
             <RefreshCw className={cn("w-3.5 h-3.5 shrink-0", isRefreshing && "animate-spin text-emerald-600")} />
@@ -361,7 +361,7 @@ export default function AnnouncementsPage() {
               key={kpi.id}
               onClick={() => setActiveFilter(kpi.id)}
               className={cn(
-                "p-3 sm:p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer active:scale-[0.98] w-full min-w-0",
+                "p-3 sm:p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer active:scale-[0.97] w-full min-w-0",
                 kpi.active
                   ? "bg-white dark:bg-slate-800 border-primary shadow-md shadow-primary/5 ring-2 ring-primary/20"
                   : "bg-white/70 dark:bg-slate-900/70 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
@@ -391,12 +391,12 @@ export default function AnnouncementsPage() {
             placeholder={language === "am" ? "ማስታወቂያዎችን ይፈልጉ..." : "Search broadcasts, keywords, or student name..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-10 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 rounded-2xl h-11 text-xs sm:text-sm shadow-xs focus-visible:ring-primary/20 w-full"
+            className="pl-10 pr-10 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 rounded-2xl h-11 text-sm shadow-xs focus-visible:ring-primary/20 w-full"
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -404,7 +404,7 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* Scrollable category pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain w-full max-w-full min-w-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain touch-pan-x w-full max-w-full min-w-0">
           {[
             { id: "ALL" as const, label: language === "am" ? "ሁሉም" : "All Broadcasts", count: counts.total, icon: Filter },
             { id: "EMERGENCY" as const, label: language === "am" ? "አስቸኳይ" : "Urgent / Alerts", count: counts.emergency, icon: AlertTriangle },
@@ -419,13 +419,13 @@ export default function AnnouncementsPage() {
                 key={pill.id}
                 onClick={() => setActiveFilter(pill.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer active:scale-95",
+                  "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer active:scale-95",
                   isActive
                     ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
                     : "bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700/50"
                 )}
               >
-                <PillIcon className="w-3 h-3 shrink-0" />
+                <PillIcon className="w-3.5 h-3.5 shrink-0" />
                 <span>{pill.label}</span>
                 <span className={cn(
                   "text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0",
@@ -464,7 +464,7 @@ export default function AnnouncementsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => { setSearchTerm(""); setActiveFilter("ALL"); }}
-                  className="rounded-xl mt-2 text-xs font-bold"
+                  className="rounded-xl mt-2 text-xs font-bold active:scale-95"
                 >
                   {language === "am" ? "ሁሉንም አሳይ" : "Clear Filters"}
                 </Button>
@@ -490,8 +490,9 @@ export default function AnnouncementsPage() {
                   className="w-full min-w-0"
                 >
                   <div
+                    onClick={() => setSelectedAnnouncement(item)}
                     className={cn(
-                      "group relative rounded-2xl sm:rounded-3xl border bg-white/90 dark:bg-slate-900/90 backdrop-blur-md overflow-hidden transition-all duration-200 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 flex flex-col w-full min-w-0",
+                      "group relative rounded-2xl sm:rounded-3xl border bg-white/90 dark:bg-slate-900/90 backdrop-blur-md overflow-hidden transition-all duration-200 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 flex flex-col w-full min-w-0 cursor-pointer active:scale-[0.99]",
                       !item.isRead ? "border-emerald-500/40 dark:border-emerald-500/30 ring-1 ring-emerald-500/15" : "border-slate-200/80 dark:border-slate-800"
                     )}
                   >
@@ -500,14 +501,14 @@ export default function AnnouncementsPage() {
 
                     <div className="pl-4 sm:pl-5 pr-3.5 sm:pr-5 py-3.5 sm:py-4 space-y-2.5 w-full min-w-0">
                       {/* Top Meta Bar */}
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {/* Type Badge */}
                           <span className={cn(
                             "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border",
                             typeCfg.badgeCls
                           )}>
-                            <TypeIcon className="w-3 h-3" />
+                            <TypeIcon className="w-3 h-3 shrink-0" />
                             {item.type}
                           </span>
 
@@ -516,15 +517,15 @@ export default function AnnouncementsPage() {
                             "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border",
                             audBadge.cls
                           )}>
-                            <AudIcon className="w-3 h-3" />
+                            <AudIcon className="w-3 h-3 shrink-0" />
                             {audBadge.label}
                           </span>
 
                           {/* Specific Student Badge (if targeted) */}
                           {item.student && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
-                              <GraduationCap className="w-3 h-3" />
-                              {item.student.fullName}
+                              <GraduationCap className="w-3 h-3 shrink-0" />
+                              <span className="truncate max-w-[120px]">{item.student.fullName}</span>
                             </span>
                           )}
                         </div>
@@ -546,33 +547,31 @@ export default function AnnouncementsPage() {
                       </div>
 
                       {/* Announcement Title */}
-                      <div 
-                        onClick={() => setSelectedAnnouncement(item)}
-                        className="cursor-pointer group-hover:text-primary transition-colors"
-                      >
-                        <h3 className="font-black text-sm sm:text-base text-foreground leading-snug">
+                      <div className="group-hover:text-primary transition-colors">
+                        <h3 className="font-black text-sm sm:text-base text-foreground leading-snug break-words">
                           {item.title}
                         </h3>
                       </div>
 
                       {/* Announcement Excerpt */}
-                      <div 
-                        onClick={() => setSelectedAnnouncement(item)}
-                        className="bg-slate-50/70 dark:bg-slate-800/40 p-3 sm:p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer"
-                      >
-                        <p className="text-foreground/90 text-xs sm:text-sm leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                      <div className="bg-slate-50/70 dark:bg-slate-800/40 p-3 sm:p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-foreground/90 text-xs sm:text-sm leading-relaxed line-clamp-3 whitespace-pre-wrap break-words">
                           {item.message}
                         </p>
                       </div>
 
                       {/* Bottom Action Footer */}
-                      <div className="flex items-center justify-between pt-1 gap-2 border-t border-border/40">
+                      <div className="flex items-center justify-between pt-2 gap-2 border-t border-border/40">
                         <button
-                          onClick={() => setSelectedAnnouncement(item)}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAnnouncement(item);
+                          }}
+                          className="inline-flex items-center gap-1.5 py-1 text-xs font-bold text-primary hover:underline active:opacity-75"
                         >
                           <span>{language === "am" ? "ሙሉውን አንብብ" : "Read Full Notice"}</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3.5 h-3.5" />
                         </button>
 
                         <div className="flex items-center gap-1.5">
@@ -580,15 +579,18 @@ export default function AnnouncementsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleMarkAsRead(item)}
-                              className="h-7 px-2.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-[11px] font-bold gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsRead(item);
+                              }}
+                              className="h-8 px-3 rounded-xl text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-bold gap-1.5 active:scale-95"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>{language === "am" ? "እንደተነበበ ምልክት አድርግ" : "Mark as Read"}</span>
                             </Button>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground/80 px-2 py-0.5">
-                              <CheckCheck className="w-3 h-3 text-emerald-600" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground/80 px-2 py-1">
+                              <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
                               <span>{language === "am" ? "ተነቧል" : "Read"}</span>
                             </span>
                           )}
@@ -603,9 +605,12 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
-      {/* ── 5. Mobile-First Announcement Detail Dialog ── */}
+      {/* ── 5. Mobile-First Announcement Detail Dialog (Bottom-Sheet Feel) ── */}
       <Dialog open={!!selectedAnnouncement} onOpenChange={(open) => !open && setSelectedAnnouncement(null)}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[85dvh] rounded-[28px] p-0 flex flex-col overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-white/20 dark:border-white/10 shadow-2xl">
+        <DialogContent
+          showCloseButton={false}
+          className="w-[95vw] sm:max-w-lg max-h-[88dvh] rounded-t-[28px] rounded-b-[20px] sm:rounded-[28px] p-0 flex flex-col overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-white/20 dark:border-white/10 shadow-2xl"
+        >
           {selectedAnnouncement && (() => {
             const typeCfg = getTypeStyles(selectedAnnouncement.type)
             const TypeIcon = typeCfg.icon
@@ -614,41 +619,51 @@ export default function AnnouncementsPage() {
 
             return (
               <>
+                {/* Mobile Drag Indicator */}
+                <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+
                 {/* Modal Header */}
-                <div className={cn("p-5 pb-4 border-b border-border/50 bg-gradient-to-r relative", typeCfg.glowCls)}>
+                <div className={cn("p-4 sm:p-5 pb-3 sm:pb-4 border-b border-border/50 bg-gradient-to-r relative shrink-0", typeCfg.glowCls)}>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border", typeCfg.badgeCls)}>
-                        <TypeIcon className="w-3 h-3" />
+                      <span className={cn("inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider border", typeCfg.badgeCls)}>
+                        <TypeIcon className="w-3.5 h-3.5" />
                         {selectedAnnouncement.type}
                       </span>
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border", audBadge.cls)}>
-                        <AudIcon className="w-3 h-3" />
+                      <span className={cn("inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold border", audBadge.cls)}>
+                        <AudIcon className="w-3.5 h-3.5" />
                         {audBadge.label}
                       </span>
                     </div>
+
+                    <button
+                      onClick={() => setSelectedAnnouncement(null)}
+                      className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
 
-                  <DialogTitle className="text-base sm:text-lg font-black text-foreground leading-snug">
+                  <DialogTitle className="text-base sm:text-lg font-black text-foreground leading-snug break-words">
                     {selectedAnnouncement.title}
                   </DialogTitle>
 
-                  <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground font-semibold">
+                  <div className="flex items-center gap-3 mt-2 text-[11px] sm:text-xs text-muted-foreground font-semibold">
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
+                      <Calendar className="w-3.5 h-3.5" />
                       {formatLocalizedDate(selectedAnnouncement.createdAt, language, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
+                      <Clock className="w-3.5 h-3.5" />
                       {formatLocalizedTime(selectedAnnouncement.createdAt, language)}
                     </span>
                   </div>
                 </div>
 
                 {/* Modal Body (Scrollable) */}
-                <div className="p-5 flex-1 overflow-y-auto overscroll-contain space-y-4">
+                <div className="p-4 sm:p-5 flex-1 overflow-y-auto overscroll-contain space-y-3.5">
                   {selectedAnnouncement.student && (
-                    <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex items-center gap-2 text-xs">
+                    <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex items-center gap-2 text-xs sm:text-sm">
                       <GraduationCap className="w-4 h-4 text-purple-600 shrink-0" />
                       <div>
                         <span className="font-bold text-purple-900 dark:text-purple-300">
@@ -662,14 +677,14 @@ export default function AnnouncementsPage() {
                   )}
 
                   <div className="bg-slate-50/80 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
-                    <p className="text-foreground text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
+                    <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap break-words">
                       {selectedAnnouncement.message}
                     </p>
                   </div>
                 </div>
 
                 {/* Modal Footer */}
-                <DialogFooter className="p-4 bg-muted/20 border-t border-border/50 flex flex-row items-center justify-between gap-2">
+                <DialogFooter className="p-3.5 sm:p-4 bg-muted/20 border-t border-border/50 flex flex-row items-center justify-between gap-2.5 pb-safe shrink-0">
                   {!selectedAnnouncement.isRead ? (
                     <Button
                       variant="default"
@@ -678,10 +693,10 @@ export default function AnnouncementsPage() {
                         handleMarkAsRead(selectedAnnouncement)
                         setSelectedAnnouncement(null)
                       }}
-                      className="rounded-xl h-9 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                      className="rounded-xl h-10 px-4 text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 flex-1 sm:flex-initial justify-center active:scale-95"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{language === "am" ? "እንደተነበበ ምልክት አድርግ" : "Mark as Read"}</span>
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{language === "am" ? "እንደተነበበ ምልክት አድርግ" : "Mark as Read"}</span>
                     </Button>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
@@ -694,7 +709,7 @@ export default function AnnouncementsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedAnnouncement(null)}
-                    className="rounded-xl h-9 px-4 text-xs font-bold ml-auto"
+                    className="rounded-xl h-10 px-4 text-xs sm:text-sm font-bold shrink-0 ml-auto active:scale-95"
                   >
                     {language === "am" ? "ዝጋ" : "Close"}
                   </Button>

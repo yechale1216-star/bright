@@ -337,12 +337,12 @@ export default function ParentDisciplinePage() {
   }, [incidents, activeTab, searchQuery]);
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 w-full max-w-6xl mx-auto pb-24 md:pb-8 overflow-x-hidden">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-6xl mx-auto pb-32 sm:pb-28 md:pb-12 overflow-x-hidden min-w-0">
 
       {/* ── Ambient Background Blur (Contain overflow to prevent mobile scrollbar jank) ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className="absolute top-10 -left-10 w-72 sm:w-80 h-72 sm:h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
-        <div className="absolute top-1/2 -right-10 w-72 sm:w-80 h-72 sm:h-80 bg-rose-500/10 rounded-full blur-[110px]" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 max-w-full">
+        <div className="absolute top-10 left-0 w-72 sm:w-80 h-72 sm:h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 right-0 w-72 sm:w-80 h-72 sm:h-80 bg-rose-500/10 rounded-full blur-[110px]" />
         <div className="absolute bottom-10 left-1/3 w-72 sm:w-80 h-72 sm:h-80 bg-emerald-500/10 rounded-full blur-[100px]" />
       </div>
 
@@ -476,19 +476,19 @@ export default function ParentDisciplinePage() {
       {/* ── Search & Horizontal Scrollable Filter Tabs (Mobile First) ── */}
       <div className="rounded-[20px] sm:rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-3 sm:p-4 shadow-lg shadow-slate-900/5 space-y-2.5">
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <Input
             type="text"
             placeholder={t('search_discipline_placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 pl-10 pr-9 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20"
+            className="h-11 pl-10 pr-9 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 w-full"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -496,7 +496,7 @@ export default function ParentDisciplinePage() {
         </div>
 
         {/* Horizontal Scrollable Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain touch-pan-x w-full max-w-full min-w-0">
           {[
             { id: 'ALL' as FilterTab, label: t('filter_all'), count: totalReports },
             { id: 'NEEDS_ACK' as FilterTab, label: t('filter_needs_ack'), count: needsAckReports, highlightBadge: needsAckReports > 0 },
@@ -510,7 +510,7 @@ export default function ParentDisciplinePage() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 active:scale-95',
+                  'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 active:scale-95 cursor-pointer',
                   isSelected
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 font-black'
                     : 'bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-800/80'
@@ -600,8 +600,12 @@ export default function ParentDisciplinePage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: idx * 0.03 }}
+                    onClick={() => {
+                      setSelectedIncident(inc);
+                      setIsDetailOpen(true);
+                    }}
                     className={cn(
-                      'group relative rounded-[20px] border backdrop-blur-xl p-4 sm:p-5 transition-all duration-200 shadow-sm flex flex-col items-start justify-between gap-3 sm:gap-4',
+                      'group relative rounded-[20px] sm:rounded-[24px] border backdrop-blur-xl p-3.5 sm:p-5 transition-all duration-200 shadow-sm flex flex-col items-start justify-between gap-3 sm:gap-4 w-full min-w-0 cursor-pointer active:scale-[0.99]',
                       needsAck
                         ? 'border-amber-500/40 bg-amber-500/[0.03] dark:bg-amber-500/[0.02] shadow-amber-500/5'
                         : 'border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-800/40 hover:border-indigo-500/30 hover:shadow-md'
@@ -695,18 +699,19 @@ export default function ParentDisciplinePage() {
                       {!inc.parentAcknowledged ? (
                         <Button
                           size="sm"
-                          className="h-9 flex-1 min-w-0 overflow-hidden rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-white/20 shadow-md shadow-emerald-500/20 active:scale-95 transition-all gap-1 justify-center"
-                          onClick={() => {
+                          className="h-10 flex-1 min-w-0 overflow-hidden rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-white/20 shadow-md shadow-emerald-500/20 active:scale-95 transition-all gap-1.5 justify-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedIncident(inc);
                             setIsAckModalOpen(true);
                           }}
                         >
-                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <Check className="w-4 h-4 shrink-0" />
                           <span className="truncate block">{t('acknowledge_report')}</span>
                         </Button>
                       ) : (
-                        <div className="inline-flex items-center justify-center gap-1.5 h-9 flex-1 min-w-0 overflow-hidden rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 backdrop-blur-sm">
-                          <Check className="w-3.5 h-3.5 shrink-0" />
+                        <div className="inline-flex items-center justify-center gap-1.5 h-10 flex-1 min-w-0 overflow-hidden rounded-xl text-xs sm:text-sm font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 backdrop-blur-sm">
+                          <Check className="w-4 h-4 shrink-0" />
                           <span className="truncate">{t('acknowledged')}</span>
                         </div>
                       )}
@@ -714,14 +719,15 @@ export default function ParentDisciplinePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-9 shrink-0 px-3 rounded-xl text-xs font-bold border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-indigo-500/30 hover:text-indigo-600 active:scale-95 transition-all gap-1 justify-center"
-                        onClick={() => {
+                        className="h-10 shrink-0 px-3.5 rounded-xl text-xs sm:text-sm font-bold border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-indigo-500/30 hover:text-indigo-600 active:scale-95 transition-all gap-1.5 justify-center"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedIncident(inc);
                           setIsDetailOpen(true);
                         }}
                       >
-                        <Eye className="w-3.5 h-3.5 shrink-0" />
-                        <span className="hidden xs:inline truncate">{t('view_details')}</span>
+                        <Eye className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{t('view_details')}</span>
                       </Button>
                     </div>
                   </motion.div>
@@ -736,10 +742,13 @@ export default function ParentDisciplinePage() {
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent
           showCloseButton={false}
-          className="w-[95vw] sm:max-w-2xl max-h-[88dvh] flex flex-col p-0 overflow-hidden rounded-[24px] sm:rounded-[28px] bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl"
+          className="w-[95vw] sm:max-w-2xl max-h-[88dvh] flex flex-col p-0 overflow-hidden rounded-t-[28px] rounded-b-[20px] sm:rounded-[28px] bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl"
         >
           {selectedIncident && (
             <>
+              {/* Mobile bottom-sheet drag handle */}
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+
               {/* Sticky Modal Header */}
               <div className="p-4 sm:p-6 pb-3 border-b border-white/30 dark:border-white/10 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-start justify-between gap-3">
                 <div className="space-y-1.5 min-w-0 flex-1">
@@ -870,11 +879,11 @@ export default function ParentDisciplinePage() {
               </div>
 
               {/* Sticky Action Footer */}
-              <div className="p-3 sm:p-4 border-t border-white/30 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-between gap-2">
+              <div className="p-3.5 sm:p-4 border-t border-white/30 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-between gap-2.5 pb-safe">
                 <Button
                   variant="outline"
                   onClick={handleMessageTeacher}
-                  className="h-10 rounded-xl font-bold text-xs border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm gap-1.5 justify-center"
+                  className="h-11 rounded-xl font-bold text-xs sm:text-sm border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm gap-1.5 justify-center active:scale-95"
                 >
                   <MessageSquare className="w-4 h-4 text-indigo-500 shrink-0" />
                   <span>{t('message_homeroom_teacher')}</span>
@@ -886,7 +895,7 @@ export default function ParentDisciplinePage() {
                       setIsDetailOpen(false);
                       setIsAckModalOpen(true);
                     }}
-                    className="h-10 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 justify-center gap-1.5"
+                    className="h-11 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 justify-center gap-1.5 active:scale-95"
                   >
                     <Check className="w-4 h-4 shrink-0" />
                     <span>{t('acknowledge_report')}</span>
@@ -900,7 +909,9 @@ export default function ParentDisciplinePage() {
 
       {/* ── Mobile-First Acknowledge Modal ── */}
       <Dialog open={isAckModalOpen} onOpenChange={setIsAckModalOpen}>
-        <DialogContent className="w-[92vw] sm:max-w-md max-h-[85dvh] overflow-y-auto rounded-[24px] p-4 sm:p-6 md:p-8 bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl">
+        <DialogContent className="w-[94vw] sm:max-w-md max-h-[88dvh] overflow-y-auto rounded-t-[28px] rounded-b-[20px] sm:rounded-[24px] p-4 sm:p-6 md:p-8 bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl">
+          {/* Mobile handle */}
+          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto -mt-1 mb-3 sm:hidden" />
           <DialogHeader>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shrink-0">
@@ -921,24 +932,30 @@ export default function ParentDisciplinePage() {
               rows={3}
               value={ackNotes}
               onChange={(e) => setAckNotes(e.target.value)}
-              className="rounded-xl text-xs font-medium bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 focus:ring-2 focus:ring-emerald-500/20 resize-none"
+              className="rounded-xl text-sm font-medium bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 focus:ring-2 focus:ring-emerald-500/20 resize-none"
             />
           </div>
 
-          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end pb-safe pt-2">
             <Button
               variant="ghost"
               onClick={() => setIsAckModalOpen(false)}
-              className="h-10 rounded-xl font-bold text-xs"
+              disabled={isSubmittingAck}
+              className="h-11 rounded-xl text-xs sm:text-sm font-bold border border-white/20 active:scale-95"
             >
               {t('cancel')}
             </Button>
             <Button
               onClick={handleAcknowledgeSubmit}
               disabled={isSubmittingAck}
-              className="h-10 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20"
+              className="h-11 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 active:scale-95"
             >
-              {isSubmittingAck ? '...' : t('confirm_acknowledgment')}
+              {isSubmittingAck ? (
+                <RotateCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              <span>{t('confirm_acknowledgment')}</span>
             </Button>
           </DialogFooter>
         </DialogContent>
