@@ -459,7 +459,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
               <MobileTabLink href="/parent/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive("/parent/communication")} badge={totalUnreadCount > 0 ? totalUnreadCount : undefined} />
               <MobileTabLink href="/parent/announcements" icon={<Megaphone className="w-5 h-5" />} label={t("notifications")} active={isActive("/parent/announcements")} />
               <MobileTabLink href="/parent/attendance" icon={<Calendar className="w-5 h-5" />} label={t("attendance")} active={isActive("/parent/attendance")} />
-              <MobileTabLink href="/parent/profile" icon={<User className="w-5 h-5" />} label={t("profile")} active={isActive("/parent/profile")} />
+              <MobileTabLink href="/parent/discipline" icon={<ShieldAlert className="w-5 h-5" />} label={t("discipline")} active={isActive("/parent/discipline")} />
             </div>
           </nav>
         )}

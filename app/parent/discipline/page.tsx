@@ -19,7 +19,8 @@ import {
   Search,
   RotateCw,
   X,
-  GraduationCap
+  GraduationCap,
+  Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -402,14 +403,15 @@ export default function ParentDisciplinePage() {
         </div>
       </motion.div>
 
-      {/* ── Mobile-First KPI Glanceable Metrics (Fluid 1-col on mobile, 3-col on tablet/desktop) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 md:gap-5 w-full max-w-full">
+      {/* ── Mobile-First KPI Glanceable Metrics (3-col on all screens) ── */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 w-full max-w-full">
         {[
           {
             label: t('total_discipline_reports'),
             value: totalReports,
-            icon: <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5" />,
-            iconBg: 'bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-500/20 text-indigo-600 dark:text-indigo-400',
+            icon: <ShieldAlert className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+            color: 'text-indigo-600 dark:text-indigo-400',
+            bg: 'bg-indigo-500/10 border-indigo-500/20',
             hoverBorder: 'hover:border-indigo-500/30',
             activeTabTarget: 'ALL' as FilterTab,
             isActive: activeTab === 'ALL',
@@ -418,9 +420,9 @@ export default function ParentDisciplinePage() {
           {
             label: t('open_cases'),
             value: openReports,
-            valueColor: 'text-amber-600 dark:text-amber-400',
-            icon: <Clock className="w-4 h-4 sm:w-5 sm:h-5" />,
-            iconBg: 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-600 dark:text-amber-400',
+            color: 'text-amber-600 dark:text-amber-400',
+            icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+            bg: 'bg-amber-500/10 border-amber-500/20',
             hoverBorder: 'hover:border-amber-500/30',
             activeTabTarget: 'ACTIVE' as FilterTab,
             isActive: activeTab === 'ACTIVE',
@@ -429,9 +431,9 @@ export default function ParentDisciplinePage() {
           {
             label: t('resolved_cases'),
             value: resolvedReports,
-            valueColor: 'text-emerald-600 dark:text-emerald-400',
-            icon: <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />,
-            iconBg: 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+            color: 'text-emerald-600 dark:text-emerald-400',
+            icon: <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+            bg: 'bg-emerald-500/10 border-emerald-500/20',
             hoverBorder: 'hover:border-emerald-500/30',
             activeTabTarget: 'RESOLVED' as FilterTab,
             isActive: activeTab === 'RESOLVED',
@@ -446,88 +448,82 @@ export default function ParentDisciplinePage() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.2, delay: card.delay }}
             className={cn(
-              'group text-left rounded-[18px] sm:rounded-[24px] border p-3 sm:p-4 md:p-5 backdrop-blur-xl shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.99] w-full min-w-0 box-border',
+              'group text-left rounded-2xl border p-2.5 sm:p-4 backdrop-blur-xl shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.98] w-full min-w-0 box-border relative overflow-hidden',
               card.isActive
-                ? 'border-indigo-500/50 bg-white/90 dark:bg-slate-800/90 ring-2 ring-indigo-500/20 shadow-indigo-500/10'
-                : 'border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 shadow-slate-900/5 hover:-translate-y-0.5',
+                ? 'bg-white dark:bg-slate-800 border-primary shadow-md shadow-primary/5 ring-2 ring-primary/20'
+                : 'bg-white/70 dark:bg-slate-900/70 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs',
               card.hoverBorder
             )}
           >
-            <div className="flex items-center justify-between gap-3 min-w-0">
-              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                <div className={cn('w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105', card.iconBg)}>
-                  {card.icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block break-words">
-                    {card.label}
-                  </span>
-                </div>
-              </div>
-              <p className={cn('text-2xl sm:text-3xl font-black tracking-tight shrink-0', card.valueColor || 'text-slate-900 dark:text-white')}>
-                {isLoading ? (
-                  <span className="inline-block w-8 sm:w-10 h-6 sm:h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
-                ) : (
-                  card.value
-                )}
-              </p>
+            <div className="flex items-center justify-between gap-1.5 min-w-0">
+              <span className={cn('p-1.5 rounded-xl border shrink-0', card.bg, card.color)}>
+                {card.icon}
+              </span>
+              <span className={cn('text-base sm:text-2xl font-black tracking-tight shrink-0', card.color)}>
+                {isLoading ? '—' : card.value}
+              </span>
             </div>
+            <p className="text-[9px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-2 truncate min-w-0" title={card.label}>
+              {card.label}
+            </p>
           </motion.button>
         ))}
       </div>
 
-      {/* ── Search & Wrapping Filter Tabs (Mobile First) ── */}
-      <div className="rounded-[20px] sm:rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-3 sm:p-4 shadow-lg shadow-slate-900/5 space-y-2.5 w-full max-w-full min-w-0 box-border">
+      {/* ── 3. Search & Horizontally Scrollable Pills (Matching Announcement Page) ── */}
+      <div className="space-y-2.5 w-full max-w-full min-w-0">
         {/* Search Bar */}
         <div className="relative w-full min-w-0">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none shrink-0" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none shrink-0" />
           <Input
             type="text"
             placeholder={t('search_discipline_placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 pl-10 pr-9 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 w-full min-w-0 truncate"
+            className="pl-10 pr-10 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 rounded-2xl h-11 text-xs sm:text-sm shadow-xs focus-visible:ring-indigo-500/20 w-full min-w-0 truncate"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Wrapping Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full max-w-full min-w-0">
+        {/* Scrollable category pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain w-full max-w-full min-w-0">
           {[
-            { id: 'ALL' as FilterTab, label: t('filter_all'), count: totalReports },
-            { id: 'NEEDS_ACK' as FilterTab, label: t('filter_needs_ack'), count: needsAckReports, highlightBadge: needsAckReports > 0 },
-            { id: 'ACTIVE' as FilterTab, label: t('filter_active'), count: openReports },
-            { id: 'RESOLVED' as FilterTab, label: t('filter_resolved'), count: resolvedReports },
+            { id: 'ALL' as FilterTab, label: t('filter_all'), count: totalReports, icon: Filter },
+            { id: 'NEEDS_ACK' as FilterTab, label: t('filter_needs_ack'), count: needsAckReports, icon: AlertTriangle, highlightBadge: needsAckReports > 0 },
+            { id: 'ACTIVE' as FilterTab, label: t('filter_active'), count: openReports, icon: Clock },
+            { id: 'RESOLVED' as FilterTab, label: t('filter_resolved'), count: resolvedReports, icon: CheckCircle2 },
           ].map((tab) => {
             const isSelected = activeTab === tab.id;
+            const TabIcon = tab.icon;
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 active:scale-95',
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer active:scale-95",
                   isSelected
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 font-black'
-                    : 'bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-800/80'
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 font-black"
+                    : "bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700/50"
                 )}
               >
+                <TabIcon className="w-3 h-3 shrink-0" />
                 <span>{tab.label}</span>
                 <span
                   className={cn(
-                    'px-1.5 py-0.2 rounded-full text-[10px] font-black min-w-[18px] text-center',
+                    "text-[10px] px-1.5 py-0.2 rounded-full font-black",
                     isSelected
-                      ? 'bg-white/20 text-white'
+                      ? "bg-white/20 text-white"
                       : tab.highlightBadge
-                      ? 'bg-rose-500 text-white'
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      ? "bg-rose-500 text-white"
+                      : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
                   )}
                 >
                   {tab.count}
