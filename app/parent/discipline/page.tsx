@@ -601,31 +601,64 @@ export default function ParentDisciplinePage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: idx * 0.03 }}
                     className={cn(
-                      'group relative rounded-[20px] border backdrop-blur-xl p-4 sm:p-5 transition-all duration-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4',
+                      'group relative rounded-[20px] border backdrop-blur-xl p-4 sm:p-5 transition-all duration-200 shadow-sm flex flex-col items-start justify-between gap-3 sm:gap-4',
                       needsAck
                         ? 'border-amber-500/40 bg-amber-500/[0.03] dark:bg-amber-500/[0.02] shadow-amber-500/5'
                         : 'border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-800/40 hover:border-indigo-500/30 hover:shadow-md'
                     )}
                   >
                     {/* Left content */}
-                    <div className="space-y-2 flex-1 min-w-0 w-full">
-                      {/* Badges row with wrap safety */}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-mono text-[10px] sm:text-[11px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0">
-                          #{inc.caseNumber || inc.id.slice(0, 8)}
-                        </span>
-                        <GlassBadge cfg={sevCfg} />
-                        <GlassBadge cfg={staCfg} />
-                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-500/8 border border-indigo-500/20 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0">
-                          <Tag className="w-3 h-3 shrink-0" />
-                          <span className="truncate max-w-[120px] sm:max-w-none">{getCategoryLabel(inc.categoryName)}</span>
-                        </span>
-                        {needsAck && (
-                          <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0 animate-pulse">
-                            <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                            {t('filter_needs_ack')}
+                    <div className="space-y-3 flex-1 min-w-0 w-full">
+                      {/* Structured Info Rows: Case #, Type, Severity, Status */}
+                      <div className="rounded-2xl bg-slate-500/[0.04] dark:bg-white/[0.02] border border-slate-200/70 dark:border-slate-800/80 p-3 sm:p-3.5 space-y-2">
+                        {/* Case Number & Needs Ack Badge */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                            <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                              {t('case_number_label')}:
+                            </span>
+                            <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                              {inc.caseNumber ? (inc.caseNumber.startsWith('#') ? inc.caseNumber : `#${inc.caseNumber}`) : `#${inc.id.slice(0, 8)}`}
+                            </span>
+                          </div>
+                          {needsAck && (
+                            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0 animate-pulse">
+                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                              {t('filter_needs_ack')}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Incident Type */}
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                            {t('incident_category_label')}:
                           </span>
-                        )}
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {getCategoryLabel(inc.categoryName)}
+                          </span>
+                        </div>
+
+                        {/* Severity */}
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                            {t('severity_label')}:
+                          </span>
+                          <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-bold text-xs border backdrop-blur-sm', sevCfg.cls)}>
+                            {sevCfg.dot && <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', sevCfg.dot)} />}
+                            {sevCfg.label}
+                          </span>
+                        </div>
+
+                        {/* Status */}
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                            {t('status_label')}:
+                          </span>
+                          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-lg font-bold text-xs border backdrop-blur-sm', staCfg.cls)}>
+                            {staCfg.label}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Title & Date Metadata */}
