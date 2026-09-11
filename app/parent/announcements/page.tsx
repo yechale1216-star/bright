@@ -244,12 +244,12 @@ export default function AnnouncementsPage() {
   }
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 max-w-5xl mx-auto pb-28 md:pb-12 animate-in fade-in duration-300">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-5xl mx-auto pb-28 md:pb-12 min-w-0 overflow-hidden animate-in fade-in duration-300">
 
       {/* ── Ambient Background Blur (Containment prevents mobile scrollbar jitter) ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div className="absolute top-10 -left-10 w-72 sm:w-80 h-72 sm:h-80 bg-emerald-500/10 rounded-full blur-[100px]" />
-        <div className="absolute top-1/2 -right-10 w-72 sm:w-80 h-72 sm:h-80 bg-indigo-500/10 rounded-full blur-[110px]" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 max-w-full">
+        <div className="absolute top-10 left-0 w-72 sm:w-80 h-72 sm:h-80 bg-emerald-500/10 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 right-0 w-72 sm:w-80 h-72 sm:h-80 bg-indigo-500/10 rounded-full blur-[110px]" />
         <div className="absolute bottom-10 left-1/3 w-72 sm:w-80 h-72 sm:h-80 bg-teal-500/10 rounded-full blur-[100px]" />
       </div>
 
@@ -258,27 +258,27 @@ export default function AnnouncementsPage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="relative overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/75 dark:bg-slate-900/75 backdrop-blur-2xl p-4 sm:p-6 md:p-7 shadow-xl shadow-emerald-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        className="relative overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/75 dark:bg-slate-900/75 backdrop-blur-2xl p-4 sm:p-6 md:p-7 shadow-xl shadow-emerald-500/5 flex flex-col gap-3.5 sm:gap-4 w-full min-w-0"
       >
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-indigo-500/5 pointer-events-none" />
 
-        <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0">
+        <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0 flex-1 w-full">
           <div className="p-2.5 sm:p-3.5 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 shrink-0">
             <Megaphone className="w-5 h-5 sm:w-7 sm:h-7" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white truncate">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                 {language === "am" ? "የትምህርት ቤት ማስታወቂያዎች" : "School Announcements"}
               </h1>
               {activeStudent && (
-                <span className="hidden xs:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <GraduationCap className="w-3 h-3" />
-                  {activeStudent.fullName}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 max-w-[160px]">
+                  <GraduationCap className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{activeStudent.fullName}</span>
                 </span>
               )}
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 line-clamp-1 sm:line-clamp-none">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 line-clamp-2 break-words">
               {language === "am" 
                 ? "ኦፊሴላዊ የትምህርት ቤት ዜናዎች፣ አስቸኳይ መልዕክቶች እና መግለጫዎች" 
                 : "Official broadcasts, newsletters, notices, and emergency alerts from school leadership"}
@@ -287,7 +287,7 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end z-10 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-border/40">
+        <div className="flex items-center gap-2 w-full justify-between sm:justify-end z-10 shrink-0 border-t pt-2.5 border-border/40 sm:border-t-0 sm:pt-0">
           {counts.unread > 0 && (
             <Button
               variant="outline"
@@ -295,9 +295,8 @@ export default function AnnouncementsPage() {
               onClick={handleMarkAllAsRead}
               className="h-8 sm:h-9 px-3 rounded-xl border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 text-xs font-bold gap-1.5 shadow-2xs"
             >
-              <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden xs:inline">{language === "am" ? "ሁሉንም አንብብ" : "Mark All Read"}</span>
-              <span className="xs:hidden">{language === "am" ? "አንብብ" : "Read All"}</span>
+              <CheckCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="truncate">{language === "am" ? "ሁሉንም አንብብ" : "Mark All Read"}</span>
             </Button>
           )}
 
@@ -306,17 +305,17 @@ export default function AnnouncementsPage() {
             size="sm"
             onClick={() => fetchAnnouncements(true)}
             disabled={isRefreshing}
-            className="h-8 sm:h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 text-xs font-semibold gap-1.5 shadow-2xs"
+            className="h-8 sm:h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-100 text-xs font-semibold gap-1.5 shadow-2xs ml-auto"
             title={language === "am" ? "ማደስ" : "Refresh Announcements"}
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-emerald-600")} />
+            <RefreshCw className={cn("w-3.5 h-3.5 shrink-0", isRefreshing && "animate-spin text-emerald-600")} />
             <span className="hidden xs:inline">{language === "am" ? "አድስ" : "Refresh"}</span>
           </Button>
         </div>
       </motion.div>
 
       {/* ── 2. Glanceable 4-Col KPI Metrics on Phones & Tablets ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full min-w-0">
         {[
           {
             id: "ALL" as const,
@@ -362,21 +361,21 @@ export default function AnnouncementsPage() {
               key={kpi.id}
               onClick={() => setActiveFilter(kpi.id)}
               className={cn(
-                "p-3 sm:p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer active:scale-[0.98]",
+                "p-3 sm:p-4 rounded-2xl border text-left transition-all relative overflow-hidden group cursor-pointer active:scale-[0.98] w-full min-w-0",
                 kpi.active
                   ? "bg-white dark:bg-slate-800 border-primary shadow-md shadow-primary/5 ring-2 ring-primary/20"
                   : "bg-white/70 dark:bg-slate-900/70 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
               )}
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-1.5 min-w-0">
                 <span className={cn("p-1.5 sm:p-2 rounded-xl border shrink-0", kpi.bg, kpi.color)}>
                   <Icon className={cn("w-3.5 h-3.5 sm:w-4 sm:h-4", kpi.pulse && "animate-bounce")} />
                 </span>
-                <span className={cn("text-lg sm:text-2xl font-black tracking-tight", kpi.color)}>
+                <span className={cn("text-base sm:text-2xl font-black tracking-tight shrink-0", kpi.color)}>
                   {isLoading ? "—" : kpi.count}
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 mt-2 truncate">
+              <p className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 mt-2 truncate block max-w-full">
                 {kpi.label}
               </p>
             </button>
@@ -385,14 +384,14 @@ export default function AnnouncementsPage() {
       </div>
 
       {/* ── 3. Search & Horizontally Scrollable Pills ── */}
-      <div className="space-y-2.5">
-        <div className="relative">
+      <div className="space-y-2.5 w-full min-w-0 max-w-full overflow-hidden">
+        <div className="relative w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input 
             placeholder={language === "am" ? "ማስታወቂያዎችን ይፈልጉ..." : "Search broadcasts, keywords, or student name..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-10 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 rounded-2xl h-11 text-xs sm:text-sm shadow-xs focus-visible:ring-primary/20"
+            className="pl-10 pr-10 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 rounded-2xl h-11 text-xs sm:text-sm shadow-xs focus-visible:ring-primary/20 w-full"
           />
           {searchTerm && (
             <button
@@ -405,7 +404,7 @@ export default function AnnouncementsPage() {
         </div>
 
         {/* Scrollable category pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain w-full max-w-full min-w-0">
           {[
             { id: "ALL" as const, label: language === "am" ? "ሁሉም" : "All Broadcasts", count: counts.total, icon: Filter },
             { id: "EMERGENCY" as const, label: language === "am" ? "አስቸኳይ" : "Urgent / Alerts", count: counts.emergency, icon: AlertTriangle },
@@ -426,10 +425,10 @@ export default function AnnouncementsPage() {
                     : "bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-700/50"
                 )}
               >
-                <PillIcon className="w-3 h-3" />
+                <PillIcon className="w-3 h-3 shrink-0" />
                 <span>{pill.label}</span>
                 <span className={cn(
-                  "text-[10px] px-1.5 py-0.2 rounded-full font-black",
+                  "text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0",
                   isActive 
                     ? "bg-white/20 dark:bg-slate-900/20 text-white dark:text-slate-900" 
                     : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
@@ -443,12 +442,12 @@ export default function AnnouncementsPage() {
       </div>
 
       {/* ── 4. Announcements List (Mobile-First Cards) ── */}
-      <div className="space-y-3">
+      <div className="space-y-3 w-full min-w-0">
         {isLoading ? (
           <PageSkeleton variant="cards" />
         ) : filteredList.length === 0 ? (
-          <Card className="border-border/40 shadow-none bg-muted/5 rounded-3xl border-dashed py-16 text-center">
-            <CardContent className="flex flex-col items-center gap-3">
+          <Card className="border-border/40 shadow-none bg-muted/5 rounded-3xl border-dashed py-16 text-center w-full min-w-0">
+            <CardContent className="flex flex-col items-center gap-3 px-4">
               <div className="p-4 bg-muted/20 rounded-full">
                 <Bell className="w-8 h-8 text-muted-foreground/40" />
               </div>
@@ -488,17 +487,18 @@ export default function AnnouncementsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.98 }}
                   transition={{ duration: 0.2 }}
+                  className="w-full min-w-0"
                 >
                   <div
                     className={cn(
-                      "group relative rounded-2xl sm:rounded-3xl border bg-white/90 dark:bg-slate-900/90 backdrop-blur-md overflow-hidden transition-all duration-200 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 flex flex-col",
+                      "group relative rounded-2xl sm:rounded-3xl border bg-white/90 dark:bg-slate-900/90 backdrop-blur-md overflow-hidden transition-all duration-200 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 flex flex-col w-full min-w-0",
                       !item.isRead ? "border-emerald-500/40 dark:border-emerald-500/30 ring-1 ring-emerald-500/15" : "border-slate-200/80 dark:border-slate-800"
                     )}
                   >
                     {/* Left vertical accent indicator bar */}
                     <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 sm:w-2", typeCfg.barCls)} />
 
-                    <div className="pl-4 sm:pl-5 pr-3.5 sm:pr-5 py-3.5 sm:py-4 space-y-2.5">
+                    <div className="pl-4 sm:pl-5 pr-3.5 sm:pr-5 py-3.5 sm:py-4 space-y-2.5 w-full min-w-0">
                       {/* Top Meta Bar */}
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5 flex-wrap">

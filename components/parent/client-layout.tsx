@@ -441,10 +441,10 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         )}
 
         <main
-          className={cn("flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative min-h-0", !isCommunicationPage && "pb-20 md:pb-0")}
+          className={cn("flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative min-h-0 w-full max-w-full", !isCommunicationPage && "pb-20 md:pb-0")}
           onScroll={handleMainScroll}
         >
-          <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10", !isCommunicationPage ? "max-w-6xl p-4 md:p-6 space-y-6" : "p-0")}>
+          <div className={cn("mx-auto w-full max-w-full min-w-0 flex-1 flex flex-col min-h-0 z-10", !isCommunicationPage ? "max-w-6xl p-3.5 sm:p-4 md:p-6 space-y-4 sm:space-y-6" : "p-0")}>
             {children}
           </div>
         </main>
