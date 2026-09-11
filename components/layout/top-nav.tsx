@@ -70,20 +70,20 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-xs pt-safe">
-        <div className="w-full flex h-16 items-center px-4 md:px-8 gap-4">
+        <div className="w-full flex h-16 items-center px-3 sm:px-4 md:px-8 gap-2 sm:gap-4 max-w-full box-border">
           {showMenuButton && (
             <Button
               variant="ghost"
               size="icon"
-              className="mr-1 md:hidden h-10 w-10 rounded-xl hover:bg-primary/10 transition-all active:scale-90"
+              className="mr-0.5 sm:mr-1 md:hidden h-9 w-9 sm:h-10 sm:w-10 rounded-xl hover:bg-primary/10 transition-all active:scale-90 shrink-0"
               onClick={onMenuClick}
             >
               <Menu className="h-5 w-5" />
             </Button>
           )}
 
-          <div className="flex items-center gap-2.5 md:gap-4 flex-1 min-w-0">
-            <div className="h-9 w-9 md:h-11 md:w-11 rounded-lg md:rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 border border-primary/20 shadow-inner">
+          <div className="flex items-center gap-2 sm:gap-2.5 md:gap-4 flex-1 min-w-0">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 md:h-11 md:w-11 rounded-lg md:rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0 border border-primary/20 shadow-inner">
               {logoUrl && !logoError ? (
                 <img 
                   src={logoUrl} 
@@ -97,8 +97,8 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
                 </div>
               )}
             </div>
-            <div className="flex flex-col min-w-0">
-              <h1 className="text-sm md:text-lg font-black tracking-tight text-foreground truncate uppercase">
+            <div className="flex flex-col min-w-0 flex-1">
+              <h1 className="text-xs sm:text-sm md:text-lg font-black tracking-tight text-foreground truncate uppercase min-w-0">
                 {schoolName}
               </h1>
             </div>
@@ -120,7 +120,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
             </button>
           </div>
 
-          <div className="flex items-center gap-1 md:gap-3">
+          <div className="flex items-center gap-1 md:gap-3 shrink-0">
             {/* Calendar Mode Toggle */}
             <button
               onClick={() => setCalendarPreference(calendarPreference === 'ethiopian' ? 'gregorian' : 'ethiopian')}

@@ -299,9 +299,9 @@ export default function ParentDisciplinePage() {
   };
 
   const GlassBadge = ({ cfg }: { cfg: { label: string; cls: string; dot?: string } }) => (
-    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[10px] sm:text-[11px] font-bold border backdrop-blur-sm shrink-0', cfg.cls)}>
+    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[10px] sm:text-[11px] font-bold border backdrop-blur-sm shrink-0 max-w-full min-w-0', cfg.cls)}>
       {cfg.dot && <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', cfg.dot)} />}
-      {cfg.label}
+      <span className="truncate min-w-0">{cfg.label}</span>
     </span>
   );
 
@@ -337,12 +337,12 @@ export default function ParentDisciplinePage() {
   }, [incidents, activeTab, searchQuery]);
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 w-full max-w-6xl mx-auto pb-32 sm:pb-28 md:pb-12 overflow-x-hidden min-w-0">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-6xl mx-auto pb-24 md:pb-8 box-border">
 
       {/* ── Ambient Background Blur (Contain overflow to prevent mobile scrollbar jank) ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 max-w-full">
-        <div className="absolute top-10 left-0 w-72 sm:w-80 h-72 sm:h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
-        <div className="absolute top-1/2 right-0 w-72 sm:w-80 h-72 sm:h-80 bg-rose-500/10 rounded-full blur-[110px]" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 w-full max-w-full">
+        <div className="absolute top-10 -left-10 w-72 sm:w-80 h-72 sm:h-80 bg-indigo-500/10 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 -right-10 w-72 sm:w-80 h-72 sm:h-80 bg-rose-500/10 rounded-full blur-[110px]" />
         <div className="absolute bottom-10 left-1/3 w-72 sm:w-80 h-72 sm:h-80 bg-emerald-500/10 rounded-full blur-[100px]" />
       </div>
 
@@ -351,65 +351,64 @@ export default function ParentDisciplinePage() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="relative overflow-hidden rounded-[24px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl p-4 sm:p-6 md:p-8 shadow-xl shadow-indigo-500/5 flex flex-col gap-3"
+        className="relative overflow-hidden rounded-[20px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl p-3.5 sm:p-6 md:p-8 shadow-xl shadow-indigo-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 w-full max-w-full box-border"
       >
         {/* Subtle decorative shimmer */}
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 pointer-events-none" />
 
-        {/* Title row */}
-        <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0 flex-1">
-          <div className="p-2.5 sm:p-3.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 shrink-0">
+        <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0 w-full sm:w-auto">
+          <div className="p-2 sm:p-3.5 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 shrink-0">
             <ShieldAlert className="w-5 h-5 sm:w-7 sm:h-7" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h1 className="text-base sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white break-words">
                 {t('student_discipline_title')}
               </h1>
               {selectedStudent && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 max-w-[160px]">
+                <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 max-w-[150px] truncate">
                   <GraduationCap className="w-3 h-3 shrink-0" />
                   <span className="truncate">{selectedStudent.fullName}</span>
                 </span>
               )}
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 line-clamp-2">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 break-words line-clamp-2 sm:line-clamp-none">
               {t('discipline_subtitle')}
             </p>
           </div>
         </div>
 
-        {/* Action button bar — full width on mobile, auto on desktop */}
-        <div className="flex items-center gap-2 w-full z-10">
+        {/* Action button bar */}
+        <div className="flex items-center gap-2 w-full sm:w-auto z-10 shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-border/40">
           <Button
             variant="outline"
             size="sm"
             onClick={() => fetchParentIncidents(true)}
             disabled={isRefreshing}
-            className="h-10 w-10 px-0 sm:w-auto sm:px-4 rounded-2xl border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm text-slate-700 dark:text-slate-200 active:scale-95 transition-all shrink-0 flex items-center justify-center gap-1.5"
+            className="h-10 px-3 rounded-2xl border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm text-slate-700 dark:text-slate-200 active:scale-95 transition-all gap-1.5 shrink-0"
             title={t('refresh')}
           >
-            <RotateCw className={cn("w-4 h-4", isRefreshing && "animate-spin text-indigo-500")} />
-            <span className="text-xs font-bold hidden sm:inline">{t('refresh')}</span>
+            <RotateCw className={cn("w-3.5 h-3.5 shrink-0", isRefreshing && "animate-spin text-indigo-500")} />
+            <span className="text-xs font-bold hidden xs:inline">{t('refresh')}</span>
           </Button>
 
           <Button
             onClick={handleMessageTeacher}
-            className="h-10 rounded-2xl gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 active:scale-95 transition-all border border-white/20 flex-1 min-w-0 overflow-hidden"
+            className="h-10 px-3.5 sm:px-5 rounded-2xl gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 active:scale-95 transition-all border border-white/20 flex-1 sm:flex-initial min-w-0"
           >
             <MessageSquare className="w-4 h-4 shrink-0" />
-            <span className="truncate block max-w-full">{t('message_homeroom_teacher')}</span>
+            <span className="truncate">{t('message_homeroom_teacher')}</span>
           </Button>
         </div>
       </motion.div>
 
-      {/* ── Mobile-First KPI Glanceable Row (Always 3 columns on phones) ── */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 md:gap-5">
+      {/* ── Mobile-First KPI Glanceable Metrics (Fluid 1-col on mobile, 3-col on tablet/desktop) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 md:gap-5 w-full max-w-full">
         {[
           {
             label: t('total_discipline_reports'),
             value: totalReports,
-            icon: <ShieldAlert className="w-3.5 h-3.5 sm:w-5 sm:h-5" />,
+            icon: <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5" />,
             iconBg: 'bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-500/20 text-indigo-600 dark:text-indigo-400',
             hoverBorder: 'hover:border-indigo-500/30',
             activeTabTarget: 'ALL' as FilterTab,
@@ -420,7 +419,7 @@ export default function ParentDisciplinePage() {
             label: t('open_cases'),
             value: openReports,
             valueColor: 'text-amber-600 dark:text-amber-400',
-            icon: <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5" />,
+            icon: <Clock className="w-4 h-4 sm:w-5 sm:h-5" />,
             iconBg: 'bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-600 dark:text-amber-400',
             hoverBorder: 'hover:border-amber-500/30',
             activeTabTarget: 'ACTIVE' as FilterTab,
@@ -431,7 +430,7 @@ export default function ParentDisciplinePage() {
             label: t('resolved_cases'),
             value: resolvedReports,
             valueColor: 'text-emerald-600 dark:text-emerald-400',
-            icon: <CheckCircle2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />,
+            icon: <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />,
             iconBg: 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
             hoverBorder: 'hover:border-emerald-500/30',
             activeTabTarget: 'RESOLVED' as FilterTab,
@@ -443,60 +442,64 @@ export default function ParentDisciplinePage() {
             key={i}
             type="button"
             onClick={() => setActiveTab(card.activeTabTarget)}
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.2, delay: card.delay }}
             className={cn(
-              'group text-left rounded-[20px] sm:rounded-[24px] border p-2.5 sm:p-4 md:p-5 backdrop-blur-xl shadow-md transition-all duration-200 cursor-pointer active:scale-98',
+              'group text-left rounded-[18px] sm:rounded-[24px] border p-3 sm:p-4 md:p-5 backdrop-blur-xl shadow-sm transition-all duration-200 cursor-pointer active:scale-[0.99] w-full min-w-0 box-border',
               card.isActive
                 ? 'border-indigo-500/50 bg-white/90 dark:bg-slate-800/90 ring-2 ring-indigo-500/20 shadow-indigo-500/10'
                 : 'border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 shadow-slate-900/5 hover:-translate-y-0.5',
               card.hoverBorder
             )}
           >
-            <div className="flex items-center justify-between mb-1 sm:mb-3">
-              <div className={cn('w-7 h-7 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105', card.iconBg)}>
-                {card.icon}
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                <div className={cn('w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105', card.iconBg)}>
+                  {card.icon}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block break-words">
+                    {card.label}
+                  </span>
+                </div>
               </div>
-              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-400 text-right line-clamp-1 ml-1">
-                {card.label}
-              </span>
+              <p className={cn('text-2xl sm:text-3xl font-black tracking-tight shrink-0', card.valueColor || 'text-slate-900 dark:text-white')}>
+                {isLoading ? (
+                  <span className="inline-block w-8 sm:w-10 h-6 sm:h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
+                ) : (
+                  card.value
+                )}
+              </p>
             </div>
-            <p className={cn('text-xl sm:text-3xl font-black tracking-tight mt-1', card.valueColor || 'text-slate-900 dark:text-white')}>
-              {isLoading ? (
-                <span className="inline-block w-8 sm:w-10 h-6 sm:h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
-              ) : (
-                card.value
-              )}
-            </p>
           </motion.button>
         ))}
       </div>
 
-      {/* ── Search & Horizontal Scrollable Filter Tabs (Mobile First) ── */}
-      <div className="rounded-[20px] sm:rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-3 sm:p-4 shadow-lg shadow-slate-900/5 space-y-2.5">
+      {/* ── Search & Wrapping Filter Tabs (Mobile First) ── */}
+      <div className="rounded-[20px] sm:rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-3 sm:p-4 shadow-lg shadow-slate-900/5 space-y-2.5 w-full max-w-full min-w-0 box-border">
         {/* Search Bar */}
-        <div className="relative w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <div className="relative w-full min-w-0">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none shrink-0" />
           <Input
             type="text"
             placeholder={t('search_discipline_placeholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-11 pl-10 pr-9 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 w-full"
+            className="h-10 pl-10 pr-9 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 w-full min-w-0 truncate"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        {/* Horizontal Scrollable Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 overscroll-contain touch-pan-x w-full max-w-full min-w-0">
+        {/* Wrapping Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full max-w-full min-w-0">
           {[
             { id: 'ALL' as FilterTab, label: t('filter_all'), count: totalReports },
             { id: 'NEEDS_ACK' as FilterTab, label: t('filter_needs_ack'), count: needsAckReports, highlightBadge: needsAckReports > 0 },
@@ -510,7 +513,7 @@ export default function ParentDisciplinePage() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 active:scale-95 cursor-pointer',
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 active:scale-95',
                   isSelected
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20 font-black'
                     : 'bg-white/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-800/80'
@@ -536,16 +539,16 @@ export default function ParentDisciplinePage() {
       </div>
 
       {/* ── Glass Incident Timeline List ── */}
-      <div className="rounded-[24px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden">
+      <div className="rounded-[20px] sm:rounded-[28px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden w-full max-w-full min-w-0 box-border">
         {/* List Header */}
-        <div className="px-4 sm:px-6 py-4 border-b border-white/40 dark:border-white/10 bg-slate-50/40 dark:bg-slate-950/40 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
+        <div className="px-3.5 sm:px-6 py-3.5 sm:py-4 border-b border-white/40 dark:border-white/10 bg-slate-50/40 dark:bg-slate-950/40 flex items-center justify-between gap-2 flex-wrap min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <Activity className="w-4 h-4 text-indigo-500 shrink-0" />
-            <div>
-              <h2 className="font-black text-xs sm:text-sm uppercase tracking-widest text-slate-900 dark:text-white">
+            <div className="min-w-0 flex-1">
+              <h2 className="font-black text-xs sm:text-sm uppercase tracking-widest text-slate-900 dark:text-white truncate">
                 {t('discipline_history_timeline')}
               </h2>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
                 {selectedStudent?.fullName ? `${selectedStudent.fullName} • ` : ''}{t('all_reports_for_child')}
               </p>
             </div>
@@ -556,7 +559,7 @@ export default function ParentDisciplinePage() {
           </span>
         </div>
 
-        <div className="p-3 sm:p-5 md:p-6">
+        <div className="p-3 sm:p-5 md:p-6 w-full max-w-full min-w-0 box-border">
           {isLoading ? (
             <div className="space-y-3 sm:space-y-4">
               {[1, 2, 3].map((i) => (
@@ -571,7 +574,7 @@ export default function ParentDisciplinePage() {
               <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                 {searchQuery || activeTab !== 'ALL' ? 'No matching reports found' : t('no_discipline_incidents')}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium px-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium px-4 break-words">
                 {searchQuery || activeTab !== 'ALL'
                   ? 'Try clearing your search query or selecting a different filter tab.'
                   : t('no_discipline_incidents_desc')}
@@ -588,7 +591,7 @@ export default function ParentDisciplinePage() {
               )}
             </div>
           ) : (
-            <div className="space-y-3 sm:space-y-4">
+            <div className="space-y-3 sm:space-y-4 w-full max-w-full min-w-0">
               {filteredIncidents.map((inc, idx) => {
                 const sevCfg = getSeverityConfig(inc.severity);
                 const staCfg = getStatusConfig(inc.status);
@@ -600,74 +603,37 @@ export default function ParentDisciplinePage() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: idx * 0.03 }}
-                    onClick={() => {
-                      setSelectedIncident(inc);
-                      setIsDetailOpen(true);
-                    }}
                     className={cn(
-                      'group relative rounded-[20px] sm:rounded-[24px] border backdrop-blur-xl p-3.5 sm:p-5 transition-all duration-200 shadow-sm flex flex-col items-start justify-between gap-3 sm:gap-4 w-full min-w-0 cursor-pointer active:scale-[0.99]',
+                      'group relative rounded-[18px] sm:rounded-[20px] border backdrop-blur-xl p-3.5 sm:p-5 transition-all duration-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 w-full max-w-full min-w-0 box-border',
                       needsAck
                         ? 'border-amber-500/40 bg-amber-500/[0.03] dark:bg-amber-500/[0.02] shadow-amber-500/5'
                         : 'border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-800/40 hover:border-indigo-500/30 hover:shadow-md'
                     )}
                   >
                     {/* Left content */}
-                    <div className="space-y-3 flex-1 min-w-0 w-full">
-                      {/* Structured Info Rows: Case #, Type, Severity, Status */}
-                      <div className="rounded-2xl bg-slate-500/[0.04] dark:bg-white/[0.02] border border-slate-200/70 dark:border-slate-800/80 p-3 sm:p-3.5 space-y-2">
-                        {/* Case Number & Needs Ack Badge */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
-                              {t('case_number_label')}:
-                            </span>
-                            <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                              {inc.caseNumber ? (inc.caseNumber.startsWith('#') ? inc.caseNumber : `#${inc.caseNumber}`) : `#${inc.id.slice(0, 8)}`}
-                            </span>
-                          </div>
-                          {needsAck && (
-                            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0 animate-pulse">
-                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                              {t('filter_needs_ack')}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Incident Type */}
-                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-                          <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
-                            {t('incident_category_label')}:
+                    <div className="space-y-2 flex-1 min-w-0 w-full">
+                      {/* Badges row with wrap safety */}
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
+                        <span className="font-mono text-[10px] sm:text-[11px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0">
+                          #{inc.caseNumber || inc.id.slice(0, 8)}
+                        </span>
+                        <GlassBadge cfg={sevCfg} />
+                        <GlassBadge cfg={staCfg} />
+                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-500/8 border border-indigo-500/20 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0 max-w-full min-w-0">
+                          <Tag className="w-3 h-3 shrink-0" />
+                          <span className="truncate max-w-[140px] sm:max-w-none min-w-0">{getCategoryLabel(inc.categoryName)}</span>
+                        </span>
+                        {needsAck && (
+                          <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-xl backdrop-blur-sm shrink-0 animate-pulse">
+                            <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="truncate">{t('filter_needs_ack')}</span>
                           </span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">
-                            {getCategoryLabel(inc.categoryName)}
-                          </span>
-                        </div>
-
-                        {/* Severity */}
-                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-                          <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
-                            {t('severity_label')}:
-                          </span>
-                          <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-bold text-xs border backdrop-blur-sm', sevCfg.cls)}>
-                            {sevCfg.dot && <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', sevCfg.dot)} />}
-                            {sevCfg.label}
-                          </span>
-                        </div>
-
-                        {/* Status */}
-                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-                          <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">
-                            {t('status_label')}:
-                          </span>
-                          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-lg font-bold text-xs border backdrop-blur-sm', staCfg.cls)}>
-                            {staCfg.label}
-                          </span>
-                        </div>
+                        )}
                       </div>
 
                       {/* Title & Date Metadata */}
-                      <div>
-                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base leading-snug break-words">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base leading-snug break-words overflow-hidden">
                           {inc.title}
                         </h3>
                         <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
@@ -679,39 +645,38 @@ export default function ParentDisciplinePage() {
                       </div>
 
                       {/* Description Preview */}
-                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 line-clamp-2 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 line-clamp-2 leading-relaxed break-words overflow-hidden">
                         {inc.description}
                       </p>
 
                       {/* Official Action Tag */}
                       {(inc.approvedAction || inc.immediateAction) && (
-                        <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded-xl backdrop-blur-sm max-w-full">
+                        <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded-xl backdrop-blur-sm max-w-full min-w-0">
                           <Sliders className="w-3 h-3 shrink-0" />
-                          <span className="truncate">
+                          <span className="truncate min-w-0">
                             {t('official_action_label')}: {getActionLabel(inc.approvedAction || inc.immediateAction || '')}
                           </span>
                         </div>
                       )}
                     </div>
 
-                    {/* Action buttons — flex row, text truncated, overflow safe */}
-                    <div className="flex items-center gap-2 w-full border-t border-white/40 dark:border-white/10 pt-3">
+                    {/* Action buttons (Mobile-first stack on phone, inline flex on desktop) */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0 border-t md:border-t-0 border-white/40 dark:border-white/10 pt-3 md:pt-0">
                       {!inc.parentAcknowledged ? (
                         <Button
                           size="sm"
-                          className="h-10 flex-1 min-w-0 overflow-hidden rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-white/20 shadow-md shadow-emerald-500/20 active:scale-95 transition-all gap-1.5 justify-center"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          className="h-10 md:h-9 px-3.5 sm:px-4 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-white/20 shadow-md shadow-emerald-500/20 active:scale-95 transition-all gap-1 justify-center w-full sm:w-auto"
+                          onClick={() => {
                             setSelectedIncident(inc);
                             setIsAckModalOpen(true);
                           }}
                         >
-                          <Check className="w-4 h-4 shrink-0" />
-                          <span className="truncate block">{t('acknowledge_report')}</span>
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{t('acknowledge_report')}</span>
                         </Button>
                       ) : (
-                        <div className="inline-flex items-center justify-center gap-1.5 h-10 flex-1 min-w-0 overflow-hidden rounded-xl text-xs sm:text-sm font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 backdrop-blur-sm">
-                          <Check className="w-4 h-4 shrink-0" />
+                        <div className="inline-flex items-center justify-center gap-1.5 h-10 md:h-9 px-3 rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 backdrop-blur-sm w-full sm:w-auto">
+                          <Check className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{t('acknowledged')}</span>
                         </div>
                       )}
@@ -719,14 +684,13 @@ export default function ParentDisciplinePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-10 shrink-0 px-3.5 rounded-xl text-xs sm:text-sm font-bold border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-indigo-500/30 hover:text-indigo-600 active:scale-95 transition-all gap-1.5 justify-center"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        className="h-10 md:h-9 px-3.5 sm:px-4 rounded-xl text-xs font-bold border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm hover:border-indigo-500/30 hover:text-indigo-600 active:scale-95 transition-all gap-1 justify-center w-full sm:w-auto"
+                        onClick={() => {
                           setSelectedIncident(inc);
                           setIsDetailOpen(true);
                         }}
                       >
-                        <Eye className="w-4 h-4 shrink-0" />
+                        <Eye className="w-3.5 h-3.5 shrink-0" />
                         <span className="truncate">{t('view_details')}</span>
                       </Button>
                     </div>
@@ -742,18 +706,15 @@ export default function ParentDisciplinePage() {
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent
           showCloseButton={false}
-          className="w-[95vw] sm:max-w-2xl max-h-[88dvh] flex flex-col p-0 overflow-hidden rounded-t-[28px] rounded-b-[20px] sm:rounded-[28px] bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl"
+          className="w-[94vw] sm:max-w-2xl max-h-[88dvh] flex flex-col p-0 overflow-hidden rounded-[20px] sm:rounded-[28px] bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl box-border"
         >
           {selectedIncident && (
             <>
-              {/* Mobile bottom-sheet drag handle */}
-              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
-
               {/* Sticky Modal Header */}
-              <div className="p-4 sm:p-6 pb-3 border-b border-white/30 dark:border-white/10 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-start justify-between gap-3">
+              <div className="p-3.5 sm:p-6 pb-3 border-b border-white/30 dark:border-white/10 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-start justify-between gap-3 min-w-0">
                 <div className="space-y-1.5 min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-xl">
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                    <span className="font-mono text-[10px] sm:text-[11px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-xl shrink-0">
                       #{selectedIncident.caseNumber || selectedIncident.id.slice(0, 8)}
                     </span>
                     <GlassBadge cfg={getSeverityConfig(selectedIncident.severity)} />
@@ -762,7 +723,7 @@ export default function ParentDisciplinePage() {
                   <DialogTitle className="text-base sm:text-xl font-black text-slate-900 dark:text-white leading-tight break-words">
                     {selectedIncident.title}
                   </DialogTitle>
-                  <DialogDescription className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  <DialogDescription className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium break-words">
                     {t('child_label')}: <span className="font-bold text-slate-900 dark:text-slate-100">{selectedIncident.student?.fullName}</span> | {t('date_label')}: {formatLocalizedDate(selectedIncident.date, language)}
                   </DialogDescription>
                 </div>
@@ -776,23 +737,23 @@ export default function ParentDisciplinePage() {
               </div>
 
               {/* Smooth Scrollable Modal Content */}
-              <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
+              <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 sm:p-6 space-y-3 sm:space-y-4 min-w-0">
                 {/* Category & Disciplinary Action Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                  <div className="p-3.5 sm:p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-md">
+                  <div className="p-3.5 sm:p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-md min-w-0">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
                       {t('incident_category_label')}
                     </span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm">
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400 text-xs sm:text-sm break-words">
                       {getCategoryLabel(selectedIncident.categoryName)}
                     </span>
                   </div>
 
-                  <div className="p-3.5 sm:p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-md">
+                  <div className="p-3.5 sm:p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-md min-w-0">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
                       {t('disciplinary_action_label')}
                     </span>
-                    <span className="font-bold text-purple-600 dark:text-purple-400 text-xs sm:text-sm">
+                    <span className="font-bold text-purple-600 dark:text-purple-400 text-xs sm:text-sm break-words">
                       {selectedIncident.approvedAction
                         ? getActionLabel(selectedIncident.approvedAction)
                         : selectedIncident.immediateAction
@@ -803,7 +764,7 @@ export default function ParentDisciplinePage() {
                 </div>
 
                 {/* Description Box */}
-                <div className="p-3.5 sm:p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-md space-y-1.5">
+                <div className="p-3.5 sm:p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-slate-50/60 dark:bg-slate-950/60 backdrop-blur-md space-y-1.5 min-w-0">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                     {t('incident_description')}
                   </h4>
@@ -814,11 +775,11 @@ export default function ParentDisciplinePage() {
 
                 {/* Action Taken by School Banner */}
                 {(selectedIncident.approvedAction || selectedIncident.immediateAction) && (
-                  <div className="p-3.5 sm:p-4 rounded-2xl border border-purple-500/20 bg-purple-500/5 backdrop-blur-md space-y-1">
+                  <div className="p-3.5 sm:p-4 rounded-2xl border border-purple-500/20 bg-purple-500/5 backdrop-blur-md space-y-1 min-w-0">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-400">
                       {t('action_taken_by_school')}
                     </h4>
-                    <p className="text-xs sm:text-sm font-bold text-purple-700 dark:text-purple-300">
+                    <p className="text-xs sm:text-sm font-bold text-purple-700 dark:text-purple-300 break-words">
                       {getActionLabel(selectedIncident.approvedAction || selectedIncident.immediateAction || '')}
                     </p>
                   </div>
@@ -826,7 +787,7 @@ export default function ParentDisciplinePage() {
 
                 {/* Evidence Attachments */}
                 {selectedIncident.evidence && Array.isArray(selectedIncident.evidence) && selectedIncident.evidence.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 min-w-0">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                       {t('evidence_files', { count: selectedIncident.evidence.length })}
                     </h4>
@@ -835,10 +796,10 @@ export default function ParentDisciplinePage() {
                         <div
                           key={idx}
                           onClick={() => setPreviewAttachment(att)}
-                          className="p-3 rounded-2xl border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-800/50 hover:border-indigo-500/30 cursor-pointer flex items-center gap-2 text-xs font-bold backdrop-blur-sm transition-all active:scale-98"
+                          className="p-3 rounded-2xl border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-800/50 hover:border-indigo-500/30 cursor-pointer flex items-center gap-2 text-xs font-bold backdrop-blur-sm transition-all active:scale-98 min-w-0"
                         >
                           <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
-                          <span className="truncate flex-1">{att.name}</span>
+                          <span className="truncate flex-1 min-w-0">{att.name}</span>
                           <Eye className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         </div>
                       ))}
@@ -848,17 +809,17 @@ export default function ParentDisciplinePage() {
 
                 {/* Follow-ups Timeline */}
                 {selectedIncident.followUps && selectedIncident.followUps.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 min-w-0">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                       {t('teacher_notes_updates')}
                     </h4>
                     <div className="relative pl-4 sm:pl-5 border-l-2 border-indigo-500/30 space-y-3">
                       {selectedIncident.followUps.slice().reverse().map((fu) => (
-                        <div key={fu.id} className="relative">
+                        <div key={fu.id} className="relative min-w-0">
                           <div className="absolute -left-[1.375rem] sm:-left-[1.625rem] top-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center">
                             <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-white" />
                           </div>
-                          <div className="rounded-2xl border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md p-3 space-y-1">
+                          <div className="rounded-2xl border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md p-3 space-y-1 min-w-0">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <span className="text-xs font-bold text-slate-900 dark:text-white">
                                 {fu.authorName || t('staff')}
@@ -879,11 +840,11 @@ export default function ParentDisciplinePage() {
               </div>
 
               {/* Sticky Action Footer */}
-              <div className="p-3.5 sm:p-4 border-t border-white/30 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-between gap-2.5 pb-safe">
+              <div className="p-3 sm:p-4 border-t border-white/30 dark:border-white/10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-between gap-2">
                 <Button
                   variant="outline"
                   onClick={handleMessageTeacher}
-                  className="h-11 rounded-xl font-bold text-xs sm:text-sm border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm gap-1.5 justify-center active:scale-95"
+                  className="h-10 rounded-xl font-bold text-xs border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm gap-1.5 justify-center"
                 >
                   <MessageSquare className="w-4 h-4 text-indigo-500 shrink-0" />
                   <span>{t('message_homeroom_teacher')}</span>
@@ -895,7 +856,7 @@ export default function ParentDisciplinePage() {
                       setIsDetailOpen(false);
                       setIsAckModalOpen(true);
                     }}
-                    className="h-11 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 justify-center gap-1.5 active:scale-95"
+                    className="h-10 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 justify-center gap-1.5"
                   >
                     <Check className="w-4 h-4 shrink-0" />
                     <span>{t('acknowledge_report')}</span>
@@ -909,9 +870,7 @@ export default function ParentDisciplinePage() {
 
       {/* ── Mobile-First Acknowledge Modal ── */}
       <Dialog open={isAckModalOpen} onOpenChange={setIsAckModalOpen}>
-        <DialogContent className="w-[94vw] sm:max-w-md max-h-[88dvh] overflow-y-auto rounded-t-[28px] rounded-b-[20px] sm:rounded-[24px] p-4 sm:p-6 md:p-8 bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl">
-          {/* Mobile handle */}
-          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto -mt-1 mb-3 sm:hidden" />
+        <DialogContent className="w-[92vw] sm:max-w-md max-h-[85dvh] overflow-y-auto rounded-[20px] sm:rounded-[24px] p-4 sm:p-6 md:p-8 bg-white/95 dark:bg-slate-900/95 border border-white/40 dark:border-white/10 backdrop-blur-2xl shadow-2xl box-border">
           <DialogHeader>
             <div className="flex items-center gap-2.5 mb-1">
               <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shrink-0">
@@ -932,30 +891,24 @@ export default function ParentDisciplinePage() {
               rows={3}
               value={ackNotes}
               onChange={(e) => setAckNotes(e.target.value)}
-              className="rounded-xl text-sm font-medium bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 focus:ring-2 focus:ring-emerald-500/20 resize-none"
+              className="rounded-xl text-xs font-medium bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 focus:ring-2 focus:ring-emerald-500/20 resize-none"
             />
           </div>
 
-          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:justify-end pb-safe pt-2">
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             <Button
               variant="ghost"
               onClick={() => setIsAckModalOpen(false)}
-              disabled={isSubmittingAck}
-              className="h-11 rounded-xl text-xs sm:text-sm font-bold border border-white/20 active:scale-95"
+              className="h-10 rounded-xl font-bold text-xs justify-center"
             >
               {t('cancel')}
             </Button>
             <Button
               onClick={handleAcknowledgeSubmit}
               disabled={isSubmittingAck}
-              className="h-11 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 active:scale-95"
+              className="h-10 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 justify-center"
             >
-              {isSubmittingAck ? (
-                <RotateCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-              <span>{t('confirm_acknowledgment')}</span>
+              {isSubmittingAck ? '...' : t('confirm_acknowledgment')}
             </Button>
           </DialogFooter>
         </DialogContent>

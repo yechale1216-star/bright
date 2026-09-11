@@ -401,21 +401,21 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
 
         {!isCommunicationPage && (
-          <div className="md:hidden flex items-center justify-between p-2 px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-            <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-white/50 dark:bg-slate-800/50 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm">
-              <Avatar className="h-5 w-5 border border-white/20">
+          <div className="md:hidden flex items-center justify-between p-2 px-3 sm:px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 w-full max-w-full box-border">
+            <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-white/50 dark:bg-slate-800/50 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm min-w-0 max-w-[75%]">
+              <Avatar className="h-5 w-5 border border-white/20 shrink-0">
                 {parentPhoto && <AvatarImage src={parentPhoto} alt="Profile" className="object-cover" />}
                 <AvatarFallback className="text-[9px] bg-primary/10 text-primary">{getInitials(selectedStudent.fullName)}</AvatarFallback>
               </Avatar>
-              <span className="text-[11px] font-black uppercase tracking-tight">{selectedStudent.fullName.split(" ")[0]}</span>
-              <ChevronDown className="w-3 h-3 opacity-50" />
+              <span className="text-[11px] font-black uppercase tracking-tight truncate min-w-0">{selectedStudent.fullName.split(" ")[0]}</span>
+              <ChevronDown className="w-3 h-3 opacity-50 shrink-0" />
             </button>
-            {unreadCount > 0 && <Link href="/parent/communication" className="p-2 relative"><Bell className="w-4 h-4 text-primary" /><span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-slate-900" /></Link>}
+            {unreadCount > 0 && <Link href="/parent/communication" className="p-2 relative shrink-0"><Bell className="w-4 h-4 text-primary" /><span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-slate-900" /></Link>}
           </div>
         )}
 
         {studentDropdownOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-card w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
               <div className="p-5 border-b border-border flex justify-between items-center bg-muted/30">
                 <h3 className="font-bold flex items-center gap-2"><GraduationCap className="w-5 h-5 text-primary" /> {t("select_child")}</h3>
@@ -441,20 +441,20 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         )}
 
         <main
-          className={cn("flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative min-h-0 w-full max-w-full", !isCommunicationPage && "pb-20 md:pb-0")}
+          className={cn("flex-1 flex flex-col overflow-y-auto relative min-h-0 w-full max-w-full box-border", !isCommunicationPage && "pb-20 md:pb-0")}
           onScroll={handleMainScroll}
         >
-          <div className={cn("mx-auto w-full max-w-full min-w-0 flex-1 flex flex-col min-h-0 z-10", !isCommunicationPage ? "max-w-6xl p-3.5 sm:p-4 md:p-6 space-y-4 sm:space-y-6" : "p-0")}>
+          <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10 box-border max-w-full", !isCommunicationPage ? "max-w-6xl px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 space-y-4 sm:space-y-6" : "p-0")}>
             {children}
           </div>
         </main>
 
         {!isCommunicationPage && (
           <nav className={cn(
-            "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/80 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe",
+            "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/90 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe w-full max-w-full box-border",
             !showBottomNav ? "translate-y-full" : "translate-y-0"
           )}>
-            <div className="flex items-stretch justify-around h-16 px-2">
+            <div className="flex items-stretch justify-around h-16 px-1 sm:px-2 w-full max-w-full">
               <MobileTabLink href="/parent/dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label={t("dashboard")} active={isActive("/parent/dashboard")} />
               <MobileTabLink href="/parent/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive("/parent/communication")} badge={totalUnreadCount > 0 ? totalUnreadCount : undefined} />
               <MobileTabLink href="/parent/announcements" icon={<Megaphone className="w-5 h-5" />} label={t("notifications")} active={isActive("/parent/announcements")} />
@@ -470,14 +470,14 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
 function MobileTabLink({ href, icon, label, active, badge }: { href: string, icon: React.ReactNode, label: string, active: boolean, badge?: number }) {
   return (
-    <Link href={href} className="flex-1 relative group active:scale-95 transition-transform duration-100">
+    <Link href={href} className="flex-1 min-w-0 relative group active:scale-95 transition-transform duration-100">
       <div className={cn(
-        "flex flex-col items-center justify-center gap-1 h-full transition-all duration-300",
+        "flex flex-col items-center justify-center gap-0.5 sm:gap-1 h-full px-0.5 transition-all duration-300 min-w-0",
         active ? 'text-primary' : 'text-muted-foreground/60'
       )}>
         <div className={cn(
-          "relative p-1 rounded-xl transition-all duration-300",
-          active ? "bg-primary/10 scale-110" : ""
+          "relative p-1 rounded-xl transition-all duration-300 shrink-0",
+          active ? "bg-primary/10 scale-105" : ""
         )}>
           {icon}
           {active && (
@@ -490,8 +490,8 @@ function MobileTabLink({ href, icon, label, active, badge }: { href: string, ico
           )}
         </div>
         <span className={cn(
-          "text-[9px] font-black uppercase tracking-widest transition-all duration-300",
-          active ? "opacity-100 translate-y-0" : "opacity-40"
+          "text-[8.5px] sm:text-[9px] font-black uppercase tracking-tight sm:tracking-normal transition-all duration-300 truncate max-w-full text-center block",
+          active ? "opacity-100 translate-y-0" : "opacity-50"
         )}>
           {label}
         </span>
