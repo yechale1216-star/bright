@@ -135,7 +135,30 @@ export function StaffAttendance() {
     return defaults
   }, [settings?.staffSessions, settings?.staff_sessions])
 
-  const [selectedSession, setSelectedSession] = useState<string>("morning")
+  const [selectedSession, setSelectedSession] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const sess = params.get("session")
+        if (sess && (sess.toLowerCase() === "morning" || sess.toLowerCase() === "afternoon")) {
+          return sess.toLowerCase()
+        }
+      } catch (_) {}
+    }
+    return "morning"
+  })
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const sess = params.get("session")
+        if (sess && (sess.toLowerCase() === "morning" || sess.toLowerCase() === "afternoon")) {
+          setSelectedSession(sess.toLowerCase())
+        }
+      } catch (_) {}
+    }
+  }, [])
 
   // Current user's attendance status today
   const [todayRecord, setTodayRecord] = useState<any>(null)

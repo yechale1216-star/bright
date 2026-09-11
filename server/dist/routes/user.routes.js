@@ -64,6 +64,8 @@ router.get('/profile', async (req, res, next) => {
             ...user,
             role: req.user?.role || user.role,
             isVerified: user.is_verified ?? false,
+            schoolId: 'single-school',
+            customSchoolId: 'SCH-0001',
             schoolName: settings?.school_name || 'Addis Hiwot School',
             schoolLogo: settings?.school_logo || '',
             onboardingCompleted: true
@@ -144,6 +146,24 @@ router.put('/:id', async (req, res, next) => {
     }
     catch (error) {
         next(error);
+    }
+});
+// Change / Update Password for authenticated user
+router.post(['/change-password', '/update-password'], async (req, res, next) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
+        const { currentPassword, newPassword } = req.body;
+        if (!newPassword) {
+            return res.status(400).json({ success: false, message: 'New password is required' });
+        }
+        await userService.changePassword(userId, currentPassword, newPassword);
+        res.status(200).json({ success: true, message: 'Password updated successfully' });
+    }
+    catch (error) {
+        res.status(400).json({ success: false, message: error.message || 'Failed to update password' });
     }
 });
 // Delete user (Admin only)

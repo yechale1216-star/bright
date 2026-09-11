@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPasswordResetToken = exports.verifyPassword = exports.deleteUser = exports.updateUser = exports.createUser = exports.getContacts = exports.getUsers = exports.getUserById = exports.getUserByEmail = void 0;
+exports.changePassword = exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPasswordResetToken = exports.verifyPassword = exports.deleteUser = exports.updateUser = exports.createUser = exports.getContacts = exports.getUsers = exports.getUserById = exports.getUserByEmail = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_1 = __importDefault(require("../config/db"));
@@ -169,6 +169,18 @@ const createUser = async (data) => {
 };
 exports.createUser = createUser;
 const updateUser = async (id, data, _schoolId) => {
+    const currentUser = await db_1.default.user.findFirst({
+        where: {
+            OR: [
+                { id },
+                { teacher_id: id },
+            ],
+        },
+    });
+    if (!currentUser) {
+        throw new Error('User not found');
+    }
+    const targetUserId = currentUser.id;
     const updateData = {};
     if (data.full_name !== undefined)
         updateData.full_name = data.full_name;
@@ -176,10 +188,9 @@ const updateUser = async (id, data, _schoolId) => {
         updateData.email = data.email;
     if (data.phone !== undefined) {
         const cleanPhone = data.phone.trim();
-        const currentUser = await db_1.default.user.findUnique({ where: { id } });
-        if (currentUser?.role === 'teacher' && cleanPhone) {
+        if (currentUser.role === 'teacher' && cleanPhone) {
             const existing = await db_1.default.user.findFirst({
-                where: { phone: cleanPhone, role: 'teacher', id: { not: id } }
+                where: { phone: cleanPhone, role: 'teacher', id: { not: targetUserId } }
             });
             if (existing) {
                 throw new Error('Phone already registered for another teacher.');
@@ -204,7 +215,7 @@ const updateUser = async (id, data, _schoolId) => {
     if (data.profile_photo !== undefined)
         updateData.profile_photo = data.profile_photo;
     const user = await db_1.default.user.update({
-        where: { id },
+        where: { id: targetUserId },
         data: updateData
     });
     if (user.teacher_id && (data.full_name !== undefined || data.email !== undefined || data.phone !== undefined || data.subject !== undefined || data.qualification !== undefined || data.experience_years !== undefined || data.is_active !== undefined || data.profile_photo !== undefined)) {
@@ -308,3 +319,37 @@ const getUserByResetToken = async (token) => {
     });
 };
 exports.getUserByResetToken = getUserByResetToken;
+const changePassword = async (userId, currentPassword, newPassword) => {
+    const user = await db_1.default.user.findFirst({
+        where: {
+            OR: [
+                { id: userId },
+                { teacher_id: userId },
+            ],
+        },
+    });
+    if (!user) {
+        throw new Error('User not found');
+    }
+    // Verify current password against stored hash if provided
+    if (currentPassword) {
+        const isMatch = (0, exports.verifyPassword)(currentPassword, user.password_hash);
+        if (!isMatch) {
+            throw new Error('Current password is incorrect.');
+        }
+    }
+    if (!newPassword || newPassword.length < 6) {
+        throw new Error('New password must be at least 6 characters.');
+    }
+    const hashedPassword = !newPassword.startsWith('$2')
+        ? bcryptjs_1.default.hashSync(newPassword, 10)
+        : newPassword;
+    await db_1.default.user.update({
+        where: { id: user.id },
+        data: {
+            password_hash: hashedPassword,
+        },
+    });
+    return { success: true };
+};
+exports.changePassword = changePassword;

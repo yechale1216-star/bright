@@ -10,7 +10,8 @@ import {
   Users, UserCheck, ShieldAlert, GraduationCap, Calendar, Bell,
   ChevronRight, BookOpen, TrendingUp, Sparkles, ShieldCheck,
   Activity, AlertTriangle, RefreshCw, BarChart3, FileCheck,
-  CheckCircle2, XCircle, Clock, Lock, MessageSquare, Check, X
+  CheckCircle2, XCircle, Clock, Lock, MessageSquare, Check, X,
+  Sun, Sunset
 } from "lucide-react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
@@ -54,6 +55,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([])
   const [incidents, setIncidents] = useState<StudentDiscipline[]>([])
   const [staffStats, setStaffStats] = useState<any>(null)
+  const [morningStaffStats, setMorningStaffStats] = useState<any>(null)
+  const [afternoonStaffStats, setAfternoonStaffStats] = useState<any>(null)
   const [editRequests, setEditRequests] = useState<any[]>([])
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null)
@@ -80,12 +83,14 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     window.addEventListener("teacherDataChanged", handleDataChanged)
     window.addEventListener("attendanceDataChanged", handleDataChanged)
     window.addEventListener("disciplineDataChanged", handleDataChanged)
+    window.addEventListener("staffAttendanceDataChanged", handleDataChanged)
 
     return () => {
       window.removeEventListener("studentDataChanged", handleDataChanged)
       window.removeEventListener("teacherDataChanged", handleDataChanged)
       window.removeEventListener("attendanceDataChanged", handleDataChanged)
       window.removeEventListener("disciplineDataChanged", handleDataChanged)
+      window.removeEventListener("staffAttendanceDataChanged", handleDataChanged)
     }
   }, [])
 
@@ -102,6 +107,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         fetchedTodayAttendance,
         fetchedAllAttendance,
         staffAttendanceStats,
+        morningStaffAttendanceStats,
+        afternoonStaffAttendanceStats,
         disciplineRes,
         fetchedEditRequests
       ] = await Promise.all([
@@ -110,6 +117,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         db.getAttendanceByDate(today).catch(() => []),
         db.getAttendance().catch(() => []),
         db.getStaffAttendanceStats().catch(() => null),
+        db.getStaffAttendanceStats(today, "morning").catch(() => null),
+        db.getStaffAttendanceStats(today, "afternoon").catch(() => null),
         DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
         db.getAttendanceEditRequests().catch(() => [])
       ])
@@ -119,6 +128,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       setTodayAttendance(fetchedTodayAttendance || [])
       setAllAttendance(fetchedAllAttendance || [])
       setStaffStats(staffAttendanceStats)
+      setMorningStaffStats(morningStaffAttendanceStats)
+      setAfternoonStaffStats(afternoonStaffAttendanceStats)
       setEditRequests(fetchedEditRequests || [])
 
       if (disciplineRes && Array.isArray(disciplineRes.items)) {
@@ -149,6 +160,17 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const totalStudents = students.length
   const totalTeachers = teachers.length
   const totalStaff = typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : totalTeachers
+
+  const getStaffActive = (st: any) => {
+    if (!st) return 0
+    if (typeof st.present === "number" || typeof st.late === "number") {
+      return (st.present || 0) + (st.late || 0)
+    }
+    return st.checkedInCount || 0
+  }
+
+  const morningActiveStaff = getStaffActive(morningStaffStats)
+  const afternoonActiveStaff = getStaffActive(afternoonStaffStats)
   const activeStaffCount = staffStats
     ? (typeof staffStats.present === "number" || typeof staffStats.late === "number"
         ? (staffStats.present || 0) + (staffStats.late || 0)
@@ -683,13 +705,48 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           },
           {
             label: "Staff On Duty",
-            value: `${activeStaffCount}/${totalStaff}`,
-            sub: "Active Today",
+            value: sessionFilter === "morning" ? (
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-2xl md:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{morningActiveStaff}</span>
+                <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 ml-0.5 flex items-center gap-0.5">
+                  <Sun className="w-2.5 h-2.5 text-amber-600" /> Morn
+                </span>
+              </div>
+            ) : sessionFilter === "afternoon" ? (
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-2xl md:text-3xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">{afternoonActiveStaff}</span>
+                <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 ml-0.5 flex items-center gap-0.5">
+                  <Sunset className="w-2.5 h-2.5 text-indigo-600" /> Aft
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-1 sm:gap-1.5 w-full">
+                <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 shadow-2xs">
+                  <Sun className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] font-bold text-amber-600 dark:text-amber-400">M:</span>
+                  <span className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-300">{morningActiveStaff}</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium text-muted-foreground">/{totalStaff}</span>
+                </div>
+                <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 shadow-2xs">
+                  <Sunset className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400">A:</span>
+                  <span className="text-sm sm:text-base font-black text-indigo-700 dark:text-indigo-300">{afternoonActiveStaff}</span>
+                  <span className="text-[9px] sm:text-[10px] font-medium text-muted-foreground">/{totalStaff}</span>
+                </div>
+              </div>
+            ),
+            sub: sessionFilter === "morning"
+              ? `Morning: ${morningActiveStaff} of ${totalStaff} on duty`
+              : sessionFilter === "afternoon"
+              ? `Afternoon: ${afternoonActiveStaff} of ${totalStaff} on duty`
+              : `Morning (${morningActiveStaff}) · Afternoon (${afternoonActiveStaff})`,
             icon: UserCheck,
             iconBg: "bg-purple-50 dark:bg-purple-900/20",
             iconColor: "text-purple-600 dark:text-purple-400",
             valColor: "text-purple-600 dark:text-purple-400",
-            href: "/school/admin/staff-attendance",
+            href: `/school/admin/staff-attendance${sessionFilter !== "total" ? `?session=${sessionFilter}` : ""}`,
           },
           {
             label: "Open Conduct Cases",

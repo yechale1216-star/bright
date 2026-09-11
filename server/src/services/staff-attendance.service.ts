@@ -1113,18 +1113,16 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
 
   const recordWhere: any = { date: { gte: startDate, lte: endDate } };
   
-  if (attendanceMode === 'daily') {
+  if (session && session !== 'all' && session !== 'ALL') {
+    recordWhere.session = normaliseSessionKey(session);
+  } else if (attendanceMode === 'daily') {
     recordWhere.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
   } else {
-    if (session && session !== 'all' && session !== 'ALL') {
-      recordWhere.session = normaliseSessionKey(session);
-    } else {
-      recordWhere.AND = [
-        { session: { not: null } },
-        { session: { not: '' } },
-        { session: { not: 'daily' } }
-      ];
-    }
+    recordWhere.AND = [
+      { session: { not: null } },
+      { session: { not: '' } },
+      { session: { not: 'daily' } }
+    ];
   }
 
   const records = await prisma.staffAttendance.findMany({
@@ -1172,7 +1170,7 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
   let activeAbsenceCutoff = scheduleThresholds.absenceCutoffTime;
   let activeStartTime = scheduleThresholds.expectedStartTime;
 
-  if (attendanceMode === 'session_based') {
+  if (attendanceMode === 'session_based' || (session && session !== 'all' && session !== 'ALL')) {
     const sessions = getConfiguredSessions(settings);
     const targetSession = session && session !== 'all' ? findSession(sessions, session) : sessions[0];
     if (targetSession) {

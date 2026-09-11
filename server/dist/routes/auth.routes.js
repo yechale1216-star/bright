@@ -42,7 +42,6 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const userService = __importStar(require("../services/user.service"));
 const schoolService = __importStar(require("../services/school.service"));
 const jwt_1 = require("../utils/jwt");
-const email_1 = require("../utils/email");
 const db_1 = __importDefault(require("../config/db"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Rate limiters — applied per IP to prevent brute force and credential stuffing
@@ -228,14 +227,10 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res, next) =>
         if (!email) {
             return res.status(400).json({ success: false, message: 'Email is required' });
         }
-        const token = await userService.createPasswordResetToken(email);
-        // We send success even if user not found for security (prevent email enumeration)
-        if (token) {
-            await (0, email_1.sendResetPasswordEmail)(email, token);
-        }
+        await userService.createPasswordResetToken(email);
         res.status(200).json({
             success: true,
-            message: 'If an account with that email exists, we have sent password reset instructions.'
+            message: 'If an account with that email exists, password reset instructions will be processed.'
         });
     }
     catch (error) {
@@ -274,6 +269,30 @@ router.post('/reset-password', async (req, res, next) => {
     }
     catch (error) {
         res.status(400).json({ success: false, message: error instanceof Error ? error.message : 'Failed to reset password' });
+    }
+});
+// Change / Update Password (authenticated user changes their own password)
+router.post(['/change-password', '/update-password'], async (req, res, next) => {
+    try {
+        // Resolve user from JWT (cookie or Authorization header)
+        const rawToken = req.cookies?.attendance_token || req.headers.authorization?.split(' ')[1];
+        if (!rawToken) {
+            return res.status(401).json({ success: false, message: 'Authentication required.' });
+        }
+        const { verifyToken } = require('../utils/jwt');
+        const decoded = verifyToken(rawToken);
+        if (!decoded || !decoded.id) {
+            return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
+        }
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+        }
+        await userService.changePassword(decoded.id, currentPassword, newPassword);
+        res.status(200).json({ success: true, message: 'Password updated successfully.' });
+    }
+    catch (error) {
+        res.status(400).json({ success: false, message: error instanceof Error ? error.message : 'Failed to update password.' });
     }
 });
 // POST /api/auth/push-token — save or refresh the FCM push token for the authenticated user
@@ -369,27 +388,22 @@ router.post('/resend-verification', otpLimiter, async (req, res, next) => {
                 verification_token_expires: verificationExpires
             }
         });
-        await (0, email_1.sendVerificationEmail)(user.email, verificationCode);
         res.status(200).json({
             success: true,
-            message: 'If an unverified account exists with that email, a new code has been sent.'
+            message: 'If an unverified account exists with that email, a new code has been generated.'
         });
     }
     catch (error) {
         next(error);
     }
 });
-// Health-check route for email service
+// Health-check route for email service (Resend / SMTP removed)
 router.get('/email-health', async (_req, res) => {
-    const hasSmtp = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
-    const hasApiKey = !!process.env.RESEND_API_KEY;
     res.status(200).json({
         success: true,
-        provider: hasSmtp ? 'smtp' : (hasApiKey ? 'resend' : 'none'),
-        configured: hasSmtp || hasApiKey,
-        message: hasSmtp
-            ? `SMTP is configured for ${process.env.EMAIL_USER}`
-            : (hasApiKey ? 'Resend API key is configured.' : 'Neither SMTP nor Resend is configured.'),
+        provider: 'none',
+        configured: false,
+        message: 'Email infrastructure has been removed. Awaiting new email delivery configuration.',
     });
 });
 exports.default = router;
