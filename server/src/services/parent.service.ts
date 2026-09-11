@@ -58,14 +58,14 @@ export const getParentStudentsForSchool = async (parentId: string, _schoolId?: s
   });
 
   return links
-    .map((l: any) => l.student)
-    .filter(Boolean)
-    .map((s: any) => ({
-      ...s,
-      name: s.fullName,
-      grade: s.grade?.name || '',
-      section: s.section?.name || '',
-      stream: s.stream?.name || null,
+    .filter((l: any) => Boolean(l.student))
+    .map((l: any) => ({
+      ...l.student,
+      name: l.student.fullName,
+      grade: l.student.grade?.name || '',
+      section: l.student.section?.name || '',
+      stream: l.student.stream?.name || null,
+      relationshipType: l.relationshipType || 'Guardian',
     }));
 };
 
@@ -105,13 +105,16 @@ export const loginParent = async (phone: string, password: string, _schoolId?: s
     throw new Error("No children profiles found associated with this account.");
   }
 
-  const mappedStudents = students.map((s: any) => ({
-    ...s,
-    name: s.fullName,
-    grade: s.grade?.name || '',
-    section: s.section?.name || '',
-    stream: s.stream?.name || null,
-  }));
+  const mappedStudents = links
+    .filter((l: any) => Boolean(l.student))
+    .map((l: any) => ({
+      ...l.student,
+      name: l.student.fullName,
+      grade: l.student.grade?.name || '',
+      section: l.student.section?.name || '',
+      stream: l.student.stream?.name || null,
+      relationshipType: l.relationshipType || 'Guardian',
+    }));
 
   const singleSchool = await schoolService.getSingleSchool();
   const schoolName = singleSchool.name || 'Addis Hiwot School';

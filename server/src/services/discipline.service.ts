@@ -866,7 +866,8 @@ export class DisciplineService {
       include: {
         grade: { select: { name: true } },
         section: { select: { name: true } },
-        stream: { select: { name: true } }
+        stream: { select: { name: true } },
+        parentStudents: { select: { relationshipType: true } }
       }
     });
 
@@ -971,7 +972,8 @@ export class DisciplineService {
         stream: student.stream?.name || '',
         parentName: student.parent_name,
         parentPhone: student.parent_phone,
-        parentEmail: student.parent_email
+        parentEmail: student.parent_email,
+        relationshipType: student.parentStudents?.[0]?.relationshipType || 'Guardian',
       },
       summaryStats: {
         title: 'Recorded Discipline Cases',

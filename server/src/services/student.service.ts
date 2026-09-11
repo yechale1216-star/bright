@@ -5,12 +5,14 @@ import { academicYearService } from './academic-year.service';
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student: any) => {
   if (!student) return null;
+  const link = student.parentStudents && student.parentStudents.length > 0 ? student.parentStudents[0] : null;
   return {
     ...student,
     name: student.fullName,
     grade: student.grade?.name || '',
     section: student.section?.name || '',
     stream: student.stream?.name || null,
+    relationshipType: link?.relationshipType || student.relationshipType || 'Guardian',
   };
 };
 
@@ -92,7 +94,11 @@ export const getAllStudents = async (
     const enrollments = await prisma.studentAcademicYearRecord.findMany({
       where: enrollmentWhere,
       include: {
-        student: true,
+        student: {
+          include: {
+            parentStudents: true
+          }
+        },
         grade: true,
         section: true,
         stream: true,
@@ -100,18 +106,22 @@ export const getAllStudents = async (
       orderBy: { student: { fullName: 'asc' } }
     });
 
-    return enrollments.map((enr: any) => ({
-      ...enr.student,
-      name: enr.student.fullName,
-      grade: enr.grade?.name || '',
-      section: enr.section?.name || '',
-      stream: enr.stream?.name || null,
-      gradeId: enr.gradeId,
-      sectionId: enr.sectionId,
-      streamId: enr.streamId,
-      enrollmentStatus: enr.status,
-      academicYearRecordId: enr.id,
-    }));
+    return enrollments.map((enr: any) => {
+      const relType = enr.student?.parentStudents?.[0]?.relationshipType;
+      return {
+        ...enr.student,
+        name: enr.student?.fullName,
+        grade: enr.grade?.name || '',
+        section: enr.section?.name || '',
+        stream: enr.stream?.name || null,
+        gradeId: enr.gradeId,
+        sectionId: enr.sectionId,
+        streamId: enr.streamId,
+        enrollmentStatus: enr.status,
+        academicYearRecordId: enr.id,
+        relationshipType: relType || 'Guardian',
+      };
+    });
   }
 
   const where: any = {};
@@ -129,7 +139,13 @@ export const getAllStudents = async (
 
   const students = await prisma.student.findMany({
     where,
-    include: { grade: true, section: true, stream: true, promotions: { orderBy: { promotedAt: 'desc' }, take: 1 } },
+    include: {
+      grade: true,
+      section: true,
+      stream: true,
+      parentStudents: true,
+      promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
+    },
     orderBy: { fullName: 'asc' }
   });
   return students.map(mapStudentToFlat);
@@ -233,29 +249,38 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     console.error('[StudentService] Failed to create StudentAcademicYearRecord:', err);
   }
 
-  const parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
-    name: data.parent_name,
-    email: data.parent_email,
-    password: data.parent_password,
-    address: data.parent_address,
-  });
+  let parent = null;
+  if (data.existingParentId) {
+    parent = await prisma.user.findUnique({ where: { id: data.existingParentId } });
+  }
+  if (!parent && data.parent_phone) {
+    parent = await parentService.findOrCreateParentByPhone(data.parent_phone, {
+      name: data.parent_name,
+      email: data.parent_email,
+      password: data.parent_password,
+      address: data.parent_address,
+    });
+  }
 
-  await prisma.parentStudentLink.upsert({
-    where: {
-      parentId_studentId: {
+  let linkRecord = null;
+  if (parent) {
+    linkRecord = await prisma.parentStudentLink.upsert({
+      where: {
+        parentId_studentId: {
+          parentId: parent.id,
+          studentId: newStudent.id
+        }
+      },
+      update: {
+        relationshipType: data.relationshipType || 'Guardian',
+      },
+      create: {
         parentId: parent.id,
-        studentId: newStudent.id
+        studentId: newStudent.id,
+        relationshipType: data.relationshipType || 'Guardian'
       }
-    },
-    update: {
-      relationshipType: data.relationshipType || 'Guardian',
-    },
-    create: {
-      parentId: parent.id,
-      studentId: newStudent.id,
-      relationshipType: data.relationshipType || 'Guardian'
-    }
-  });
+    });
+  }
 
   try {
     const adminUsers = await prisma.user.findMany({
@@ -279,7 +304,10 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     console.error('[StudentService] Failed to send admin notification for new student:', notifErr);
   }
 
-  return mapStudentToFlat(newStudent);
+  return {
+    ...mapStudentToFlat(newStudent),
+    relationshipType: data.relationshipType || linkRecord?.relationshipType || 'Guardian',
+  };
 };
 
 export const generateStudentId = async (_schoolId?: string): Promise<string> => {
@@ -474,7 +502,8 @@ export const getStudentById = async (id: string, _schoolId?: string) => {
       attendance: true,
       grade: true,
       section: true,
-      stream: true
+      stream: true,
+      parentStudents: true,
     },
   });
   return mapStudentToFlat(student);
@@ -489,6 +518,7 @@ export const updateStudent = async (id: string, data: any, _schoolId?: string) =
   if (data.parent_name) updateData.parent_name = data.parent_name;
   if (data.gender) updateData.gender = data.gender;
   if (data.date_of_birth) updateData.date_of_birth = data.date_of_birth;
+  if (data.address) updateData.address = data.address;
 
   if (data.grade) {
     updateData.grade = {
@@ -529,9 +559,48 @@ export const updateStudent = async (id: string, data: any, _schoolId?: string) =
     include: {
       grade: true,
       section: true,
-      stream: true
+      stream: true,
+      parentStudents: true,
     }
   });
+
+  if (data.relationshipType || data.parent_phone || data.parent_name) {
+    try {
+      let parent = null;
+      if (data.existingParentId) {
+        parent = await prisma.user.findUnique({ where: { id: data.existingParentId } });
+      }
+      const phoneToUse = data.parent_phone || updatedStudent.parent_phone;
+      if (!parent && phoneToUse) {
+        parent = await parentService.findOrCreateParentByPhone(phoneToUse, {
+          name: data.parent_name || updatedStudent.parent_name,
+          email: data.parent_email || updatedStudent.parent_email,
+          password: data.parent_password,
+          address: data.parent_address,
+        });
+      }
+      if (parent) {
+        await prisma.parentStudentLink.upsert({
+          where: {
+            parentId_studentId: {
+              parentId: parent.id,
+              studentId: id
+            }
+          },
+          update: {
+            ...(data.relationshipType ? { relationshipType: data.relationshipType } : {})
+          },
+          create: {
+            parentId: parent.id,
+            studentId: id,
+            relationshipType: data.relationshipType || 'Guardian'
+          }
+        });
+      }
+    } catch (parentErr) {
+      console.error('[StudentService] Failed to sync parent link on update:', parentErr);
+    }
+  }
 
   if (data.grade || data.section || 'stream' in data) {
     try {
@@ -559,7 +628,10 @@ export const updateStudent = async (id: string, data: any, _schoolId?: string) =
     }
   }
 
-  return mapStudentToFlat(updatedStudent);
+  return {
+    ...mapStudentToFlat(updatedStudent),
+    ...(data.relationshipType ? { relationshipType: data.relationshipType } : {}),
+  };
 };
 
 export const deleteStudent = async (id: string, _schoolId?: string) => {
@@ -589,6 +661,7 @@ export const getStudentsByParentPhone = async (parentPhone: string, _schoolId?: 
       grade: true,
       section: true,
       stream: true,
+      parentStudents: true,
       attendance: {
         orderBy: { date: 'desc' }
       }
