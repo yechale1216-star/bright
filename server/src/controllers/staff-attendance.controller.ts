@@ -185,7 +185,7 @@ export const getStats = async (req: AuthenticatedRequest, res: Response, next: N
 
 export const getReport = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { startDate, endDate, role, userId, mode, session } = req.query;
+    const { startDate, endDate, role, userId, mode, session, status } = req.query;
     if (!startDate || !endDate) {
       return res.status(400).json({ success: false, message: 'startDate and endDate are required' });
     }
@@ -197,6 +197,7 @@ export const getReport = async (req: AuthenticatedRequest, res: Response, next: 
       userId: userId as string,
       mode: mode as string,
       session: session as string,
+      status: status as string,
     });
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
@@ -230,12 +231,23 @@ export const setLeave = async (req: AuthenticatedRequest, res: Response, _next: 
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const { userId, date, status, reason, session, mode } = req.body;
-    if (!userId || !date || !status || !reason) {
-      return res.status(400).json({ success: false, message: 'userId, date, status (LEAVE | PERMISSION), and reason are required' });
+    const { userId, date, startDate, endDate, status, reason, session, mode } = req.body;
+    const effStartDate = startDate || date;
+    const effEndDate = endDate || startDate || date;
+
+    if (!userId || !effStartDate || !status || !reason) {
+      return res.status(400).json({ success: false, message: 'userId, date (or startDate/endDate), status (LEAVE | PERMISSION), and reason are required' });
     }
 
-    const result = await staffAttendanceService.setLeaveOrPermission(adminUserId, userId, undefined, { date, status, reason, session, mode });
+    const result = await staffAttendanceService.setLeaveOrPermission(adminUserId, userId, undefined, {
+      date: effStartDate,
+      startDate: effStartDate,
+      endDate: effEndDate,
+      status,
+      reason,
+      session,
+      mode,
+    });
     res.status(200).json({ success: true, data: result, message: `Staff marked as ${status}` });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message || 'Failed to set leave/permission' });

@@ -717,7 +717,7 @@ export function StaffAttendance() {
           }`}
         >
           <div
-            className={`p-2.5 rounded-xl ${
+            className={`p-2.5 rounded-xl shrink-0 ${
               calendarStatus.isHoliday
                 ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
                 : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
@@ -743,6 +743,13 @@ export function StaffAttendance() {
                 {calendarStatus.isHoliday ? "Holiday" : "Non-Working Day"}
               </Badge>
             </div>
+            <p className={`text-xs mt-0.5 font-medium ${
+              calendarStatus.isHoliday
+                ? "text-purple-700/80 dark:text-purple-300/80"
+                : "text-amber-700/80 dark:text-amber-300/80"
+            }`}>
+              Attendance is unavailable today.
+            </p>
           </div>
         </div>
       )}
@@ -814,21 +821,23 @@ export function StaffAttendance() {
                           <span className="text-[10px] opacity-80 font-mono font-normal">
                             {formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)}
                           </span>
-                          <span className={`text-[9px] font-bold uppercase mt-0.5 px-1.5 py-0.5 rounded ${
-                            sessDisplay.checkIn.status === 'NOT_STARTED'
-                              ? 'bg-black/20 text-white/80'
-                              : sessDisplay.checkIn.status === 'PENDING'
-                              ? 'bg-sky-500/30 text-sky-100 border border-sky-400/40'
-                              : sessDisplay.checkIn.status === 'ON_TIME' || sessDisplay.checkIn.status === 'PRESENT'
-                              ? 'bg-emerald-500/30 text-emerald-100 border border-emerald-400/40'
-                              : sessDisplay.checkIn.status === 'LATE'
-                              ? 'bg-amber-500/30 text-amber-100 border border-amber-400/40'
-                              : sessDisplay.checkIn.status === 'ABSENT'
-                              ? 'bg-rose-500/30 text-rose-100 border border-rose-400/40'
-                              : 'bg-black/20 text-white'
-                          }`}>
-                            {sessDisplay.checkIn.titleLabel}
-                          </span>
+                          {calendarStatus?.isWorkingDay !== false && (
+                            <span className={`text-[9px] font-bold uppercase mt-0.5 px-1.5 py-0.5 rounded ${
+                              sessDisplay.checkIn.status === 'NOT_STARTED'
+                                ? 'bg-black/20 text-white/80'
+                                : sessDisplay.checkIn.status === 'PENDING'
+                                ? 'bg-sky-500/30 text-sky-100 border border-sky-400/40'
+                                : sessDisplay.checkIn.status === 'ON_TIME' || sessDisplay.checkIn.status === 'PRESENT'
+                                ? 'bg-emerald-500/30 text-emerald-100 border border-emerald-400/40'
+                                : sessDisplay.checkIn.status === 'LATE'
+                                ? 'bg-amber-500/30 text-amber-100 border border-amber-400/40'
+                                : sessDisplay.checkIn.status === 'ABSENT'
+                                ? 'bg-rose-500/30 text-rose-100 border border-rose-400/40'
+                                : 'bg-black/20 text-white'
+                            }`}>
+                              {sessDisplay.checkIn.titleLabel}
+                            </span>
+                          )}
                         </button>
                       )
                     })}
@@ -916,9 +925,15 @@ export function StaffAttendance() {
                         </div>
                         <div>
                           <Badge
-                            className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${display.checkIn.badgeColor}`}
+                            className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${
+                              calendarStatus && !calendarStatus.isWorkingDay
+                                ? "bg-muted text-muted-foreground border-border"
+                                : display.checkIn.badgeColor
+                            }`}
                           >
-                            {display.checkIn.titleLabel}
+                            {calendarStatus && !calendarStatus.isWorkingDay
+                              ? "Unavailable"
+                              : display.checkIn.titleLabel}
                           </Badge>
                         </div>
                       </div>
@@ -935,9 +950,15 @@ export function StaffAttendance() {
                         </div>
                         <div>
                           <Badge
-                            className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${display.checkOut.badgeColor}`}
+                            className={`text-[9px] font-extrabold uppercase py-0.5 px-2 tracking-wider ${
+                              calendarStatus && !calendarStatus.isWorkingDay
+                                ? "bg-muted text-muted-foreground border-border"
+                                : display.checkOut.badgeColor
+                            }`}
                           >
-                            {display.checkOut.titleLabel}
+                            {calendarStatus && !calendarStatus.isWorkingDay
+                              ? "Unavailable"
+                              : display.checkOut.titleLabel}
                           </Badge>
                         </div>
                       </div>
@@ -982,15 +1003,15 @@ export function StaffAttendance() {
                       <LogIn className="w-5 h-5" />
                       {todayRecord?.checkInTime
                         ? `Checked In ✓`
+                        : btnState.isNonWorkingDay
+                        ? "Unavailable"
                         : btnState.buttonText}
                     </Button>
 
-                    {/* Contextual helper text explaining why check-in is disabled */}
-                    {!btnState.canCheckIn && !todayRecord?.checkInTime && btnState.helperText && !isFaceLocked && (
+                    {/* Contextual helper text — suppressed for non-working days since the global banner already explains the reason */}
+                    {!btnState.canCheckIn && !btnState.isNonWorkingDay && !todayRecord?.checkInTime && btnState.helperText && !isFaceLocked && (
                       <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
-                        btnState.isNonWorkingDay
-                          ? "bg-purple-500/10 border border-purple-500/20 text-purple-800 dark:text-purple-300"
-                          : btnState.isBeforeEarliest
+                        btnState.isBeforeEarliest
                           ? "bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300"
                           : "bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300"
                       }`}>
@@ -1012,16 +1033,14 @@ export function StaffAttendance() {
                       <LogOut className="w-5 h-5" />
                       {todayRecord?.checkOutTime
                         ? "Checked Out ✓"
+                        : checkOutBtnState.isNonWorkingDay
+                        ? "Unavailable"
                         : checkOutBtnState.buttonText}
                     </Button>
 
-                    {/* Contextual helper text explaining why check-out is disabled */}
-                    {!checkOutBtnState.canCheckOut && !todayRecord?.checkOutTime && !checkOutBtnState.isBeforeCheckIn && checkOutBtnState.helperText && !isFaceLocked && (
-                      <div className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium ${
-                        checkOutBtnState.isNonWorkingDay
-                          ? "bg-purple-500/10 border border-purple-500/20 text-purple-800 dark:text-purple-300"
-                          : "bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300"
-                      }`}>
+                    {/* Contextual helper text — suppressed for non-working days since the global banner already explains the reason */}
+                    {!checkOutBtnState.canCheckOut && !checkOutBtnState.isNonWorkingDay && !todayRecord?.checkOutTime && !checkOutBtnState.isBeforeCheckIn && checkOutBtnState.helperText && !isFaceLocked && (
+                      <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                         <span>{checkOutBtnState.helperText}</span>
                       </div>

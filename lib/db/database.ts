@@ -910,6 +910,7 @@ class Database extends BaseDatabase {
     endDate: string;
     role?: string;
     userId?: string;
+    status?: string;
     mode?: string;     // 'daily' | 'session_based'
     session?: string;  // optional session filter in session_based mode
   }): Promise<any> {
@@ -918,6 +919,9 @@ class Database extends BaseDatabase {
     params.append("endDate", filters.endDate)
     if (filters.role) params.append("role", filters.role)
     if (filters.userId) params.append("userId", filters.userId)
+    if (filters.status && filters.status !== "ALL" && filters.status !== "all") {
+      params.append("status", filters.status)
+    }
     if (filters.mode) params.append("mode", filters.mode)
     if (filters.session) params.append("session", filters.session)
     params.append("_t", Date.now().toString())
@@ -959,14 +963,24 @@ class Database extends BaseDatabase {
     status: "LEAVE" | "PERMISSION",
     reason: string,
     session?: string,  // pass for session-based mode
-    mode?: string      // 'daily' | 'session_based'
+    mode?: string,     // 'daily' | 'session_based'
+    endDate?: string   // optional end date for multi-day date range
   ): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/staff-attendance/leave`,
       {
         method: "POST",
         headers: this.getApiHeaders(),
-        body: JSON.stringify({ userId, date, status, reason, session, mode }),
+        body: JSON.stringify({
+          userId,
+          date,
+          startDate: date,
+          endDate: endDate || date,
+          status,
+          reason,
+          session,
+          mode,
+        }),
       }
     )
     if (typeof window !== "undefined") {

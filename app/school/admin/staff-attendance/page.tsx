@@ -127,6 +127,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: st
     color: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30",
     dotColor: "bg-sky-500",
   },
+  LEAVE_PERMISSION: {
+    label: "Leave & Permission",
+    color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
+    dotColor: "bg-indigo-500",
+  },
   HOLIDAY: {
     label: "Holiday",
     color: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
@@ -185,6 +190,7 @@ export default function AdminStaffAttendanceDashboard() {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const [reportStatusFilter, setReportStatusFilter] = useState("ALL")
   const [sessionFilter, setSessionFilter] = useState("morning")
   const [geoFilter, setGeoFilter] = useState<string>("all")
 
@@ -210,10 +216,12 @@ export default function AdminStaffAttendanceDashboard() {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
   const [leaveForm, setLeaveForm] = useState({
     userId: "",
-    date: selectedDate,
+    isRange: false,
+    startDate: selectedDate,
+    endDate: selectedDate,
     status: "LEAVE" as "LEAVE" | "PERMISSION",
     reason: "",
-    session: "morning" as string,  // used in session_based mode
+    session: "all" as string,  // "all" for full day or specific session
   })
   const [isSavingLeave, setIsSavingLeave] = useState(false)
 
@@ -397,6 +405,7 @@ export default function AdminStaffAttendanceDashboard() {
         startDate,
         endDate,
         role: roleFilter !== "all" ? roleFilter : undefined,
+        status: reportStatusFilter !== "ALL" ? reportStatusFilter : undefined,
         // Pass active mode so the backend strictly filters by mode
         mode: isSessionMode ? "session_based" : "daily",
         // In session-based mode, always pass the selected session
@@ -409,7 +418,7 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setReportLoading(false)
     }
-  }, [isSessionMode, startDate, endDate, roleFilter, sessionFilter])
+  }, [isSessionMode, startDate, endDate, roleFilter, reportStatusFilter, sessionFilter])
 
   const loadAllUsers = useCallback(async () => {
     try {
@@ -586,22 +595,50 @@ export default function AdminStaffAttendanceDashboard() {
       return
     }
 
+    if (leaveForm.isRange && leaveForm.startDate > leaveForm.endDate) {
+      notifications.error("Invalid Dates", "Start date cannot be after end date.")
+      return
+    }
+
     setIsSavingLeave(true)
     try {
       // Pass mode and session so the backend stores with the correct session key
       const leaveSession = isSessionMode ? leaveForm.session : undefined
       const leaveMode = isSessionMode ? "session_based" : "daily"
+      const targetEndDate = leaveForm.isRange ? leaveForm.endDate : leaveForm.startDate
       await db.setStaffLeave(
         leaveForm.userId,
-        leaveForm.date,
+        leaveForm.startDate,
         leaveForm.status,
         leaveForm.reason,
         leaveSession,
-        leaveMode
+        leaveMode,
+        targetEndDate
       )
-      notifications.success("Leave Recorded", `Marked staff member as ${leaveForm.status}.`)
+
+      const daysCount = leaveForm.isRange
+        ? Math.max(1, Math.round((new Date(leaveForm.endDate).getTime() - new Date(leaveForm.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+        : 1
+
+      if (daysCount > 1) {
+        notifications.success(
+          "Leave Recorded",
+          `Marked ${leaveForm.status === "PERMISSION" ? "permission" : "leave"} for ${daysCount} days (${leaveForm.startDate} to ${leaveForm.endDate}).`
+        )
+      } else {
+        notifications.success("Leave Recorded", `Marked staff member as ${leaveForm.status}.`)
+      }
+
       setIsLeaveModalOpen(false)
-      setLeaveForm({ userId: "", date: selectedDate, status: "LEAVE", reason: "", session: "morning" })
+      setLeaveForm({
+        userId: "",
+        isRange: false,
+        startDate: selectedDate,
+        endDate: selectedDate,
+        status: "LEAVE",
+        reason: "",
+        session: "all",
+      })
       fetchData()
       fetchStats()
     } catch (err: any) {
@@ -651,16 +688,20 @@ export default function AdminStaffAttendanceDashboard() {
         "Start Date",
         "End Date",
         ...(isSessionMode ? ["Session"] : []),
+        ...(reportStatusFilter !== "ALL" ? ["State Filter"] : []),
         "Total Days Logged",
         "Present (On-Time)",
         "Late",
         "Absent",
-        "On Leave / Permission",
+        "Permission",
+        "On Leave",
         "Biometric Verified (%)",
       ]
 
       const rows = reportData.staffSummary.map((item: any) => {
         const bioPct = item.totalRecords > 0 ? Math.round((item.faceVerified / item.totalRecords) * 100) : 0
+        const permissionCount = item.permission || 0
+        const leaveCount = Math.max(0, (item.onLeave || 0) - permissionCount)
         return [
           `"${item.user?.full_name || ""}"`,
           `"${item.user?.email || ""}"`,
@@ -668,11 +709,13 @@ export default function AdminStaffAttendanceDashboard() {
           `"${startDate}"`,
           `"${endDate}"`,
           ...(isSessionMode ? [`"${staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter}"`] : []),
+          ...(reportStatusFilter !== "ALL" ? [`"${STATUS_CONFIG[reportStatusFilter]?.label || reportStatusFilter}"`] : []),
           item.totalRecords,
-          item.present,
-          item.late,
-          item.absent,
-          item.onLeave,
+          item.present || 0,
+          item.late || 0,
+          item.absent || 0,
+          permissionCount,
+          leaveCount,
           `"${bioPct}%"`,
         ]
       })
@@ -681,7 +724,10 @@ export default function AdminStaffAttendanceDashboard() {
       const encodedUri = encodeURI(csvContent)
       const link = document.createElement("a")
       link.setAttribute("href", encodedUri)
-      link.setAttribute("download", `Staff_Attendance_Report_${startDate}_to_${endDate}${isSessionMode ? `_${sessionFilter}` : ""}.csv`)
+      link.setAttribute(
+        "download",
+        `Staff_Attendance_Report_${startDate}_to_${endDate}${reportStatusFilter !== "ALL" ? `_${reportStatusFilter.toLowerCase()}` : ""}${isSessionMode ? `_${sessionFilter}` : ""}.csv`
+      )
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -1439,6 +1485,21 @@ export default function AdminStaffAttendanceDashboard() {
                   ))}
                 </select>
 
+                <select
+                  value={reportStatusFilter}
+                  onChange={(e) => setReportStatusFilter(e.target.value)}
+                  className="h-10 px-3.5 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
+                  aria-label="Attendance State Filter"
+                >
+                  <option value="ALL">All States</option>
+                  <option value="PRESENT">Present</option>
+                  <option value="LATE">Late</option>
+                  <option value="ABSENT">Absent</option>
+                  <option value="PERMISSION">Permission (Duty / Training)</option>
+                  <option value="LEAVE">On Leave (Personal / Sick)</option>
+                  <option value="LEAVE_PERMISSION">Leave & Permission (All Excused)</option>
+                </select>
+
                 <Button
                   onClick={fetchReport}
                   disabled={reportLoading}
@@ -1494,19 +1555,21 @@ export default function AdminStaffAttendanceDashboard() {
           ) : (
             <div className="space-y-6">
               {/* Report Summary Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-lg">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Check-Ins</span>
                   <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">
                     {reportData.totalRecords}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">Logged in selected period</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {reportStatusFilter !== "ALL" ? `State: ${STATUS_CONFIG[reportStatusFilter]?.label || reportStatusFilter}` : "Logged in selected period"}
+                  </p>
                 </div>
 
                 <div className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-lg">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Present (On-Time)</span>
                   <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + s.present, 0)}
+                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + (s.present || 0), 0)}
                   </p>
                   <p className="text-xs text-slate-500 mt-1">On-time attendances</p>
                 </div>
@@ -1514,17 +1577,27 @@ export default function AdminStaffAttendanceDashboard() {
                 <div className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-lg">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Late Arrivals</span>
                   <p className="text-3xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + s.late, 0)}
+                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + (s.late || 0), 0)}
                   </p>
                   <p className="text-xs text-slate-500 mt-1">Late arrivals logged</p>
                 </div>
 
                 <div className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-lg">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600">Approved Leaves</span>
-                  <p className="text-3xl font-black text-purple-600 dark:text-purple-400 mt-1">
-                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + s.onLeave, 0)}
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Absences</span>
+                  <p className="text-3xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + (s.absent || 0), 0)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">Leave & permissions</p>
+                  <p className="text-xs text-slate-500 mt-1">Absences logged</p>
+                </div>
+
+                <div className="rounded-[22px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl p-5 shadow-lg">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600">Permissions</span>
+                  <p className="text-3xl font-black text-sky-600 dark:text-sky-400 mt-1">
+                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + (s.permission || 0), 0)}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {reportData.staffSummary.reduce((acc: number, s: any) => acc + Math.max(0, (s.onLeave || 0) - (s.permission || 0)), 0)} approved leaves
+                  </p>
                 </div>
               </div>
 
@@ -1537,11 +1610,18 @@ export default function AdminStaffAttendanceDashboard() {
                       Per-employee cumulative breakdown between {startDate} and {endDate}
                     </p>
                   </div>
-                  {isSessionMode && (
-                    <Badge variant="outline" className="text-xs font-bold uppercase border-primary/30 text-primary">
-                      {staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter} Session
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {reportStatusFilter !== "ALL" && (
+                      <Badge variant="outline" className={cn("text-xs font-bold uppercase", STATUS_CONFIG[reportStatusFilter]?.color || "border-primary/30 text-primary")}>
+                        State: {STATUS_CONFIG[reportStatusFilter]?.label || reportStatusFilter}
+                      </Badge>
+                    )}
+                    {isSessionMode && (
+                      <Badge variant="outline" className="text-xs font-bold uppercase border-primary/30 text-primary">
+                        {staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter} Session
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[700px]">
@@ -1553,6 +1633,7 @@ export default function AdminStaffAttendanceDashboard() {
                         <th className="px-4 py-3.5 text-center text-emerald-600">Present</th>
                         <th className="px-4 py-3.5 text-center text-amber-600">Late</th>
                         <th className="px-4 py-3.5 text-center text-rose-600">Absent</th>
+                        <th className="px-4 py-3.5 text-center text-sky-600">Permission</th>
                         <th className="px-4 py-3.5 text-center text-purple-600">Leave</th>
                         <th className="px-4 py-3.5 text-center text-cyan-600">Biometric %</th>
                       </tr>
@@ -1560,6 +1641,8 @@ export default function AdminStaffAttendanceDashboard() {
                     <tbody className="divide-y divide-white/30 dark:divide-white/5">
                       {reportData.staffSummary.map((item: any) => {
                         const bioPct = item.totalRecords > 0 ? Math.round((item.faceVerified / item.totalRecords) * 100) : 0
+                        const permissionCount = item.permission || 0
+                        const leaveCount = Math.max(0, (item.onLeave || 0) - permissionCount)
                         return (
                           <tr key={item.user?.id} className="hover:bg-white/40 dark:hover:bg-slate-800/30">
                             <td className="px-6 py-3.5">
@@ -1577,10 +1660,11 @@ export default function AdminStaffAttendanceDashboard() {
                               {getRoleBadge(item.user?.role).label}
                             </td>
                             <td className="px-4 py-3.5 text-center font-bold">{item.totalRecords}</td>
-                            <td className="px-4 py-3.5 text-center font-bold text-emerald-600">{item.present}</td>
-                            <td className="px-4 py-3.5 text-center font-bold text-amber-600">{item.late}</td>
-                            <td className="px-4 py-3.5 text-center font-bold text-rose-600">{item.absent}</td>
-                            <td className="px-4 py-3.5 text-center font-bold text-purple-600">{item.onLeave}</td>
+                            <td className="px-4 py-3.5 text-center font-bold text-emerald-600">{item.present || 0}</td>
+                            <td className="px-4 py-3.5 text-center font-bold text-amber-600">{item.late || 0}</td>
+                            <td className="px-4 py-3.5 text-center font-bold text-rose-600">{item.absent || 0}</td>
+                            <td className="px-4 py-3.5 text-center font-bold text-sky-600">{permissionCount}</td>
+                            <td className="px-4 py-3.5 text-center font-bold text-purple-600">{leaveCount}</td>
                             <td className="px-4 py-3.5 text-center font-bold text-cyan-600">{bioPct}%</td>
                           </tr>
                         )
@@ -1974,16 +2058,111 @@ export default function AdminStaffAttendanceDashboard() {
                   </select>
                 </div>
 
-                {/* Date */}
+                {/* Duration Type: Single Day vs Date Range */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Date *</label>
-                  <Input
-                    type="date"
-                    required
-                    value={leaveForm.date}
-                    onChange={(e) => setLeaveForm({ ...leaveForm, date: e.target.value })}
-                    className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-bold"
-                  />
+                  <div className="flex items-center justify-between pb-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Duration Type
+                    </label>
+                    <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-bold border border-slate-200/50 dark:border-slate-700/50">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLeaveForm((f) => ({
+                            ...f,
+                            isRange: false,
+                            endDate: f.startDate,
+                          }))
+                        }
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg transition-all",
+                          !leaveForm.isRange
+                            ? "bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm"
+                            : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                        )}
+                      >
+                        Single Day
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLeaveForm((f) => ({
+                            ...f,
+                            isRange: true,
+                          }))
+                        }
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg transition-all",
+                          leaveForm.isRange
+                            ? "bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm"
+                            : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                        )}
+                      >
+                        Date Range
+                      </button>
+                    </div>
+                  </div>
+
+                  {!leaveForm.isRange ? (
+                    <div>
+                      <Input
+                        type="date"
+                        required
+                        value={leaveForm.startDate}
+                        onChange={(e) =>
+                          setLeaveForm({
+                            ...leaveForm,
+                            startDate: e.target.value,
+                            endDate: e.target.value,
+                          })
+                        }
+                        className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-bold"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Start Date</span>
+                          <Input
+                            type="date"
+                            required
+                            value={leaveForm.startDate}
+                            onChange={(e) =>
+                              setLeaveForm({ ...leaveForm, startDate: e.target.value })
+                            }
+                            className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-slate-400">End Date</span>
+                          <Input
+                            type="date"
+                            required
+                            min={leaveForm.startDate}
+                            value={leaveForm.endDate}
+                            onChange={(e) =>
+                              setLeaveForm({ ...leaveForm, endDate: e.target.value })
+                            }
+                            className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-bold"
+                          />
+                        </div>
+                      </div>
+                      {leaveForm.startDate && leaveForm.endDate && (
+                        <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+                          {Math.max(
+                            1,
+                            Math.round(
+                              (new Date(leaveForm.endDate).getTime() -
+                                new Date(leaveForm.startDate).getTime()) /
+                                (1000 * 60 * 60 * 24)
+                            ) + 1
+                          )}{" "}
+                          calendar days will be marked as {leaveForm.status === "PERMISSION" ? "Permission" : "Leave"}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Status */}
@@ -2021,11 +2200,14 @@ export default function AdminStaffAttendanceDashboard() {
                       onChange={(e) => setLeaveForm({ ...leaveForm, session: e.target.value })}
                       className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
                     >
+                      <option value="all">All Sessions (Full Day)</option>
                       {staffSessions.map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                        <option key={s.id} value={s.id}>{s.name} Session</option>
                       ))}
                     </select>
-                    <p className="mt-1 text-[10px] text-slate-400">Leave applies to the selected session only.</p>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {leaveForm.session === "all" ? "Leave applies to all sessions throughout the day." : "Leave applies to the selected session only."}
+                    </p>
                   </div>
                 )}
               </form>
@@ -2044,7 +2226,7 @@ export default function AdminStaffAttendanceDashboard() {
                   disabled={isSavingLeave}
                   className="h-10 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold shadow-lg shadow-purple-500/25"
                 >
-                  {isSavingLeave ? "Saving..." : "Record Leave"}
+                  {isSavingLeave ? "Saving..." : leaveForm.isRange ? "Record Multi-Day Leave" : "Record Leave"}
                 </Button>
               </div>
             </motion.div>

@@ -1564,7 +1564,9 @@ export async function setLeaveOrPermission(
   userId: string,
   _schoolId: string | undefined,
   data: {
-    date: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
     status: 'LEAVE' | 'PERMISSION';
     reason: string;
     session?: string;
@@ -1574,47 +1576,102 @@ export async function setLeaveOrPermission(
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = data.mode || (settings as any)?.staff_attendance_mode || 'daily';
 
-  const { startDate, endDate } = normalizeStaffDate(data.date);
+  const fromDateStr = (data.startDate || data.date || '').trim();
+  const toDateStr = (data.endDate || data.startDate || data.date || '').trim();
 
-  let sessionKey: string;
+  if (!fromDateStr) {
+    throw new Error('Date is required to set leave or permission.');
+  }
+
+  const startD = new Date(fromDateStr + 'T00:00:00Z');
+  const endD = new Date(toDateStr + 'T00:00:00Z');
+  if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
+    throw new Error('Invalid date format provided.');
+  }
+  if (startD > endD) {
+    throw new Error('Start date cannot be after end date.');
+  }
+
+  // Determine which sessions to record for
+  let sessionKeys: string[] = [];
   if (attendanceMode === 'session_based') {
-    sessionKey = normaliseSessionKey(data.session) || 'morning';
-  } else {
-    sessionKey = 'daily';
-  }
-
-  const existing = await prisma.staffAttendance.findFirst({
-    where: {
-      userId,
-      date: { gte: startDate, lte: endDate },
-      session: sessionKey,
-    }
-  });
-
-  if (existing) {
-    return await prisma.staffAttendance.update({
-      where: { id: existing.id },
-      data: {
-        status: data.status,
-        remarks: data.reason,
-        correctedBy: adminUserId,
-        correctedAt: new Date(),
-        previousStatus: existing.status,
-        correctionReason: `Marked as ${data.status}: ${data.reason}`,
+    if (!data.session || data.session === 'all' || data.session === 'ALL') {
+      let parsedSessions = ['morning', 'afternoon'];
+      if ((settings as any)?.staffSessions) {
+        try {
+          const raw = typeof (settings as any).staffSessions === 'string'
+            ? JSON.parse((settings as any).staffSessions)
+            : (settings as any).staffSessions;
+          if (Array.isArray(raw) && raw.length > 0) {
+            parsedSessions = raw.filter((s: any) => s && s.isActive !== false).map((s: any) => normaliseSessionKey(s.id));
+          }
+        } catch (_) {}
       }
-    });
+      sessionKeys = parsedSessions.length > 0 ? parsedSessions : ['morning', 'afternoon'];
+    } else {
+      sessionKeys = [normaliseSessionKey(data.session) || 'morning'];
+    }
+  } else {
+    sessionKeys = ['daily'];
   }
 
-  return await prisma.staffAttendance.create({
-    data: {
-      userId,
-      date: startDate,
-      session: sessionKey,
-      status: data.status,
-      remarks: data.reason,
-      markedAbsentBy: adminUserId,
+  const results: any[] = [];
+  const current = new Date(startD);
+  let safetyCounter = 366; // Maximum 1 year limit
+
+  while (current <= endD && safetyCounter > 0) {
+    safetyCounter--;
+    const dStr = current.toISOString().split('T')[0];
+    const { startDate: dayStart, endDate: dayEnd } = normalizeStaffDate(dStr);
+
+    for (const sessKey of sessionKeys) {
+      const existing = await prisma.staffAttendance.findFirst({
+        where: {
+          userId,
+          date: { gte: dayStart, lte: dayEnd },
+          session: sessKey,
+        }
+      });
+
+      if (existing) {
+        const updated = await prisma.staffAttendance.update({
+          where: { id: existing.id },
+          data: {
+            status: data.status,
+            remarks: data.reason,
+            correctedBy: adminUserId,
+            correctedAt: new Date(),
+            previousStatus: existing.status,
+            correctionReason: `Marked as ${data.status}: ${data.reason}`,
+          }
+        });
+        results.push(updated);
+      } else {
+        const created = await prisma.staffAttendance.create({
+          data: {
+            userId,
+            date: dayStart,
+            session: sessKey,
+            status: data.status,
+            remarks: data.reason,
+            markedAbsentBy: adminUserId,
+          }
+        });
+        results.push(created);
+      }
     }
-  });
+
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return {
+    success: true,
+    count: results.length,
+    startDate: fromDateStr,
+    endDate: toDateStr,
+    status: data.status,
+    records: results,
+  };
 }
 
 /**
@@ -1629,6 +1686,7 @@ export async function getStaffAttendanceReport(
     userId?: string;
     mode?: string;
     session?: string;
+    status?: string;
   }
 ) {
   const settings = await prisma.schoolSettings.findFirst();
@@ -1647,6 +1705,14 @@ export async function getStaffAttendanceReport(
 
   if (filters.role && filters.role !== 'all') {
     where.user = { role: filters.role };
+  }
+
+  if (filters.status && filters.status !== 'all' && filters.status !== 'ALL') {
+    if (filters.status.toUpperCase() === 'LEAVE_PERMISSION') {
+      where.status = { in: ['LEAVE', 'PERMISSION'] };
+    } else {
+      where.status = filters.status.toUpperCase();
+    }
   }
 
   if (attendanceMode === 'daily') {
@@ -1691,6 +1757,7 @@ export async function getStaffAttendanceReport(
         absent: 0,
         earlyDeparture: 0,
         onLeave: 0,
+        permission: 0,
         geoVerified: 0,
         faceVerified: 0,
         records: []
@@ -1703,18 +1770,23 @@ export async function getStaffAttendanceReport(
     else if (r.status === 'LATE') item.late++;
     else if (r.status === 'ABSENT') item.absent++;
     else if (r.status === 'EARLY_DEPARTURE') item.earlyDeparture++;
-    else if (r.status === 'LEAVE' || r.status === 'PERMISSION') item.onLeave++;
+    else if (r.status === 'PERMISSION') {
+      item.permission++;
+      item.onLeave++;
+    } else if (r.status === 'LEAVE') {
+      item.onLeave++;
+    }
 
     if (r.geofenceVerified) item.geoVerified++;
     if (r.faceVerified) item.faceVerified++;
     item.records.push(r);
   }
 
-  const dayMap = new Map<string, { date: string; present: number; late: number; absent: number; earlyDeparture: number; onLeave: number; total: number }>();
+  const dayMap = new Map<string, { date: string; present: number; late: number; absent: number; earlyDeparture: number; onLeave: number; permission: number; total: number }>();
   for (const r of records) {
     const dStr = r.date.toISOString().split('T')[0];
     if (!dayMap.has(dStr)) {
-      dayMap.set(dStr, { date: dStr, present: 0, late: 0, absent: 0, earlyDeparture: 0, onLeave: 0, total: 0 });
+      dayMap.set(dStr, { date: dStr, present: 0, late: 0, absent: 0, earlyDeparture: 0, onLeave: 0, permission: 0, total: 0 });
     }
     const d = dayMap.get(dStr)!;
     d.total++;
@@ -1722,13 +1794,19 @@ export async function getStaffAttendanceReport(
     else if (r.status === 'LATE') d.late++;
     else if (r.status === 'ABSENT') d.absent++;
     else if (r.status === 'EARLY_DEPARTURE') d.earlyDeparture++;
-    else if (r.status === 'LEAVE' || r.status === 'PERMISSION') d.onLeave++;
+    else if (r.status === 'PERMISSION') {
+      d.permission++;
+      d.onLeave++;
+    } else if (r.status === 'LEAVE') {
+      d.onLeave++;
+    }
   }
 
   return {
     startDate: filters.startDate,
     endDate: filters.endDate,
     attendanceMode,
+    statusFilter: filters.status || 'ALL',
     totalRecords: records.length,
     staffSummary: Array.from(staffMap.values()),
     dailyBreakdown: Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date))
