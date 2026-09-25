@@ -1,7 +1,9 @@
 import prisma from '../config/db';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
 import * as schoolService from './school.service';
+import * as smsService from './sms.service';
 
 /**
  * List all schools associated with a parent's phone number.
@@ -732,4 +734,74 @@ export const updateProfile = async (phone: string, _schoolId: string | undefined
       profile_photo: updatedUser.profile_photo
     }
   };
+};
+
+/**
+ * Initiate password reset for parent via phone OTP.
+ * Returns true regardless of existence to prevent enumeration.
+ */
+export const initiateParentPasswordReset = async (phone: string) => {
+  const cleanPhone = normalizePhoneNumber(phone);
+  const user = await prisma.user.findUnique({ where: { phone: cleanPhone } });
+  // Always succeed to avoid leaking existence
+  if (!user) {
+    // Simulate delay
+    await new Promise(res => setTimeout(res, 100));
+    return { success: true };
+  }
+  const verificationCode = crypto.randomInt(100000, 999999).toString();
+  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      reset_password_token: verificationCode,
+      reset_password_expires: expires,
+    },
+  });
+  // Dispatch real SMS via SMSEthiopia
+  const smsResult = await smsService.sendParentPasswordResetOTP(cleanPhone, verificationCode);
+  console.log(`[ParentPasswordReset] SMSEthiopia dispatch to ${cleanPhone}:`, smsResult.success ? 'Success' : `Failed (${smsResult.error})`);
+  return { success: true };
+};
+
+/**
+ * Verify OTP for parent password reset.
+ */
+export const verifyParentPasswordResetOTP = async (phone: string, code: string) => {
+  const cleanPhone = normalizePhoneNumber(phone);
+  const user = await prisma.user.findFirst({
+    where: {
+      phone: cleanPhone,
+      reset_password_token: code,
+      reset_password_expires: { gt: new Date() },
+    },
+  });
+  return !!user;
+};
+
+/**
+ * Reset the parent's password using verified OTP.
+ */
+export const resetParentPasswordWithOTP = async (phone: string, code: string, newPassword: string) => {
+  const cleanPhone = normalizePhoneNumber(phone);
+  const user = await prisma.user.findFirst({
+    where: {
+      phone: cleanPhone,
+      reset_password_token: code,
+      reset_password_expires: { gt: new Date() },
+    },
+  });
+  if (!user) {
+    throw new Error('Invalid or expired verification code.');
+  }
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password_hash: hashedPassword,
+      reset_password_token: null,
+      reset_password_expires: null,
+    },
+  });
+  return { success: true, message: 'Password reset successfully.' };
 };

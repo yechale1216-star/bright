@@ -41,6 +41,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const userService = __importStar(require("../services/user.service"));
 const schoolService = __importStar(require("../services/school.service"));
+const parentService = __importStar(require("../services/parent.service"));
 const jwt_1 = require("../utils/jwt");
 const db_1 = __importDefault(require("../config/db"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -189,6 +190,97 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         next(error);
     }
 });
+// Refresh Session Token
+router.post('/refresh', async (req, res, next) => {
+    try {
+        const rawToken = req.cookies?.attendance_token || req.headers.authorization?.split(' ')[1];
+        if (!rawToken) {
+            return res.status(401).json({ success: false, message: 'No authentication token provided' });
+        }
+        let decoded = null;
+        let isExpired = false;
+        try {
+            decoded = (0, jwt_1.verifyToken)(rawToken);
+        }
+        catch (err) {
+            if (err?.name === 'TokenExpiredError') {
+                isExpired = true;
+                decoded = jsonwebtoken_1.default.decode(rawToken);
+            }
+            else {
+                return res.status(401).json({ success: false, message: 'Invalid token signature' });
+            }
+        }
+        if (!decoded || !decoded.id) {
+            return res.status(401).json({ success: false, message: 'Invalid token payload' });
+        }
+        // If expired, allow renewal within a 14-day grace period
+        if (isExpired && decoded.exp) {
+            const now = Math.floor(Date.now() / 1000);
+            const gracePeriodSeconds = 14 * 24 * 60 * 60; // 14 days
+            if (now - decoded.exp > gracePeriodSeconds) {
+                return res.status(401).json({ success: false, message: 'Session expired beyond renewal window' });
+            }
+        }
+        const user = await db_1.default.user.findUnique({
+            where: { id: decoded.id },
+            select: {
+                id: true,
+                email: true,
+                full_name: true,
+                role: true,
+                is_active: true,
+                profile_photo: true,
+                phone: true,
+                teacher_id: true,
+            }
+        });
+        if (!user || user.is_active === false) {
+            return res.status(401).json({ success: false, message: 'User account not found or deactivated' });
+        }
+        const singleSchool = await schoolService.getSingleSchool();
+        const schoolId = singleSchool.id;
+        const customSchoolId = singleSchool.schoolId || 'SCH-0001';
+        const schoolName = singleSchool.name || 'Addis Hiwot School';
+        const schoolLogo = singleSchool.settings?.school_logo || '';
+        const effectiveRole = decoded.role || user.role;
+        const newToken = (0, jwt_1.generateToken)({
+            id: user.id,
+            email: user.email,
+            role: effectiveRole,
+            schoolId: schoolId,
+            customSchoolId: customSchoolId,
+        });
+        res.cookie('attendance_token', newToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+        });
+        return res.status(200).json({
+            success: true,
+            data: {
+                token: newToken,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.full_name || '',
+                    role: effectiveRole,
+                    schoolId: schoolId,
+                    customSchoolId: customSchoolId,
+                    profile_photo: user.profile_photo || '',
+                    phone: user.phone || '',
+                    teacherId: user.teacher_id || '',
+                },
+                schoolName,
+                schoolLogo,
+            }
+        });
+    }
+    catch (error) {
+        next(error);
+    }
+});
 // Logout
 router.post('/logout', async (req, res) => {
     try {
@@ -232,6 +324,51 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res, next) =>
             success: true,
             message: 'If an account with that email exists, password reset instructions will be processed.'
         });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// Parent Password Reset Flow
+router.post('/parent-forgot-password', forgotPasswordLimiter, async (req, res, next) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Phone is required' });
+        }
+        await parentService.initiateParentPasswordReset(phone);
+        res.status(200).json({ success: true, message: 'If an account with that phone exists, password reset instructions will be processed.' });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// Verify Parent OTP
+router.post('/parent-verify-otp', otpLimiter, async (req, res, next) => {
+    try {
+        const { phone, code } = req.body;
+        if (!phone || !code) {
+            return res.status(400).json({ success: false, message: 'Phone and code are required' });
+        }
+        const valid = await parentService.verifyParentPasswordResetOTP(phone, code);
+        if (!valid) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired verification code' });
+        }
+        res.status(200).json({ success: true, message: 'OTP verified' });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// Reset Parent Password
+router.post('/parent-reset-password', async (req, res, next) => {
+    try {
+        const { phone, code, newPassword } = req.body;
+        if (!phone || !code || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Phone, code, and new password are required' });
+        }
+        await parentService.resetParentPasswordWithOTP(phone, code, newPassword);
+        res.status(200).json({ success: true, message: 'Password successfully reset. You can now login with your new password.' });
     }
     catch (error) {
         next(error);

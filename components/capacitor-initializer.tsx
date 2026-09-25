@@ -8,6 +8,7 @@ import { SplashScreen } from '@capacitor/splash-screen'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { useAuth } from '@/lib/context/auth-context'
+import { authStorage } from '@/lib/auth/auth-storage'
 import { toast } from 'sonner'
 
 // Root/entry screens where back button should trigger "exit app" behavior
@@ -120,7 +121,8 @@ export function CapacitorInitializer() {
 
       // If user is authenticated, ensure the token is synced to native SharedPreferences as well
       const syncTokenAndFeatures = async () => {
-        const token = localStorage.getItem('attendance_token');
+        await authStorage.restoreSession().catch(() => {});
+        const token = authStorage.getToken() || localStorage.getItem('attendance_token');
         if (token) {
           console.log('[CapacitorInitializer] Syncing auth token to native side...');
           await NativeBridge.saveAuthToken(token);

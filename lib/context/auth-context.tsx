@@ -5,6 +5,8 @@ import { authService, User, SESSION_ID_KEY } from "@/lib/auth/auth"
 import { getApiUrl } from "@/lib/api-config"
 import { useRouter, usePathname } from "next/navigation"
 import { clearMessageCache } from "@/lib/utils/message-cache"
+import { authStorage } from "@/lib/auth/auth-storage"
+import { refreshTokenSingleFlight } from "@/lib/auth/auth-refresh"
 
 // Key used to mark that a fresh login just occurred — validateSession must
 // not overwrite the login-confirmed role with path-inferred stale data.
@@ -84,13 +86,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async (redirectPath?: string) => {
     if (isClient) {
-      // Clear the fresh-login marker so the next validateSession runs fully
       localStorage.removeItem(FRESH_LOGIN_KEY)
       localStorage.removeItem("_zt_login_role")
     }
 
+    // Clear unified persistent storage (both localStorage & native Preferences)
+    await authStorage.clearSession()
+
     // Await the authService logout so API and Native calls finish before navigation
-    await authService.logout()
+    await authService.logout().catch(() => {})
 
     // Clear offline message cache on logout
     try {
@@ -100,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // ATOMIC STATE CLEAR: wipe ALL in-memory React state synchronously so no
-    // stale data can leak into the next user's session — not even for one frame.
+    // stale data can leak into the next user's session.
     clearSchoolContextRef.current?.()
     setUser(null)
     setFeatures(null)
@@ -109,29 +113,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPermissionsLoading(false)
     setError(null)
 
-    // Redirect to the specified path, or to /login if we are currently on a protected page.
-    // Never redirect if we are already on a public/auth page to avoid redirect loops.
     if (isClient) {
       const publicPages = ["/login", "/signup", "/reset-password", "/forgot-password"]
       const currentPath = window.location.pathname
       const isAlreadyOnPublicPage = publicPages.some(p => currentPath.startsWith(p))
 
-      if (redirectPath) {
-        // Explicit redirect always wins (e.g. token-expired → /login?reason=expired)
-        window.location.href = redirectPath
-      } else if (!isAlreadyOnPublicPage) {
-        // Manual logout from a protected page → go to /login
-        window.location.href = "/login"
+      const target = redirectPath || "/login"
+      if (redirectPath || !isAlreadyOnPublicPage) {
+        router.replace(target)
       }
-      // If already on a public page, just clear state and stay — no redirect needed.
     }
-  }, [isClient])
+  }, [isClient, router])
 
 
   const validateSession = useCallback(async (options?: { forceRefetch?: boolean }) => {
     if (!isClient) return
 
-    const token = localStorage.getItem("attendance_token") // Legacy token
+    // Restore from Native Preferences if cold starting on Android
+    try {
+      await authStorage.restoreSession()
+    } catch {}
+
+    const token = localStorage.getItem("attendance_token")
     const cachedUserStr = localStorage.getItem("attendance_current_user")
     const cachedFeaturesStr = localStorage.getItem("attendance_features")
     const storedSessionId = localStorage.getItem(SESSION_ID_KEY)
@@ -141,9 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!cachedUserStr) {
-      // No user in storage, user is unauthenticated
       console.log("[AuthContext][validateSession] No user in storage — unauthenticated")
-      // ATOMIC CLEAR: wipe everything before settling as unauthenticated
       clearSchoolContextRef.current?.()
       setUser(null)
       setFeatures(null)
@@ -163,13 +164,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // SESSION CHANGE DETECTION:
-    // If the sessionId in localStorage differs from what we have in React state,
-    // a new user has logged in. Clear all previous in-memory state FIRST before
-    // loading the new session. 
-    // EXCEPTION: If this is a fresh login, we skip clearing because the login process
-    // has already populated the new session state (available schools, etc.) and clearing 
-    // it now would cause a race condition (wiping the data just fetched).
-    const isSessionChange = storedSessionId !== sessionId || options?.forceRefetch
+    // Only clear if a DIFFERENT session was already active in React state (not initial cold mount)
+    const isInitialMount = sessionId === null
+    const isSessionChange = !isInitialMount && (storedSessionId !== sessionId || options?.forceRefetch)
     const isFreshLoginCheck = localStorage.getItem(FRESH_LOGIN_KEY) === "1"
 
     if (isSessionChange && !isFreshLoginCheck) {
@@ -184,8 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // EAGER SWR HYDRATION:
-    // If we have a cached user and features, hydrate React state immediately
-    // so sessionReady becomes true in 0ms, unblocking rendering and splash screen.
+    // Hydrate React state immediately so sessionReady becomes true in 0ms
     setUser(currentUser)
     setSessionId(storedSessionId)
     if (cachedFeaturesStr) {
@@ -197,14 +193,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPermissionsLoading(false)
 
     // FRESH LOGIN GUARD:
-    // If a fresh login just happened, we already have the correct, server-confirmed
-    // role stored in localStorage by the login API. We must NOT let path-based
-    // role inference (x-requested-role from the current URL) overwrite it.
     const isFreshLogin = localStorage.getItem(FRESH_LOGIN_KEY) === "1" && !options?.forceRefetch
     const freshLoginRole = localStorage.getItem("_zt_login_role") || ""
     if (isFreshLogin) {
       console.log(`[AuthContext][validateSession] Fresh login detected — preserving confirmed role: ${freshLoginRole}`)
-      // Clear the marker so future validate calls work normally
       localStorage.removeItem(FRESH_LOGIN_KEY)
       localStorage.removeItem("_zt_login_role")
       return
@@ -225,122 +217,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     else if (currentPath.startsWith('/school/registrar')) profileHeaders["x-requested-role"] = 'registrar'
     else if (currentPath.startsWith('/school/discipline-officer')) profileHeaders["x-requested-role"] = 'discipline_officer'
 
-    // PARALLEL REVALIDATION:
-    const needsFeatures = currentUser?.role !== "parent" && !!currentUser?.schoolId
-    const featuresSchoolId = currentUser?.schoolId || schoolId
+    // Bounded timeout (6s) so startup profile revalidation can NEVER hang indefinitely
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 6000)
 
-    const profilePromise = fetch(`${getApiUrl()}/api/users/profile`, {
-      headers: profileHeaders,
-      cache: 'no-store',
-      credentials: 'include'
-    })
-
-    const featuresPromise: Promise<Response | null> = Promise.resolve(null) // All features granted in Single-School Edition
-
-    console.log(`[AuthContext][validateSession] Parallel revalidation | path: ${currentPath} | role: ${profileHeaders['x-requested-role'] || 'none'}`)
-
-    // Resolve profile
     try {
-      let profileRes = await profilePromise
+      let profileRes = await fetch(`${getApiUrl()}/api/users/profile`, {
+        headers: profileHeaders,
+        cache: 'no-store',
+        credentials: 'include',
+        signal: controller.signal,
+      })
 
       if (profileRes.status === 401) {
-        console.warn("[AuthContext][validateSession] Token invalid (401) — checking if Bearer token can recover session")
-        if (token) {
-          try {
-            const retryHeaders: Record<string, string> = {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-            }
-            if (schoolId) retryHeaders["x-school-id"] = schoolId
-            if (profileHeaders["x-requested-role"]) retryHeaders["x-requested-role"] = profileHeaders["x-requested-role"]
+        console.warn("[AuthContext][validateSession] Token invalid (401) — attempting single-flight session refresh")
+        const refreshed = await refreshTokenSingleFlight()
 
-            const retryRes = await fetch(`${getApiUrl()}/api/users/profile`, {
-              headers: retryHeaders,
+        if (refreshed) {
+          const refreshedToken = authStorage.getToken()
+          if (refreshedToken) {
+            profileHeaders["Authorization"] = `Bearer ${refreshedToken}`
+            profileRes = await fetch(`${getApiUrl()}/api/users/profile`, {
+              headers: profileHeaders,
               cache: 'no-store',
+              credentials: 'include',
+              signal: controller.signal,
             })
-
-            if (retryRes.ok) {
-              console.log("[AuthContext][validateSession] Bearer-token retry succeeded — session recovered")
-              const retryJson = await retryRes.json()
-              if (retryJson.success && retryJson.data) {
-                const dbUser = retryJson.data
-                const updatedUser: User = {
-                  ...currentUser!,
-                  name: dbUser.full_name || dbUser.name || currentUser!.name,
-                  email: dbUser.email || currentUser!.email,
-                  phone: dbUser.phone || currentUser!.phone || "",
-                  profile_photo: dbUser.profile_photo || currentUser!.profile_photo || "",
-                  role: dbUser.role || currentUser!.role,
-                  schoolId: dbUser.schoolId || dbUser.school_id || currentUser?.schoolId || "single-school",
-                  schoolName: dbUser.schoolName || currentUser!.schoolName || "",
-                  schoolLogo: dbUser.schoolLogo || currentUser!.schoolLogo || "",
-                  onboardingCompleted: dbUser.onboardingCompleted ?? currentUser!.onboardingCompleted,
-                  isVerified: dbUser.isVerified ?? dbUser.is_verified ?? currentUser!.isVerified ?? false,
-                }
-                setUser(updatedUser)
-                setSessionId(storedSessionId)
-                setError(null)
-                localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
-                localStorage.setItem("x-school-id", updatedUser.schoolId || "single-school")
-                currentUser = updatedUser
-              } else {
-                setUser(currentUser)
-                setSessionId(storedSessionId)
-                setError(null)
-              }
-              setAuthLoading(false)
-            } else {
-              console.warn("[AuthContext][validateSession] Bearer retry also failed — token truly expired")
-              logout("/login?reason=expired")
-              return
-            }
-          } catch (retryErr) {
-            console.warn("[AuthContext][validateSession] Bearer retry threw error:", retryErr)
-            setUser(currentUser)
-            setSessionId(storedSessionId)
-            setAuthLoading(false)
-            setPermissionsLoading(false)
-            return
           }
         } else {
-          console.warn("[AuthContext][validateSession] No Bearer token and cookie failed — session expired")
+          console.warn("[AuthContext][validateSession] Refresh failed — session expired")
           logout("/login?reason=expired")
           return
         }
-      } else if (!profileRes.ok) {
-        throw new Error(`Profile fetch returned status ${profileRes.status}`)
-      } else {
+      }
+
+      if (profileRes.ok) {
         const profileJson = await profileRes.json()
         if (profileJson.success && profileJson.data) {
           const dbUser = profileJson.data
 
-          const currentUser2: any = currentUser!
-          currentUser = {
-            id: dbUser.id,
-            email: dbUser.email,
-            phone: dbUser.phone || "",
-            name: dbUser.full_name || dbUser.name,
-            role: dbUser.role,
-            schoolId: dbUser.schoolId || dbUser.school_id || currentUser?.schoolId || "single-school",
-            schoolName: dbUser.schoolName || "",
-            schoolLogo: dbUser.schoolLogo || "",
-            teacherId: dbUser.teacher_id || "",
-            profile_photo: dbUser.profile_photo || "",
-            onboardingCompleted: dbUser.onboardingCompleted ?? false,
-          }
-
-          const currentPath2 = typeof window !== "undefined" ? window.location.pathname : pathname
-          const isOnNeutralPage = !currentPath2.startsWith('/parent') &&
-            !currentPath2.startsWith('/school/teacher') &&
-            !currentPath2.startsWith('/school/admin')
-
           let resolvedRole = dbUser.role || currentUser!.role
+          const isOnNeutralPage = !currentPath.startsWith('/parent') &&
+            !currentPath.startsWith('/school/teacher') &&
+            !currentPath.startsWith('/school/admin')
+
           if (isOnNeutralPage && currentUser!.role && dbUser.role && currentUser!.role !== dbUser.role) {
-            console.warn(`[AuthContext][validateSession] Role mismatch on neutral page — preserving cached role '${currentUser!.role}' over DB role '${dbUser.role}'`)
             resolvedRole = currentUser!.role
-          }
-          if (currentUser!.role && dbUser.role && currentUser!.role !== dbUser.role) {
-            console.warn(`[AuthContext][validateSession] Role: cached='${currentUser!.role}' db='${dbUser.role}' resolved='${resolvedRole}'`)
           }
 
           const updatedUser: User = {
@@ -363,7 +285,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("attendance_current_user", JSON.stringify(updatedUser))
           localStorage.setItem("x-school-id", updatedUser.schoolId || "single-school")
           
-          // Cache User Profile & School Logo to IndexedDB asynchronously
           import("@/lib/utils/indexeddb-store").then(({ cacheUserProfile, cacheSchoolLogo }) => {
             cacheUserProfile(updatedUser)
             if (updatedUser.schoolLogo && updatedUser.schoolId) {
@@ -372,22 +293,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }).catch(err => console.warn("IndexedDB cache error:", err))
 
           currentUser = updatedUser
-        } else {
-          throw new Error("Profile API returned success: false")
         }
       }
-    } catch (err) {
-      console.warn("[AuthContext][validateSession] Profile fetch failed:", err)
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        console.log("[AuthContext][validateSession] Profile revalidation timed out — using cached session")
+      } else {
+        console.warn("[AuthContext][validateSession] Profile fetch warning:", err?.message || err)
+      }
+      // Never log out on temporary network failure if we have a valid cached user
       if (currentUser) {
-        console.log("[AuthContext][validateSession] Using cached user due to profile fetch failure")
         setUser(currentUser)
         setSessionId(storedSessionId)
         setError(null)
       } else {
-        setError("Network or server connection failed. Please retry.")
+        setError("Network connection issue. Please retry.")
       }
     } finally {
+      clearTimeout(timer)
       setAuthLoading(false)
+      setPermissionsLoading(false)
     }
 
     // In Single-School Edition, all features are always granted

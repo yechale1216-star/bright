@@ -14,11 +14,13 @@ import {
   CheckCircle2, ChevronRight, Sparkles, ArrowLeft,
 } from "lucide-react"
 
+import { authStorage } from "@/lib/auth/auth-storage"
+
 // ── Auth helper ───────────────────────────────────────────────────────────────
 function isLoggedIn(): boolean {
   if (typeof window === "undefined") return false
-  const token = localStorage.getItem("attendance_token")
-  const user = localStorage.getItem("attendance_current_user")
+  const token = authStorage.getToken() || localStorage.getItem("attendance_token")
+  const user = authStorage.getUser() || localStorage.getItem("attendance_current_user")
   return !!(token && user)
 }
 

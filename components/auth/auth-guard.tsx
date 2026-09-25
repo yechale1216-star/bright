@@ -24,7 +24,7 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const getDashboardForRole = (role: string): string => {
     if (role === "teacher") return "/school/teacher"
     if (role === "parent") return "/parent/dashboard"
-    if (role === "admin" || role === "school_admin") return "/school/admin"
+    if (role === "admin" || role === "school_admin" || role === "super_admin") return "/school/admin"
     if (role === "registrar") return "/school/registrar"
     if (role === "discipline_officer") return "/school/discipline-officer"
     if (role) return "/school/staff"

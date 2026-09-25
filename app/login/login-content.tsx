@@ -1,47 +1,60 @@
 'use client'
 
+import { useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AuthWrapper } from '@/components/auth/auth-wrapper'
-import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/auth/auth'
-import { Suspense } from 'react'
+import { authStorage } from '@/lib/auth/auth-storage'
+import { useAuth } from '@/lib/context/auth-context'
 import { Spinner } from '@/components/ui/spinner'
 
 function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user: authUser, sessionReady } = useAuth()
 
   const handleAuthSuccess = (userData?: any) => {
-    // 1. Capture current state
-    const user = userData || authService.getCurrentUser()
-    const role = user?.role || 'parent';
-    
-    // Get schools from userData first, then fallback to localStorage
-    let schools = userData?._availableSchools;
+    const user = userData || authUser || authService.getCurrentUser()
+    const role = (user?.role || 'parent').toLowerCase()
+
+    let schools = userData?._availableSchools
     if (!schools) {
-      const availableStr = localStorage.getItem("available_schools")
+      const availableStr = typeof window !== 'undefined' ? localStorage.getItem("available_schools") : null
       schools = availableStr ? JSON.parse(availableStr) : []
     }
-    
+
     console.log(`[LoginPage] handleAuthSuccess | role: ${role} | schools: ${schools?.length || 0}`)
-    
-    // 2. Perform redirection with a tiny delay to let AuthContext settle
+
     setTimeout(() => {
-      if (role === 'admin' || role === 'school_admin' || role === 'school-admin') {
-        router.push('/school/admin')
+      if (role === 'admin' || role === 'school_admin' || role === 'school-admin' || role === 'super_admin') {
+        router.replace('/school/admin')
       } else if (role === 'teacher') {
-        router.push('/school/teacher')
-      } else if (role === 'staff' || role === 'staff_member') {
-        router.push('/school/staff')
+        router.replace('/school/teacher')
       } else if (role === 'registrar') {
-        router.push('/school/registrar')
+        router.replace('/school/registrar')
       } else if (role === 'discipline_officer') {
-        router.push('/school/discipline-officer')
+        router.replace('/school/discipline-officer')
       } else if (role === 'parent') {
-        router.push('/parent/dashboard')
+        router.replace('/parent/dashboard')
       } else {
-        router.push('/school/staff')
+        router.replace('/school/staff')
       }
     }, 50)
   }
+
+  // If user is already authenticated and not directed here due to session expiration,
+  // automatically forward to their role dashboard
+  useEffect(() => {
+    if (searchParams.get("reason") === "expired") return
+
+    const token = authStorage.getToken()
+    const user = authUser || authStorage.getUser()
+
+    if (token && user) {
+      console.log(`[LoginPage] User already authenticated (${user.role}). Redirecting to dashboard...`)
+      handleAuthSuccess(user)
+    }
+  }, [authUser, searchParams])
 
   return (
     <AuthWrapper onAuthSuccess={handleAuthSuccess} defaultView="login" />
@@ -59,5 +72,3 @@ export default function LoginPage() {
     </Suspense>
   )
 }
-
-

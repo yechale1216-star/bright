@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react"
 import { LoginForm } from "./login-form"
 import { ForgotPasswordForm } from "./forgot-password-form"
-import { ResetPasswordForm } from "./reset-password-form"
+import { ResetPasswordForm } from "./reset-password-form";
+import { ParentForgotPasswordForm } from "./parent-forgot-password-form";
 
 
 import { Download } from 'lucide-react'
 
 import { useLanguage } from "@/lib/context/language-context"
 
-type AuthView = "login" | "forgot-password" | "reset-password"
+type AuthView = "login" | "forgot-password" | "reset-password" | "parent-forgot-password";
 
 interface AuthWrapperProps {
   onAuthSuccess: () => void
@@ -90,7 +91,10 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
 
   const renderAuthForm = () => {
     if (currentView === "forgot-password") {
-      return <ForgotPasswordForm onBackToLogin={() => setCurrentView("login")} />
+        return <ForgotPasswordForm onBackToLogin={() => setCurrentView("login")} />;
+      }
+      if (currentView === "parent-forgot-password") {
+      return <ParentForgotPasswordForm onBackToLogin={() => setCurrentView("login")} />
     }
 
     if (currentView === "reset-password" && resetToken) {
@@ -105,6 +109,7 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
       <LoginForm
         onLoginSuccess={onAuthSuccess}
         onShowForgotPassword={() => setCurrentView("forgot-password")}
+        onShowParentForgotPassword={() => setCurrentView("parent-forgot-password")}
       />
     )
   }

@@ -2,6 +2,7 @@
 
 import { API_URL, getApiUrl } from "@/lib/api-config";
 import { apiFetch } from "@/lib/utils/fetch-with-timeout";
+import { authStorage } from "@/lib/auth/auth-storage";
 
 // ─── Session Identity Key ─────────────────────────────────────────────────────
 // A nonce written to localStorage on every login/signup and cleared on logout.
@@ -106,14 +107,12 @@ class AuthService {
       }
 
       if (this.isClient()) {
-        // Write a new session nonce FIRST — contexts detect user change via this key
-        localStorage.setItem(SESSION_ID_KEY, generateSessionId())
+        const sid = generateSessionId()
+        localStorage.setItem(SESSION_ID_KEY, sid)
         localStorage.setItem(this.CURRENT_USER_KEY, JSON.stringify(user))
-        // Store token in localStorage as fallback/auth header for cross-origin environments
         if (token) {
           localStorage.setItem("attendance_token", token)
         }
-        // NOTE: JWT token is now managed by HTTP-Only cookies
         
         if (availableSchools) {
           localStorage.setItem("available_schools", JSON.stringify(availableSchools))
@@ -121,7 +120,6 @@ class AuthService {
 
         localStorage.setItem("x-school-id", user.schoolId || "single-school");
 
-        // Persist active_school so SchoolContext (and TopNav) can display the school name immediately
         const activeSchool = {
           id: user.schoolId || "single-school",
           name: user.schoolName || schoolName,
@@ -129,6 +127,9 @@ class AuthService {
           customSchoolId: user.customSchoolId || "SCH-0001"
         }
         localStorage.setItem("active_school", JSON.stringify(activeSchool))
+
+        // Persist to native storage as well
+        authStorage.setSession(token || null, user, user.schoolId, sid).catch(() => {})
       }
 
       return { success: true, message: "Login successful", user, availableSchools }
@@ -209,14 +210,12 @@ class AuthService {
       };
 
       if (this.isClient()) {
-        // Write a new session nonce FIRST — contexts detect user change via this key
-        localStorage.setItem(SESSION_ID_KEY, generateSessionId())
+        const sid = generateSessionId()
+        localStorage.setItem(SESSION_ID_KEY, sid)
         localStorage.setItem(this.CURRENT_USER_KEY, JSON.stringify(user));
-        // Store token in localStorage as fallback/auth header for cross-origin environments
         if (data.token) {
           localStorage.setItem("attendance_token", data.token);
         }
-        // NOTE: JWT token is now managed by HTTP-Only cookies
         localStorage.setItem("parent_students", JSON.stringify(students));
         localStorage.setItem("available_schools", JSON.stringify(availableSchools));
         localStorage.setItem("zt_parent_login_ts", Date.now().toString());
@@ -224,6 +223,9 @@ class AuthService {
         if (resolvedSchoolId) {
           localStorage.setItem("x-school-id", resolvedSchoolId);
         }
+
+        // Persist to native storage as well
+        authStorage.setSession(data.token || null, user, resolvedSchoolId, sid).catch(() => {})
       }
 
       return { success: true, message: "Login successful", user, availableSchools };
@@ -359,16 +361,14 @@ class AuthService {
       }
 
       if (this.isClient()) {
-        localStorage.setItem(SESSION_ID_KEY, generateSessionId())
+        const sid = generateSessionId()
+        localStorage.setItem(SESSION_ID_KEY, sid)
         localStorage.setItem(this.CURRENT_USER_KEY, JSON.stringify(user))
-        // Store token in localStorage as fallback/auth header for cross-origin environments
         if (token) {
           localStorage.setItem("attendance_token", token)
         }
-        // NOTE: JWT token is now managed by HTTP-Only cookies
         localStorage.setItem("x-school-id", user.schoolId || "single-school");
         
-        // Persist active_school so SchoolContext (and TopNav) shows school name immediately
         const activeSchool = {
           id: user.schoolId || "single-school",
           name: user.schoolName || "My School",
@@ -376,6 +376,9 @@ class AuthService {
           customSchoolId: user.customSchoolId || "SCH-0001"
         }
         localStorage.setItem("active_school", JSON.stringify(activeSchool))
+
+        // Persist to native storage as well
+        authStorage.setSession(token || null, user, user.schoolId, sid).catch(() => {})
       }
 
       return { success: true, message: "Account created successfully", user }
@@ -616,21 +619,8 @@ class AuthService {
         console.warn("Failed to get auth headers for logout:", e);
       }
 
-      // 2. Clear ALL school-scoped and session keys SYNCHRONOUSLY to prevent race conditions on redirects
-      const keysToRemove = [
-        this.CURRENT_USER_KEY,          // attendance_current_user
-        "attendance_token",              // (Legacy) JWT token
-        "x-school-id",                  // active school UUID
-        "attendance_features",           // school feature/permission cache
-        "parent_students",               // parent's student list (school-scoped)
-        "parent_selected_student_id",    // last-selected student for parent portal
-        "available_schools",             // parent's available schools list
-        "active_school",                 // active school context (SchoolContext)
-        "_zt_fresh_login",               // fresh-login guard flag
-        "_zt_login_role",                // fresh-login confirmed role
-        SESSION_ID_KEY,                  // session identity nonce — MUST be cleared last
-      ]
-      keysToRemove.forEach(key => localStorage.removeItem(key))
+      // 2. Clear ALL school-scoped and session keys SYNCHRONOUSLY
+      await authStorage.clearSession()
 
       // Also clean up any _settings_backup_ keys
       try {
@@ -734,6 +724,57 @@ class AuthService {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
+      })
+      const data = await res.json()
+      return { 
+        success: res.ok && data.success, 
+        message: data.message || "Password reset successful" 
+      }
+    } catch (error) {
+      return { success: false, message: "Network error", error: "Failed to connect to server" }
+    }
+  }
+
+  async parentForgotPassword(phone: string): Promise<AuthResponse> {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/parent-forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      })
+      const data = await res.json()
+      return { 
+        success: res.ok && data.success, 
+        message: data.message || "Request processed" 
+      }
+    } catch (error) {
+      return { success: false, message: "Network error", error: "Failed to connect to server" }
+    }
+  }
+
+  async verifyParentOTP(phone: string, code: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/parent-verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+      })
+      const data = await res.json()
+      return { 
+        success: res.ok && data.success, 
+        message: data.message 
+      }
+    } catch (error) {
+      return { success: false, message: "Failed to connect to server" }
+    }
+  }
+
+  async resetParentPassword(phone: string, code: string, newPassword: string): Promise<AuthResponse> {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/parent-reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code, newPassword }),
       })
       const data = await res.json()
       return { 

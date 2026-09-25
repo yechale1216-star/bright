@@ -36,11 +36,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateProfile = exports.searchParentByPhone = exports.checkParentsExist = exports.findOrCreateParentByPhone = exports.syncLegacyStudents = exports.normalizePhoneNumber = exports.updatePassword = exports.getSchoolAnnouncements = exports.updateAnnouncement = exports.postAnnouncement = exports.updatePreferences = exports.getPreferences = exports.markAllNotificationsAsRead = exports.deleteNotification = exports.markNotificationAsRead = exports.getNotifications = exports.loginParent = exports.getParentStudentsForSchool = exports.validateSchoolAccess = exports.getParentSchools = exports.listParentSchools = void 0;
+exports.resetParentPasswordWithOTP = exports.verifyParentPasswordResetOTP = exports.initiateParentPasswordReset = exports.updateProfile = exports.searchParentByPhone = exports.checkParentsExist = exports.findOrCreateParentByPhone = exports.syncLegacyStudents = exports.normalizePhoneNumber = exports.updatePassword = exports.getSchoolAnnouncements = exports.updateAnnouncement = exports.postAnnouncement = exports.updatePreferences = exports.getPreferences = exports.markAllNotificationsAsRead = exports.deleteNotification = exports.markNotificationAsRead = exports.getNotifications = exports.loginParent = exports.getParentStudentsForSchool = exports.validateSchoolAccess = exports.getParentSchools = exports.listParentSchools = void 0;
 const db_1 = __importDefault(require("../config/db"));
+const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jwt_1 = require("../utils/jwt");
 const schoolService = __importStar(require("./school.service"));
+const smsService = __importStar(require("./sms.service"));
 /**
  * List all schools associated with a parent's phone number.
  */
@@ -703,3 +705,73 @@ const updateProfile = async (phone, _schoolId, data) => {
     };
 };
 exports.updateProfile = updateProfile;
+/**
+ * Initiate password reset for parent via phone OTP.
+ * Returns true regardless of existence to prevent enumeration.
+ */
+const initiateParentPasswordReset = async (phone) => {
+    const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
+    const user = await db_1.default.user.findUnique({ where: { phone: cleanPhone } });
+    // Always succeed to avoid leaking existence
+    if (!user) {
+        // Simulate delay
+        await new Promise(res => setTimeout(res, 100));
+        return { success: true };
+    }
+    const verificationCode = crypto_1.default.randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await db_1.default.user.update({
+        where: { id: user.id },
+        data: {
+            reset_password_token: verificationCode,
+            reset_password_expires: expires,
+        },
+    });
+    // Dispatch real SMS via SMSEthiopia
+    const smsResult = await smsService.sendParentPasswordResetOTP(cleanPhone, verificationCode);
+    console.log(`[ParentPasswordReset] SMSEthiopia dispatch to ${cleanPhone}:`, smsResult.success ? 'Success' : `Failed (${smsResult.error})`);
+    return { success: true };
+};
+exports.initiateParentPasswordReset = initiateParentPasswordReset;
+/**
+ * Verify OTP for parent password reset.
+ */
+const verifyParentPasswordResetOTP = async (phone, code) => {
+    const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
+    const user = await db_1.default.user.findFirst({
+        where: {
+            phone: cleanPhone,
+            reset_password_token: code,
+            reset_password_expires: { gt: new Date() },
+        },
+    });
+    return !!user;
+};
+exports.verifyParentPasswordResetOTP = verifyParentPasswordResetOTP;
+/**
+ * Reset the parent's password using verified OTP.
+ */
+const resetParentPasswordWithOTP = async (phone, code, newPassword) => {
+    const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
+    const user = await db_1.default.user.findFirst({
+        where: {
+            phone: cleanPhone,
+            reset_password_token: code,
+            reset_password_expires: { gt: new Date() },
+        },
+    });
+    if (!user) {
+        throw new Error('Invalid or expired verification code.');
+    }
+    const hashedPassword = await bcryptjs_1.default.hash(newPassword, 10);
+    await db_1.default.user.update({
+        where: { id: user.id },
+        data: {
+            password_hash: hashedPassword,
+            reset_password_token: null,
+            reset_password_expires: null,
+        },
+    });
+    return { success: true, message: 'Password reset successfully.' };
+};
+exports.resetParentPasswordWithOTP = resetParentPasswordWithOTP;

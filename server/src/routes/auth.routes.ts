@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import * as userService from '../services/user.service';
 import * as schoolService from '../services/school.service';
 import { getMemberships } from '../services/auth_resolution.service';
+import * as parentService from '../services/parent.service';
 import { generateToken, verifyToken } from '../utils/jwt';
 import { validateSignup } from '../middleware/validate';
 import prisma from '../config/db';
@@ -171,7 +172,105 @@ router.post('/login', loginLimiter, async (req: Request, res: Response, next: Ne
   }
 });
 
+// Refresh Session Token
+router.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rawToken = req.cookies?.attendance_token || req.headers.authorization?.split(' ')[1];
+    if (!rawToken) {
+      return res.status(401).json({ success: false, message: 'No authentication token provided' });
+    }
 
+    let decoded: any = null;
+    let isExpired = false;
+
+    try {
+      decoded = verifyToken(rawToken);
+    } catch (err: any) {
+      if (err?.name === 'TokenExpiredError') {
+        isExpired = true;
+        decoded = jwt.decode(rawToken);
+      } else {
+        return res.status(401).json({ success: false, message: 'Invalid token signature' });
+      }
+    }
+
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ success: false, message: 'Invalid token payload' });
+    }
+
+    // If expired, allow renewal within a 14-day grace period
+    if (isExpired && decoded.exp) {
+      const now = Math.floor(Date.now() / 1000);
+      const gracePeriodSeconds = 14 * 24 * 60 * 60; // 14 days
+      if (now - decoded.exp > gracePeriodSeconds) {
+        return res.status(401).json({ success: false, message: 'Session expired beyond renewal window' });
+      }
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        full_name: true,
+        role: true,
+        is_active: true,
+        profile_photo: true,
+        phone: true,
+        teacher_id: true,
+      }
+    });
+
+    if (!user || user.is_active === false) {
+      return res.status(401).json({ success: false, message: 'User account not found or deactivated' });
+    }
+
+    const singleSchool = await schoolService.getSingleSchool();
+    const schoolId = singleSchool.id;
+    const customSchoolId = singleSchool.schoolId || 'SCH-0001';
+    const schoolName = singleSchool.name || 'Addis Hiwot School';
+    const schoolLogo = (singleSchool as any).settings?.school_logo || '';
+
+    const effectiveRole = decoded.role || user.role;
+
+    const newToken = generateToken({
+      id: user.id,
+      email: user.email,
+      role: effectiveRole,
+      schoolId: schoolId,
+      customSchoolId: customSchoolId,
+    });
+
+    res.cookie('attendance_token', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        token: newToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.full_name || '',
+          role: effectiveRole,
+          schoolId: schoolId,
+          customSchoolId: customSchoolId,
+          profile_photo: user.profile_photo || '',
+          phone: user.phone || '',
+          teacherId: user.teacher_id || '',
+        },
+        schoolName,
+        schoolLogo,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Logout
 router.post('/logout', async (req: Request, res: Response) => {
@@ -218,6 +317,52 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res:
       success: true, 
       message: 'If an account with that email exists, password reset instructions will be processed.' 
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Parent Password Reset Flow
+
+router.post('/parent-forgot-password', forgotPasswordLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'Phone is required' });
+    }
+    await parentService.initiateParentPasswordReset(phone);
+    res.status(200).json({ success: true, message: 'If an account with that phone exists, password reset instructions will be processed.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Verify Parent OTP
+router.post('/parent-verify-otp', otpLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) {
+      return res.status(400).json({ success: false, message: 'Phone and code are required' });
+    }
+    const valid = await parentService.verifyParentPasswordResetOTP(phone, code);
+    if (!valid) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired verification code' });
+    }
+    res.status(200).json({ success: true, message: 'OTP verified' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Reset Parent Password
+router.post('/parent-reset-password', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { phone, code, newPassword } = req.body;
+    if (!phone || !code || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Phone, code, and new password are required' });
+    }
+    await parentService.resetParentPasswordWithOTP(phone, code, newPassword);
+    res.status(200).json({ success: true, message: 'Password successfully reset. You can now login with your new password.' });
   } catch (error) {
     next(error);
   }

@@ -20,6 +20,13 @@ export function StartupLoadingScreen() {
         console.warn('[StartupLoadingScreen] Failed to hide native splash:', err)
       )
     }
+
+    // Safety timeout: Never allow startup spinner to linger more than 3.5s
+    const maxTimer = setTimeout(() => {
+      setIsVisible(false)
+    }, 3500)
+
+    return () => clearTimeout(maxTimer)
   }, [])
 
   useEffect(() => {

@@ -27,10 +27,11 @@ import { Spinner } from "@/components/ui/spinner"
 interface LoginFormProps {
   onLoginSuccess: (user?: any) => void
   onShowForgotPassword: () => void
+  onShowParentForgotPassword?: () => void
   onShowAdminSignup?: () => void
 }
 
-export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSignup }: LoginFormProps) {
+export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentForgotPassword, onShowAdminSignup }: LoginFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t, language, setLanguage } = useLanguage()
@@ -273,7 +274,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowAdminSig
                 <Button
                   variant="link"
                   type="button"
-                  onClick={onShowForgotPassword}
+                  onClick={onShowParentForgotPassword}
                   className="typography-helper text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 h-auto p-0 font-bold"
                 >
                   {t("forgot_password")}
