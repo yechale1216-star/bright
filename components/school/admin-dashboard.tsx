@@ -192,20 +192,28 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // Attendance metrics
   const isPresent = (status?: string) => status?.toLowerCase() === "present" || status?.toLowerCase() === "late"
 
+  /**
+   * resolveFullDay — strict matching rule (matches student attendance page):
+   * A student is only counted for full day when BOTH morning and afternoon sessions
+   * have the EXACT same status:
+   *   morning present  + afternoon present  → full day present
+   *   morning late     + afternoon late     → full day late
+   *   morning excused  + afternoon excused  → full day excused
+   *   morning absent   + afternoon absent   → full day absent
+   *
+   * Mixed combinations (e.g. morning present, afternoon late/absent) or single-session
+   * records do NOT count towards any full-day status (returns null).
+   */
   const resolveFullDay = (m?: string, a?: string): "present" | "late" | "excused" | "absent" | null => {
-    if (!m && !a) return null
-    if (m && !a) return (m.toLowerCase() as any)
-    if (!m && a) return (a.toLowerCase() as any)
     if (!m || !a) return null
     const mn = m.toLowerCase()
     const an = a.toLowerCase()
-    if (mn === "present" && an === "present") return "present"
-    if ((mn === "present" || mn === "late") && (an === "present" || an === "late")) return "late"
-    if (mn === "excused" && an === "excused") return "excused"
-    if (mn === "absent" && an === "absent") return "absent"
-    if (mn === "present" || an === "present" || mn === "late" || an === "late") return "late"
-    if (mn === "excused" || an === "excused") return "excused"
-    return "absent"
+    if (mn !== an) return null
+    if (mn === "present") return "present"
+    if (mn === "late") return "late"
+    if (mn === "excused") return "excused"
+    if (mn === "absent") return "absent"
+    return null
   }
 
   // School-wide attendance metrics filtered by session (Full Day / Morning / Afternoon)
@@ -262,9 +270,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       else if (status === "excused") excused++
     })
 
-    const submitted = Object.keys(studentGroups).length
+    const submitted = present + late + absent + excused
     const notRecorded = Math.max(0, totalStudents - submitted)
-    const rate = totalStudents > 0 && submitted > 0
+    const rate = totalStudents > 0 && todayAttendance.length > 0
       ? Math.round(((present + late) / totalStudents) * 100)
       : 0
 

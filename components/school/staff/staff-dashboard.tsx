@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import {
   Clock,
   UserCheck,
+  UserX,
   Calendar,
   CalendarOff,
   LogIn,
@@ -116,9 +117,13 @@ export function StaffDashboard() {
       const d = new Date(r.date)
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear
     })
-    const presentCount = thisMonthRecords.filter((r) => r.status === "PRESENT" || r.status === "LATE").length
-    const onTimeCount = thisMonthRecords.filter((r) => r.status === "PRESENT").length
-    const lateCount = thisMonthRecords.filter((r) => r.status === "LATE").length
+    const presentCount = thisMonthRecords.filter((r) => {
+      const s = r.status?.toUpperCase()
+      return s === "PRESENT" || s === "LATE"
+    }).length
+    const onTimeCount = thisMonthRecords.filter((r) => r.status?.toUpperCase() === "PRESENT").length
+    const lateCount = thisMonthRecords.filter((r) => r.status?.toUpperCase() === "LATE").length
+    const absentCount = thisMonthRecords.filter((r) => r.status?.toUpperCase() === "ABSENT").length
     const onTimeRate = presentCount > 0 ? Math.round((onTimeCount / presentCount) * 100) : 100
 
     return {
@@ -126,6 +131,7 @@ export function StaffDashboard() {
       presentCount,
       onTimeCount,
       lateCount,
+      absentCount,
       onTimeRate,
     }
   }, [allAttendance])
@@ -408,7 +414,7 @@ export function StaffDashboard() {
   }
 
   return (
-    <div className="relative space-y-6 max-w-5xl mx-auto pb-10">
+    <div className="relative space-y-6 max-w-5xl mx-auto pb-10 w-full min-w-0">
       {/* ── Ambient Background Glow Spheres ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute -top-20 -left-20 w-96 h-96 bg-indigo-500/15 dark:bg-indigo-500/10 rounded-full blur-[120px]" />
@@ -444,31 +450,31 @@ export function StaffDashboard() {
       {/* ─── Holiday / Non-Working Day Glass Banner ─── */}
       {calendarStatus && !calendarStatus.isWorkingDay && (
         <div
-          className={`p-4 rounded-[22px] border backdrop-blur-xl flex items-center gap-3.5 shadow-lg ${
+          className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-[22px] border backdrop-blur-xl flex items-start sm:items-center gap-3 sm:gap-3.5 shadow-md w-full min-w-0 ${
             calendarStatus.isHoliday
               ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200 shadow-purple-500/5"
               : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-amber-500/5"
           }`}
         >
           <div
-            className={`p-2.5 rounded-xl shrink-0 shadow-sm ${
+            className={`p-2 sm:p-2.5 rounded-xl shrink-0 shadow-sm mt-0.5 sm:mt-0 ${
               calendarStatus.isHoliday
                 ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
                 : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
             }`}
           >
-            {calendarStatus.isHoliday ? <CalendarOff className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
+            {calendarStatus.isHoliday ? <CalendarOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm truncate">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="font-bold text-xs sm:text-sm">
                 {calendarStatus.isHoliday
                   ? `Holiday: ${calendarStatus.holidayName}`
                   : calendarStatus.reason || "Scheduled Non-Working Day"}
               </span>
               <Badge
                 variant="outline"
-                className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md ${
+                className={`text-[9px] sm:text-[10px] uppercase font-black px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ${
                   calendarStatus.isHoliday
                     ? "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10"
                     : "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10"
@@ -477,6 +483,11 @@ export function StaffDashboard() {
                 {calendarStatus.isHoliday ? "Official Holiday" : "Non-Working Day"}
               </Badge>
             </div>
+            <p className="text-[11px] sm:text-xs opacity-75 mt-1 leading-snug">
+              {calendarStatus.isHoliday
+                ? "School operations are paused today for the official holiday. No attendance penalty applies."
+                : "Attendance tracking is inactive for today. Auto-absences will not be marked."}
+            </p>
           </div>
         </div>
       )}
@@ -503,7 +514,7 @@ export function StaffDashboard() {
                 return (
                   <div
                     key={sess.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-950/60 border border-white/50 dark:border-white/10 text-xs shadow-xs"
+                    className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-950/60 border border-white/50 dark:border-white/10 text-xs shadow-xs max-w-full"
                   >
                     <span className="font-bold text-slate-900 dark:text-white">{sess.name}:</span>
                     <span className="font-mono text-slate-600 dark:text-slate-300">
@@ -525,7 +536,7 @@ export function StaffDashboard() {
               const endTime = settings?.staffWorkEndTime || "17:00"
               const cutoff = settings?.staffAbsenceCutoffTime || addMinutesToHHMM(startTime, settings?.staffAbsenceCutoffMinutes ?? 120)
               return (
-                <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-950/60 border border-white/50 dark:border-white/10 text-xs shadow-xs">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-950/60 border border-white/50 dark:border-white/10 text-xs shadow-xs max-w-full">
                   <span className="font-bold text-slate-900 dark:text-white">Shift:</span>
                   <span className="font-mono text-slate-600 dark:text-slate-300">
                     {formatEthiopianTime(startTime)} - {formatEthiopianTime(endTime)}
@@ -661,7 +672,7 @@ export function StaffDashboard() {
             Monthly Punctuality &amp; Attendance Performance
           </h2>
         </div>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 mb-2">
               <UserCheck className="w-5 h-5" />
@@ -684,6 +695,14 @@ export function StaffDashboard() {
             </div>
             <span className="text-xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{monthlyStats.lateCount}</span>
             <span className="text-[11px] font-bold text-slate-500 mt-0.5">Late Days</span>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 mb-2">
+              <UserX className="w-5 h-5" />
+            </div>
+            <span className="text-xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">{monthlyStats.absentCount}</span>
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">Absent Days</span>
           </div>
         </div>
       </div>

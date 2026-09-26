@@ -11,7 +11,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Clock,
   MapPin,
-  Camera,
   CheckCircle2,
   AlertCircle,
   XCircle,
@@ -57,11 +56,6 @@ import {
 import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime, formatEthiopianFullDateTime } from "@/lib/utils/ethiopian-time"
 
-// Dynamically import biometric face enrollment modal
-const StaffFaceEnrollModal = dynamic(
-  () => import("@/components/school/staff-face-enroll").then((m) => m.StaffFaceEnrollModal),
-  { ssr: false }
-)
 
 const DEFAULT_ROLE_BADGES: Record<string, { label: string; color: string; dotColor: string }> = {
   admin: {
@@ -225,9 +219,6 @@ export default function AdminStaffAttendanceDashboard() {
   })
   const [isSavingLeave, setIsSavingLeave] = useState(false)
 
-  // Biometrics Enrollment Modal
-  const [enrollTarget, setEnrollTarget] = useState<any | null>(null)
-  const [showEnrollModal, setShowEnrollModal] = useState(false)
 
   // Offline Sync State
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0)
@@ -863,16 +854,6 @@ export default function AdminStaffAttendanceDashboard() {
             Mark Leave / Permission
           </Button>
 
-          <Button
-            onClick={() => {
-              setEnrollTarget(null)
-              setShowEnrollModal(true)
-            }}
-            className="h-10 px-4 rounded-xl gap-2 bg-gradient-to-r from-primary to-indigo-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/25 active:scale-95"
-          >
-            <ScanFace className="w-4 h-4" />
-            Face Biometrics
-          </Button>
         </div>
       </motion.div>
 
@@ -1421,17 +1402,6 @@ export default function AdminStaffAttendanceDashboard() {
                                 <Edit3 className="w-4 h-4" />
                               </button>
 
-                              {/* Enroll Face Biometrics in place */}
-                              <button
-                                onClick={() => {
-                                  setEnrollTarget(rec.user)
-                                  setShowEnrollModal(true)
-                                }}
-                                title="Enroll / Update Biometrics"
-                                className="p-2 rounded-xl border border-transparent hover:border-white/40 dark:hover:border-white/10 hover:bg-white/60 dark:hover:bg-slate-800/60 text-slate-400 hover:text-cyan-600 transition-all shadow-sm"
-                              >
-                                <Camera className="w-4 h-4" />
-                              </button>
                             </div>
                           </td>
                         </tr>
@@ -2234,20 +2204,6 @@ export default function AdminStaffAttendanceDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ─── MODAL 4: BIOMETRIC FACE ENROLLMENT MODAL ─── */}
-      {showEnrollModal && (
-        <StaffFaceEnrollModal
-          open={showEnrollModal}
-          onOpenChange={setShowEnrollModal}
-          onEnrolled={() => {
-            setShowEnrollModal(false)
-            fetchData()
-            fetchStats()
-          }}
-          preselectedUserId={enrollTarget?.id}
-          preselectedUserName={enrollTarget?.full_name}
-        />
-      )}
     </div>
   )
 }

@@ -39,7 +39,7 @@ import { useCalendar } from "@/lib/context/calendar-context"
 import { resolveLocationData, GeofenceLocationData, GeofenceValidationError } from "@/lib/utils/geofence"
 import { notifications } from "@/lib/utils/notifications"
 import { FaceVerificationCamera } from "@/components/school/face-verification-camera"
-import { StaffFaceEnrollModal } from "@/components/school/staff-face-enroll"
+import { DualDatePicker } from "@/components/ui/dual-date-picker"
 import dynamic from "next/dynamic"
 
 const GeofenceAttendanceMap = dynamic(
@@ -200,7 +200,16 @@ export function StaffAttendance() {
   const [activeTab, setActiveTab] = useState<"self" | "admin_overview">("self")
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
-  const [isFaceEnrollModalOpen, setIsFaceEnrollModalOpen] = useState(false)
+
+  // Date filter for personal recent attendance history
+  const [historyFilterDate, setHistoryFilterDate] = useState<string>("")
+  const filteredHistory = useMemo(() => {
+    if (!historyFilterDate) return myHistory
+    return myHistory.filter((rec) => {
+      const recDate = rec.date?.split("T")[0]
+      return recDate === historyFilterDate
+    })
+  }, [myHistory, historyFilterDate])
 
   // Offline queue state
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0)
@@ -656,7 +665,7 @@ export function StaffAttendance() {
   }
 
   return (
-    <div className="relative space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-in fade-in duration-300">
+    <div className="relative space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full min-w-0 p-0 sm:p-2 md:p-6 animate-in fade-in duration-300">
       {/* ── Ambient Background Glow Spheres ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute -top-20 -left-20 w-96 h-96 bg-indigo-500/15 dark:bg-indigo-500/10 rounded-full blur-[120px]" />
@@ -665,14 +674,14 @@ export function StaffAttendance() {
       </div>
 
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/50 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-6 sm:p-7 shadow-2xl shadow-indigo-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-[28px] border border-white/50 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl p-4 sm:p-6 md:p-7 shadow-xl sm:shadow-2xl shadow-indigo-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full min-w-0">
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/15 via-indigo-500/10 to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
         <div className="relative z-10">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-md shadow-primary/25">
-              <UserCheck className="w-6 h-6" />
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2 sm:gap-2.5">
+            <span className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-md shadow-primary/25 shrink-0">
+              <UserCheck className="w-5 h-5 sm:w-6 sm:h-6" />
             </span>
-            Staff Attendance & Biometrics
+            <span>Staff Attendance & Biometrics</span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium mt-1">
             Biometric face verification with integrated school geofencing and dual session tracking.
@@ -695,46 +704,37 @@ export function StaffAttendance() {
             </Button>
           )}
 
-          {isAdmin && (
-            <Button
-              onClick={() => setIsFaceEnrollModalOpen(true)}
-              className="gap-2 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-primary to-indigo-600 text-white shadow-lg shadow-primary/25 active:scale-95"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              Manage Face Biometrics
-            </Button>
-          )}
         </div>
       </div>
 
       {/* Holiday / Non-Working Day Alert Banner */}
       {calendarStatus && !calendarStatus.isWorkingDay && (
         <div
-          className={`p-4 rounded-[22px] border backdrop-blur-xl flex items-center gap-3.5 shadow-lg ${
+          className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-[22px] border backdrop-blur-xl flex items-start sm:items-center gap-3 sm:gap-3.5 shadow-md w-full min-w-0 ${
             calendarStatus.isHoliday
               ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200 shadow-purple-500/5"
               : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-amber-500/5"
           }`}
         >
           <div
-            className={`p-2.5 rounded-xl shrink-0 ${
+            className={`p-2 sm:p-2.5 rounded-xl shrink-0 mt-0.5 sm:mt-0 ${
               calendarStatus.isHoliday
                 ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
                 : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
             }`}
           >
-            {calendarStatus.isHoliday ? <CalendarOff className="w-5 h-5" /> : <CalendarIcon className="w-5 h-5" />}
+            {calendarStatus.isHoliday ? <CalendarOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="font-bold text-xs sm:text-sm">
                 {calendarStatus.displayReason || (calendarStatus.isHoliday
                   ? `School Holiday — ${calendarStatus.holidayName}`
                   : calendarStatus.reason || "Scheduled Non-Working Day")}
               </span>
               <Badge
                 variant="outline"
-                className={`text-[10px] uppercase font-black px-2 py-0.5 rounded-md ${
+                className={`text-[9px] sm:text-[10px] uppercase font-black px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ${
                   calendarStatus.isHoliday
                     ? "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10"
                     : "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10"
@@ -743,7 +743,7 @@ export function StaffAttendance() {
                 {calendarStatus.isHoliday ? "Holiday" : "Non-Working Day"}
               </Badge>
             </div>
-            <p className={`text-xs mt-0.5 font-medium ${
+            <p className={`text-[11px] sm:text-xs mt-1 font-medium leading-snug ${
               calendarStatus.isHoliday
                 ? "text-purple-700/80 dark:text-purple-300/80"
                 : "text-amber-700/80 dark:text-amber-300/80"
@@ -782,19 +782,19 @@ export function StaffAttendance() {
 
       {/* ─── SELF-SERVICE CHECK-IN / CHECK-OUT CARD ─── */}
       {(activeTab === "self" || !isAdmin) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 items-start w-full min-w-0">
           {/* Main Action Card */}
-          <Card className="md:col-span-1 border-white/40 dark:border-white/10 shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[28px]">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
+          <Card className="md:col-span-1 border-white/40 dark:border-white/10 shadow-xl sm:shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-2xl sm:rounded-[28px] w-full min-w-0">
+            <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
+              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
                 <Clock className="w-5 h-5 text-primary" />
                 {isSessionMode ? "Session Attendance" : "Today's Check-In"}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric", timeZone: "Africa/Addis_Ababa" })}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="p-4 sm:p-6 pt-0 space-y-3.5 sm:space-y-4">
               {/* Session Selector — visible when in Session-Based mode */}
               {isSessionMode && (
                 <div className="space-y-1.5">
@@ -1064,22 +1064,79 @@ export function StaffAttendance() {
           </Card>
 
           {/* Personal History Table */}
-          <Card className="md:col-span-2 border-white/40 dark:border-white/10 shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[28px] overflow-hidden">
-            <CardHeader className="pb-3 border-b border-white/20 dark:border-white/10">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <History className="w-5 h-5 text-primary" /> My Recent Attendance
-              </CardTitle>
-              <CardDescription>Your check-in and check-out records for the past 30 days.</CardDescription>
+          <Card className="md:col-span-2 border-white/40 dark:border-white/10 shadow-xl sm:shadow-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-2xl sm:rounded-[28px] overflow-hidden w-full min-w-0">
+            <CardHeader className="p-4 sm:p-6 pb-3 border-b border-white/20 dark:border-white/10">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                    <History className="w-5 h-5 text-primary" /> My Recent Attendance
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm mt-0.5">
+                    {historyFilterDate
+                      ? `Showing records for ${formatDate(historyFilterDate)} (${filteredHistory.length} found)`
+                      : "Your check-in and check-out records for the past 30 days."}
+                  </CardDescription>
+                </div>
+
+                {/* Date Filter Controls */}
+                <div className="flex items-center gap-1.5 sm:gap-2 self-start sm:self-auto w-full sm:w-auto">
+                  <div className="w-full sm:w-44 min-w-[130px]">
+                    <DualDatePicker
+                      value={historyFilterDate}
+                      onChange={(val) => setHistoryFilterDate(val)}
+                      placeholder="Select date..."
+                      className="h-8 sm:h-9 text-xs rounded-xl bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700"
+                    />
+                  </div>
+                  {historyFilterDate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setHistoryFilterDate("")}
+                      className="h-8 sm:h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground font-semibold rounded-xl shrink-0"
+                      title="Show all records"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                      All
+                    </Button>
+                  )}
+                  <Button
+                    variant={historyFilterDate === selectedDate ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setHistoryFilterDate(historyFilterDate === selectedDate ? "" : selectedDate)}
+                    className="h-8 sm:h-9 px-2.5 text-xs font-semibold rounded-xl shrink-0"
+                  >
+                    Today
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {/* Mobile Card List View (< sm screens) */}
               <div className="sm:hidden divide-y divide-border/50 max-h-[580px] overflow-y-auto">
-                {myHistory.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-muted-foreground">
-                    No attendance history found.
+                {filteredHistory.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
+                      <CalendarIcon className="w-5 h-5" />
+                    </div>
+                    <p className="text-xs font-bold text-foreground">
+                      {historyFilterDate
+                        ? `No records found for ${formatDate(historyFilterDate)}.`
+                        : "No attendance history found."}
+                    </p>
+                    {historyFilterDate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setHistoryFilterDate("")}
+                        className="text-xs font-semibold rounded-xl mt-1"
+                      >
+                        Show All Days
+                      </Button>
+                    )}
                   </div>
                 ) : (
-                  myHistory.map((rec) => {
+                  filteredHistory.map((rec) => {
                     const sessCfg = isSessionMode
                       ? staffSessions.find(
                           (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
@@ -1161,14 +1218,30 @@ export function StaffAttendance() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {myHistory.length === 0 ? (
+                    {filteredHistory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isSessionMode ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                          No attendance history found.
+                        <TableCell colSpan={isSessionMode ? 7 : 6} className="text-center py-10 text-muted-foreground">
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold">
+                              {historyFilterDate
+                                ? `No records found for ${formatDate(historyFilterDate)}.`
+                                : "No attendance history found."}
+                            </p>
+                            {historyFilterDate && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setHistoryFilterDate("")}
+                                className="text-xs font-semibold rounded-xl"
+                              >
+                                Show All Days
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
-                      myHistory.map((rec) => {
+                      filteredHistory.map((rec) => {
                         const sessCfg = isSessionMode
                           ? staffSessions.find(
                               (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
@@ -1793,17 +1866,7 @@ export function StaffAttendance() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── FACE ENROLLMENT MODAL (Admin Only) ─── */}
-      {isAdmin && (
-        <StaffFaceEnrollModal
-          open={isFaceEnrollModalOpen}
-          onOpenChange={setIsFaceEnrollModalOpen}
-          onEnrolled={() => {
-            loadInitialData()
-            notifications.success("Biometrics Active", "Staff face biometric registered successfully.")
-          }}
-        />
-      )}
+
     </div>
   )
 }
