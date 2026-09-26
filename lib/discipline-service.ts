@@ -304,7 +304,8 @@ export const DisciplineApi = {
       {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        timeoutMs: 0 // Do not limit submission time when files/videos are attached
       }
     );
     notifyDisciplineDataChanged();
@@ -317,7 +318,8 @@ export const DisciplineApi = {
       {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        timeoutMs: 0 // Do not limit submission time when files/videos are attached
       }
     );
     notifyDisciplineDataChanged();
@@ -349,7 +351,8 @@ export const DisciplineApi = {
       {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        timeoutMs: 0
       }
     );
     notifyDisciplineDataChanged();

@@ -34,7 +34,7 @@ export class RequestError extends Error {
 }
 
 export interface FetchOptions extends RequestInit {
-  /** Request timeout in milliseconds. Defaults to 20_000 (20 s). */
+  /** Request timeout in milliseconds. Defaults to 20_000 (20 s). Pass 0 to disable timeout completely. */
   timeoutMs?: number
   /** Number of retry attempts for network/server failures. Defaults to 2 for GET, 0 for mutations. */
   retries?: number
@@ -70,7 +70,7 @@ export async function fetchWithTimeout(
 
   while (attempt <= retries) {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null
 
     try {
       const response = await fetch(url, {
@@ -78,7 +78,7 @@ export async function fetchWithTimeout(
         ...fetchOptions,
         signal: controller.signal,
       })
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
 
       // Retry on transient 502, 503, 504 server errors if attempts remain
       if (!response.ok && [502, 503, 504].includes(response.status) && attempt < retries) {
@@ -89,7 +89,7 @@ export async function fetchWithTimeout(
 
       return response
     } catch (err: any) {
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       lastError = err
 
       if (err?.name === "AbortError") {

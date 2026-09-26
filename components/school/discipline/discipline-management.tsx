@@ -44,7 +44,8 @@ import {
   Info,
   Lock,
   Sliders,
-  CheckSquare
+  CheckSquare,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '@/lib/context/auth-context';
 import { Button } from '@/components/ui/button';
@@ -1950,8 +1951,15 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                 Next
               </Button>
             ) : (
-              <Button onClick={handleCreateIncidentSubmit} disabled={isSubmittingIncident} className="rounded-2xl font-bold text-xs h-11 px-6 bg-emerald-600 text-white">
-                Submit Case Report
+              <Button onClick={handleCreateIncidentSubmit} disabled={isSubmittingIncident} className="rounded-2xl font-bold text-xs h-11 px-6 bg-emerald-600 hover:bg-emerald-700 text-white">
+                {isSubmittingIncident ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Submitting Case...
+                  </span>
+                ) : (
+                  'Submit Case Report'
+                )}
               </Button>
             )}
           </DialogFooter>

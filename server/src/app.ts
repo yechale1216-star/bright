@@ -102,8 +102,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-school-id', 'x-requested-role']
 }));
 app.use(cookieParser());
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ limit: '5mb', extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Global Maintenance Guard
 app.use(maintenanceMiddleware);
