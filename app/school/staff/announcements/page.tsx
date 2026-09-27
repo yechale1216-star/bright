@@ -438,7 +438,7 @@ export default function StaffAnnouncementsPage() {
                         <Megaphone className="w-3 h-3 shrink-0" />
                         {getTypeLabel(selectedAnnouncement.type)}
                       </span>
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border shrink-0", audBadge.cls)}>
+                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border shrink-0", audBadge.className)}>
                         <AudIcon className="w-3 h-3 shrink-0" />
                         {audBadge.label}
                       </span>
