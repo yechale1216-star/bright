@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils/utils"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { format } from "date-fns"
@@ -200,7 +201,7 @@ export default function StaffAnnouncementsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="w-full py-6 space-y-6">
 
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -226,18 +227,18 @@ export default function StaffAnnouncementsPage() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {stats.map((stat) => (
             <div
               key={stat.label}
-              className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
+              className="flex items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm"
             >
-              <div className={cn("w-9 h-9 flex items-center justify-center rounded-xl flex-shrink-0", stat.bg)}>
-                <stat.icon className={cn("w-4 h-4", stat.text)} />
+              <div className={cn("w-12 h-12 flex items-center justify-center rounded-xl flex-shrink-0", stat.bg)}>
+                <stat.icon className={cn("w-6 h-6", stat.text)} />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide leading-tight truncate">{stat.label}</p>
-                <p className={cn("text-xl font-bold tracking-tight leading-tight", stat.text)}>{stat.value}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide leading-tight">{stat.label}</p>
+                <p className={cn("text-2xl font-bold tracking-tight leading-tight mt-0.5", stat.text)}>{stat.value}</p>
               </div>
             </div>
           ))}
@@ -407,93 +408,96 @@ export default function StaffAnnouncementsPage() {
       </div>
 
       {/* Detail Modal */}
-      {selectedAnnouncement && (() => {
-        const audBadge = getAudienceBadge(selectedAnnouncement.targetAudience)
-        const AudIcon = audBadge.icon
-        const headerBg =
-          selectedAnnouncement.type === "emergency" ? "bg-rose-600 dark:bg-rose-700" :
-          selectedAnnouncement.type === "info" ? "bg-blue-600 dark:bg-blue-700" : "bg-primary"
+      <Dialog open={!!selectedAnnouncement} onOpenChange={(open) => !open && setSelectedAnnouncement(null)}>
+        <DialogContent className="w-[94vw] sm:max-w-lg max-h-[85dvh] rounded-[24px] sm:rounded-[28px] p-0 flex flex-col overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border-white/20 dark:border-white/10 shadow-2xl box-border">
+          {selectedAnnouncement && (() => {
+            const audBadge = getAudienceBadge(selectedAnnouncement.targetAudience)
+            const AudIcon = audBadge.icon
+            const typeCfg = {
+              glowCls:
+                selectedAnnouncement.type === "emergency"
+                  ? "from-rose-50 to-white dark:from-rose-950/40 dark:to-slate-900/95"
+                  : selectedAnnouncement.type === "info"
+                  ? "from-sky-50 to-white dark:from-sky-950/40 dark:to-slate-900/95"
+                  : "from-violet-50 to-white dark:from-violet-950/40 dark:to-slate-900/95",
+              badgeCls:
+                selectedAnnouncement.type === "emergency"
+                  ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
+                  : selectedAnnouncement.type === "info"
+                  ? "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800"
+                  : "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
+            }
 
-        return (
-          <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-4"
-            onClick={() => setSelectedAnnouncement(null)}
-          >
-            <div
-              className="w-full max-w-lg bg-card rounded-3xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[80vh] sm:max-h-[88vh] min-h-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className={cn("p-6 text-white relative overflow-hidden shrink-0", headerBg)}>
-                <div className="absolute -top-4 -right-4 opacity-10">
-                  <Megaphone className="w-32 h-32 rotate-12" />
-                </div>
-                <div className="flex items-center gap-2 mb-2 relative z-10 flex-wrap">
-                  <Badge className="bg-white/20 text-white hover:bg-white/30 border-none capitalize px-2.5 py-0.5 text-xs font-semibold">
-                    {getTypeLabel(selectedAnnouncement.type)}
-                  </Badge>
-                  <Badge className="bg-white/25 text-white hover:bg-white/35 border-none px-2.5 py-0.5 text-xs font-semibold flex items-center gap-1">
-                    <AudIcon className="w-3 h-3" />
-                    <span>{audBadge.label}</span>
-                  </Badge>
-                </div>
-                <h2 className="text-xl font-bold relative z-10 leading-snug pr-8">
-                  {selectedAnnouncement.title}
-                </h2>
-                <div className="text-white/80 mt-1.5 relative z-10 text-xs flex items-center gap-4 flex-wrap">
-                  <span className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {format(new Date(selectedAnnouncement.createdAt), "MMM dd, yyyy")}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    {format(new Date(selectedAnnouncement.createdAt), "hh:mm a")}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setSelectedAnnouncement(null)}
-                  className="absolute top-4 right-4 z-10 p-1.5 rounded-xl hover:bg-white/20 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
-                <div className="p-5 sm:p-6 space-y-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="font-bold uppercase tracking-wider">Targeted Recipients:</span>
-                    <Badge className={cn("text-[10px] font-semibold border flex items-center gap-1", audBadge.className)}>
-                      <AudIcon className="w-3 h-3" />
-                      {audBadge.label}
-                    </Badge>
+            return (
+              <>
+                {/* Modal Header */}
+                <div className={cn("p-4 sm:p-5 pb-3 sm:pb-4 border-b border-border/50 bg-gradient-to-r relative min-w-0", typeCfg.glowCls)}>
+                  <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border shrink-0", typeCfg.badgeCls)}>
+                        <Megaphone className="w-3 h-3 shrink-0" />
+                        {getTypeLabel(selectedAnnouncement.type)}
+                      </span>
+                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border shrink-0", audBadge.cls)}>
+                        <AudIcon className="w-3 h-3 shrink-0" />
+                        {audBadge.label}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                    {selectedAnnouncement.message}
-                  </p>
+
+                  <DialogTitle className="text-base sm:text-lg font-black text-foreground leading-snug break-words pr-6">
+                    {selectedAnnouncement.title}
+                  </DialogTitle>
+
+                  <div className="flex items-center gap-3 mt-2 text-[10px] sm:text-[11px] text-muted-foreground font-semibold flex-wrap">
+                    <span className="flex items-center gap-1 shrink-0">
+                      <Calendar className="w-3 h-3 shrink-0" />
+                      {format(new Date(selectedAnnouncement.createdAt), "MMM dd, yyyy")}
+                    </span>
+                    <span className="flex items-center gap-1 shrink-0">
+                      <Clock className="w-3 h-3 shrink-0" />
+                      {format(new Date(selectedAnnouncement.createdAt), "hh:mm a")}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="px-5 sm:px-6 pt-3 pb-5 sm:pb-6 bg-card dark:bg-slate-900 shrink-0 flex gap-3 border-t border-slate-100 dark:border-slate-800">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-xl border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                  onClick={() => {
-                    setDeletingAnnouncement(selectedAnnouncement)
-                    setSelectedAnnouncement(null)
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-                <Button
-                  className="flex-1 rounded-xl"
-                  variant="outline"
-                  onClick={() => setSelectedAnnouncement(null)}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
+
+                {/* Modal Body (Scrollable) */}
+                <div className="p-4 sm:p-5 flex-1 overflow-y-auto overscroll-contain space-y-3 sm:space-y-4 min-w-0">
+                  <div className="bg-slate-50/80 dark:bg-slate-800/50 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 min-w-0">
+                    <p className="text-foreground text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">
+                      {selectedAnnouncement.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <DialogFooter className="p-3 sm:p-4 bg-muted/20 border-t border-border/50 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-between gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl h-9 px-4 text-xs font-bold border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 gap-1.5 justify-center"
+                    onClick={() => {
+                      setDeletingAnnouncement(selectedAnnouncement)
+                      setSelectedAnnouncement(null)
+                    }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Delete</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedAnnouncement(null)}
+                    className="rounded-xl h-9 px-4 text-xs font-bold sm:ml-auto justify-center"
+                  >
+                    Close
+                  </Button>
+                </DialogFooter>
+              </>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
       {deletingAnnouncement && (

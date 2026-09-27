@@ -20,7 +20,6 @@ const navItems = [
   { href: '/school/registrar/students', icon: Users, label: 'Student Directory & Registration' },
   { href: '/school/registrar/staff-attendance', icon: UserCheck, label: 'My Attendance' },
   { href: '/school/registrar/communication', icon: MessageSquare, label: 'Communication' },
-  { href: '/school/registrar/reports', icon: BarChart2, label: 'Enrollment Reports' },
   { href: '/school/registrar/profile', icon: User, label: 'My Profile' },
 ]
 
