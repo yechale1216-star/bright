@@ -252,7 +252,7 @@ export default function AdminStaffAttendanceDashboard() {
 
     // 1. Add from DB roles (system + custom created roles)
     availableRoles.forEach((r) => {
-      if (r.key && !["parent", "student"].includes(r.key)) {
+      if (r.key && !["parent", "student", "admin", "school_admin"].includes(r.key)) {
         roleMap.set(r.key, {
           key: r.key,
           label: r.name || r.key.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
@@ -267,8 +267,6 @@ export default function AdminStaffAttendanceDashboard() {
       { key: "registrar", label: "Registrars" },
       { key: "discipline_officer", label: "Discipline Officers" },
       { key: "staff", label: "General Staff" },
-      { key: "school_admin", label: "School Admins" },
-      { key: "admin", label: "Admins" },
     ]
 
     baseDefaults.forEach((def) => {
@@ -279,7 +277,7 @@ export default function AdminStaffAttendanceDashboard() {
 
     // 3. Include any roles that exist on loaded users/records that might not be in DB roles
     allUsers.forEach((u) => {
-      if (u.role && !["parent", "student"].includes(u.role) && !roleMap.has(u.role)) {
+      if (u.role && !["parent", "student", "admin", "school_admin"].includes(u.role) && !roleMap.has(u.role)) {
         roleMap.set(u.role, {
           key: u.role,
           label: u.role.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
@@ -289,7 +287,7 @@ export default function AdminStaffAttendanceDashboard() {
 
     records.forEach((r) => {
       const uRole = r.user?.role
-      if (uRole && !["parent", "student"].includes(uRole) && !roleMap.has(uRole)) {
+      if (uRole && !["parent", "student", "admin", "school_admin"].includes(uRole) && !roleMap.has(uRole)) {
         roleMap.set(uRole, {
           key: uRole,
           label: uRole.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase()),
@@ -419,7 +417,7 @@ export default function AdminStaffAttendanceDashboard() {
       })
       const userMap = new Map<string, any>()
       res.forEach((r: any) => {
-        if (r.user && !userMap.has(r.user.id)) {
+        if (r.user && !["parent", "student", "admin", "school_admin"].includes(r.user.role) && !userMap.has(r.user.id)) {
           userMap.set(r.user.id, r.user)
         }
       })
@@ -686,11 +684,9 @@ export default function AdminStaffAttendanceDashboard() {
         "Absent",
         "Permission",
         "On Leave",
-        "Biometric Verified (%)",
       ]
 
       const rows = reportData.staffSummary.map((item: any) => {
-        const bioPct = item.totalRecords > 0 ? Math.round((item.faceVerified / item.totalRecords) * 100) : 0
         const permissionCount = item.permission || 0
         const leaveCount = Math.max(0, (item.onLeave || 0) - permissionCount)
         return [
@@ -707,7 +703,6 @@ export default function AdminStaffAttendanceDashboard() {
           item.absent || 0,
           permissionCount,
           leaveCount,
-          `"${bioPct}%"`,
         ]
       })
 
@@ -1605,12 +1600,10 @@ export default function AdminStaffAttendanceDashboard() {
                         <th className="px-4 py-3.5 text-center text-rose-600">Absent</th>
                         <th className="px-4 py-3.5 text-center text-sky-600">Permission</th>
                         <th className="px-4 py-3.5 text-center text-purple-600">Leave</th>
-                        <th className="px-4 py-3.5 text-center text-cyan-600">Biometric %</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/30 dark:divide-white/5">
                       {reportData.staffSummary.map((item: any) => {
-                        const bioPct = item.totalRecords > 0 ? Math.round((item.faceVerified / item.totalRecords) * 100) : 0
                         const permissionCount = item.permission || 0
                         const leaveCount = Math.max(0, (item.onLeave || 0) - permissionCount)
                         return (
@@ -1635,7 +1628,6 @@ export default function AdminStaffAttendanceDashboard() {
                             <td className="px-4 py-3.5 text-center font-bold text-rose-600">{item.absent || 0}</td>
                             <td className="px-4 py-3.5 text-center font-bold text-sky-600">{permissionCount}</td>
                             <td className="px-4 py-3.5 text-center font-bold text-purple-600">{leaveCount}</td>
-                            <td className="px-4 py-3.5 text-center font-bold text-cyan-600">{bioPct}%</td>
                           </tr>
                         )
                       })}

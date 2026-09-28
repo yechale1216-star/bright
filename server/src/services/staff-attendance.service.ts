@@ -1027,6 +1027,8 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
   const userConditions: any = {};
   if (filters.role && filters.role !== 'all') {
     userConditions.role = filters.role;
+  } else {
+    userConditions.role = { notIn: ['parent', 'student', 'admin', 'school_admin'] };
   }
 
   if (filters.search && filters.search.trim()) {
@@ -1107,11 +1109,16 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
   const totalStaffCount = await prisma.user.count({
     where: {
       is_active: true,
-      role: { notIn: ['parent', 'student'] }
+      role: { notIn: ['parent', 'student', 'admin', 'school_admin'] }
     }
   });
 
-  const recordWhere: any = { date: { gte: startDate, lte: endDate } };
+  const recordWhere: any = {
+    date: { gte: startDate, lte: endDate },
+    user: {
+      role: { notIn: ['parent', 'student', 'admin', 'school_admin'] }
+    }
+  };
   
   if (session && session !== 'all' && session !== 'ALL') {
     recordWhere.session = normaliseSessionKey(session);
@@ -1705,6 +1712,8 @@ export async function getStaffAttendanceReport(
 
   if (filters.role && filters.role !== 'all') {
     where.user = { role: filters.role };
+  } else {
+    where.user = { role: { notIn: ['parent', 'student', 'admin', 'school_admin'] } };
   }
 
   if (filters.status && filters.status !== 'all' && filters.status !== 'ALL') {
@@ -1861,7 +1870,7 @@ export async function processAutomaticStaffAbsences(options?: {
   const eligibleStaff = await prisma.user.findMany({
     where: {
       is_active: true,
-      role: { notIn: ['parent', 'student'] }
+      role: { notIn: ['parent', 'student', 'admin', 'school_admin'] }
     },
     select: { id: true, full_name: true, role: true, email: true }
   });

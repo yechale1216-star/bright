@@ -35,7 +35,7 @@ export const getUserById = async (id: string, _schoolId?: string) => {
 export const getUsers = async (_schoolId?: string) => {
   return await prisma.user.findMany({ 
     where: { 
-      role: { notIn: ['parent', 'student'] }
+      role: { notIn: ['parent', 'student', 'admin', 'school_admin'] }
     },
     select: {
       id: true,

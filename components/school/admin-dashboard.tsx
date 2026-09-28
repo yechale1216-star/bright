@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ErrorBanner } from "@/components/ui/data-state-view"
 import {
-  Users, UserCheck, ShieldAlert, GraduationCap, Calendar, Bell,
-  ChevronRight, BookOpen, TrendingUp, Sparkles, ShieldCheck,
+  Users, UserCheck, ShieldAlert, GraduationCap, Calendar,
+  ChevronRight, TrendingUp, ShieldCheck,
   Activity, AlertTriangle, RefreshCw, BarChart3, FileCheck,
   CheckCircle2, XCircle, Clock, Lock, MessageSquare, Check, X,
   Sun, Sunset
@@ -29,7 +29,6 @@ import { useAuth } from "@/lib/context/auth-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { useGreeting } from "@/lib/utils/greeting-utils"
-import { useUnread } from "@/lib/context/unread-context"
 import { cn } from "@/lib/utils/utils"
 
 interface AdminDashboardProps {
@@ -42,7 +41,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const { formatDate } = useCalendar()
   const greeting = useGreeting("school_admin")
   const { settings } = useSchoolSettings()
-  const { totalUnreadCount } = useUnread()
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -552,15 +550,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       {/* 1. MODERN HEADER (Matching Student Attendance Page Aesthetic) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div className="space-y-1 w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[11px] font-bold text-primary">
-              <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-              School Administration
-            </span>
-            <Badge variant="outline" className="border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold">
-              {activeAcademicYearName}
-            </Badge>
-          </div>
           <h2 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
             {greeting}, <span className="text-primary">{adminName}</span>
           </h2>
@@ -622,27 +611,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </button>
           </div>
 
-          {/* Academic Term Pill */}
-          <div className="text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-3.5 py-2 rounded-full border border-indigo-100 dark:border-indigo-900 flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
-            <span>{activeTerm}</span>
-          </div>
 
-          {/* Notifications Button */}
-          <Button
-            onClick={() => navigateTo("/school/admin/communication")}
-            variant="outline"
-            size="sm"
-            className="relative rounded-full h-9 px-3.5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold gap-2 shadow-2xs"
-          >
-            <Bell className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Alerts</span>
-            {totalUnreadCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 bg-rose-500 text-white font-black text-[10px] rounded-full flex items-center justify-center">
-                {totalUnreadCount}
-              </span>
-            )}
-          </Button>
         </div>
       </div>
 

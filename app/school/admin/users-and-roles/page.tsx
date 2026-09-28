@@ -409,8 +409,12 @@ export default function UsersAndRolesPage() {
     fetchData()
   }
 
+  const visibleRoles = useMemo(() => {
+    return roles.filter(r => !['admin', 'school_admin', 'parent', 'student'].includes(r.key))
+  }, [roles])
+
   const staffUsers = useMemo(() => {
-    return users.filter(u => u.role !== 'parent' && u.role !== 'student')
+    return users.filter(u => !['parent', 'student', 'admin', 'school_admin'].includes(u.role))
   }, [users])
 
   const filteredUsers = useMemo(() => {
@@ -464,7 +468,7 @@ export default function UsersAndRolesPage() {
             className="h-11 px-4 rounded-2xl gap-2 font-bold text-xs border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10"
           >
             <Layers className="w-4 h-4" />
-            Manage Role Types ({roles.length})
+            Manage Role Types ({visibleRoles.length})
           </Button>
 
           <Button
@@ -527,10 +531,10 @@ export default function UsersAndRolesPage() {
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Role Types</span>
           </div>
           <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : roles.length}
+            {loading ? <span className="inline-block w-10 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" /> : visibleRoles.length}
           </p>
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
-            {roles.filter(r => r.isActive !== false).length} Active Types (Click to manage)
+            {visibleRoles.filter(r => r.isActive !== false).length} Active Types (Click to manage)
           </p>
         </motion.div>
 
@@ -579,7 +583,7 @@ export default function UsersAndRolesPage() {
           <Activity className="w-3.5 h-3.5 text-primary" /> Role Distribution:
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          {roles.slice(0, 5).map(r => {
+          {visibleRoles.slice(0, 5).map(r => {
             const count = users.filter(u => u.role === r.key).length
             return (
               <span
@@ -592,12 +596,12 @@ export default function UsersAndRolesPage() {
               </span>
             )
           })}
-          {roles.length > 5 && (
+          {visibleRoles.length > 5 && (
             <button
               onClick={() => setShowManageRolesModal(true)}
               className="text-xs font-bold text-primary hover:underline pl-1"
             >
-              +{roles.length - 5} more...
+              +{visibleRoles.length - 5} more...
             </button>
           )}
         </div>
@@ -621,7 +625,7 @@ export default function UsersAndRolesPage() {
             onChange={e => setRoleFilter(e.target.value)}
           >
             <option value="all">All Role Categories</option>
-            {roles.map(r => (
+            {visibleRoles.map(r => (
               <option key={r.key} value={r.key}>
                 {r.name} {!r.isActive ? '(Inactive)' : ''}
               </option>
@@ -1002,7 +1006,7 @@ export default function UsersAndRolesPage() {
                     value={editForm.role}
                     onChange={e => setEditForm({ ...editForm, role: e.target.value })}
                   >
-                    {roles.map(r => (
+                    {visibleRoles.map(r => (
                       <option key={r.key} value={r.key}>
                         {r.name} {!r.isActive ? '(Inactive)' : ''}
                       </option>
@@ -1151,7 +1155,7 @@ export default function UsersAndRolesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {roles.map(r => {
+                    {visibleRoles.map(r => {
                       const isActionBusy = roleActionLoadingId === r.id
                       return (
                         <tr key={r.id || r.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
