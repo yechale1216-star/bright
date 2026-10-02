@@ -42,6 +42,8 @@ import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { getStaffAttendanceDisplay, addMinutesToHHMM } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
+import { API_URL } from "@/lib/api-config"
+import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 
 // Module-level cache: survives component unmount/remount during client-side navigation.
 // Prevents the full loading spinner and blank-state flicker when navigating back to the dashboard.
@@ -82,6 +84,20 @@ export function StaffDashboard() {
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(_staffDashboardCache.enrolledDescriptor)
   const [allAttendance, setAllAttendance] = useState<any[]>(_staffDashboardCache.allAttendance)
 
+  // Active session selection in session-based mode ("morning" or "afternoon")
+  const [selectedSession, setSelectedSession] = useState<"morning" | "afternoon">(() => {
+    try {
+      const hStr = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Africa/Addis_Ababa",
+        hour12: false,
+        hour: "numeric",
+      }).format(new Date())
+      return parseInt(hStr, 10) >= 13 ? "afternoon" : "morning"
+    } catch {
+      return "morning"
+    }
+  })
+
   // Live active work duration tracker
   const [workingDuration, setWorkingDuration] = useState<string>("")
 
@@ -107,34 +123,74 @@ export function StaffDashboard() {
     return defaults
   }, [settings?.staffSessions, settings?.staff_sessions])
 
-  // Monthly statistics computation
+  // Monthly statistics computation with Addis Ababa timezone accuracy & correct On-Time Rate
   const monthlyStats = useMemo(() => {
     const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
+    const addisParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Addis_Ababa",
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(now)
+    const currentYear = parseInt(addisParts.find((p) => p.type === "year")?.value || String(now.getFullYear()), 10)
+    const currentMonth = parseInt(addisParts.find((p) => p.type === "month")?.value || String(now.getMonth() + 1), 10)
+
     const thisMonthRecords = allAttendance.filter((r) => {
       if (!r.date) return false
-      const d = new Date(r.date)
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+      const raw = typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0]
+      const [y, m] = raw.split("-").map(Number)
+      return y === currentYear && m === currentMonth
     })
-    const presentCount = thisMonthRecords.filter((r) => {
-      const s = r.status?.toUpperCase()
-      return s === "PRESENT" || s === "LATE"
-    }).length
-    const onTimeCount = thisMonthRecords.filter((r) => r.status?.toUpperCase() === "PRESENT").length
-    const lateCount = thisMonthRecords.filter((r) => r.status?.toUpperCase() === "LATE").length
-    const absentCount = thisMonthRecords.filter((r) => r.status?.toUpperCase() === "ABSENT").length
-    const onTimeRate = presentCount > 0 ? Math.round((onTimeCount / presentCount) * 100) : 100
+
+    let onTimeCount = 0
+    let lateCount = 0
+    let absentCount = 0
+    const datesPresent = new Set<string>()
+    const datesLate = new Set<string>()
+    const datesAbsent = new Set<string>()
+
+    for (const r of thisMonthRecords) {
+      const s = (r.status || "").toUpperCase()
+      const dStr = typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0]
+
+      if (s === "PRESENT") {
+        onTimeCount++
+        if (dStr) datesPresent.add(dStr)
+      } else if (s === "LATE") {
+        lateCount++
+        if (dStr) {
+          datesPresent.add(dStr)
+          datesLate.add(dStr)
+        }
+      } else if (s === "EARLY_DEPARTURE" || s === "EARLY_LEAVE") {
+        onTimeCount++
+        if (dStr) datesPresent.add(dStr)
+      } else if (s === "ABSENT") {
+        absentCount++
+        if (dStr) datesAbsent.add(dStr)
+      }
+    }
+
+    // Days present: distinct calendar days attended (or total present records in daily mode)
+    const presentCount = isSessionMode ? datesPresent.size : (onTimeCount + lateCount)
+    const lateDaysCount = isSessionMode ? datesLate.size : lateCount
+    const absentDaysCount = isSessionMode
+      ? Array.from(datesAbsent).filter((d) => !datesPresent.has(d)).length
+      : absentCount
+
+    // On-Time Rate: Percentage of attended shifts/records that arrived on time
+    // If no attendances recorded (or only absent), rate is 0%, NEVER 100%!
+    const totalAttended = onTimeCount + lateCount
+    const onTimeRate = totalAttended > 0 ? Math.round((onTimeCount / totalAttended) * 100) : 0
 
     return {
       total: thisMonthRecords.length,
       presentCount,
       onTimeCount,
-      lateCount,
-      absentCount,
+      lateCount: lateDaysCount,
+      absentCount: absentDaysCount,
       onTimeRate,
     }
-  }, [allAttendance])
+  }, [allAttendance, isSessionMode])
 
   // Request ID and in-flight guard to prevent race conditions & out-of-order state overwrites
   const loadRequestIdRef = useRef(0)
@@ -162,22 +218,20 @@ export function StaffDashboard() {
           mode: isSessionModeRef.current ? "session_based" : "daily",
         }),
         db.getStaffFaceDescriptor(),
-        fetch(`/api/announcements?limit=3`, {
+        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/announcements?limit=3`, {
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
             "x-school-id": schoolIdRef.current || "single-school",
             "x-requested-role": "staff",
           },
-        }).then((r) => r.json()),
-        fetch(`/api/notifications?limit=3`, {
+        }).catch(() => ({ success: false, data: [] })),
+        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/notifications?limit=3`, {
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
             "x-school-id": schoolIdRef.current || "single-school",
             "x-requested-role": "staff",
           },
-        }).then((r) => r.json()),
+        }).catch(() => ({ success: false, data: [] })),
       ])
 
       if (currentReqId !== loadRequestIdRef.current) return
@@ -196,13 +250,13 @@ export function StaffDashboard() {
         setEnrolledDescriptor(descData)
         _staffDashboardCache.enrolledDescriptor = descData
       }
-      if (annRes.status === "fulfilled" && annRes.value?.success && Array.isArray(annRes.value.data)) {
-        const annData = annRes.value.data.slice(0, 3)
+      if (annRes.status === "fulfilled" && (annRes.value as any)?.success && Array.isArray((annRes.value as any).data)) {
+        const annData = (annRes.value as any).data.slice(0, 3)
         setAnnouncements(annData)
         _staffDashboardCache.announcements = annData
       }
-      if (notifRes.status === "fulfilled" && notifRes.value?.success && Array.isArray(notifRes.value.data)) {
-        const notifData = notifRes.value.data.slice(0, 3)
+      if (notifRes.status === "fulfilled" && (notifRes.value as any)?.success && Array.isArray((notifRes.value as any).data)) {
+        const notifData = (notifRes.value as any).data.slice(0, 3)
         setRecentNotifications(notifData)
         _staffDashboardCache.recentNotifications = notifData
       }
@@ -217,60 +271,58 @@ export function StaffDashboard() {
   // Stable: reads isSessionMode & schoolId via refs, not as deps
   }, [getTodayStr])
 
-  useEffect(() => {
-    if (!allAttendance.length) {
-      setTodayRecord(null)
-      return
+  const normalizeDateStr = useCallback((d: any) => {
+    if (!d) return ""
+    if (typeof d === "string") return d.split("T")[0]
+    if (d instanceof Date) return d.toISOString().split("T")[0]
+    try {
+      return new Date(d).toISOString().split("T")[0]
+    } catch {
+      return ""
     }
+  }, [])
 
-    const normalizeDateStr = (d: any) => {
-      if (!d) return ""
-      if (typeof d === "string") return d.split("T")[0]
-      if (d instanceof Date) return d.toISOString().split("T")[0]
-      try {
-        return new Date(d).toISOString().split("T")[0]
-      } catch {
-        return ""
+  const todayRecs = useMemo(() => {
+    return allAttendance.filter((r) => normalizeDateStr(r.date) === todayStr)
+  }, [allAttendance, todayStr, normalizeDateStr])
+
+  const morningRec = useMemo(() => {
+    return todayRecs.find((r) => (r.session || "morning").toLowerCase() === "morning") || null
+  }, [todayRecs])
+
+  const afternoonRec = useMemo(() => {
+    return todayRecs.find((r) => (r.session || "").toLowerCase() === "afternoon") || null
+  }, [todayRecs])
+
+  // Auto-align selectedSession with any active duty record on load/update
+  useEffect(() => {
+    if (!isSessionMode || !todayRecs.length) return
+    const activeDuty = todayRecs.find((r) => r.checkInTime && !r.checkOutTime)
+    if (activeDuty) {
+      const sess = (activeDuty.session || "morning").toLowerCase()
+      if (sess === "afternoon" || sess === "morning") {
+        setSelectedSession(sess as "morning" | "afternoon")
       }
     }
+  }, [todayRecs, isSessionMode])
 
-    const todayRecs = allAttendance.filter((r) => normalizeDateStr(r.date) === todayStr)
-    if (!todayRecs.length) {
-      setTodayRecord(null)
-      return
-    }
-
+  useEffect(() => {
     if (isSessionMode) {
-      // 1. Priority: Any session that is actively checked-in and on duty
-      const activeDutyRec = todayRecs.find((r) => r.checkInTime && !r.checkOutTime)
-      if (activeDutyRec) {
-        setTodayRecord(activeDutyRec)
+      const targetSession = selectedSession
+      const activeRec = targetSession === "afternoon" ? afternoonRec : morningRec
+      // If no record exists for this session yet today, synthesize a pending record so the display status calculates correctly
+      setTodayRecord(activeRec || { session: targetSession, date: todayStr })
+    } else {
+      if (!todayRecs.length) {
+        setTodayRecord(null)
         return
       }
-
-      // 2. Current time-of-day resolution in Africa/Addis_Ababa
-      const currentHour = new Date().toLocaleTimeString("en-US", {
-        timeZone: "Africa/Addis_Ababa",
-        hour12: false,
-        hour: "2-digit",
-      })
-      const isMorningHours = parseInt(currentHour, 10) < 13
-
-      const morningRec = todayRecs.find((r) => (r.session || "morning").toLowerCase() === "morning")
-      const afternoonRec = todayRecs.find((r) => (r.session || "").toLowerCase() === "afternoon")
-
-      if (isMorningHours) {
-        setTodayRecord(morningRec || afternoonRec || todayRecs[0] || null)
-      } else {
-        setTodayRecord(afternoonRec || morningRec || todayRecs[0] || null)
-      }
-    } else {
       // Daily mode: prioritize checked-in record if present
       const checkedInRec = todayRecs.find((r) => r.checkInTime)
       const dailyRec = todayRecs.find((r) => !r.session || r.session === "daily") || todayRecs[0]
       setTodayRecord(checkedInRec || dailyRec || null)
     }
-  }, [allAttendance, todayStr, isSessionMode])
+  }, [todayRecs, todayStr, isSessionMode, selectedSession, morningRec, afternoonRec])
 
   useEffect(() => {
     // On first mount: show spinner if not cached. On re-navigation: silent refresh
@@ -555,88 +607,134 @@ export function StaffDashboard() {
       </div>
 
       {/* ─── 3. FOUR STATUS METRIC CARDS ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Card 1: Attendance Status */}
-        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Attendance</span>
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-xs">
-              <UserCheck className="w-4 h-4" />
+      <div className="space-y-3">
+        {isSessionMode && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/40 dark:bg-slate-900/40 border border-white/30 dark:border-white/10 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setSelectedSession("morning")}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                  selectedSession === "morning"
+                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                )}
+              >
+                <span>Morning Shift</span>
+                {morningRec?.status && (
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase font-black border-current/30">
+                    {morningRec.status}
+                  </Badge>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSession("afternoon")}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                  selectedSession === "afternoon"
+                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                )}
+              >
+                <span>Afternoon Shift</span>
+                {afternoonRec?.status && (
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase font-black border-current/30">
+                    {afternoonRec.status}
+                  </Badge>
+                )}
+              </button>
             </div>
-          </div>
-          <div>
-            <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white block truncate tracking-tight">
-              {attendanceDisplay.checkIn.titleLabel}
+            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+              Showing: <strong className="text-foreground capitalize">{selectedSession} Shift</strong>
             </span>
-            <div className="mt-1.5">
-              {/* Show latenessFormatted for LATE; hide badge when it would duplicate the titleLabel */}
-              {attendanceDisplay.checkIn.status === "LATE" && attendanceDisplay.checkIn.latenessFormatted ? (
-                <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
-                  {attendanceDisplay.checkIn.latenessFormatted}
-                </Badge>
-              ) : !["ABSENT", "HOLIDAY", "NON_WORKING_DAY", "LEAVE", "PERMISSION"].includes(attendanceDisplay.checkIn.status) ? (
-                <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
-                  {attendanceDisplay.overallStatus.replace(/_/g, " ")}
-                </Badge>
-              ) : null}
-            </div>
           </div>
-        </div>
+        )}
 
-        {/* Card 2: Check-In Time */}
-        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Check-In</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 shadow-xs">
-              <LogIn className="w-4 h-4" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Card 1: Attendance Status */}
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Attendance</span>
+              <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-xs">
+                <UserCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white block truncate tracking-tight">
+                {attendanceDisplay.checkIn.titleLabel}
+              </span>
+              <div className="mt-1.5">
+                {/* Show latenessFormatted for LATE; hide badge when it would duplicate the titleLabel */}
+                {attendanceDisplay.checkIn.status === "LATE" && attendanceDisplay.checkIn.latenessFormatted ? (
+                  <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                    {attendanceDisplay.checkIn.latenessFormatted}
+                  </Badge>
+                ) : !["ABSENT", "HOLIDAY", "NON_WORKING_DAY", "LEAVE", "PERMISSION"].includes(attendanceDisplay.checkIn.status) ? (
+                  <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                    {attendanceDisplay.overallStatus.replace(/_/g, " ")}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
           </div>
-          <div>
-            <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
-              {attendanceDisplay.checkIn.timeStr}
-            </span>
-            <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
-              {isCheckedIn ? "Verified arrival" : "Pending check-in"}
-            </span>
-          </div>
-        </div>
 
-        {/* Card 3: Check-Out Time */}
-        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Check-Out</span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 shadow-xs">
-              <LogOut className="w-4 h-4" />
+          {/* Card 2: Check-In Time */}
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Check-In</span>
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 shadow-xs">
+                <LogIn className="w-4 h-4" />
+              </div>
             </div>
-          </div>
-          <div>
-            <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
-              {attendanceDisplay.checkOut.timeStr}
-            </span>
-            <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
-              {isCheckedOut ? "Verified departure" : "Pending departure"}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 4: Work Status */}
-        <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Status</span>
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 shadow-xs">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${workStatus.dotColor} shrink-0`} />
-              <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
-                {workStatus.label}
+            <div>
+              <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
+                {attendanceDisplay.checkIn.timeStr}
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+                {isCheckedIn ? "Verified arrival" : "Pending check-in"}
               </span>
             </div>
-            <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
-              {workStatus.subtitle}
-            </span>
+          </div>
+
+          {/* Card 3: Check-Out Time */}
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">Check-Out</span>
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 shadow-xs">
+                <LogOut className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
+                {attendanceDisplay.checkOut.timeStr}
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+                {isCheckedOut ? "Verified departure" : "Pending departure"}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Work Status */}
+          <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Status</span>
+              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 shadow-xs">
+                <Activity className="w-4 h-4" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${workStatus.dotColor} shrink-0`} />
+                <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                  {workStatus.label}
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+                {workStatus.subtitle}
+              </span>
+            </div>
           </div>
         </div>
       </div>

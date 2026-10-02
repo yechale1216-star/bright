@@ -749,9 +749,7 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
-    }
+    this.notifyStaffAttendanceDataChanged()
     return result.data
   }
 
@@ -777,9 +775,7 @@ class Database extends BaseDatabase {
         }),
       }
     )
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
-    }
+    this.notifyStaffAttendanceDataChanged()
     return result.data
   }
 
@@ -836,6 +832,14 @@ class Database extends BaseDatabase {
     return result.data
   }
 
+  private notifyStaffAttendanceDataChanged() {
+    queryCache.invalidate(/^staff_attendance/)
+    queryCache.invalidate(/^my_staff_attendance/)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("staffAttendanceDataChanged"))
+    }
+  }
+
   async getMyStaffAttendance(filters: {
     date?: string;
     startDate?: string;
@@ -849,13 +853,19 @@ class Database extends BaseDatabase {
     if (filters.endDate) params.append("endDate", filters.endDate)
     if (filters.mode) params.append("mode", filters.mode)
     if (filters.session) params.append("session", filters.session)
-    params.append("_t", Date.now().toString())
 
-    const result = await apiFetch<{ success: boolean; data: any[] }>(
-      `${API_URL}/api/staff-attendance/my?${params.toString()}`,
-      { headers: this.getApiHeaders(), cache: "no-store" }
+    const cacheKey = `my_staff_attendance_${params.toString() || 'all'}`
+    return queryCache.fetch(
+      cacheKey,
+      async () => {
+        const result = await apiFetch<{ success: boolean; data: any[] }>(
+          `${API_URL}/api/staff-attendance/my?${params.toString()}`,
+          { headers: this.getApiHeaders() }
+        )
+        return result.data || []
+      },
+      { staleTime: 20_000, persist: false }
     )
-    return result.data || []
   }
 
   async getStaffAttendance(filters: {
@@ -893,16 +903,22 @@ class Database extends BaseDatabase {
   }
 
   async getStaffAttendanceStats(date?: string, session?: string): Promise<any> {
-    const params = new URLSearchParams()
-    if (date) params.append("date", date)
-    if (session) params.append("session", session)
-    params.append("_t", Date.now().toString())
+    const cacheKey = `staff_attendance_stats_${date || 'all'}_${session || 'daily'}`
+    return queryCache.fetch(
+      cacheKey,
+      async () => {
+        const params = new URLSearchParams()
+        if (date) params.append("date", date)
+        if (session) params.append("session", session)
 
-    const result = await apiFetch<{ success: boolean; data: any }>(
-      `${API_URL}/api/staff-attendance/stats?${params.toString()}`,
-      { headers: this.getApiHeaders(), cache: "no-store" }
+        const result = await apiFetch<{ success: boolean; data: any }>(
+          `${API_URL}/api/staff-attendance/stats?${params.toString()}`,
+          { headers: this.getApiHeaders() }
+        )
+        return result.data || null
+      },
+      { staleTime: 20_000, persist: false }
     )
-    return result.data || null
   }
 
   async getStaffAttendanceReport(filters: {

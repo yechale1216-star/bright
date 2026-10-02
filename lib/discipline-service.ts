@@ -264,15 +264,22 @@ export const DisciplineApi = {
         query.append(k, String(v));
       }
     });
-    return await apiFetch<{
-      items: StudentDiscipline[];
-      total: number;
-      page: number;
-      limit: number;
-      totalPages: number;
-    }>(
-      `${API_URL}/api/discipline?${query.toString()}`,
-      { headers: getAuthHeaders() }
+    const cacheKey = `discipline_incidents_${query.toString() || 'default'}`;
+    return queryCache.fetch(
+      cacheKey,
+      async () => {
+        return await apiFetch<{
+          items: StudentDiscipline[];
+          total: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        }>(
+          `${API_URL}/api/discipline?${query.toString()}`,
+          { headers: getAuthHeaders() }
+        );
+      },
+      { staleTime: 30_000, persist: false }
     );
   },
 

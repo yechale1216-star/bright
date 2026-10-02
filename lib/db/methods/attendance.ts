@@ -173,11 +173,18 @@ export async function createEditRequest(headers: any, payload: { studentId?: str
 
 export async function getEditRequests(headers: any, filters: any = {}): Promise<any[]> {
   const query = new URLSearchParams(filters).toString()
-  const result = await apiFetch<{ success: boolean; data: any[] }>(
-    `${API_URL}/api/attendance/edit-requests${query ? `?${query}` : ''}`,
-    { headers, cache: 'no-store' }
+  const cacheKey = `attendance_edit_requests_${query || 'all'}`
+  return queryCache.fetch(
+    cacheKey,
+    async () => {
+      const result = await apiFetch<{ success: boolean; data: any[] }>(
+        `${API_URL}/api/attendance/edit-requests${query ? `?${query}` : ''}`,
+        { headers, cache: 'no-store' }
+      )
+      return result.data
+    },
+    { staleTime: 15_000, persist: false }
   )
-  return result.data
 }
 
 export async function approveEditRequest(headers: any, requestId: string, adminNote?: string): Promise<any> {

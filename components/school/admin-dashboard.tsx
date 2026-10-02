@@ -99,11 +99,19 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     try {
       const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
 
+      // Only fetch the last 14 days of attendance for the trend chart
+      // instead of the entire history (massive payload reduction)
+      const trendStartDate = (() => {
+        const d = new Date()
+        d.setDate(d.getDate() - 14)
+        return d.toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
+      })()
+
       const [
         fetchedStudents,
         fetchedTeachers,
         fetchedTodayAttendance,
-        fetchedAllAttendance,
+        fetchedRecentAttendance,
         staffAttendanceStats,
         morningStaffAttendanceStats,
         afternoonStaffAttendanceStats,
@@ -113,7 +121,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         db.getStudents().catch(() => []),
         db.getTeachers().catch(() => []),
         db.getAttendanceByDate(today).catch(() => []),
-        db.getAttendance().catch(() => []),
+        db.getAttendanceByDateRange(trendStartDate, today).catch(() => []),
         db.getStaffAttendanceStats(today).catch(() => null),
         db.getStaffAttendanceStats(today, "morning").catch(() => null),
         db.getStaffAttendanceStats(today, "afternoon").catch(() => null),
@@ -124,7 +132,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       setStudents(fetchedStudents || [])
       setTeachers(fetchedTeachers || [])
       setTodayAttendance(fetchedTodayAttendance || [])
-      setAllAttendance(fetchedAllAttendance || [])
+      setAllAttendance(fetchedRecentAttendance || [])
       setStaffStats(staffAttendanceStats)
       setMorningStaffStats(morningStaffAttendanceStats)
       setAfternoonStaffStats(afternoonStaffAttendanceStats)
