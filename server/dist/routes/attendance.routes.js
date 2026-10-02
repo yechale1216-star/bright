@@ -39,6 +39,7 @@ const validate_1 = require("../middleware/validate");
 const router = (0, express_1.Router)();
 router.post('/', validate_1.validateAttendance, attendanceController.markAttendance);
 router.post('/bulk', attendanceController.bulkMarkAttendance);
+router.get('/dashboard-summary', attendanceController.getDashboardSummary);
 router.get('/', attendanceController.getAttendance);
 router.get('/student/:studentId', attendanceController.getAttendanceByStudent);
 // Edit Permission Requests & Audit Logs

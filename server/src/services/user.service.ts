@@ -3,9 +3,27 @@ import crypto from 'crypto';
 import prisma from '../config/db';
 
 export const getUserByEmail = async (email: string) => {
-  return await prisma.user.findUnique({ 
-    where: { email }
+  // Intentionally excludes password_hash to prevent accidental serialization
+  return await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      email: true,
+      full_name: true,
+      role: true,
+      is_active: true,
+      is_verified: true,
+      profile_photo: true,
+      phone: true,
+      teacher_id: true,
+      pushToken: true,
+    }
   });
+};
+
+/** Fetch full user record including password_hash (internal auth use only) */
+export const getUserByEmailWithPassword = async (email: string) => {
+  return await prisma.user.findUnique({ where: { email } });
 };
 
 export const getUserById = async (id: string, _schoolId?: string) => {
@@ -69,7 +87,8 @@ export const getContacts = async (_schoolId?: string, currentUser?: any) => {
   
   const staffAndAdmins = await prisma.user.findMany({
     where: {
-      role: { in: baseRoles }
+      role: { in: baseRoles },
+      is_active: true
     },
     select: {
       id: true,
@@ -79,12 +98,22 @@ export const getContacts = async (_schoolId?: string, currentUser?: any) => {
       phone: true,
       email: true,
       is_active: true
-    }
+    },
+    orderBy: { full_name: 'asc' }
   });
 
+  // If the user is a parent, they only need to reach staff and admins (avoid querying all parents in DB)
+  if (currentUser?.role === 'parent') {
+    return staffAndAdmins
+      .filter(u => u.id !== currentUser?.id)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  }
+
+  // For staff/admin users, fetch active parents with a safe limit
   const linkedParents = await prisma.user.findMany({
     where: {
       role: 'parent',
+      is_active: true
     },
     select: {
       id: true,
@@ -94,16 +123,14 @@ export const getContacts = async (_schoolId?: string, currentUser?: any) => {
       phone: true,
       email: true,
       is_active: true
-    }
+    },
+    take: 500,
+    orderBy: { full_name: 'asc' }
   });
 
-  let allContacts = [...staffAndAdmins, ...linkedParents];
+  const allContacts = [...staffAndAdmins, ...linkedParents];
   const uniqueContacts = Array.from(new Map(allContacts.map(item => [item.id, item])).values());
   const finalContacts = uniqueContacts.filter(u => u.id !== currentUser?.id);
-
-  if (currentUser?.role === 'parent') {
-    return finalContacts.filter(u => ['admin', 'school_admin', 'teacher', 'staff'].includes(u.role));
-  }
 
   return finalContacts.sort((a, b) => a.full_name.localeCompare(b.full_name));
 };
@@ -138,7 +165,10 @@ export const createUser = async (data: any) => {
     teacherId = teacher.id;
   }
 
-  const rawPassword = data.password_hash || data.password || "12345678";
+  // Generate a cryptographically random temporary password if none supplied.
+  // This prevents all auto-created accounts from sharing a well-known default.
+  const randomTemp = crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+  const rawPassword = data.password_hash || data.password || randomTemp;
   const hashedPassword = rawPassword.startsWith('$2')
     ? rawPassword
     : bcrypt.hashSync(rawPassword, 10);

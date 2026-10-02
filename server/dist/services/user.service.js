@@ -3,16 +3,34 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.changePassword = exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPasswordResetToken = exports.verifyPassword = exports.deleteUser = exports.updateUser = exports.createUser = exports.getContacts = exports.getUsers = exports.getUserById = exports.getUserByEmail = void 0;
+exports.changePassword = exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPasswordResetToken = exports.verifyPassword = exports.deleteUser = exports.updateUser = exports.createUser = exports.getContacts = exports.getUsers = exports.getUserById = exports.getUserByEmailWithPassword = exports.getUserByEmail = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_1 = __importDefault(require("../config/db"));
 const getUserByEmail = async (email) => {
+    // Intentionally excludes password_hash to prevent accidental serialization
     return await db_1.default.user.findUnique({
-        where: { email }
+        where: { email },
+        select: {
+            id: true,
+            email: true,
+            full_name: true,
+            role: true,
+            is_active: true,
+            is_verified: true,
+            profile_photo: true,
+            phone: true,
+            teacher_id: true,
+            pushToken: true,
+        }
     });
 };
 exports.getUserByEmail = getUserByEmail;
+/** Fetch full user record including password_hash (internal auth use only) */
+const getUserByEmailWithPassword = async (email) => {
+    return await db_1.default.user.findUnique({ where: { email } });
+};
+exports.getUserByEmailWithPassword = getUserByEmailWithPassword;
 const getUserById = async (id, _schoolId) => {
     return await db_1.default.user.findUnique({
         where: { id },
@@ -40,7 +58,7 @@ exports.getUserById = getUserById;
 const getUsers = async (_schoolId) => {
     return await db_1.default.user.findMany({
         where: {
-            role: { notIn: ['parent', 'student'] }
+            role: { notIn: ['parent', 'student', 'admin', 'school_admin'] }
         },
         select: {
             id: true,
@@ -73,7 +91,8 @@ const getContacts = async (_schoolId, currentUser) => {
     const baseRoles = ['admin', 'school_admin', 'teacher', 'staff'];
     const staffAndAdmins = await db_1.default.user.findMany({
         where: {
-            role: { in: baseRoles }
+            role: { in: baseRoles },
+            is_active: true
         },
         select: {
             id: true,
@@ -83,11 +102,20 @@ const getContacts = async (_schoolId, currentUser) => {
             phone: true,
             email: true,
             is_active: true
-        }
+        },
+        orderBy: { full_name: 'asc' }
     });
+    // If the user is a parent, they only need to reach staff and admins (avoid querying all parents in DB)
+    if (currentUser?.role === 'parent') {
+        return staffAndAdmins
+            .filter(u => u.id !== currentUser?.id)
+            .sort((a, b) => a.full_name.localeCompare(b.full_name));
+    }
+    // For staff/admin users, fetch active parents with a safe limit
     const linkedParents = await db_1.default.user.findMany({
         where: {
             role: 'parent',
+            is_active: true
         },
         select: {
             id: true,
@@ -97,14 +125,13 @@ const getContacts = async (_schoolId, currentUser) => {
             phone: true,
             email: true,
             is_active: true
-        }
+        },
+        take: 500,
+        orderBy: { full_name: 'asc' }
     });
-    let allContacts = [...staffAndAdmins, ...linkedParents];
+    const allContacts = [...staffAndAdmins, ...linkedParents];
     const uniqueContacts = Array.from(new Map(allContacts.map(item => [item.id, item])).values());
     const finalContacts = uniqueContacts.filter(u => u.id !== currentUser?.id);
-    if (currentUser?.role === 'parent') {
-        return finalContacts.filter(u => ['admin', 'school_admin', 'teacher', 'staff'].includes(u.role));
-    }
     return finalContacts.sort((a, b) => a.full_name.localeCompare(b.full_name));
 };
 exports.getContacts = getContacts;
@@ -135,7 +162,10 @@ const createUser = async (data) => {
         });
         teacherId = teacher.id;
     }
-    const rawPassword = data.password_hash || data.password || "12345678";
+    // Generate a cryptographically random temporary password if none supplied.
+    // This prevents all auto-created accounts from sharing a well-known default.
+    const randomTemp = crypto_1.default.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+    const rawPassword = data.password_hash || data.password || randomTemp;
     const hashedPassword = rawPassword.startsWith('$2')
         ? rawPassword
         : bcryptjs_1.default.hashSync(rawPassword, 10);

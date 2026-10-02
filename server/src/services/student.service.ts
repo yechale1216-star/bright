@@ -23,8 +23,13 @@ export const getAllStudents = async (
   gradeId?: string,
   sectionId?: string,
   streamId?: string,
-  academicYear?: string
+  academicYear?: string,
+  pagination?: { page?: number; limit?: number }
 ) => {
+  const page = pagination?.page ? Math.max(Number(pagination.page), 1) : 1;
+  const limit = pagination?.limit ? Math.min(Math.max(Number(pagination.limit), 1), 500) : undefined;
+  const skip = limit !== undefined ? (page - 1) * limit : undefined;
+
   const currentAY = await academicYearService.getCurrentAcademicYear();
   let targetAcademicYearName = academicYear?.trim();
   if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
@@ -91,22 +96,26 @@ export const getAllStudents = async (
       };
     }
 
-    const enrollments = await prisma.studentAcademicYearRecord.findMany({
-      where: enrollmentWhere,
-      include: {
-        student: {
-          include: {
-            parentStudents: true
-          }
+    const [enrollments, total] = await Promise.all([
+      prisma.studentAcademicYearRecord.findMany({
+        where: enrollmentWhere,
+        include: {
+          student: {
+            include: {
+              parentStudents: true
+            }
+          },
+          grade: true,
+          section: true,
+          stream: true,
         },
-        grade: true,
-        section: true,
-        stream: true,
-      },
-      orderBy: { student: { fullName: 'asc' } }
-    });
+        orderBy: { student: { fullName: 'asc' } },
+        ...(limit !== undefined ? { take: limit, skip } : {})
+      }),
+      limit !== undefined ? prisma.studentAcademicYearRecord.count({ where: enrollmentWhere }) : Promise.resolve(0)
+    ]);
 
-    return enrollments.map((enr: any) => {
+    const mapped = enrollments.map((enr: any) => {
       const relType = enr.student?.parentStudents?.[0]?.relationshipType;
       return {
         ...enr.student,
@@ -122,6 +131,18 @@ export const getAllStudents = async (
         relationshipType: relType || 'Guardian',
       };
     });
+
+    if (limit !== undefined) {
+      return {
+        items: mapped,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      };
+    }
+
+    return mapped;
   }
 
   const where: any = {};
@@ -137,18 +158,60 @@ export const getAllStudents = async (
     where.AND.push({ OR: [{ fullName: { contains: term, mode: 'insensitive' } }, { student_id: { contains: term, mode: 'insensitive' } }] });
   }
 
-  const students = await prisma.student.findMany({
-    where,
-    include: {
-      grade: true,
-      section: true,
-      stream: true,
-      parentStudents: true,
-      promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
-    },
-    orderBy: { fullName: 'asc' }
+  const [students, total] = await Promise.all([
+    prisma.student.findMany({
+      where,
+      include: {
+        grade: true,
+        section: true,
+        stream: true,
+        parentStudents: true,
+        promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
+      },
+      orderBy: { fullName: 'asc' },
+      ...(limit !== undefined ? { take: limit, skip } : {})
+    }),
+    limit !== undefined ? prisma.student.count({ where }) : Promise.resolve(0)
+  ]);
+
+  const mapped = students.map(mapStudentToFlat);
+
+  if (limit !== undefined) {
+    return {
+      items: mapped,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
+  return mapped;
+};
+
+export const getStudentCount = async (status: string = 'ACTIVE', academicYear?: string) => {
+  const currentAY = await academicYearService.getCurrentAcademicYear();
+  let targetAcademicYearName = academicYear?.trim();
+  if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
+    targetAcademicYearName = currentAY?.name || '';
+  }
+  const targetAY = await prisma.academicYear.findUnique({
+    where: { name: targetAcademicYearName }
+  }) || currentAY;
+
+  if (targetAY) {
+    return await prisma.studentAcademicYearRecord.count({
+      where: {
+        academicYearId: targetAY.id,
+        ...(status && status !== 'ALL' ? { status: status.toUpperCase() } : {})
+      }
+    });
+  }
+  return await prisma.student.count({
+    where: {
+      ...(status && status !== 'ALL' ? { status: status.toUpperCase() } : {})
+    }
   });
-  return students.map(mapStudentToFlat);
 };
 
 export const getNextStudentId = async (_schoolId?: string) => {
@@ -663,7 +726,8 @@ export const getStudentsByParentPhone = async (parentPhone: string, _schoolId?: 
       stream: true,
       parentStudents: true,
       attendance: {
-        orderBy: { date: 'desc' }
+        orderBy: { date: 'desc' },
+        take: 90
       }
     }
   });

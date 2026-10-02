@@ -990,6 +990,8 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
   search?: string;
   geofenceVerified?: string | boolean;
   faceVerified?: string | boolean;
+  limit?: number;
+  page?: number;
 } = {}) {
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
@@ -1066,8 +1068,12 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
     }
   }
 
+  const page = filters.page ? Math.max(1, Number(filters.page)) : 1;
+  const limit = filters.limit ? Math.min(Number(filters.limit), 500) : (filters.date || (filters.startDate && filters.endDate) ? undefined : 500);
+
   return await prisma.staffAttendance.findMany({
     where,
+    ...(limit ? { take: limit, skip: (page - 1) * limit } : {}),
     include: {
       user: {
         select: {
@@ -1263,6 +1269,7 @@ export async function getMyAttendance(userId: string, _schoolId?: string, filter
   date?: string;
   session?: string;
   mode?: string;
+  limit?: number;
 } = {}) {
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
@@ -1292,8 +1299,11 @@ export async function getMyAttendance(userId: string, _schoolId?: string, filter
     }
   }
 
+  const limit = filters.limit ? Math.min(Number(filters.limit), 500) : (filters.date || (filters.startDate && filters.endDate) ? undefined : 120);
+
   return await prisma.staffAttendance.findMany({
     where,
+    ...(limit ? { take: limit } : {}),
     orderBy: [{ date: 'desc' }, { session: 'asc' }]
   });
 }
@@ -1822,6 +1832,9 @@ export async function getStaffAttendanceReport(
   };
 }
 
+const lastAbsenceCheckMap = new Map<string, number>();
+const ABSENCE_CHECK_COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown between automated sweeps
+
 /**
  * Automatically evaluates and marks unrecorded staff as ABSENT after the configured absence cutoff time.
  */
@@ -1841,6 +1854,24 @@ export async function processAutomaticStaffAbsences(options?: {
     minute: '2-digit'
   });
   const isToday = dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' });
+
+  // Cooldown check to prevent redundant background sweeps within 5 minutes or duplicate calls from parallel dashboard requests
+  const checkKey = `${dateStr}_${options?.session || 'all'}`;
+  const lastCheck = lastAbsenceCheckMap.get(checkKey) || 0;
+  if (!options?.force && Date.now() - lastCheck < ABSENCE_CHECK_COOLDOWN_MS) {
+    return {
+      date: dateStr,
+      currentTime: currentTimeHHMM,
+      schoolsEvaluated: 1,
+      totalEligibleStaff: 0,
+      alreadyRecorded: 0,
+      markedAbsent: 0,
+      skippedNonWorking: 0,
+      skippedBeforeCutoff: 0,
+      details: [{ status: 'COOLDOWN_SKIPPED', message: 'Absence check ran recently' }]
+    };
+  }
+  lastAbsenceCheckMap.set(checkKey, Date.now());
 
   const summary = {
     date: dateStr,

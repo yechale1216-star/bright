@@ -13,7 +13,6 @@ import {
   CalendarOff,
   LogIn,
   LogOut,
-  Bell,
   Megaphone,
   MessageSquare,
   ShieldCheck,
@@ -32,7 +31,6 @@ import {
   MapPin,
   CalendarDays,
 } from "lucide-react"
-import { Spinner } from "@/components/ui/spinner"
 import { useAuth } from "@/lib/context/auth-context"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
@@ -53,7 +51,6 @@ interface StaffDashboardDataCache {
   allAttendance: any[]
   enrolledDescriptor: number[] | null
   announcements: any[]
-  recentNotifications: any[]
 }
 
 let _staffDashboardCache: StaffDashboardDataCache = {
@@ -62,7 +59,6 @@ let _staffDashboardCache: StaffDashboardDataCache = {
   allAttendance: [],
   enrolledDescriptor: null,
   announcements: [],
-  recentNotifications: [],
 }
 
 export function StaffDashboard() {
@@ -79,7 +75,6 @@ export function StaffDashboard() {
   const [todayRecord, setTodayRecord] = useState<any>(null)
   const [calendarStatus, setCalendarStatus] = useState<any>(_staffDashboardCache.calendarStatus)
   const [announcements, setAnnouncements] = useState<any[]>(_staffDashboardCache.announcements)
-  const [recentNotifications, setRecentNotifications] = useState<any[]>(_staffDashboardCache.recentNotifications)
   const [isLoading, setIsLoading] = useState(!_staffDashboardCache.hasLoaded)
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(_staffDashboardCache.enrolledDescriptor)
   const [allAttendance, setAllAttendance] = useState<any[]>(_staffDashboardCache.allAttendance)
@@ -97,6 +92,9 @@ export function StaffDashboard() {
       return "morning"
     }
   })
+
+  // Session filter for Monthly Performance ("all" | "morning" | "afternoon")
+  const [monthlySessionFilter, setMonthlySessionFilter] = useState<"all" | "morning" | "afternoon">("all")
 
   // Live active work duration tracker
   const [workingDuration, setWorkingDuration] = useState<string>("")
@@ -123,7 +121,7 @@ export function StaffDashboard() {
     return defaults
   }, [settings?.staffSessions, settings?.staff_sessions])
 
-  // Monthly statistics computation with Addis Ababa timezone accuracy & correct On-Time Rate
+  // Monthly statistics computation with Addis Ababa timezone accuracy & independent session filtering
   const monthlyStats = useMemo(() => {
     const now = new Date()
     const addisParts = new Intl.DateTimeFormat("en-CA", {
@@ -134,11 +132,28 @@ export function StaffDashboard() {
     const currentYear = parseInt(addisParts.find((p) => p.type === "year")?.value || String(now.getFullYear()), 10)
     const currentMonth = parseInt(addisParts.find((p) => p.type === "month")?.value || String(now.getMonth() + 1), 10)
 
+    const parseDateStr = (dateVal: any): string => {
+      if (!dateVal) return ""
+      if (typeof dateVal === "string") return dateVal.split("T")[0].trim()
+      if (dateVal instanceof Date && !isNaN(dateVal.getTime())) return dateVal.toISOString().split("T")[0]
+      try {
+        const d = new Date(dateVal)
+        if (!isNaN(d.getTime())) return d.toISOString().split("T")[0]
+      } catch {}
+      return ""
+    }
+
     const thisMonthRecords = allAttendance.filter((r) => {
-      if (!r.date) return false
-      const raw = typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0]
-      const [y, m] = raw.split("-").map(Number)
-      return y === currentYear && m === currentMonth
+      const dStr = parseDateStr(r?.date)
+      if (!dStr) return false
+      const [y, m] = dStr.split("-").map(Number)
+      if (y !== currentYear || m !== currentMonth) return false
+
+      if (isSessionMode && monthlySessionFilter !== "all") {
+        const sess = (r.session || "morning").toLowerCase()
+        return sess === monthlySessionFilter.toLowerCase()
+      }
+      return true
     })
 
     let onTimeCount = 0
@@ -150,34 +165,37 @@ export function StaffDashboard() {
 
     for (const r of thisMonthRecords) {
       const s = (r.status || "").toUpperCase()
-      const dStr = typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0]
+      const dStr = parseDateStr(r.date)
+      if (!dStr) continue
 
-      if (s === "PRESENT") {
-        onTimeCount++
-        if (dStr) datesPresent.add(dStr)
-      } else if (s === "LATE") {
+      const isLate = s === "LATE" || (s.includes("EARLY") && (r.previousStatus === "LATE" || (r as any)?.previous_status === "LATE"))
+      const isPresent = s === "PRESENT" || s === "ON_TIME" || s === "EARLY_DEPARTURE" || s === "EARLY_LEAVE" || (Boolean(r.checkInTime) && s !== "ABSENT")
+
+      if (isLate) {
         lateCount++
-        if (dStr) {
-          datesPresent.add(dStr)
-          datesLate.add(dStr)
-        }
-      } else if (s === "EARLY_DEPARTURE" || s === "EARLY_LEAVE") {
+        datesPresent.add(dStr)
+        datesLate.add(dStr)
+      } else if (isPresent) {
         onTimeCount++
-        if (dStr) datesPresent.add(dStr)
+        datesPresent.add(dStr)
       } else if (s === "ABSENT") {
         absentCount++
-        if (dStr) datesAbsent.add(dStr)
+        datesAbsent.add(dStr)
       }
     }
 
-    // Days present: distinct calendar days attended (or total present records in daily mode)
-    const presentCount = isSessionMode ? datesPresent.size : (onTimeCount + lateCount)
-    const lateDaysCount = isSessionMode ? datesLate.size : lateCount
-    const absentDaysCount = isSessionMode
+    // Days / shifts present
+    const presentCount = datesPresent.size
+
+    // Late count: in independent session view, exact count of late shifts; in combined view, distinct late days
+    const lateDaysCount = monthlySessionFilter === "all" ? datesLate.size : lateCount
+
+    // Absent count: in independent session view, exact count of missed shifts; in combined view, days with no attendance
+    const absentDaysCount = monthlySessionFilter === "all"
       ? Array.from(datesAbsent).filter((d) => !datesPresent.has(d)).length
       : absentCount
 
-    // On-Time Rate: Percentage of attended shifts/records that arrived on time
+    // On-Time Rate: Percentage of attended shifts that arrived on time
     // If no attendances recorded (or only absent), rate is 0%, NEVER 100%!
     const totalAttended = onTimeCount + lateCount
     const onTimeRate = totalAttended > 0 ? Math.round((onTimeCount / totalAttended) * 100) : 0
@@ -190,7 +208,7 @@ export function StaffDashboard() {
       absentCount: absentDaysCount,
       onTimeRate,
     }
-  }, [allAttendance, isSessionMode])
+  }, [allAttendance, isSessionMode, monthlySessionFilter])
 
   // Request ID and in-flight guard to prevent race conditions & out-of-order state overwrites
   const loadRequestIdRef = useRef(0)
@@ -203,8 +221,7 @@ export function StaffDashboard() {
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
     const currentReqId = ++loadRequestIdRef.current
-    // Only show the full loading spinner on the very first ever load before any data is cached
-    if (!options?.silent && !_staffDashboardCache.hasLoaded) {
+    if (!options?.silent) {
       setIsLoading(true)
     }
 
@@ -212,20 +229,13 @@ export function StaffDashboard() {
     setTodayStr(currentToday)
 
     try {
-      const [calRes, myAttRes, descRes, annRes, notifRes] = await Promise.allSettled([
+      const [calRes, myAttRes, descRes, annRes] = await Promise.allSettled([
         db.isDateWorkingDay(currentToday),
         db.getMyStaffAttendance({
           mode: isSessionModeRef.current ? "session_based" : "daily",
         }),
         db.getStaffFaceDescriptor(),
         apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/announcements?limit=3`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
-            "x-school-id": schoolIdRef.current || "single-school",
-            "x-requested-role": "staff",
-          },
-        }).catch(() => ({ success: false, data: [] })),
-        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/notifications?limit=3`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
             "x-school-id": schoolIdRef.current || "single-school",
@@ -254,11 +264,6 @@ export function StaffDashboard() {
         const annData = (annRes.value as any).data.slice(0, 3)
         setAnnouncements(annData)
         _staffDashboardCache.announcements = annData
-      }
-      if (notifRes.status === "fulfilled" && (notifRes.value as any)?.success && Array.isArray((notifRes.value as any).data)) {
-        const notifData = (notifRes.value as any).data.slice(0, 3)
-        setRecentNotifications(notifData)
-        _staffDashboardCache.recentNotifications = notifData
       }
     } catch (err) {
       console.error("[StaffDashboard] Error loading attendance data:", err)
@@ -456,14 +461,6 @@ export function StaffDashboard() {
     }
   }, [isCheckedIn, isCheckedOut, workingDuration, attendanceDisplay])
 
-  // ─── Modern Spinner Loading State ───
-  if (isLoading && !_staffDashboardCache.hasLoaded) {
-    return (
-      <div className="flex items-center justify-center min-h-[55vh] animate-in fade-in duration-300">
-        <Spinner size="lg" className="text-primary" />
-      </div>
-    )
-  }
 
   return (
     <div className="relative space-y-6 max-w-5xl mx-auto pb-10 w-full min-w-0">
@@ -559,7 +556,12 @@ export function StaffDashboard() {
             </div>
           </div>
 
-          {isSessionMode ? (
+          {isLoading ? (
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-44 rounded-xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse" />
+              <div className="h-8 w-44 rounded-xl bg-slate-200/60 dark:bg-slate-800/40 animate-pulse hidden sm:block" />
+            </div>
+          ) : isSessionMode ? (
             <div className="flex flex-wrap items-center gap-2">
               {staffSessions.map((sess: any) => {
                 const cutoff = sess?.absenceCutoffTime || (sess ? addMinutesToHHMM(sess.startTime, sess.absenceCutoffMinutes ?? 90) : "09:30")
@@ -662,21 +664,30 @@ export function StaffDashboard() {
               </div>
             </div>
             <div>
-              <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white block truncate tracking-tight">
-                {attendanceDisplay.checkIn.titleLabel}
-              </span>
-              <div className="mt-1.5">
-                {/* Show latenessFormatted for LATE; hide badge when it would duplicate the titleLabel */}
-                {attendanceDisplay.checkIn.status === "LATE" && attendanceDisplay.checkIn.latenessFormatted ? (
-                  <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
-                    {attendanceDisplay.checkIn.latenessFormatted}
-                  </Badge>
-                ) : !["ABSENT", "HOLIDAY", "NON_WORKING_DAY", "LEAVE", "PERMISSION"].includes(attendanceDisplay.checkIn.status) ? (
-                  <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
-                    {attendanceDisplay.overallStatus.replace(/_/g, " ")}
-                  </Badge>
-                ) : null}
-              </div>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <div className="h-6 w-28 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+                  <div className="h-4 w-20 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-md" />
+                </div>
+              ) : (
+                <>
+                  <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white block truncate tracking-tight">
+                    {attendanceDisplay.checkIn.titleLabel}
+                  </span>
+                  <div className="mt-1.5">
+                    {/* Show latenessFormatted for LATE; hide badge when it would duplicate the titleLabel */}
+                    {attendanceDisplay.checkIn.status === "LATE" && attendanceDisplay.checkIn.latenessFormatted ? (
+                      <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                        {attendanceDisplay.checkIn.latenessFormatted}
+                      </Badge>
+                    ) : !["ABSENT", "HOLIDAY", "NON_WORKING_DAY", "LEAVE", "PERMISSION"].includes(attendanceDisplay.checkIn.status) ? (
+                      <Badge className={`text-[9px] font-black uppercase py-0.5 px-2 tracking-wider ${attendanceDisplay.checkIn.badgeColor}`}>
+                        {attendanceDisplay.overallStatus.replace(/_/g, " ")}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -689,12 +700,21 @@ export function StaffDashboard() {
               </div>
             </div>
             <div>
-              <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
-                {attendanceDisplay.checkIn.timeStr}
-              </span>
-              <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
-                {isCheckedIn ? "Verified arrival" : "Pending check-in"}
-              </span>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <div className="h-7 w-24 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+                  <div className="h-3.5 w-24 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-md" />
+                </div>
+              ) : (
+                <>
+                  <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
+                    {attendanceDisplay.checkIn.timeStr}
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+                    {isCheckedIn ? "Verified arrival" : "Pending check-in"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -707,12 +727,21 @@ export function StaffDashboard() {
               </div>
             </div>
             <div>
-              <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
-                {attendanceDisplay.checkOut.timeStr}
-              </span>
-              <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
-                {isCheckedOut ? "Verified departure" : "Pending departure"}
-              </span>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <div className="h-7 w-24 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+                  <div className="h-3.5 w-24 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-md" />
+                </div>
+              ) : (
+                <>
+                  <span className="text-lg sm:text-2xl font-black font-mono text-slate-900 dark:text-white block truncate tracking-tight">
+                    {attendanceDisplay.checkOut.timeStr}
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+                    {isCheckedOut ? "Verified departure" : "Pending departure"}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -725,15 +754,24 @@ export function StaffDashboard() {
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${workStatus.dotColor} shrink-0`} />
-                <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
-                  {workStatus.label}
-                </span>
-              </div>
-              <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
-                {workStatus.subtitle}
-              </span>
+              {isLoading ? (
+                <div className="space-y-2">
+                  <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+                  <div className="h-3.5 w-28 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-md" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${workStatus.dotColor} shrink-0`} />
+                    <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                      {workStatus.label}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500 mt-0.5 block truncate">
+                    {workStatus.subtitle}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -765,131 +803,177 @@ export function StaffDashboard() {
 
       {/* ─── 5. MONTHLY PERFORMANCE & PUNCTUALITY METRICS ─── */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
-            Monthly Punctuality &amp; Attendance Performance
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+          <div>
+            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
+              Monthly Punctuality &amp; Attendance Performance
+            </h2>
+            {isSessionMode && (
+              <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                {monthlySessionFilter === "all"
+                  ? "Overall performance across all shifts"
+                  : `Independent metrics for ${monthlySessionFilter} shift`}
+              </p>
+            )}
+          </div>
+
+          {/* Session Switcher Tabs (Matching School Admin Header Style) */}
+          {isSessionMode && (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs self-start sm:self-auto">
+              <Button
+                variant={monthlySessionFilter === "all" ? "default" : "ghost"}
+                onClick={() => setMonthlySessionFilter("all")}
+                size="sm"
+                className={cn(
+                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
+                  monthlySessionFilter === "all" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All
+              </Button>
+              <Button
+                variant={monthlySessionFilter === "morning" ? "default" : "ghost"}
+                onClick={() => setMonthlySessionFilter("morning")}
+                size="sm"
+                className={cn(
+                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
+                  monthlySessionFilter === "morning" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Morning
+              </Button>
+              <Button
+                variant={monthlySessionFilter === "afternoon" ? "default" : "ghost"}
+                onClick={() => setMonthlySessionFilter("afternoon")}
+                size="sm"
+                className={cn(
+                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
+                  monthlySessionFilter === "afternoon" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Afternoon
+              </Button>
+            </div>
+          )}
         </div>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 mb-2">
               <UserCheck className="w-5 h-5" />
             </div>
-            <span className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">{monthlyStats.presentCount}</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-0.5">Days Present</span>
+            {isLoading ? (
+              <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
+            ) : (
+              <span className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">{monthlyStats.presentCount}</span>
+            )}
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">
+              {monthlySessionFilter === "all" ? "Days Present" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} Shifts`}
+            </span>
           </div>
 
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary mb-2">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <span className="text-xl sm:text-3xl font-black text-primary tracking-tight">{monthlyStats.onTimeRate}%</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-0.5">On-Time Rate</span>
+            {isLoading ? (
+              <span className="inline-block w-14 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
+            ) : (
+              <span className="text-xl sm:text-3xl font-black text-primary tracking-tight">{monthlyStats.onTimeRate}%</span>
+            )}
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">
+              {monthlySessionFilter === "all" ? "On-Time Rate" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} On-Time`}
+            </span>
           </div>
 
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
             <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 mb-2">
               <Clock className="w-5 h-5" />
             </div>
-            <span className="text-xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{monthlyStats.lateCount}</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-0.5">Late Days</span>
+            {isLoading ? (
+              <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
+            ) : (
+              <span className="text-xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{monthlyStats.lateCount}</span>
+            )}
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">
+              {monthlySessionFilter === "all" ? "Late Days" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} Late Shifts`}
+            </span>
           </div>
 
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col items-center text-center">
             <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 mb-2">
               <UserX className="w-5 h-5" />
             </div>
-            <span className="text-xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">{monthlyStats.absentCount}</span>
-            <span className="text-[11px] font-bold text-slate-500 mt-0.5">Absent Days</span>
+            {isLoading ? (
+              <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
+            ) : (
+              <span className="text-xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">{monthlyStats.absentCount}</span>
+            )}
+            <span className="text-[11px] font-bold text-slate-500 mt-0.5">
+              {monthlySessionFilter === "all" ? "Absent Days" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} Absent Shifts`}
+            </span>
           </div>
         </div>
       </div>
 
 
 
-      {/* ─── 7. ANNOUNCEMENTS & ALERTS FEED ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* School Announcements */}
-        <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden">
-          <div className="p-5 pb-3 flex items-center justify-between border-b border-white/20 dark:border-white/10">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Megaphone className="w-4 h-4 text-primary" /> School Announcements
-            </h3>
-            <Link
-              href="/school/staff/announcements"
-              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
-            >
-              <span>View All</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <div className="p-4 space-y-2.5">
-            {announcements.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                No active announcements at this time.
-              </div>
-            ) : (
-              announcements.map((ann: any) => (
-                <div
-                  key={ann.id}
-                  className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-1 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-xs"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{ann.title || "Announcement"}</p>
-                      {ann.targetAudience === "STAFF" && (
-                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[9px] font-black px-1.5 py-0">
-                          Staff Only
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-medium text-slate-400 shrink-0">
-                      {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString() : ""}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">{ann.content || ann.message}</p>
-                </div>
-              ))
-            )}
-          </div>
+      {/* ─── 7. ANNOUNCEMENTS FEED ─── */}
+      <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden">
+        <div className="p-5 pb-3 flex items-center justify-between border-b border-white/20 dark:border-white/10">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Megaphone className="w-4 h-4 text-primary" /> School Announcements
+          </h3>
+          <Link
+            href="/school/staff/announcements"
+            className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
+          >
+            <span>View All</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
-
-        {/* Recent Alerts */}
-        <div className="rounded-[26px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl shadow-xl shadow-slate-900/5 overflow-hidden">
-          <div className="p-5 pb-3 flex items-center justify-between border-b border-white/20 dark:border-white/10">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Bell className="w-4 h-4 text-primary" /> Recent Notifications
-            </h3>
-            <Link
-              href="/school/staff/communication"
-              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
-            >
-              <span>View All</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <div className="p-4 space-y-2.5">
-            {recentNotifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                You have no unread notifications.
-              </div>
-            ) : (
-              recentNotifications.map((notif: any) => (
-                <div
-                  key={notif.id}
-                  className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-1 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-xs"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{notif.title || "Notification"}</p>
-                    <span className="text-[10px] font-medium text-slate-400 shrink-0">
-                      {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString() : ""}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">{notif.message}</p>
+        <div className="p-4 space-y-2.5">
+          {isLoading ? (
+            [1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-2 animate-pulse shadow-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+                  <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-16" />
                 </div>
-              ))
-            )}
-          </div>
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-full" />
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+              </div>
+            ))
+          ) : announcements.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-500">
+              No active announcements at this time.
+            </div>
+          ) : (
+            announcements.map((ann: any) => (
+              <div
+                key={ann.id}
+                className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-1 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{ann.title || "Announcement"}</p>
+                    {ann.targetAudience === "STAFF" && (
+                      <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[9px] font-black px-1.5 py-0">
+                        Staff Only
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                    {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString() : ""}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">{ann.content || ann.message}</p>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

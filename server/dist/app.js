@@ -116,7 +116,7 @@ app.use((0, cors_1.default)({
             (process.env.NODE_ENV !== 'production' && (origin.startsWith('http://192.168.') ||
                 origin.startsWith('http://10.') ||
                 origin.startsWith('http://172.')));
-        if (isAllowed || process.env.NODE_ENV !== 'production') {
+        if (isAllowed) {
             callback(null, true);
         }
         else {
@@ -128,8 +128,8 @@ app.use((0, cors_1.default)({
     allowedHeaders: ['Content-Type', 'Authorization', 'x-school-id', 'x-requested-role']
 }));
 app.use((0, cookie_parser_1.default)());
-app.use(express_1.default.json({ limit: '5mb' }));
-app.use(express_1.default.urlencoded({ limit: '5mb', extended: true }));
+app.use(express_1.default.json({ limit: '100mb' }));
+app.use(express_1.default.urlencoded({ limit: '100mb', extended: true }));
 // Global Maintenance Guard
 app.use(maintenance_middleware_1.maintenanceMiddleware);
 // Health check and Auth (Public)

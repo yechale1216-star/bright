@@ -10,8 +10,14 @@ export const getStudents = async (req: AuthenticatedRequest, res: Response, next
     const sectionId = req.query.sectionId as string | undefined;
     const streamId = req.query.streamId as string | undefined;
     const academicYear = req.query.academicYear as string | undefined;
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
 
-    const students = await studentService.getAllStudents(undefined, search, status, gradeId, sectionId, streamId, academicYear);
+    const pagination = (page !== undefined || limit !== undefined)
+      ? { page, limit }
+      : undefined;
+
+    const students = await studentService.getAllStudents(undefined, search, status, gradeId, sectionId, streamId, academicYear, pagination);
     res.status(200).json({ success: true, data: students });
   } catch (error) {
     next(error);

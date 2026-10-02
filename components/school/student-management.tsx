@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, CheckCircle2, Clock, ShieldCheck, Eye, X, Calendar, Mail, Phone, GraduationCap, UploadCloud, RefreshCw } from "lucide-react"
+import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, CheckCircle2, Clock, ShieldCheck, Eye, X, Calendar, Mail, Phone, GraduationCap, UploadCloud, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
 import { db, type Student } from "@/lib/db/database"
 import { StudentImportPreview } from "./student-import-preview"
 import { motion, AnimatePresence } from "framer-motion"
@@ -42,7 +42,7 @@ export function StudentManagement() {
   const [streamFilter, setStreamFilter] = useState("All Streams")
   const [sectionFilter, setSectionFilter] = useState("All Sections")
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 15
+  const [pageSize, setPageSize] = useState(50)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
@@ -189,6 +189,16 @@ export function StudentManagement() {
       return nameA.localeCompare(nameB)
     })
   }, [students, searchTerm, gradeFilter, streamFilter, sectionFilter, isTeacher])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, gradeFilter, streamFilter, sectionFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize))
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredStudents.slice(start, start + pageSize)
+  }, [filteredStudents, currentPage, pageSize])
 
   const loadStudents = async (isBackground = false, forceRefetch = false) => {
     if (!isBackground && students.length === 0) setIsLoading(true)
@@ -1417,7 +1427,7 @@ export function StudentManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredStudents.map((student) => (
+                  {paginatedStudents.map((student) => (
                     <TableRow key={student.id} className="group hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors border-b border-slate-100 dark:border-slate-800/60">
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -1531,7 +1541,7 @@ export function StudentManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStudents.map((student) => (
+                  {paginatedStudents.map((student) => (
                     <tr
                       key={student.id}
                       onClick={() => setSelectedStudent(student)}
@@ -1599,6 +1609,62 @@ export function StudentManagement() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {filteredStudents.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/30">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Showing</span>
+                  <span className="font-semibold text-foreground">
+                    {Math.min((currentPage - 1) * pageSize + 1, filteredStudents.length)}–{Math.min(currentPage * pageSize, filteredStudents.length)}
+                  </span>
+                  <span>of</span>
+                  <span className="font-semibold text-foreground">{filteredStudents.length}</span>
+                  <span>students</span>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <span>Per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value))
+                      setCurrentPage(1)
+                    }}
+                    className="h-7 text-xs bg-background border border-border/60 rounded px-1.5 py-0.5 font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="h-8 px-2.5 text-xs rounded-lg"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="text-xs font-semibold px-2 py-1 text-muted-foreground">
+                    Page <span className="text-foreground">{currentPage}</span> of <span className="text-foreground">{totalPages}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="h-8 px-2.5 text-xs rounded-lg"
+                  >
+                    Next
+                    <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

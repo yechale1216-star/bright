@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.normalizeDate = exports.resolveTeacherId = void 0;
+exports.getDashboardSummary = exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.normalizeDate = exports.resolveTeacherId = void 0;
 exports.calculateDistanceMeters = calculateDistanceMeters;
 exports.validateGeofence = validateGeofence;
 const db_1 = __importDefault(require("../config/db"));
@@ -317,7 +317,7 @@ const getAttendance = async (filters, _schoolId) => {
 };
 exports.getAttendance = getAttendance;
 const getAttendanceByStudent = async (studentId, _schoolId, filters = {}) => {
-    const { session } = filters;
+    const { session, page, limit } = filters;
     const where = { studentId };
     if (session !== undefined && session !== null) {
         const cleanSess = String(session).trim().toLowerCase();
@@ -335,9 +335,14 @@ const getAttendanceByStudent = async (studentId, _schoolId, filters = {}) => {
             where.session = { equals: cleanSess, mode: 'insensitive' };
         }
     }
+    const resolvedLimit = Math.min(Math.max(Number(limit) || 500, 1), 500);
+    const resolvedPage = Math.max(Number(page) || 1, 1);
+    const skip = (resolvedPage - 1) * resolvedLimit;
     return await db_1.default.attendance.findMany({
         where,
         orderBy: { date: 'desc' },
+        take: resolvedLimit,
+        skip,
     });
 };
 exports.getAttendanceByStudent = getAttendanceByStudent;
@@ -401,7 +406,8 @@ const getEditRequests = async (_schoolId, filters = {}) => {
             teacher: true,
             student: true
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
+        take: 200,
     });
 };
 exports.getEditRequests = getEditRequests;
@@ -652,42 +658,59 @@ const bulkMarkAttendance = async (records, _schoolId, meta = {}) => {
     const sampleSession = (0, exports.normalizeSession)(cleanRecords[0]?.session);
     const sampleDateInfo = (0, exports.normalizeDate)(cleanRecords[0]?.date);
     if (hasExistingUpdates && userRole === 'teacher' && settings && settings.allow_attendance_editing === false) {
-        const sessionFilter = sampleSession
-            ? { session: { equals: sampleSession, mode: 'insensitive' } }
-            : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
-        const approvedRequest = await db_1.default.attendanceEditRequest.findFirst({
-            where: {
-                status: 'APPROVED',
-                isUsed: false,
-                date: {
-                    gte: sampleDateInfo.startDate,
-                    lte: sampleDateInfo.endDate,
-                },
-                ...sessionFilter,
-                OR: [
-                    ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
-                    ...(teacherId ? [{ teacherId }] : []),
-                    ...(userId ? [{ teacherId: userId }] : [])
-                ],
+        // Collect the unique (date, session) pairs that have existing records needing update.
+        // We must verify an approved edit request exists for EACH such pair —
+        // checking only the first record was the prior bug that allowed session bypass.
+        const pairsNeedingPermission = new Map();
+        for (const r of cleanRecords) {
+            const { dateStr, startDate, endDate } = (0, exports.normalizeDate)(r.date);
+            const recSession = (0, exports.normalizeSession)(r.session);
+            const mapKey = `${r.studentId}::${dateStr}::${recSession || '__daily__'}`;
+            if (existingMap.has(mapKey)) {
+                const pairKey = `${dateStr}::${recSession || '__daily__'}`;
+                if (!pairsNeedingPermission.has(pairKey)) {
+                    pairsNeedingPermission.set(pairKey, { dateStr, session: recSession, startDate, endDate });
+                }
             }
-        });
-        if (!approvedRequest) {
-            const sessionLabel = sampleSession ? ` (${sampleSession} session)` : '';
-            throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${sampleDateInfo.dateStr}${sessionLabel}.`);
         }
-        await db_1.default.attendanceEditRequest.update({
-            where: { id: approvedRequest.id },
-            data: { isUsed: true }
-        });
-        await db_1.default.auditLog.create({
-            data: {
-                user_id: userId || teacherId || null,
-                action: 'ATTENDANCE_EDIT_PERMITTED',
-                entity_type: 'ATTENDANCE_EDIT_REQUEST',
-                entity_id: approvedRequest.id,
-                new_values: { count: cleanRecords.length, session: sampleSession || null, dateStr: sampleDateInfo.dateStr }
+        // Verify an approved, unused edit request for each (date, session) pair
+        for (const [, pairInfo] of pairsNeedingPermission) {
+            const { dateStr: pDateStr, session: pSession, startDate: pStart, endDate: pEnd } = pairInfo;
+            const sessionFilter = pSession
+                ? { session: { equals: pSession, mode: 'insensitive' } }
+                : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
+            const approvedRequest = await db_1.default.attendanceEditRequest.findFirst({
+                where: {
+                    status: 'APPROVED',
+                    isUsed: false,
+                    date: { gte: pStart, lte: pEnd },
+                    ...sessionFilter,
+                    OR: [
+                        ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
+                        ...(teacherId ? [{ teacherId }] : []),
+                        ...(userId ? [{ teacherId: userId }] : [])
+                    ],
+                }
+            });
+            if (!approvedRequest) {
+                const sessionLabel = pSession ? ` (${pSession} session)` : '';
+                throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${pDateStr}${sessionLabel}.`);
             }
-        }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
+            // Mark each approved request as used
+            await db_1.default.attendanceEditRequest.update({
+                where: { id: approvedRequest.id },
+                data: { isUsed: true }
+            });
+            await db_1.default.auditLog.create({
+                data: {
+                    user_id: userId || teacherId || null,
+                    action: 'ATTENDANCE_EDIT_PERMITTED',
+                    entity_type: 'ATTENDANCE_EDIT_REQUEST',
+                    entity_id: approvedRequest.id,
+                    new_values: { count: cleanRecords.length, session: pSession || null, dateStr: pDateStr }
+                }
+            }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
+        }
     }
     const txOps = [];
     for (const record of cleanRecords) {
@@ -836,3 +859,79 @@ const sendAdminAttendanceNotification = async (params) => {
     }
 };
 exports.sendAdminAttendanceNotification = sendAdminAttendanceNotification;
+/**
+ * Lightweight dashboard summary. Uses DB-side aggregation.
+ * Returns: totalStudents, today's attendance breakdown, 14-day trend.
+ * ~3 queries total — never loads all rows into memory.
+ */
+const getDashboardSummary = async (filters) => {
+    const todayStr = filters.date
+        ? String(filters.date).split('T')[0]
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' });
+    const { startDate: todayStart, endDate: todayEnd } = (0, exports.normalizeDate)(todayStr);
+    // 14-day window for trend chart
+    const trend14Start = new Date(todayStart);
+    trend14Start.setDate(trend14Start.getDate() - 13);
+    // 1. Active student count (replaces fetching full student objects)
+    const totalStudents = await db_1.default.student.count({
+        where: { status: 'ACTIVE' }
+    });
+    // 2. Today's attendance grouped by (date, status) — one DB query
+    const todayGroups = await db_1.default.attendance.groupBy({
+        by: ['status'],
+        where: {
+            date: { gte: todayStart, lte: todayEnd },
+            ...(filters.session && filters.session !== 'all' ? { session: filters.session } : {})
+        },
+        _count: { _all: true }
+    });
+    const todaySummary = {};
+    for (const g of todayGroups) {
+        todaySummary[g.status] = (todaySummary[g.status] || 0) + g._count._all;
+    }
+    // 3. 14-day trend — group by date+status in one query
+    const trendGroups = await db_1.default.attendance.groupBy({
+        by: ['date', 'status'],
+        where: {
+            date: { gte: trend14Start, lte: todayEnd },
+            ...(filters.session && filters.session !== 'all' ? { session: filters.session } : {})
+        },
+        _count: { _all: true },
+        orderBy: { date: 'asc' }
+    });
+    // Build trend map keyed by date string
+    const trendMap = {};
+    for (const g of trendGroups) {
+        const d = g.date instanceof Date
+            ? g.date.toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
+            : String(g.date).split('T')[0];
+        if (!trendMap[d]) {
+            trendMap[d] = { date: d, present: 0, absent: 0, late: 0, earlyDeparture: 0, total: 0 };
+        }
+        const count = g._count._all;
+        trendMap[d].total += count;
+        const st = String(g.status || '').toUpperCase();
+        if (st === 'PRESENT')
+            trendMap[d].present += count;
+        else if (st === 'ABSENT')
+            trendMap[d].absent += count;
+        else if (st === 'LATE')
+            trendMap[d].late += count;
+        else if (st === 'EARLY_DEPARTURE')
+            trendMap[d].earlyDeparture += count;
+    }
+    const trend = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
+    return {
+        totalStudents,
+        today: {
+            date: todayStr,
+            present: todaySummary['PRESENT'] || 0,
+            absent: todaySummary['ABSENT'] || 0,
+            late: todaySummary['LATE'] || 0,
+            earlyDeparture: todaySummary['EARLY_DEPARTURE'] || 0,
+            total: Object.values(todaySummary).reduce((s, c) => s + c, 0),
+        },
+        trend,
+    };
+};
+exports.getDashboardSummary = getDashboardSummary;

@@ -6,6 +6,7 @@ const router = Router();
 
 router.post('/', validateAttendance, attendanceController.markAttendance);
 router.post('/bulk', attendanceController.bulkMarkAttendance);
+router.get('/dashboard-summary', attendanceController.getDashboardSummary);
 router.get('/', attendanceController.getAttendance);
 router.get('/student/:studentId', attendanceController.getAttendanceByStudent);
 
@@ -17,3 +18,4 @@ router.put('/edit-requests/:id/reject', attendanceController.rejectEditRequest);
 router.get('/audit-logs', attendanceController.getAuditLogs);
 
 export default router;
+

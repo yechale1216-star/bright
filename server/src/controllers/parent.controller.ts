@@ -100,7 +100,8 @@ export const getNotifications = async (req: AuthenticatedRequest, res: Response,
       return res.status(403).json({ success: false, message: "Forbidden: You cannot access another parent's data." });
     }
 
-    const notifications = await parentService.getNotifications(phone);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const notifications = await parentService.getNotifications(phone, undefined, limit);
     res.status(200).json({ success: true, data: notifications });
   } catch (error: any) {
     next(error);

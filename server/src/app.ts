@@ -91,7 +91,7 @@ app.use(cors({
                         origin.startsWith('http://172.')
                       ));
 
-    if (isAllowed || process.env.NODE_ENV !== 'production') {
+    if (isAllowed) {
       callback(null, true);
     } else {
       callback(null, false);

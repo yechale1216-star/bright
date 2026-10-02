@@ -156,7 +156,7 @@ export const loginParent = async (phone: string, password: string, _schoolId?: s
 /**
  * Get Parent Portal notifications.
  */
-export const getNotifications = async (phone: string, _schoolId?: string) => {
+export const getNotifications = async (phone: string, _schoolId?: string, limit: number = 50) => {
   const cleanPhone = normalizePhoneNumber(phone);
 
   const user = await prisma.user.findUnique({ 
@@ -171,6 +171,8 @@ export const getNotifications = async (phone: string, _schoolId?: string) => {
   });
   const studentIds = links.map(l => l.studentId);
 
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 50), 200);
+
   const notifications = await prisma.parentNotification.findMany({
     where: {
       OR: [
@@ -184,6 +186,7 @@ export const getNotifications = async (phone: string, _schoolId?: string) => {
         }
       ]
     },
+    take: safeLimit,
     orderBy: { createdAt: 'desc' },
     include: {
       student: {
@@ -295,45 +298,75 @@ export const postAnnouncement = async (_schoolId: string | undefined, data: any)
     const singleSchool = await schoolService.getSingleSchool();
     const schoolName = singleSchool.name || 'Addis Hiwot School';
 
+    // Determine FCM type: emergency announcements use account_security for high-priority channel
+    const fcmType = data.type === 'emergency' ? 'account_security' : 'new_announcement';
+    const categoryLabel = data.type === 'emergency' ? 'Emergency Alert' : data.type === 'info' ? 'School Info' : 'Announcement';
+
+    // ─── PARENTS ─────────────────────────────────────────────────────────────
     if (validAudience === 'PARENTS' || validAudience === 'GENERAL') {
-      const parentLinks = await prisma.parentStudentLink.findMany({
-        where: {
-          ...(data.studentId ? { studentId: data.studentId } : {})
-        },
-        include: {
-          parent: true
-        }
-      });
+      // Fetch all parents directly — not filtered by studentId (that's only for per-student posts)
+      const parentUsers = data.studentId
+        ? await prisma.parentStudentLink.findMany({
+            where: { studentId: data.studentId },
+            include: {
+              parent: {
+                select: { id: true, full_name: true, phone: true, pushToken: true }
+              }
+            }
+          }).then(links =>
+            Array.from(
+              new Map(
+                links.filter(l => l.parent !== null).map(l => [l.parentId, l.parent])
+              ).values()
+            )
+          )
+        : await prisma.user.findMany({
+            where: { role: 'parent', is_active: true },
+            select: { id: true, full_name: true, phone: true, pushToken: true }
+          });
 
-      const uniqueParents = Array.from(
-        new Map(
-          parentLinks
-            .filter(l => l.parent !== null)
-            .map(l => [l.parentId, l.parent])
-        ).values()
-      );
+      if (parentUsers.length > 0) {
+        // Create in-app notification records for all parents
+        await (prisma as any).userNotification.createMany({
+          data: parentUsers.map((u: any) => ({
+            userId: u.id,
+            type: data.type === 'emergency' ? 'ALERT' : 'INFO',
+            category: 'ANNOUNCEMENT',
+            priority: data.type === 'emergency' ? 'HIGH' : 'NORMAL',
+            title: data.title,
+            message: data.message,
+            targetRole: 'PARENTS',
+            metadata: JSON.stringify({ announcementId: result.id, targetAudience: validAudience }),
+            isRead: false
+          })),
+          skipDuplicates: true
+        });
 
-      for (const parent of uniqueParents) {
-        if (parent && parent.pushToken) {
-          if (parent.phone) {
+        // Send FCM push to each parent with a valid token
+        for (const parent of parentUsers) {
+          if (!parent || !(parent as any).pushToken) continue;
+
+          if ((parent as any).phone) {
             const prefs = await prisma.parentPreferences.findUnique({
-              where: { parentPhone: parent.phone }
+              where: { parentPhone: (parent as any).phone }
             });
             if (prefs && !prefs.pushNotifications) {
+              console.log(`[AnnouncementService] Parent ${(parent as any).id} has push disabled.`);
               continue;
             }
           }
 
-          await sendCategoryNotification(parent.pushToken, {
-            type: 'new_announcement',
+          console.log(`[AnnouncementService] Sending announcement push to parent ${(parent as any).id}`);
+          await sendCategoryNotification((parent as any).pushToken, {
+            type: fcmType,
             title: schoolName,
-            body: data.message || 'There is a new announcement from school.',
+            body: `${data.title}: ${data.message}`,
             route: '/parent/announcements',
             schoolName,
-            categoryLabel: 'Announcement',
-            tag: 'announcements'
+            categoryLabel,
+            tag: `announcement-${result.id}`
           }).catch((err: any) => {
-            console.error(`Failed to send announcement push to parent ${parent.id}:`, err);
+            console.error(`Failed to send announcement push to parent ${(parent as any).id}:`, err);
           });
         }
       }
@@ -343,10 +376,12 @@ export const postAnnouncement = async (_schoolId: string | undefined, data: any)
       }
     }
 
+    // ─── STAFF ────────────────────────────────────────────────────────────────
     if (validAudience === 'STAFF' || validAudience === 'GENERAL') {
       const staffUsers = await prisma.user.findMany({
         where: {
-          role: { not: 'parent' }
+          role: { not: 'parent' },
+          is_active: true
         },
         select: { id: true, pushToken: true, role: true }
       });
@@ -363,19 +398,21 @@ export const postAnnouncement = async (_schoolId: string | undefined, data: any)
             targetRole: 'ALL_STAFF',
             metadata: JSON.stringify({ announcementId: result.id, targetAudience: validAudience }),
             isRead: false
-          }))
+          })),
+          skipDuplicates: true
         });
 
         for (const staff of staffUsers) {
           if (staff.pushToken) {
+            console.log(`[AnnouncementService] Sending announcement push to staff ${staff.id}`);
             await sendCategoryNotification(staff.pushToken, {
-              type: 'new_announcement',
+              type: fcmType,
               title: schoolName,
-              body: data.message || 'There is a new staff announcement.',
+              body: `${data.title}: ${data.message}`,
               route: '/school/staff/announcements',
               schoolName,
-              categoryLabel: 'Staff Announcement',
-              tag: 'announcements'
+              categoryLabel: data.type === 'emergency' ? 'Emergency Alert' : 'Staff Announcement',
+              tag: `announcement-${result.id}`
             }).catch((err: any) => {
               console.error(`Failed to send announcement push to staff ${staff.id}:`, err);
             });
@@ -595,9 +632,13 @@ export const findOrCreateParentByPhone = async (phone: string, data: { name?: st
     return existingUser;
   }
 
-  const hashedPassword = data.password 
-    ? await bcrypt.hash(data.password, 10) 
-    : await bcrypt.hash('addishiwot123', 10);
+  // Generate a cryptographically random temporary password.
+  // Parents who need to log in must use the SMS OTP password reset flow
+  // to set their own password — there is no shared well-known default.
+  const randomTemp = crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+  const hashedPassword = data.password
+    ? await bcrypt.hash(data.password, 10)
+    : await bcrypt.hash(randomTemp, 10);
 
   const parentEmail = data.email || `parent-${cleanPhone.replace('+', '')}@addishiwot.edu.et`;
 
@@ -776,13 +817,23 @@ export const verifyParentPasswordResetOTP = async (phone: string, code: string) 
       reset_password_expires: { gt: new Date() },
     },
   });
-  return !!user;
+  if (!user) return false;
+
+  // OTP is intentionally NOT cleared here because the client calls this endpoint
+  // to confirm the code, then immediately calls resetParentPasswordWithOTP.
+  // The OTP is cleared unconditionally in resetParentPasswordWithOTP after the
+  // password is successfully changed, preventing reuse.
+  return true;
 };
 
 /**
  * Reset the parent's password using verified OTP.
  */
 export const resetParentPasswordWithOTP = async (phone: string, code: string, newPassword: string) => {
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Password must be at least 6 characters long.');
+  }
+
   const cleanPhone = normalizePhoneNumber(phone);
   const user = await prisma.user.findFirst({
     where: {
@@ -799,6 +850,7 @@ export const resetParentPasswordWithOTP = async (phone: string, code: string, ne
     where: { id: user.id },
     data: {
       password_hash: hashedPassword,
+      // Always clear the OTP after a successful reset to prevent reuse
       reset_password_token: null,
       reset_password_expires: null,
     },

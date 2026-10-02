@@ -133,7 +133,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         if (!email || !password) {
             return res.status(400).json({ success: false, message: 'Email and password are required' });
         }
-        const user = await userService.getUserByEmail(email);
+        const user = await userService.getUserByEmailWithPassword(email);
         if (!user) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }

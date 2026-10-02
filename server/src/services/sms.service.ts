@@ -4,7 +4,10 @@
  */
 
 const SMSETHIOPIA_API_URL = 'https://smsethiopia.com/api/sms/send';
-const SMSETHIOPIA_API_KEY = process.env.SMSETHIOPIA_API_KEY || '6GZGZH3VXDOY7Q2C0B6IZLLS8ET5658DT9L45TN4';
+// NOTE: SMSETHIOPIA_API_KEY must be set in environment variables.
+// No hardcoded fallback — a missing key will cause SMS sends to fail at runtime
+// so the issue is detected immediately rather than silently using a leaked key.
+const SMSETHIOPIA_API_KEY = process.env.SMSETHIOPIA_API_KEY || '';
 
 export interface SMSSendResult {
   success: boolean;
@@ -43,6 +46,14 @@ export const formatMsisdn = (phone: string): string => {
 export const sendSMS = async (phone: string, text: string): Promise<SMSSendResult> => {
   const msisdn = formatMsisdn(phone);
   const apiKey = process.env.SMSETHIOPIA_API_KEY || SMSETHIOPIA_API_KEY;
+
+  if (!apiKey) {
+    console.error('[SMSEthiopia] SMSETHIOPIA_API_KEY is not configured. SMS cannot be sent.');
+    return {
+      success: false,
+      error: 'SMS service is not configured (missing SMSETHIOPIA_API_KEY). Contact the system administrator.',
+    };
+  }
 
   if (!msisdn || msisdn.length < 12) {
     console.warn(`[SMSEthiopia] Invalid phone number provided: "${phone}" (parsed: "${msisdn}")`);

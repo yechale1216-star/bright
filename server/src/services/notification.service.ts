@@ -316,7 +316,7 @@ export async function sendCategoryNotification(
 
   // Map notification type to Android channel ID (must match MyFirebaseMessagingService channels)
   let channelId = 'default_priority_v8';
-  if (payload.type === 'new_message' || payload.type === 'account_security') {
+  if (payload.type === 'new_message' || payload.type === 'account_security' || payload.type === 'student_discipline' || payload.type === 'discipline') {
     channelId = 'high_priority_v8';
   } else if (payload.type === 'system_update') {
     channelId = 'low_priority_v8';

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.bulkMarkAttendance = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = void 0;
+exports.getDashboardSummary = exports.getAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.bulkMarkAttendance = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = void 0;
 const attendanceService = __importStar(require("../services/attendance.service"));
 const markAttendance = async (req, res, next) => {
     try {
@@ -163,3 +163,18 @@ const getAuditLogs = async (_req, res, next) => {
     }
 };
 exports.getAuditLogs = getAuditLogs;
+/**
+ * GET /api/attendance/dashboard-summary
+ * Lightweight dashboard summary: student count, today's attendance totals, 14-day trend.
+ * Uses DB-side aggregation — never loads all rows into memory.
+ */
+const getDashboardSummary = async (req, res, next) => {
+    try {
+        const result = await attendanceService.getDashboardSummary(req.query);
+        res.status(200).json({ success: true, data: result });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getDashboardSummary = getDashboardSummary;

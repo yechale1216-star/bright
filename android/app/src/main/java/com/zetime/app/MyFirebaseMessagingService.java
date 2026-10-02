@@ -110,6 +110,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             case "new_announcement":
             case "system_update":
             case "account_security":
+            case "student_discipline":
+            case "discipline":
                 Log.d(TAG, "Handling generic notification: " + type);
                 handleGenericNotification(data);
                 break;
@@ -160,7 +162,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         long[] vibratePattern = new long[]{0, 200, 100, 200};
         String category = NotificationCompat.CATEGORY_EVENT;
 
-        if ("new_message".equals(type) || "account_security".equals(type)) {
+        if ("new_message".equals(type) || "account_security".equals(type) || "student_discipline".equals(type) || "discipline".equals(type)) {
             channelId = CHANNEL_HIGH;
             importance = NotificationCompat.PRIORITY_HIGH;
             vibratePattern = new long[]{0, 250, 150, 250};
@@ -232,6 +234,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 groupKey = "attendance";
             } else if ("new_announcement".equals(type)) {
                 groupKey = "announcements";
+            } else if ("student_discipline".equals(type) || "discipline".equals(type)) {
+                groupKey = "discipline";
             } else {
                 groupKey = "general";
             }
@@ -279,6 +283,8 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             summaryText = "Zetime Attendance Updates";
         } else if ("announcements".equals(groupKey)) {
             summaryText = "Zetime Announcements";
+        } else if ("discipline".equals(groupKey)) {
+            summaryText = "Zetime Discipline Notices";
         }
 
         NotificationCompat.Builder summary = new NotificationCompat.Builder(this, channelId)

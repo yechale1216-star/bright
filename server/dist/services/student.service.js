@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.getNextStudentId = exports.getAllStudents = void 0;
+exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.getNextStudentId = exports.getStudentCount = exports.getAllStudents = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const parentService = __importStar(require("./parent.service"));
 const academic_year_service_1 = require("./academic-year.service");
@@ -54,7 +54,10 @@ const mapStudentToFlat = (student) => {
         relationshipType: link?.relationshipType || student.relationshipType || 'Guardian',
     };
 };
-const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, streamId, academicYear) => {
+const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, streamId, academicYear, pagination) => {
+    const page = pagination?.page ? Math.max(Number(pagination.page), 1) : 1;
+    const limit = pagination?.limit ? Math.min(Math.max(Number(pagination.limit), 1), 500) : undefined;
+    const skip = limit !== undefined ? (page - 1) * limit : undefined;
     const currentAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
     let targetAcademicYearName = academicYear?.trim();
     if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
@@ -114,21 +117,25 @@ const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, str
                 ]
             };
         }
-        const enrollments = await db_1.default.studentAcademicYearRecord.findMany({
-            where: enrollmentWhere,
-            include: {
-                student: {
-                    include: {
-                        parentStudents: true
-                    }
+        const [enrollments, total] = await Promise.all([
+            db_1.default.studentAcademicYearRecord.findMany({
+                where: enrollmentWhere,
+                include: {
+                    student: {
+                        include: {
+                            parentStudents: true
+                        }
+                    },
+                    grade: true,
+                    section: true,
+                    stream: true,
                 },
-                grade: true,
-                section: true,
-                stream: true,
-            },
-            orderBy: { student: { fullName: 'asc' } }
-        });
-        return enrollments.map((enr) => {
+                orderBy: { student: { fullName: 'asc' } },
+                ...(limit !== undefined ? { take: limit, skip } : {})
+            }),
+            limit !== undefined ? db_1.default.studentAcademicYearRecord.count({ where: enrollmentWhere }) : Promise.resolve(0)
+        ]);
+        const mapped = enrollments.map((enr) => {
             const relType = enr.student?.parentStudents?.[0]?.relationshipType;
             return {
                 ...enr.student,
@@ -144,6 +151,16 @@ const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, str
                 relationshipType: relType || 'Guardian',
             };
         });
+        if (limit !== undefined) {
+            return {
+                items: mapped,
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            };
+        }
+        return mapped;
     }
     const where = {};
     if (status && status.trim()) {
@@ -159,20 +176,58 @@ const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, str
         where.AND = where.AND || [];
         where.AND.push({ OR: [{ fullName: { contains: term, mode: 'insensitive' } }, { student_id: { contains: term, mode: 'insensitive' } }] });
     }
-    const students = await db_1.default.student.findMany({
-        where,
-        include: {
-            grade: true,
-            section: true,
-            stream: true,
-            parentStudents: true,
-            promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
-        },
-        orderBy: { fullName: 'asc' }
-    });
-    return students.map(mapStudentToFlat);
+    const [students, total] = await Promise.all([
+        db_1.default.student.findMany({
+            where,
+            include: {
+                grade: true,
+                section: true,
+                stream: true,
+                parentStudents: true,
+                promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
+            },
+            orderBy: { fullName: 'asc' },
+            ...(limit !== undefined ? { take: limit, skip } : {})
+        }),
+        limit !== undefined ? db_1.default.student.count({ where }) : Promise.resolve(0)
+    ]);
+    const mapped = students.map(mapStudentToFlat);
+    if (limit !== undefined) {
+        return {
+            items: mapped,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+    return mapped;
 };
 exports.getAllStudents = getAllStudents;
+const getStudentCount = async (status = 'ACTIVE', academicYear) => {
+    const currentAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
+    let targetAcademicYearName = academicYear?.trim();
+    if (!targetAcademicYearName || targetAcademicYearName.toLowerCase() === 'current' || targetAcademicYearName.toLowerCase() === 'active') {
+        targetAcademicYearName = currentAY?.name || '';
+    }
+    const targetAY = await db_1.default.academicYear.findUnique({
+        where: { name: targetAcademicYearName }
+    }) || currentAY;
+    if (targetAY) {
+        return await db_1.default.studentAcademicYearRecord.count({
+            where: {
+                academicYearId: targetAY.id,
+                ...(status && status !== 'ALL' ? { status: status.toUpperCase() } : {})
+            }
+        });
+    }
+    return await db_1.default.student.count({
+        where: {
+            ...(status && status !== 'ALL' ? { status: status.toUpperCase() } : {})
+        }
+    });
+};
+exports.getStudentCount = getStudentCount;
 const getNextStudentId = async (_schoolId) => {
     const idPrefix = 'STU';
     const latestStudent = await db_1.default.student.findFirst({
@@ -665,7 +720,8 @@ const getStudentsByParentPhone = async (parentPhone, _schoolId) => {
             stream: true,
             parentStudents: true,
             attendance: {
-                orderBy: { date: 'desc' }
+                orderBy: { date: 'desc' },
+                take: 90
             }
         }
     });

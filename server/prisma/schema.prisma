@@ -224,6 +224,9 @@ model Student {
   @@index([gradeId])
   @@index([sectionId])
   @@index([streamId])
+  @@index([status])
+  @@index([fullName])
+  @@index([gradeId, sectionId, status])
 }
 
 model StudentAcademicYearRecord {
@@ -250,6 +253,7 @@ model StudentAcademicYearRecord {
   @@index([studentId])
   @@index([gradeId, sectionId])
   @@index([status])
+  @@index([academicYearId, status, gradeId, sectionId])
   @@map("student_academic_year_records")
 }
 
@@ -310,6 +314,7 @@ model Attendance {
   @@index([date, status])
   @@index([academicYearId, date])
   @@index([teacherId, date])
+  @@index([studentId, date])
 }
 
 model AttendanceEditRequest {
@@ -347,6 +352,9 @@ model AuditLog {
   new_values  Json?
   created_at  DateTime @default(now())
 
+  @@index([entity_type, entity_id])
+  @@index([created_at])
+  @@index([user_id])
   @@map("audit_logs")
 }
 
@@ -400,6 +408,8 @@ model ParentNotification {
   @@index([studentId])
   @@index([createdAt])
   @@index([targetAudience])
+  @@index([studentId, createdAt])
+  @@index([isRead])
 }
 
 model ParentPreferences {
@@ -780,6 +790,7 @@ model StudentDiscipline {
   @@index([assignedToId])
   @@index([academicYearId, status])
   @@index([academicYearId, date])
+  @@index([studentId, date])
   @@map("student_disciplines")
 }
 
@@ -1005,6 +1016,7 @@ model StaffAttendance {
   @@index([date])
   @@index([status])
   @@index([session])
+  @@index([date, session])
   @@map("staff_attendance")
 }
 

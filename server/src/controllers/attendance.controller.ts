@@ -133,3 +133,17 @@ export const getAuditLogs = async (_req: AuthenticatedRequest, res: Response, ne
   }
 };
 
+/**
+ * GET /api/attendance/dashboard-summary
+ * Lightweight dashboard summary: student count, today's attendance totals, 14-day trend.
+ * Uses DB-side aggregation — never loads all rows into memory.
+ */
+export const getDashboardSummary = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await attendanceService.getDashboardSummary(req.query as any);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+

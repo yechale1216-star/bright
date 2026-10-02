@@ -177,7 +177,7 @@ exports.loginParent = loginParent;
 /**
  * Get Parent Portal notifications.
  */
-const getNotifications = async (phone, _schoolId) => {
+const getNotifications = async (phone, _schoolId, limit = 50) => {
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findUnique({
         where: { phone: cleanPhone }
@@ -189,6 +189,7 @@ const getNotifications = async (phone, _schoolId) => {
         select: { studentId: true }
     });
     const studentIds = links.map(l => l.studentId);
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 50), 200);
     const notifications = await db_1.default.parentNotification.findMany({
         where: {
             OR: [
@@ -202,6 +203,7 @@ const getNotifications = async (phone, _schoolId) => {
                 }
             ]
         },
+        take: safeLimit,
         orderBy: { createdAt: 'desc' },
         include: {
             student: {
@@ -307,36 +309,63 @@ const postAnnouncement = async (_schoolId, data) => {
         const io = getIO ? getIO() : null;
         const singleSchool = await schoolService.getSingleSchool();
         const schoolName = singleSchool.name || 'Addis Hiwot School';
+        // Determine FCM type: emergency announcements use account_security for high-priority channel
+        const fcmType = data.type === 'emergency' ? 'account_security' : 'new_announcement';
+        const categoryLabel = data.type === 'emergency' ? 'Emergency Alert' : data.type === 'info' ? 'School Info' : 'Announcement';
+        // ─── PARENTS ─────────────────────────────────────────────────────────────
         if (validAudience === 'PARENTS' || validAudience === 'GENERAL') {
-            const parentLinks = await db_1.default.parentStudentLink.findMany({
-                where: {
-                    ...(data.studentId ? { studentId: data.studentId } : {})
-                },
-                include: {
-                    parent: true
-                }
-            });
-            const uniqueParents = Array.from(new Map(parentLinks
-                .filter(l => l.parent !== null)
-                .map(l => [l.parentId, l.parent])).values());
-            for (const parent of uniqueParents) {
-                if (parent && parent.pushToken) {
+            // Fetch all parents directly — not filtered by studentId (that's only for per-student posts)
+            const parentUsers = data.studentId
+                ? await db_1.default.parentStudentLink.findMany({
+                    where: { studentId: data.studentId },
+                    include: {
+                        parent: {
+                            select: { id: true, full_name: true, phone: true, pushToken: true }
+                        }
+                    }
+                }).then(links => Array.from(new Map(links.filter(l => l.parent !== null).map(l => [l.parentId, l.parent])).values()))
+                : await db_1.default.user.findMany({
+                    where: { role: 'parent', is_active: true },
+                    select: { id: true, full_name: true, phone: true, pushToken: true }
+                });
+            if (parentUsers.length > 0) {
+                // Create in-app notification records for all parents
+                await db_1.default.userNotification.createMany({
+                    data: parentUsers.map((u) => ({
+                        userId: u.id,
+                        type: data.type === 'emergency' ? 'ALERT' : 'INFO',
+                        category: 'ANNOUNCEMENT',
+                        priority: data.type === 'emergency' ? 'HIGH' : 'NORMAL',
+                        title: data.title,
+                        message: data.message,
+                        targetRole: 'PARENTS',
+                        metadata: JSON.stringify({ announcementId: result.id, targetAudience: validAudience }),
+                        isRead: false
+                    })),
+                    skipDuplicates: true
+                });
+                // Send FCM push to each parent with a valid token
+                for (const parent of parentUsers) {
+                    if (!parent || !parent.pushToken)
+                        continue;
                     if (parent.phone) {
                         const prefs = await db_1.default.parentPreferences.findUnique({
                             where: { parentPhone: parent.phone }
                         });
                         if (prefs && !prefs.pushNotifications) {
+                            console.log(`[AnnouncementService] Parent ${parent.id} has push disabled.`);
                             continue;
                         }
                     }
+                    console.log(`[AnnouncementService] Sending announcement push to parent ${parent.id}`);
                     await sendCategoryNotification(parent.pushToken, {
-                        type: 'new_announcement',
+                        type: fcmType,
                         title: schoolName,
-                        body: data.message || 'There is a new announcement from school.',
+                        body: `${data.title}: ${data.message}`,
                         route: '/parent/announcements',
                         schoolName,
-                        categoryLabel: 'Announcement',
-                        tag: 'announcements'
+                        categoryLabel,
+                        tag: `announcement-${result.id}`
                     }).catch((err) => {
                         console.error(`Failed to send announcement push to parent ${parent.id}:`, err);
                     });
@@ -346,10 +375,12 @@ const postAnnouncement = async (_schoolId, data) => {
                 io.emit('new_notification', result);
             }
         }
+        // ─── STAFF ────────────────────────────────────────────────────────────────
         if (validAudience === 'STAFF' || validAudience === 'GENERAL') {
             const staffUsers = await db_1.default.user.findMany({
                 where: {
-                    role: { not: 'parent' }
+                    role: { not: 'parent' },
+                    is_active: true
                 },
                 select: { id: true, pushToken: true, role: true }
             });
@@ -365,18 +396,20 @@ const postAnnouncement = async (_schoolId, data) => {
                         targetRole: 'ALL_STAFF',
                         metadata: JSON.stringify({ announcementId: result.id, targetAudience: validAudience }),
                         isRead: false
-                    }))
+                    })),
+                    skipDuplicates: true
                 });
                 for (const staff of staffUsers) {
                     if (staff.pushToken) {
+                        console.log(`[AnnouncementService] Sending announcement push to staff ${staff.id}`);
                         await sendCategoryNotification(staff.pushToken, {
-                            type: 'new_announcement',
+                            type: fcmType,
                             title: schoolName,
-                            body: data.message || 'There is a new staff announcement.',
+                            body: `${data.title}: ${data.message}`,
                             route: '/school/staff/announcements',
                             schoolName,
-                            categoryLabel: 'Staff Announcement',
-                            tag: 'announcements'
+                            categoryLabel: data.type === 'emergency' ? 'Emergency Alert' : 'Staff Announcement',
+                            tag: `announcement-${result.id}`
                         }).catch((err) => {
                             console.error(`Failed to send announcement push to staff ${staff.id}:`, err);
                         });
@@ -576,9 +609,13 @@ const findOrCreateParentByPhone = async (phone, data) => {
     if (existingUser) {
         return existingUser;
     }
+    // Generate a cryptographically random temporary password.
+    // Parents who need to log in must use the SMS OTP password reset flow
+    // to set their own password — there is no shared well-known default.
+    const randomTemp = crypto_1.default.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
     const hashedPassword = data.password
         ? await bcryptjs_1.default.hash(data.password, 10)
-        : await bcryptjs_1.default.hash('addishiwot123', 10);
+        : await bcryptjs_1.default.hash(randomTemp, 10);
     const parentEmail = data.email || `parent-${cleanPhone.replace('+', '')}@addishiwot.edu.et`;
     try {
         const newParent = await db_1.default.user.create({
@@ -745,13 +782,22 @@ const verifyParentPasswordResetOTP = async (phone, code) => {
             reset_password_expires: { gt: new Date() },
         },
     });
-    return !!user;
+    if (!user)
+        return false;
+    // OTP is intentionally NOT cleared here because the client calls this endpoint
+    // to confirm the code, then immediately calls resetParentPasswordWithOTP.
+    // The OTP is cleared unconditionally in resetParentPasswordWithOTP after the
+    // password is successfully changed, preventing reuse.
+    return true;
 };
 exports.verifyParentPasswordResetOTP = verifyParentPasswordResetOTP;
 /**
  * Reset the parent's password using verified OTP.
  */
 const resetParentPasswordWithOTP = async (phone, code, newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters long.');
+    }
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findFirst({
         where: {
@@ -768,6 +814,7 @@ const resetParentPasswordWithOTP = async (phone, code, newPassword) => {
         where: { id: user.id },
         data: {
             password_hash: hashedPassword,
+            // Always clear the OTP after a successful reset to prevent reuse
             reset_password_token: null,
             reset_password_expires: null,
         },

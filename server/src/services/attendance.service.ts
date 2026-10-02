@@ -343,7 +343,7 @@ export const getAttendance = async (filters: any, _schoolId?: string) => {
 };
 
 export const getAttendanceByStudent = async (studentId: string, _schoolId?: string, filters: any = {}) => {
-  const { session } = filters;
+  const { session, page, limit } = filters;
   const where: any = { studentId };
 
   if (session !== undefined && session !== null) {
@@ -361,9 +361,15 @@ export const getAttendanceByStudent = async (studentId: string, _schoolId?: stri
     }
   }
 
+  const resolvedLimit = Math.min(Math.max(Number(limit) || 500, 1), 500);
+  const resolvedPage  = Math.max(Number(page) || 1, 1);
+  const skip = (resolvedPage - 1) * resolvedLimit;
+
   return await prisma.attendance.findMany({
     where,
     orderBy: { date: 'desc' },
+    take: resolvedLimit,
+    skip,
   });
 };
 
@@ -436,7 +442,8 @@ export const getEditRequests = async (_schoolId?: string, filters: any = {}) => 
       teacher: true,
       student: true
     },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    take: 200,
   });
 };
 
@@ -737,46 +744,65 @@ export const bulkMarkAttendance = async (
   const sampleDateInfo = normalizeDate(cleanRecords[0]?.date);
 
   if (hasExistingUpdates && userRole === 'teacher' && settings && settings.allow_attendance_editing === false) {
-    const sessionFilter: any = sampleSession
-      ? { session: { equals: sampleSession, mode: 'insensitive' } }
-      : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
+    // Collect the unique (date, session) pairs that have existing records needing update.
+    // We must verify an approved edit request exists for EACH such pair —
+    // checking only the first record was the prior bug that allowed session bypass.
+    const pairsNeedingPermission = new Map<string, { dateStr: string; session: string | null; startDate: Date; endDate: Date }>();
 
-    const approvedRequest = await prisma.attendanceEditRequest.findFirst({
-      where: {
-        status: 'APPROVED',
-        isUsed: false,
-        date: {
-          gte: sampleDateInfo.startDate,
-          lte: sampleDateInfo.endDate,
-        },
-        ...sessionFilter,
-        OR: [
-          ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
-          ...(teacherId ? [{ teacherId }] : []),
-          ...(userId ? [{ teacherId: userId }] : [])
-        ],
+    for (const r of cleanRecords) {
+      const { dateStr, startDate, endDate } = normalizeDate(r.date);
+      const recSession = normalizeSession(r.session);
+      const mapKey = `${r.studentId}::${dateStr}::${recSession || '__daily__'}`;
+      if (existingMap.has(mapKey)) {
+        const pairKey = `${dateStr}::${recSession || '__daily__'}`;
+        if (!pairsNeedingPermission.has(pairKey)) {
+          pairsNeedingPermission.set(pairKey, { dateStr, session: recSession, startDate, endDate });
+        }
       }
-    });
-
-    if (!approvedRequest) {
-      const sessionLabel = sampleSession ? ` (${sampleSession} session)` : '';
-      throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${sampleDateInfo.dateStr}${sessionLabel}.`);
     }
 
-    await prisma.attendanceEditRequest.update({
-      where: { id: approvedRequest.id },
-      data: { isUsed: true }
-    });
+    // Verify an approved, unused edit request for each (date, session) pair
+    for (const [, pairInfo] of pairsNeedingPermission) {
+      const { dateStr: pDateStr, session: pSession, startDate: pStart, endDate: pEnd } = pairInfo;
+      const sessionFilter: any = pSession
+        ? { session: { equals: pSession, mode: 'insensitive' } }
+        : { OR: [{ session: null }, { session: '' }, { session: 'daily' }] };
 
-    await prisma.auditLog.create({
-      data: {
-        user_id: userId || teacherId || null,
-        action: 'ATTENDANCE_EDIT_PERMITTED',
-        entity_type: 'ATTENDANCE_EDIT_REQUEST',
-        entity_id: approvedRequest.id,
-        new_values: { count: cleanRecords.length, session: sampleSession || null, dateStr: sampleDateInfo.dateStr }
+      const approvedRequest = await prisma.attendanceEditRequest.findFirst({
+        where: {
+          status: 'APPROVED',
+          isUsed: false,
+          date: { gte: pStart, lte: pEnd },
+          ...sessionFilter,
+          OR: [
+            ...(resolvedTeacherId ? [{ teacherId: resolvedTeacherId }] : []),
+            ...(teacherId ? [{ teacherId }] : []),
+            ...(userId ? [{ teacherId: userId }] : [])
+          ],
+        }
+      });
+
+      if (!approvedRequest) {
+        const sessionLabel = pSession ? ` (${pSession} session)` : '';
+        throw new Error(`Attendance editing is disabled by School Admin. Please submit an edit request for ${pDateStr}${sessionLabel}.`);
       }
-    }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
+
+      // Mark each approved request as used
+      await prisma.attendanceEditRequest.update({
+        where: { id: approvedRequest.id },
+        data: { isUsed: true }
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          user_id: userId || teacherId || null,
+          action: 'ATTENDANCE_EDIT_PERMITTED',
+          entity_type: 'ATTENDANCE_EDIT_REQUEST',
+          entity_id: approvedRequest.id,
+          new_values: { count: cleanRecords.length, session: pSession || null, dateStr: pDateStr }
+        }
+      }).catch(err => console.error('[AuditLog] bulk edit permission use log error:', err));
+    }
   }
 
   const txOps: any[] = [];
@@ -947,4 +973,84 @@ export const sendAdminAttendanceNotification = async (params: {
   } catch (err) {
     console.error('[AdminNotification] Failed to send admin attendance notification:', err);
   }
+};
+/**
+ * Lightweight dashboard summary. Uses DB-side aggregation.
+ * Returns: totalStudents, today's attendance breakdown, 14-day trend.
+ * ~3 queries total — never loads all rows into memory.
+ */
+export const getDashboardSummary = async (filters: { date?: string; session?: string }) => {
+  const todayStr = filters.date
+    ? String(filters.date).split('T')[0]
+    : new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' });
+
+  const { startDate: todayStart, endDate: todayEnd } = normalizeDate(todayStr);
+
+  // 14-day window for trend chart
+  const trend14Start = new Date(todayStart);
+  trend14Start.setDate(trend14Start.getDate() - 13);
+
+  // 1. Active student count (replaces fetching full student objects)
+  const totalStudents = await prisma.student.count({
+    where: { status: 'ACTIVE' }
+  });
+
+  // 2. Today's attendance grouped by (date, status) — one DB query
+  const todayGroups = await (prisma as any).attendance.groupBy({
+    by: ['status'],
+    where: {
+      date: { gte: todayStart, lte: todayEnd },
+      ...(filters.session && filters.session !== 'all' ? { session: filters.session } : {})
+    },
+    _count: { _all: true }
+  });
+
+  const todaySummary: Record<string, number> = {};
+  for (const g of todayGroups) {
+    todaySummary[g.status] = (todaySummary[g.status] || 0) + g._count._all;
+  }
+
+  // 3. 14-day trend — group by date+status in one query
+  const trendGroups = await (prisma as any).attendance.groupBy({
+    by: ['date', 'status'],
+    where: {
+      date: { gte: trend14Start, lte: todayEnd },
+      ...(filters.session && filters.session !== 'all' ? { session: filters.session } : {})
+    },
+    _count: { _all: true },
+    orderBy: { date: 'asc' }
+  });
+
+  // Build trend map keyed by date string
+  const trendMap: Record<string, { date: string; present: number; absent: number; late: number; earlyDeparture: number; total: number }> = {};
+  for (const g of trendGroups) {
+    const d = g.date instanceof Date
+      ? g.date.toLocaleDateString('en-CA', { timeZone: 'Africa/Addis_Ababa' })
+      : String(g.date).split('T')[0];
+    if (!trendMap[d]) {
+      trendMap[d] = { date: d, present: 0, absent: 0, late: 0, earlyDeparture: 0, total: 0 };
+    }
+    const count = g._count._all;
+    trendMap[d].total += count;
+    const st = String(g.status || '').toUpperCase();
+    if (st === 'PRESENT') trendMap[d].present += count;
+    else if (st === 'ABSENT') trendMap[d].absent += count;
+    else if (st === 'LATE') trendMap[d].late += count;
+    else if (st === 'EARLY_DEPARTURE') trendMap[d].earlyDeparture += count;
+  }
+
+  const trend = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    totalStudents,
+    today: {
+      date: todayStr,
+      present: todaySummary['PRESENT'] || 0,
+      absent: todaySummary['ABSENT'] || 0,
+      late: todaySummary['LATE'] || 0,
+      earlyDeparture: todaySummary['EARLY_DEPARTURE'] || 0,
+      total: Object.values(todaySummary).reduce((s, c) => s + c, 0),
+    },
+    trend,
+  };
 };

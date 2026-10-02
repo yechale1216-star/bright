@@ -47,6 +47,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [activeChartTab, setActiveChartTab] = useState<"trend" | "grades">("trend")
 
   // Data states
+  const [dashboardSummary, setDashboardSummary] = useState<any>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
@@ -99,43 +100,26 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     try {
       const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
 
-      // Only fetch the last 14 days of attendance for the trend chart
-      // instead of the entire history (massive payload reduction)
-      const trendStartDate = (() => {
-        const d = new Date()
-        d.setDate(d.getDate() - 14)
-        return d.toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
-      })()
+      // Phase 1 — Fast critical path: lightweight summary + staff stats (single request each)
+      // getDashboardSummary replaces: getStudents + getAttendanceByDate + getAttendanceByDateRange
+      // getStaffAttendanceStats replaces 3 concurrent calls with 1 (sessions split client-side)
+      const [summary, staffAttendanceStats, disciplineRes, fetchedEditRequests, fetchedTeachers] =
+        await Promise.all([
+          db.getDashboardSummary(today).catch(() => null),
+          db.getStaffAttendanceStats(today).catch(() => null),
+          DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
+          db.getAttendanceEditRequests().catch(() => []),
+          db.getTeachers().catch(() => []),
+        ])
 
-      const [
-        fetchedStudents,
-        fetchedTeachers,
-        fetchedTodayAttendance,
-        fetchedRecentAttendance,
-        staffAttendanceStats,
-        morningStaffAttendanceStats,
-        afternoonStaffAttendanceStats,
-        disciplineRes,
-        fetchedEditRequests
-      ] = await Promise.all([
-        db.getStudents().catch(() => []),
-        db.getTeachers().catch(() => []),
-        db.getAttendanceByDate(today).catch(() => []),
-        db.getAttendanceByDateRange(trendStartDate, today).catch(() => []),
-        db.getStaffAttendanceStats(today).catch(() => null),
-        db.getStaffAttendanceStats(today, "morning").catch(() => null),
-        db.getStaffAttendanceStats(today, "afternoon").catch(() => null),
-        DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
-        db.getAttendanceEditRequests().catch(() => [])
-      ])
-
-      setStudents(fetchedStudents || [])
+      if (summary) {
+        setDashboardSummary(summary)
+      }
       setTeachers(fetchedTeachers || [])
-      setTodayAttendance(fetchedTodayAttendance || [])
-      setAllAttendance(fetchedRecentAttendance || [])
       setStaffStats(staffAttendanceStats)
-      setMorningStaffStats(morningStaffAttendanceStats)
-      setAfternoonStaffStats(afternoonStaffAttendanceStats)
+      // In session mode, the single stats response contains both morning & afternoon
+      setMorningStaffStats(staffAttendanceStats?.sessionBreakdown?.morning ?? staffAttendanceStats)
+      setAfternoonStaffStats(staffAttendanceStats?.sessionBreakdown?.afternoon ?? staffAttendanceStats)
       setEditRequests(fetchedEditRequests || [])
 
       if (disciplineRes && Array.isArray(disciplineRes.items)) {
@@ -145,10 +129,21 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       } else if (Array.isArray(disciplineRes)) {
         setIncidents(disciplineRes)
       }
+
+      // Phase 2 — Background (non-blocking): load full student & detailed attendance
+      // only when needed for the student-breakdown chart or grade view
+      setIsLoading(false)
+      Promise.all([
+        db.getStudents().catch(() => []),
+        db.getAttendanceByDate(today).catch(() => []),
+      ]).then(([fetchedStudents, fetchedTodayAttendance]) => {
+        setStudents(fetchedStudents || [])
+        setTodayAttendance(fetchedTodayAttendance || [])
+      }).catch(() => {})
+
     } catch (err: any) {
       console.error("Error loading admin dashboard data:", err)
       setError("Failed to load dashboard data. Click retry to refresh.")
-    } finally {
       setIsLoading(false)
     }
   }
@@ -163,7 +158,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }
 
   // Calculated Metrics
-  const totalStudents = students.length
+  // Prefer fast dashboardSummary count (available ~200ms); falls back to full student list when loaded
+  const totalStudents = dashboardSummary?.totalStudents ?? students.length
   const totalTeachers = teachers.length
   const totalStaff = typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : totalTeachers
 
@@ -225,6 +221,25 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // School-wide attendance metrics filtered by session (Full Day / Morning / Afternoon)
   // Scope: ALL active students in the current academic year (totalStudents)
   const attendanceMetrics = useMemo(() => {
+    // Fast path: use pre-aggregated today summary (available within ~200ms)
+    // Only used while todayAttendance (Phase 2) hasn't loaded yet
+    if (dashboardSummary?.today && todayAttendance.length === 0) {
+      const { present, absent, late, earlyDeparture, total } = dashboardSummary.today
+      const notRecorded = Math.max(0, totalStudents - total)
+      const rate = totalStudents > 0 && total > 0
+        ? Math.round(((present + late) / totalStudents) * 100)
+        : 0
+      return {
+        presentCount: present,
+        lateCount: late,
+        absentCount: absent,
+        excusedCount: earlyDeparture,
+        submittedCount: total,
+        notRecordedCount: notRecorded,
+        attendanceRate: rate,
+      }
+    }
+
     if (!isSessionBased || sessionFilter !== "total") {
       const records = isSessionBased
         ? todayAttendance.filter(a => a.session?.toLowerCase() === sessionFilter.toLowerCase())
@@ -291,7 +306,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       notRecordedCount: notRecorded,
       attendanceRate: rate,
     }
-  }, [todayAttendance, sessionFilter, isSessionBased, totalStudents])
+  }, [dashboardSummary, todayAttendance, sessionFilter, isSessionBased, totalStudents])
 
   const {
     presentCount,
@@ -319,6 +334,27 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // Chart data: 5-Day Attendance Trend (School Weekdays)
   const trendData = useMemo(() => {
+    // Fast path: use pre-aggregated data from dashboardSummary (available immediately)
+    if (dashboardSummary?.trend?.length > 0 && allAttendance.length === 0) {
+      return dashboardSummary.trend
+        .slice(-5)
+        .map((item: any) => {
+          const dateObj = new Date(item.date + "T00:00:00")
+          const label = dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+          const rate = totalStudents > 0 && item.total > 0
+            ? Math.round(((item.present + item.late) / totalStudents) * 100)
+            : (item.total > 0 ? Math.round(((item.present + item.late) / item.total) * 100) : 0)
+          return {
+            date: label,
+            rate,
+            present: item.present,
+            total: totalStudents > 0 ? totalStudents : item.total,
+            recorded: item.total,
+          }
+        })
+    }
+
+    // Full path: compute from detailed attendance records (once Phase 2 loads)
     const TARGET_TZ = "Africa/Addis_Ababa"
     const trendDataMap: Record<string, { dateStr: string; present: number; total: number }> = {}
     let daysFound = 0
@@ -418,7 +454,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           recorded: item.total,
         }
       })
-  }, [allAttendance, sessionFilter, isSessionBased, totalStudents])
+  }, [dashboardSummary, allAttendance, sessionFilter, isSessionBased, totalStudents])
 
   // Chart data: Grade Enrollment
   const gradeChartData = useMemo(() => {

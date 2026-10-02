@@ -1,5 +1,6 @@
 import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
+import { sendCategoryNotification } from './notification.service';
 
 export const DEFAULT_DISCIPLINE_CATEGORIES = [
   'Late Arrival',
@@ -66,6 +67,7 @@ async function notifyParentForDiscipline(params: {
   title: string;
   message: string;
   type?: string;
+  caseNumber?: string;
 }) {
   try {
     await prisma.parentNotification.create({
@@ -79,8 +81,22 @@ async function notifyParentForDiscipline(params: {
 
     const links = await prisma.parentStudentLink.findMany({
       where: { studentId: params.studentId },
-      include: { parent: true }
+      include: {
+        parent: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            pushToken: true
+          }
+        }
+      }
     });
+
+    const settings = await prisma.schoolSettings.findFirst({
+      select: { school_name: true }
+    });
+    const schoolName = settings?.school_name || 'Addis Hiwot School';
 
     for (const link of links) {
       if (link.parent) {
@@ -92,6 +108,32 @@ async function notifyParentForDiscipline(params: {
             type: params.type || 'DISCIPLINE'
           }
         });
+
+        if (link.parent.pushToken) {
+          if (link.parent.phone) {
+            const prefs = await prisma.parentPreferences.findUnique({
+              where: { parentPhone: link.parent.phone }
+            });
+            if (prefs && !prefs.pushNotifications) {
+              console.log(`[DisciplineService] Parent ${link.parent.id} disabled push notifications`);
+              continue;
+            }
+          }
+
+          console.log(`[DisciplineService] Dispatching discipline push notification to parent ${link.parent.id} for student ${params.studentId}`);
+          await sendCategoryNotification(link.parent.pushToken, {
+            type: 'student_discipline',
+            title: schoolName,
+            body: params.message,
+            route: '/parent/discipline',
+            studentId: params.studentId,
+            schoolName,
+            categoryLabel: 'Discipline Notice',
+            tag: `discipline-${params.studentId}-${params.caseNumber || 'alert'}`
+          }).catch((pushErr: any) => {
+            console.error(`[DisciplineService] Failed to dispatch push to parent ${link.parent.id}:`, pushErr);
+          });
+        }
       }
     }
   } catch (err) {
@@ -117,19 +159,31 @@ async function getTeacherAssignments(userId: string) {
  */
 async function generateCaseNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const count = await prisma.studentDiscipline.count();
-  const seq = String(count + 1).padStart(4, '0');
-  const candidate = `DC-${year}-${seq}`;
 
-  const exists = await prisma.studentDiscipline.findFirst({
-    where: { caseNumber: candidate }
-  });
+  // Retry loop: handles concurrent submissions that would collide on count()-based numbering.
+  // On collision, add a random suffix to make the candidate unique.
+  const MAX_RETRIES = 10;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const count = await prisma.studentDiscipline.count();
+    const base = count + 1 + attempt;
+    const seq = attempt === 0
+      ? String(base).padStart(4, '0')
+      : String(base) + String(Math.floor(Math.random() * 900) + 100);
 
-  if (exists) {
-    return `DC-${year}-${String(count + Math.floor(Math.random() * 900) + 100).padStart(4, '0')}`;
+    const candidate = `DC-${year}-${seq}`;
+
+    const exists = await prisma.studentDiscipline.findFirst({
+      where: { caseNumber: candidate }
+    });
+
+    if (!exists) {
+      return candidate;
+    }
+    // Collision — try again with a randomized suffix
   }
 
-  return candidate;
+  // Fallback: use timestamp to guarantee uniqueness
+  return `DC-${year}-T${Date.now().toString(36).toUpperCase()}`;
 }
 
 function ensureCaseNumber(inc: any) {
@@ -150,13 +204,11 @@ function sanitizeIncidentForRole(incident: any, role: string) {
       confidentialNotes,
       findings,
       meetingNotes,
+      witnesses,
       ...publicData
     } = incident;
 
-    return {
-      ...publicData,
-      witnesses: undefined
-    };
+    return publicData;
   }
 
   if (role === 'teacher') {
@@ -380,8 +432,8 @@ export class DisciplineService {
         witnesses: data.witnesses ? (data.witnesses as any) : undefined,
         evidence: data.evidence ? (data.evidence as any) : undefined,
         immediateAction: data.immediateAction || null,
-        parentNotified: Boolean(data.parentNotified),
-        parentNotifiedAt: data.parentNotified ? new Date() : null,
+        parentNotified: data.parentNotified !== false && (data.parentNotified as any) !== 'false',
+        parentNotifiedAt: (data.parentNotified !== false && (data.parentNotified as any) !== 'false') ? new Date() : null,
         followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
         status: data.assignedToId ? 'UNDER_REVIEW' : 'OPEN',
         academicYearId: disciplineAcademicYearId,
@@ -421,13 +473,15 @@ export class DisciplineService {
       }
     });
 
-    if (data.parentNotified) {
+    const shouldNotify = data.parentNotified !== false && (data.parentNotified as any) !== 'false';
+    if (shouldNotify) {
       const notifTitle = `Official Notice: Discipline Case #${caseNumber}`;
-      const notifMsg = `Discipline record created for ${student.fullName} (${data.categoryName}, ${data.severity} severity). Tap to view details.`;
+      const notifMsg = `Discipline record created for ${student.fullName} (${data.categoryName || 'Incident'}, ${data.severity || 'LOW'} severity). Tap to view details.`;
       await notifyParentForDiscipline({
         studentId: student.id,
         title: notifTitle,
-        message: notifMsg
+        message: notifMsg,
+        caseNumber
       });
     }
 
@@ -844,6 +898,18 @@ export class DisciplineService {
       newValues: { action: data.approvedAction || data.recommendedAction, status: updated.status }
     });
 
+    if (data.approvedAction && data.approvedAction !== incident.approvedAction) {
+      const studentName = (updated as any).student?.fullName || 'Student';
+      const notifTitle = `Disciplinary Action Notice: #${updated.caseNumber || incidentId.slice(0, 6)}`;
+      const notifMsg = `Disciplinary action (${data.approvedAction}) has been assigned for ${studentName}. Tap to view details.`;
+      await notifyParentForDiscipline({
+        studentId: updated.studentId,
+        title: notifTitle,
+        message: notifMsg,
+        caseNumber: updated.caseNumber || undefined
+      });
+    }
+
     return ensureCaseNumber(updated);
   }
 
@@ -892,27 +958,31 @@ export class DisciplineService {
       }
     }
 
-    const allStudentCases = await prisma.studentDiscipline.findMany({
-      where: { studentId },
-      select: {
-        id: true,
-        status: true,
-        severity: true,
-        followUpDate: true
-      }
-    });
-
-    const totalCases = allStudentCases.length;
-    const openCases = allStudentCases.filter(c => c.status === 'OPEN').length;
-    const underReviewCases = allStudentCases.filter(c => c.status === 'UNDER_REVIEW' || c.status === 'INVESTIGATION').length;
-    const resolvedCases = allStudentCases.filter(c => c.status === 'RESOLVED' || c.status === 'CLOSED').length;
-    const followUpsDue = allStudentCases.filter(c => c.followUpDate && new Date(c.followUpDate) <= new Date() && c.status !== 'RESOLVED' && c.status !== 'CLOSED').length;
+    const [
+      totalCases,
+      openCases,
+      underReviewCases,
+      resolvedCases,
+      followUpsDue
+    ] = await Promise.all([
+      prisma.studentDiscipline.count({ where: { studentId } }),
+      prisma.studentDiscipline.count({ where: { studentId, status: 'OPEN' } }),
+      prisma.studentDiscipline.count({ where: { studentId, status: { in: ['UNDER_REVIEW', 'INVESTIGATION'] } } }),
+      prisma.studentDiscipline.count({ where: { studentId, status: { in: ['RESOLVED', 'CLOSED'] } } }),
+      prisma.studentDiscipline.count({
+        where: {
+          studentId,
+          followUpDate: { lte: new Date() },
+          status: { notIn: ['RESOLVED', 'CLOSED'] }
+        }
+      }),
+    ]);
 
     const severityBreakdown = {
-      LOW: allStudentCases.filter(c => c.severity === 'LOW').length,
-      MEDIUM: allStudentCases.filter(c => c.severity === 'MEDIUM').length,
-      HIGH: allStudentCases.filter(c => c.severity === 'HIGH').length,
-      CRITICAL: allStudentCases.filter(c => c.severity === 'CRITICAL').length
+      LOW:      await prisma.studentDiscipline.count({ where: { studentId, severity: 'LOW' } }),
+      MEDIUM:   await prisma.studentDiscipline.count({ where: { studentId, severity: 'MEDIUM' } }),
+      HIGH:     await prisma.studentDiscipline.count({ where: { studentId, severity: 'HIGH' } }),
+      CRITICAL: await prisma.studentDiscipline.count({ where: { studentId, severity: 'CRITICAL' } }),
     };
 
     const page = Math.max(1, Number(query.page) || 1);
@@ -1081,7 +1151,8 @@ export class DisciplineService {
       await notifyParentForDiscipline({
         studentId: updated.studentId,
         title: notifTitle,
-        message: notifMsg
+        message: notifMsg,
+        caseNumber: updated.caseNumber || undefined
       });
       await prisma.studentDiscipline.update({
         where: { id: incidentId },
@@ -1238,6 +1309,8 @@ export class DisciplineService {
       prisma.studentDiscipline.count({ where: { ...where, createdAt: { gte: firstDayOfMonth } } }),
       prisma.studentDiscipline.findMany({
         where,
+        orderBy: { createdAt: 'desc' },
+        take: 5000,
         select: {
           id: true,
           caseNumber: true,

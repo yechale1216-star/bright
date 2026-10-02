@@ -2,14 +2,42 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../config/db";
 import { verifyToken } from "../utils/jwt";
 
+let cachedConfig: any = null;
+let cacheExpiry = 0;
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+export const invalidateMaintenanceCache = () => {
+  cachedConfig = null;
+  cacheExpiry = 0;
+};
+
 /**
- * Global Maintenance Middleware
+ * Global Maintenance Middleware with in-memory caching to avoid remote DB round-trips on every request.
  */
 export const maintenanceMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  // Fast path for health check
+  if (req.path === '/health' || req.originalUrl === '/health') {
+    return next();
+  }
+
   try {
-    const config = await (prisma as any).platformConfig?.findUnique({
-      where: { id: "singleton" }
-    });
+    const now = Date.now();
+    let config = cachedConfig;
+
+    if (!config || now > cacheExpiry) {
+      try {
+        config = await (prisma as any).platformConfig?.findUnique({
+          where: { id: "singleton" }
+        });
+        cachedConfig = config || { maintenanceMode: false };
+        cacheExpiry = now + CACHE_TTL_MS;
+      } catch (dbErr) {
+        // If DB fails, don't block requests
+        cachedConfig = { maintenanceMode: false };
+        cacheExpiry = now + 10_000;
+        return next();
+      }
+    }
 
     if (!config || !config.maintenanceMode) {
       return next();
@@ -38,3 +66,4 @@ export const maintenanceMiddleware = async (req: Request, res: Response, next: N
     next();
   }
 };
+
