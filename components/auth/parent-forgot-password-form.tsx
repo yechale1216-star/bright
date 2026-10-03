@@ -1,10 +1,10 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, MessageSquare, ArrowRight } from "lucide-react"
@@ -17,7 +17,7 @@ interface ParentForgotPasswordFormProps {
 }
 
 export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPasswordFormProps) {
-  const [step, setStep] = useState<"phone" | "otp" | "success">("phone");
+  const [step, setStep] = useState<"phone" | "otp" | "new-password" | "success">("phone");
   const [phone, setPhone] = useState("+251");
   const [otpCode, setOtpCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,12 +38,10 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phone.replace(/\s+/g, "");
-
     if (!cleanPhone || cleanPhone === "+251") {
       notifications.error("Validation Error", "Please enter your registered Ethiopian phone number.");
       return;
     }
-
     setIsLoading(true);
     try {
       const result = await authService.parentForgotPassword(cleanPhone);
@@ -52,7 +50,7 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
         setResendCooldown(60);
         notifications.success("Verification Code Sent", "We have dispatched a verification code via SMS.");
       } else {
-        notifications.error("Request Failed", result.message || "Unable to send verification code. Please verify your phone number.");
+        notifications.error("Request Failed", result.message || "Unable to send verification code.");
       }
     } catch (err: any) {
       notifications.error("Error", "Network error. Please check your connection and try again.");
@@ -80,26 +78,42 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = phone.replace(/\s+/g, "");
     const cleanCode = otpCode.trim();
-
     if (!cleanCode || cleanCode.length < 4) {
       notifications.error("Validation Error", "Please enter the verification code sent to your phone.");
       return;
     }
+    setIsLoading(true);
+    try {
+      const result = await authService.verifyParentOTP(cleanPhone, cleanCode);
+      if (result.success) {
+        notifications.success("Code Verified", "Your identity has been confirmed. Now set your new password.");
+        setStep("new-password");
+      } else {
+        notifications.error("Verification Failed", result.message || "Invalid or expired code. Please try again.");
+      }
+    } catch (err) {
+      notifications.error("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = phone.replace(/\s+/g, "");
+    const cleanCode = otpCode.trim();
     if (!newPassword || newPassword.length < 6) {
       notifications.error("Validation Error", "Password must be at least 6 characters long.");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       notifications.error("Validation Error", "Passwords do not match. Please re-enter.");
       return;
     }
-
     setIsLoading(true);
     try {
       const result = await authService.resetParentPassword(cleanPhone, cleanCode, newPassword);
@@ -107,7 +121,7 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
         setStep("success");
         notifications.success("Password Updated", "Your password has been successfully reset.");
       } else {
-        notifications.error("Reset Failed", result.message || "Invalid or expired verification code. Please try again.");
+        notifications.error("Reset Failed", result.message || "Failed to reset password. Please start over.");
       }
     } catch (err) {
       notifications.error("Error", "An unexpected error occurred during password reset.");
@@ -119,22 +133,63 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
   if (step === "success") {
     return (
       <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in zoom-in-95 duration-500 relative z-10">
-        <CardHeader className="text-center pt-9 pb-4 px-8">
+        <div className="text-center pt-9 pb-4 px-8">
           <div className="mx-auto w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20">
             <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Password Reset Complete</h2>
-          <CardDescription className="typography-label text-slate-600 dark:text-slate-400 mt-2">
-            Your parent account password has been updated. You can now sign in using your new credentials.
-          </CardDescription>
-        </CardHeader>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">Your parent account password has been updated. You can now sign in using your new credentials.</p>
+        </div>
         <CardContent className="px-8 pb-8 pt-4 text-center">
-          <Button 
-            onClick={onBackToLogin}
-            className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
-          >
+          <Button onClick={onBackToLogin} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
             Sign In with New Password
           </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (step === "new-password") {
+    return (
+      <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in fade-in duration-400 relative z-10">
+        <CardHeader className="space-y-4 pb-4 pt-8 px-8 text-center relative flex flex-col items-center">
+          <Button variant="ghost" size="icon" onClick={() => setStep("otp")} className="absolute left-4 top-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl">
+            <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+          </Button>
+          <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
+            <Lock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Set New Password</h2>
+            <CardDescription className="typography-label text-slate-600 dark:text-slate-400 mt-1">Create a secure new password for your account</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="px-8 pb-8">
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="newPassword" className="typography-label text-slate-800 dark:text-slate-300">New Password</Label>
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Lock className="w-4 h-4" /></div>
+                <Input id="newPassword" type={showPassword ? "text" : "password"} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword" className="typography-label text-slate-800 dark:text-slate-300">Confirm New Password</Label>
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Lock className="w-4 h-4" /></div>
+                <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Repeat new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl" />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] mt-2">
+              {isLoading ? <Spinner size="sm" className="text-white" /> : "Set New Password"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     );
@@ -144,12 +199,7 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
     return (
       <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in fade-in duration-500 relative z-10">
         <CardHeader className="space-y-4 pb-4 pt-8 px-8 text-center relative flex flex-col items-center">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setStep("phone")} 
-            className="absolute left-4 top-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"
-          >
+          <Button variant="ghost" size="icon" onClick={() => setStep("phone")} className="absolute left-4 top-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl">
             <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </Button>
           <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
@@ -163,101 +213,17 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
           </div>
         </CardHeader>
         <CardContent className="px-8 pb-8">
-          <form onSubmit={handleResetPassword} className="space-y-4">
+          <form onSubmit={handleVerifyOTP} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="otpCode" className="typography-label text-slate-800 dark:text-slate-300">
-                Verification Code (OTP)
-              </Label>
-              <Input
-                id="otpCode"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="123456"
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                required
-                className="typography-body text-center text-xl tracking-[0.3em] font-mono h-12 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 rounded-xl text-slate-900 dark:text-white"
-              />
+              <Label htmlFor="otpCode" className="typography-label text-slate-800 dark:text-slate-300">Verification Code (OTP)</Label>
+              <Input id="otpCode" type="text" inputMode="numeric" maxLength={6} placeholder="1 2 3 4 5 6" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))} required className="typography-body text-center text-xl tracking-[0.3em] font-mono h-12 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 rounded-xl text-slate-900 dark:text-white" />
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="newPassword" className="typography-label text-slate-800 dark:text-slate-300">
-                New Password
-              </Label>
-              <div className="relative group">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <Input
-                  id="newPassword"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Min 6 characters"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="typography-label text-slate-800 dark:text-slate-300">
-                Confirm New Password
-              </Label>
-              <div className="relative group">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Repeat new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] mt-2"
-            >
-              {isLoading ? <Spinner size="sm" className="text-white" /> : "Set New Password"}
+            <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] mt-2">
+              {isLoading ? <Spinner size="sm" className="text-white" /> : <><span>Verify Code</span><ArrowRight className="ml-2 h-4 w-4" /></>}
             </Button>
-
             <div className="flex items-center justify-between pt-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setStep("phone")}
-                className="text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium"
-              >
-                Change phone number
-              </button>
-
-              <button
-                type="button"
-                disabled={resendCooldown > 0 || isLoading}
-                onClick={handleResendOTP}
-                className="text-emerald-700 dark:text-emerald-400 hover:underline font-bold disabled:opacity-50 disabled:no-underline"
-              >
+              <button type="button" onClick={() => setStep("phone")} className="text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium">Change phone number</button>
+              <button type="button" disabled={resendCooldown > 0 || isLoading} onClick={handleResendOTP} className="text-emerald-700 dark:text-emerald-400 hover:underline font-bold disabled:opacity-50 disabled:no-underline">
                 {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend SMS"}
               </button>
             </div>
@@ -270,12 +236,7 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
   return (
     <Card className="border-slate-200 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-2xl bg-white/70 dark:bg-slate-900/40 backdrop-blur-3xl rounded-3xl overflow-hidden border animate-in fade-in duration-500 relative z-10">
       <CardHeader className="space-y-4 pb-6 pt-9 px-8 text-center relative flex flex-col items-center">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={onBackToLogin} 
-          className="absolute left-4 top-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl"
-        >
+        <Button variant="ghost" size="icon" onClick={onBackToLogin} className="absolute left-4 top-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl">
           <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
         </Button>
         <Logo size="xl" withText={true} href="/" className="mb-2" />
@@ -287,36 +248,14 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
       <CardContent className="px-8 pb-8">
         <form onSubmit={handleRequestOTP} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="parentPhone" className="typography-label text-slate-800 dark:text-slate-300">
-              Registered Phone Number
-            </Label>
-            <PhoneInput
-              id="parentPhone"
-              value={phone}
-              onChange={(val) => setPhone(val)}
-              placeholder="9XXXXXXXX"
-              required
-            />
+            <Label htmlFor="parentPhone" className="typography-label text-slate-800 dark:text-slate-300">Registered Phone Number</Label>
+            <PhoneInput id="parentPhone" value={phone} onChange={(val) => setPhone(val)} placeholder="9XXXXXXXX" required />
           </div>
-          <Button 
-            type="submit" 
-            disabled={isLoading} 
-            className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
-          >
-            {isLoading ? <Spinner size="sm" className="text-white" /> : (
-              <>
-                Send Verification Code
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
+          <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]">
+            {isLoading ? <Spinner size="sm" className="text-white" /> : <><span>Send Verification Code</span><ArrowRight className="ml-2 h-4 w-4" /></>}
           </Button>
-
           <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={onBackToLogin}
-              className="text-xs text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold"
-            >
+            <button type="button" onClick={onBackToLogin} className="text-xs text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold">
               Remember your password? Sign In
             </button>
           </div>
