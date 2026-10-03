@@ -29,6 +29,8 @@ import {
   History,
   FileSpreadsheet,
   RotateCcw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { db } from "@/lib/db/database"
@@ -201,6 +203,14 @@ export function StaffAttendance() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
 
+  // Admin overview server-side pagination
+  const [adminPage, setAdminPage] = useState(1)
+  const [adminTotal, setAdminTotal] = useState(0)
+  const ADMIN_PAGE_LIMIT = 50
+  const [adminTableLoading, setAdminTableLoading] = useState(false)
+  const [adminError, setAdminError] = useState<string | null>(null)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Date filter for personal recent attendance history
   const [historyFilterDate, setHistoryFilterDate] = useState<string>("")
   const filteredHistory = useMemo(() => {
@@ -297,14 +307,26 @@ export function StaffAttendance() {
         }
       }
 
-      // 2. If Admin, load all staff attendance for selected date
+    // 2. If Admin, load all staff attendance for selected date (page 1 reset)
       if (activeUser?.role === "admin" || activeUser?.role === "school_admin") {
-        const allAtt = await db.getStaffAttendance({
-          date: selectedDate,
-          mode: isSessionMode ? "session_based" : "daily",
-        })
-        setAllStaffAttendance(allAtt)
-        _staffAttendanceCache.allStaffAttendance = allAtt
+        setAdminTableLoading(true)
+        setAdminError(null)
+        try {
+          const { data, total } = await db.getStaffAttendance({
+            date: selectedDate,
+            mode: isSessionMode ? "session_based" : "daily",
+            page: 1,
+            limit: ADMIN_PAGE_LIMIT,
+          })
+          setAllStaffAttendance(data)
+          setAdminTotal(total)
+          setAdminPage(1)
+          _staffAttendanceCache.allStaffAttendance = data
+        } catch (err: any) {
+          setAdminError(err?.message || "Failed to load staff attendance.")
+        } finally {
+          setAdminTableLoading(false)
+        }
       }
     } catch (err: any) {
       console.error("[StaffAttendance] Failed to load attendance data:", err)
@@ -644,16 +666,41 @@ export function StaffAttendance() {
     }
   }
 
-  // Filtered staff attendance for Admin overview
-  const filteredAllStaff = useMemo(() => {
-    return allStaffAttendance.filter((record) => {
-      const name = record.user?.full_name?.toLowerCase() || ""
-      const role = record.user?.role?.toLowerCase() || ""
-      const matchesSearch = name.includes(searchTerm.toLowerCase()) || role.includes(searchTerm.toLowerCase())
-      const matchesStatus = statusFilter === "ALL" || record.status === statusFilter
-      return matchesSearch && matchesStatus
-    })
-  }, [allStaffAttendance, searchTerm, statusFilter])
+  // ─── fetchAdminPage: loads paginated admin table ───
+  const fetchAdminPage = useCallback(async (opts: {
+    page?: number;
+    search?: string;
+    status?: string;
+    date?: string;
+  } = {}) => {
+    const activeUser = authUser || authService.getCurrentUser()
+    if (!activeUser || (activeUser.role !== "admin" && activeUser.role !== "school_admin")) return
+    setAdminTableLoading(true)
+    setAdminError(null)
+    const targetPage = opts.page ?? adminPage
+    try {
+      const { data, total } = await db.getStaffAttendance({
+        date: opts.date ?? selectedDate,
+        mode: isSessionMode ? "session_based" : "daily",
+        search: opts.search ?? (searchTerm || undefined),
+        status: (opts.status ?? statusFilter) === "ALL" ? undefined : (opts.status ?? statusFilter),
+        page: targetPage,
+        limit: ADMIN_PAGE_LIMIT,
+      })
+      setAllStaffAttendance(data)
+      setAdminTotal(total)
+      setAdminPage(targetPage)
+      _staffAttendanceCache.allStaffAttendance = data
+    } catch (err: any) {
+      setAdminError(err?.message || "Failed to load staff attendance.")
+    } finally {
+      setAdminTableLoading(false)
+    }
+  }, [authUser, selectedDate, isSessionMode, searchTerm, statusFilter, adminPage])
+
+  // Filtered staff for admin overview (client-side only since search is server-side)
+  const filteredAllStaff = allStaffAttendance
+
 
   // ─── Modern Spinner Loading State ───
   if (isLoading && !_staffAttendanceCache.hasLoaded && myHistory.length === 0 && allStaffAttendance.length === 0) {
@@ -1312,6 +1359,11 @@ export function StaffAttendance() {
                 </CardTitle>
                 <CardDescription>
                   Daily overview for {formatDate(selectedDate)}
+                  {adminTotal > 0 && (
+                    <span className="ml-2 font-semibold text-foreground/70">
+                      ({adminTotal} total record{adminTotal !== 1 ? "s" : ""})
+                    </span>
+                  )}
                 </CardDescription>
               </div>
 
@@ -1320,16 +1372,26 @@ export function StaffAttendance() {
                 <div className="relative w-full sm:w-64">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Filter staff..."
+                    placeholder="Search staff..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setSearchTerm(val)
+                      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+                      searchDebounceRef.current = setTimeout(() => {
+                        fetchAdminPage({ page: 1, search: val })
+                      }, 350)
+                    }}
                     className="pl-9 h-9 text-xs"
                   />
                 </div>
 
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value)
+                    fetchAdminPage({ page: 1, status: e.target.value })
+                  }}
                   className="h-9 px-3 rounded-md border border-input bg-background text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="ALL">All Statuses</option>
@@ -1342,27 +1404,60 @@ export function StaffAttendance() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => loadInitialData()}
-                  disabled={isLoading}
+                  onClick={() => fetchAdminPage({ page: adminPage })}
+                  disabled={adminTableLoading}
                   className="h-9 gap-1.5"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 ${adminTableLoading ? "animate-spin" : ""}`} />
                   Refresh
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
+            {/* Error State */}
+            {adminError && (
+              <div className="mx-4 mb-4 p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300 text-sm flex items-center gap-2.5">
+                <span className="font-bold shrink-0">⚠</span>
+                <span>{adminError}</span>
+                <Button variant="ghost" size="sm" onClick={() => fetchAdminPage({ page: adminPage })} className="ml-auto text-xs h-7">
+                  Retry
+                </Button>
+              </div>
+            )}
+
             {/* Mobile Card View for Roster (< md screens) */}
-            <div className="md:hidden divide-y divide-border/50 max-h-[500px] overflow-y-auto">
-              {isLoading ? (
-                <div className="py-12 text-center text-muted-foreground">
-                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-                  Loading staff records...
-                </div>
+            <div className="md:hidden divide-y divide-border/50 max-h-[520px] overflow-y-auto">
+              {adminTableLoading ? (
+                // Skeleton cards for mobile
+                Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="p-3.5 space-y-2.5 animate-pulse">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-muted" />
+                      <div className="space-y-1 flex-1">
+                        <div className="h-3 bg-muted rounded w-3/4" />
+                        <div className="h-2.5 bg-muted rounded w-1/2" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="h-12 bg-muted rounded-lg" />
+                      <div className="h-12 bg-muted rounded-lg" />
+                    </div>
+                  </div>
+                ))
               ) : filteredAllStaff.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground text-xs">
-                  No staff attendance records for this date.
+                <div className="py-14 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
+                    <UserCheck className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {searchTerm || statusFilter !== "ALL" ? "No staff match your filters." : "No staff attendance records for this date."}
+                  </p>
+                  {(searchTerm || statusFilter !== "ALL") && (
+                    <Button variant="outline" size="sm" onClick={() => { setSearchTerm(""); setStatusFilter("ALL"); fetchAdminPage({ page: 1, search: "", status: "ALL" }) }} className="text-xs rounded-xl">
+                      Clear Filters
+                    </Button>
+                  )}
                 </div>
               ) : (
                 filteredAllStaff.map((rec) => {
@@ -1440,114 +1535,184 @@ export function StaffAttendance() {
               )}
             </div>
 
-            {/* Desktop Table View (>= md screens) */}
-            <div className="hidden md:block overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead>Staff Member</TableHead>
-                    <TableHead>Role</TableHead>
-                    {isSessionMode && <TableHead>Session</TableHead>}
-                    <TableHead>Check-In</TableHead>
-                    <TableHead>Check-In Status</TableHead>
-                    <TableHead>Check-Out</TableHead>
-                    <TableHead>Check-Out Status</TableHead>
-                    <TableHead>Biometric / GPS</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
+            {/* Desktop Table View (>= md screens) with sticky header */}
+            <div className="hidden md:block">
+              <div className="overflow-x-auto overflow-y-auto max-h-[540px] relative">
+                <Table>
+                  <TableHeader className="bg-muted/60 backdrop-blur-sm sticky top-0 z-10">
                     <TableRow>
-                      <TableCell colSpan={isSessionMode ? 8 : 7} className="text-center py-12 text-muted-foreground">
-                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-                        Loading staff records...
-                      </TableCell>
+                      <TableHead className="min-w-[180px]">Staff Member</TableHead>
+                      <TableHead className="min-w-[100px]">Role</TableHead>
+                      {isSessionMode && <TableHead className="min-w-[90px]">Session</TableHead>}
+                      <TableHead className="min-w-[90px]">Check-In</TableHead>
+                      <TableHead className="min-w-[120px]">Check-In Status</TableHead>
+                      <TableHead className="min-w-[90px]">Check-Out</TableHead>
+                      <TableHead className="min-w-[120px]">Check-Out Status</TableHead>
+                      <TableHead className="min-w-[130px]">Biometric / GPS</TableHead>
                     </TableRow>
-                  ) : filteredAllStaff.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={isSessionMode ? 8 : 7} className="text-center py-12 text-muted-foreground">
-                        No staff attendance records for this date.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredAllStaff.map((rec) => {
-                      const sessCfg = isSessionMode
-                        ? staffSessions.find(
-                            (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
-                          )
-                        : undefined
-                      const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
-
-                      return (
-                        <TableRow key={rec.id} className="hover:bg-muted/30">
+                  </TableHeader>
+                  <TableBody>
+                    {adminTableLoading ? (
+                      // Skeleton rows
+                      Array.from({ length: 8 }).map((_, i) => (
+                        <TableRow key={i} className="animate-pulse">
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <Avatar className="w-8 h-8 border">
-                                <AvatarImage src={rec.user?.profile_photo || ""} />
-                                <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
-                                  {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-semibold text-sm leading-none">{rec.user?.full_name || "Unknown Staff"}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">{rec.user?.email || ""}</p>
+                              <div className="w-8 h-8 rounded-full bg-muted shrink-0" />
+                              <div className="space-y-1.5">
+                                <div className="h-3 bg-muted rounded w-28" />
+                                <div className="h-2.5 bg-muted rounded w-20" />
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize text-xs">
-                              {rec.user?.role?.replace("_", " ") || "Staff"}
-                            </Badge>
-                          </TableCell>
-                          {isSessionMode && (
+                          {Array.from({ length: isSessionMode ? 7 : 6 }).map((_, j) => (
+                            <TableCell key={j}><div className="h-3 bg-muted rounded w-16" /></TableCell>
+                          ))}
+                        </TableRow>
+                      ))
+                    ) : filteredAllStaff.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={isSessionMode ? 8 : 7} className="text-center py-16 text-muted-foreground">
+                          <div className="space-y-3">
+                            <div className="w-12 h-12 mx-auto rounded-full bg-muted/60 flex items-center justify-center">
+                              <UserCheck className="w-6 h-6" />
+                            </div>
+                            <p className="text-sm font-semibold text-foreground">
+                              {searchTerm || statusFilter !== "ALL" ? "No staff match your filters." : "No staff attendance records for this date."}
+                            </p>
+                            {(searchTerm || statusFilter !== "ALL") && (
+                              <Button variant="outline" size="sm" onClick={() => { setSearchTerm(""); setStatusFilter("ALL"); fetchAdminPage({ page: 1, search: "", status: "ALL" }) }} className="text-xs rounded-xl">
+                                Clear Filters
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredAllStaff.map((rec) => {
+                        const sessCfg = isSessionMode
+                          ? staffSessions.find(
+                              (s: any) => s.id.toLowerCase() === (rec.session || "morning").toLowerCase()
+                            )
+                          : undefined
+                        const display = getStaffAttendanceDisplay(rec, settings, sessCfg)
+
+                        return (
+                          <TableRow key={rec.id} className="hover:bg-muted/30 transition-colors">
                             <TableCell>
-                              <Badge variant="outline" className="text-[10px] font-bold uppercase">
-                                {rec.session || "daily"}
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8 border shrink-0">
+                                  <AvatarImage src={rec.user?.profile_photo || ""} />
+                                  <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                                    {rec.user?.full_name?.substring(0, 2).toUpperCase() || "ST"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-semibold text-sm leading-none">{rec.user?.full_name || "Unknown Staff"}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{rec.user?.email || ""}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize text-xs">
+                                {rec.user?.role?.replace("_", " ") || "Staff"}
                               </Badge>
                             </TableCell>
-                          )}
-                          <TableCell className="text-xs font-mono font-medium">
-                            {display.checkIn.timeStr}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={`text-xs font-bold ${display.checkIn.badgeColor}`}
-                            >
-                              {display.checkIn.titleLabel}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs font-mono font-medium">
-                            {display.checkOut.timeStr}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={`text-xs font-bold ${display.checkOut.badgeColor}`}
-                            >
-                              {display.checkOut.titleLabel}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 text-xs">
-                              {rec.faceVerified ? (
-                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                  <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground text-[11px]">No Face</span>
-                              )}
-                              {rec.geofenceVerified && (
-                                <span className="flex items-center gap-1 text-primary">
-                                  <MapPin className="w-3.5 h-3.5" /> GPS ({rec.geofenceDistance ? `${Math.round(rec.geofenceDistance)}m` : "✓"})
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                            {isSessionMode && (
+                              <TableCell>
+                                <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                                  {rec.session || "daily"}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            <TableCell className="text-xs font-mono font-medium">
+                              {display.checkIn.timeStr}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`text-xs font-bold ${display.checkIn.badgeColor}`}>
+                                {display.checkIn.titleLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs font-mono font-medium">
+                              {display.checkOut.timeStr}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`text-xs font-bold ${display.checkOut.badgeColor}`}>
+                                {display.checkOut.titleLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 text-xs">
+                                {rec.faceVerified ? (
+                                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                    <ShieldCheck className="w-3.5 h-3.5" /> Face ✓
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-[11px]">No Face</span>
+                                )}
+                                {rec.geofenceVerified && (
+                                  <span className="flex items-center gap-1 text-primary">
+                                    <MapPin className="w-3.5 h-3.5" /> GPS ({rec.geofenceDistance ? `${Math.round(rec.geofenceDistance)}m` : "✓"})
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination Controls */}
+              {adminTotal > ADMIN_PAGE_LIMIT && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border/60 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">
+                    Showing {((adminPage - 1) * ADMIN_PAGE_LIMIT) + 1}–{Math.min(adminPage * ADMIN_PAGE_LIMIT, adminTotal)} of {adminTotal} records
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchAdminPage({ page: adminPage - 1 })}
+                      disabled={adminPage <= 1 || adminTableLoading}
+                      className="h-8 w-8 p-0 rounded-lg"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    {Array.from({ length: Math.min(5, Math.ceil(adminTotal / ADMIN_PAGE_LIMIT)) }, (_, i) => {
+                      const totalPages = Math.ceil(adminTotal / ADMIN_PAGE_LIMIT)
+                      let page = i + 1
+                      if (totalPages > 5) {
+                        const start = Math.max(1, Math.min(adminPage - 2, totalPages - 4))
+                        page = start + i
+                      }
+                      return (
+                        <Button
+                          key={page}
+                          variant={page === adminPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => fetchAdminPage({ page })}
+                          disabled={adminTableLoading}
+                          className="h-8 w-8 p-0 rounded-lg text-xs font-bold"
+                        >
+                          {page}
+                        </Button>
                       )
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                    })}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchAdminPage({ page: adminPage + 1 })}
+                      disabled={adminPage >= Math.ceil(adminTotal / ADMIN_PAGE_LIMIT) || adminTableLoading}
+                      className="h-8 w-8 p-0 rounded-lg"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

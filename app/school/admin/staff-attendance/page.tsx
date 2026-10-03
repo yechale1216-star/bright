@@ -34,6 +34,7 @@ import {
   CalendarRange,
   Users,
   ChevronRight,
+  ChevronLeft,
   TrendingUp,
   X,
   ScanFace,
@@ -193,6 +194,12 @@ export default function AdminStaffAttendanceDashboard() {
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [statsLoading, setStatsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalRecords, setTotalRecords] = useState(0)
+  const PAGE_LIMIT = 50
+  const [reportPage, setReportPage] = useState(1)
+  const REPORT_PAGE_LIMIT = 50
+  const searchDebounceRef = React.useRef<NodeJS.Timeout | null>(null)
 
   // Modals
   const [detailRecord, setDetailRecord] = useState<any | null>(null)
@@ -227,6 +234,12 @@ export default function AdminStaffAttendanceDashboard() {
   // Report state
   const [reportData, setReportData] = useState<any>(null)
   const [reportLoading, setReportLoading] = useState(false)
+
+  const paginatedStaffSummary = useMemo(() => {
+    if (!reportData?.staffSummary) return []
+    const start = (reportPage - 1) * REPORT_PAGE_LIMIT
+    return reportData.staffSummary.slice(start, start + REPORT_PAGE_LIMIT)
+  }, [reportData?.staffSummary, reportPage])
 
   // Load all users for leave dropdown
   const [allUsers, setAllUsers] = useState<any[]>([])
@@ -356,8 +369,9 @@ export default function AdminStaffAttendanceDashboard() {
     }
   }, [selectedDate, sessionFilter])
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (pageOverride?: number) => {
     setLoading(true)
+    const targetPage = pageOverride ?? 1
     try {
       const filterPayload: any = {
         // Always pass the mode so the backend enforces strict mode separation
@@ -368,6 +382,8 @@ export default function AdminStaffAttendanceDashboard() {
         session: isSessionMode ? sessionFilter : undefined,
         search: search.trim() || undefined,
         geofenceVerified: geoFilter === "verified" ? true : geoFilter === "unverified" ? false : undefined,
+        page: targetPage,
+        limit: PAGE_LIMIT,
       }
 
       if (isRangeMode) {
@@ -378,10 +394,14 @@ export default function AdminStaffAttendanceDashboard() {
       }
 
       const res = await db.getStaffAttendance(filterPayload)
-      setRecords(res)
+      const list = Array.isArray(res) ? res : ((res as any)?.data || [])
+      setRecords(list)
+      setTotalRecords(res?.total ?? list.length)
+      setCurrentPage(targetPage)
     } catch (err: any) {
       console.error("Failed to load staff attendance records:", err)
       setRecords([])
+      setTotalRecords(0)
     } finally {
       setLoading(false)
     }
@@ -416,7 +436,8 @@ export default function AdminStaffAttendanceDashboard() {
         mode: isSessionMode ? "session_based" : "daily",
       })
       const userMap = new Map<string, any>()
-      res.forEach((r: any) => {
+      const list = Array.isArray(res) ? res : ((res as any)?.data || [])
+      list.forEach((r: any) => {
         if (r.user && !["parent", "student", "admin", "school_admin"].includes(r.user.role) && !userMap.has(r.user.id)) {
           userMap.set(r.user.id, r.user)
         }
@@ -1085,7 +1106,14 @@ export default function AdminStaffAttendanceDashboard() {
                 <Input
                   placeholder="Search staff by name, email, or phone..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setSearch(val)
+                    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+                    searchDebounceRef.current = setTimeout(() => {
+                      fetchData(1)
+                    }, 350)
+                  }}
                   className="pl-10 h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium"
                 />
               </div>
@@ -1244,10 +1272,10 @@ export default function AdminStaffAttendanceDashboard() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[540px]">
                 <table className="w-full text-sm min-w-[950px]">
                   <thead>
-                    <tr className="border-b border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold backdrop-blur-sm">
+                    <tr className="sticky top-0 z-10 border-b border-white/40 dark:border-white/10 bg-slate-50/95 dark:bg-slate-950/95 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold backdrop-blur-md shadow-sm">
                       <th className="px-6 py-4">Staff Member</th>
                       <th className="px-5 py-4">Role</th>
                       <th className="px-5 py-4">Date</th>
@@ -1404,6 +1432,38 @@ export default function AdminStaffAttendanceDashboard() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalRecords > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-xs">
+                <p className="text-slate-500 dark:text-slate-400 font-medium">
+                  Showing <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min((currentPage - 1) * PAGE_LIMIT + 1, totalRecords)}</span> to <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min(currentPage * PAGE_LIMIT, totalRecords)}</span> of <span className="font-bold text-slate-800 dark:text-slate-200">{totalRecords}</span> records
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1 || loading}
+                    onClick={() => fetchData(currentPage - 1)}
+                    className="h-8 px-2.5 rounded-xl text-xs gap-1 border-white/40 dark:border-white/10"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </Button>
+                  <span className="px-3 py-1 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Page {currentPage} of {Math.max(1, Math.ceil(totalRecords / PAGE_LIMIT))}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= Math.ceil(totalRecords / PAGE_LIMIT) || loading}
+                    onClick={() => fetchData(currentPage + 1)}
+                    className="h-8 px-2.5 rounded-xl text-xs gap-1 border-white/40 dark:border-white/10"
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -1588,10 +1648,10 @@ export default function AdminStaffAttendanceDashboard() {
                     )}
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto max-h-[540px]">
                   <table className="w-full text-sm min-w-[700px]">
                     <thead>
-                      <tr className="border-b border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-left text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                      <tr className="sticky top-0 z-10 border-b border-white/40 dark:border-white/10 bg-slate-50/95 dark:bg-slate-950/95 text-left text-[11px] uppercase tracking-wider text-slate-500 font-bold backdrop-blur-md shadow-sm">
                         <th className="px-6 py-3.5">Staff Member</th>
                         <th className="px-4 py-3.5">Role</th>
                         <th className="px-4 py-3.5 text-center">Days Logged</th>
@@ -1603,7 +1663,7 @@ export default function AdminStaffAttendanceDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/30 dark:divide-white/5">
-                      {reportData.staffSummary.map((item: any) => {
+                      {paginatedStaffSummary.map((item: any) => {
                         const permissionCount = item.permission || 0
                         const leaveCount = Math.max(0, (item.onLeave || 0) - permissionCount)
                         return (
@@ -1634,6 +1694,38 @@ export default function AdminStaffAttendanceDashboard() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Report Pagination Controls */}
+                {reportData.staffSummary && reportData.staffSummary.length > REPORT_PAGE_LIMIT && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-xs">
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">
+                      Showing <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min((reportPage - 1) * REPORT_PAGE_LIMIT + 1, reportData.staffSummary.length)}</span> to <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min(reportPage * REPORT_PAGE_LIMIT, reportData.staffSummary.length)}</span> of <span className="font-bold text-slate-800 dark:text-slate-200">{reportData.staffSummary.length}</span> staff members
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={reportPage <= 1}
+                        onClick={() => setReportPage((p) => p - 1)}
+                        className="h-8 px-2.5 rounded-xl text-xs gap-1 border-white/40 dark:border-white/10"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                      </Button>
+                      <span className="px-3 py-1 text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Page {reportPage} of {Math.max(1, Math.ceil(reportData.staffSummary.length / REPORT_PAGE_LIMIT))}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={reportPage >= Math.ceil(reportData.staffSummary.length / REPORT_PAGE_LIMIT)}
+                        onClick={() => setReportPage((p) => p + 1)}
+                        className="h-8 px-2.5 rounded-xl text-xs gap-1 border-white/40 dark:border-white/10"
+                      >
+                        Next <ChevronRight className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

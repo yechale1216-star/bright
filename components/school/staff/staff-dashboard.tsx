@@ -79,19 +79,6 @@ export function StaffDashboard() {
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(_staffDashboardCache.enrolledDescriptor)
   const [allAttendance, setAllAttendance] = useState<any[]>(_staffDashboardCache.allAttendance)
 
-  // Active session selection in session-based mode ("morning" or "afternoon")
-  const [selectedSession, setSelectedSession] = useState<"morning" | "afternoon">(() => {
-    try {
-      const hStr = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Africa/Addis_Ababa",
-        hour12: false,
-        hour: "numeric",
-      }).format(new Date())
-      return parseInt(hStr, 10) >= 13 ? "afternoon" : "morning"
-    } catch {
-      return "morning"
-    }
-  })
 
   // Session filter for Monthly Performance ("all" | "morning" | "afternoon")
   const [monthlySessionFilter, setMonthlySessionFilter] = useState<"all" | "morning" | "afternoon">("all")
@@ -299,21 +286,56 @@ export function StaffDashboard() {
     return todayRecs.find((r) => (r.session || "").toLowerCase() === "afternoon") || null
   }, [todayRecs])
 
-  // Auto-align selectedSession with any active duty record on load/update
-  useEffect(() => {
-    if (!isSessionMode || !todayRecs.length) return
-    const activeDuty = todayRecs.find((r) => r.checkInTime && !r.checkOutTime)
-    if (activeDuty) {
-      const sess = (activeDuty.session || "morning").toLowerCase()
-      if (sess === "afternoon" || sess === "morning") {
-        setSelectedSession(sess as "morning" | "afternoon")
-      }
+  // Internal session resolver: evaluates configured shift times against current Addis Ababa time
+  const resolveActiveSession = useCallback((): "morning" | "afternoon" => {
+    // 1. If actively clocked into a session today (checked in and not checked out), prioritize that active shift
+    if (morningRec?.checkInTime && !morningRec?.checkOutTime) {
+      return "morning"
     }
-  }, [todayRecs, isSessionMode])
+    if (afternoonRec?.checkInTime && !afternoonRec?.checkOutTime) {
+      return "afternoon"
+    }
+
+    // 2. Resolve by current time vs configured session times in Africa/Addis_Ababa timezone
+    let currentHHMM = "08:00"
+    try {
+      currentHHMM = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Africa/Addis_Ababa",
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date())
+    } catch {
+      const d = new Date()
+      currentHHMM = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+    }
+
+    const afternoonSess = staffSessions.find((s: any) => s.id === "afternoon" || s.name?.toLowerCase() === "afternoon")
+    const morningSess = staffSessions.find((s: any) => s.id === "morning" || s.name?.toLowerCase() === "morning")
+
+    // The boundary when morning transitions to afternoon according to school configuration:
+    // Earliest check-in for afternoon, or afternoon start time, or morning end time (fallback "12:30")
+    const afternoonBoundary = afternoonSess?.earliestCheckinTime || afternoonSess?.startTime || morningSess?.endTime || "12:30"
+
+    return currentHHMM >= afternoonBoundary ? "afternoon" : "morning"
+  }, [morningRec, afternoonRec, staffSessions])
+
+  const [currentSession, setCurrentSession] = useState<"morning" | "afternoon">(resolveActiveSession)
+
+  // Auto-sync current session when records, mode, or configured shift times change
+  useEffect(() => {
+    if (!isSessionMode) return
+    setCurrentSession(resolveActiveSession())
+
+    const interval = setInterval(() => {
+      setCurrentSession(resolveActiveSession())
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [isSessionMode, resolveActiveSession])
 
   useEffect(() => {
     if (isSessionMode) {
-      const targetSession = selectedSession
+      const targetSession = currentSession
       const activeRec = targetSession === "afternoon" ? afternoonRec : morningRec
       // If no record exists for this session yet today, synthesize a pending record so the display status calculates correctly
       setTodayRecord(activeRec || { session: targetSession, date: todayStr })
@@ -327,7 +349,7 @@ export function StaffDashboard() {
       const dailyRec = todayRecs.find((r) => !r.session || r.session === "daily") || todayRecs[0]
       setTodayRecord(checkedInRec || dailyRec || null)
     }
-  }, [todayRecs, todayStr, isSessionMode, selectedSession, morningRec, afternoonRec])
+  }, [todayRecs, todayStr, isSessionMode, currentSession, morningRec, afternoonRec])
 
   useEffect(() => {
     // On first mount: show spinner if not cached. On re-navigation: silent refresh
@@ -610,55 +632,13 @@ export function StaffDashboard() {
 
       {/* ─── 3. FOUR STATUS METRIC CARDS ─── */}
       <div className="space-y-3">
-        {isSessionMode && (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/40 dark:bg-slate-900/40 border border-white/30 dark:border-white/10 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => setSelectedSession("morning")}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                  selectedSession === "morning"
-                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                )}
-              >
-                <span>Morning Shift</span>
-                {morningRec?.status && (
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase font-black border-current/30">
-                    {morningRec.status}
-                  </Badge>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedSession("afternoon")}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
-                  selectedSession === "afternoon"
-                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                )}
-              >
-                <span>Afternoon Shift</span>
-                {afternoonRec?.status && (
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase font-black border-current/30">
-                    {afternoonRec.status}
-                  </Badge>
-                )}
-              </button>
-            </div>
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
-              Showing: <strong className="text-foreground capitalize">{selectedSession} Shift</strong>
-            </span>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Card 1: Attendance Status */}
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Attendance</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Attendance {isSessionMode ? `• ${currentSession === "afternoon" ? "Afternoon" : "Morning"} Shift` : ""}
+              </span>
               <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-xs">
                 <UserCheck className="w-4 h-4" />
               </div>

@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Download, Printer, Calendar, Users, UserCheck, Clock, UserX, AlertTriangle, TrendingUp, TrendingDown, Search } from "lucide-react"
+import { Download, Printer, Calendar, Users, UserCheck, Clock, UserX, AlertTriangle, TrendingUp, TrendingDown, Search, ChevronLeft, ChevronRight } from "lucide-react"
 import { db, type Student } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { ValidationService } from "@/lib/utils/validation"
@@ -64,6 +64,13 @@ export function Reports() {
   const [dateValidationErrors, setDateValidationErrors] = useState<string[]>([])
   const { settings } = useSchoolSettings()
   const isSessionBased = settings?.attendanceMode === "session_based"
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 50
+
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredReports.slice(start, start + PAGE_SIZE)
+  }, [filteredReports, currentPage])
 
   useEffect(() => {
     setMounted(true)
@@ -352,6 +359,7 @@ export function Reports() {
   }
 
   const filterReports = () => {
+    setCurrentPage(1)
     if (!reportData || reportData.length === 0) {
       setFilteredReports([])
       return
@@ -760,7 +768,7 @@ export function Reports() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="md:hidden space-y-4">
-              {filteredReports.map((report) => (
+              {paginatedReports.map((report) => (
                 <div key={report.student.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[28px] shadow-sm flex flex-col gap-4 active:scale-[0.98] transition-all">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -803,10 +811,10 @@ export function Reports() {
               ))}
             </div>
 
-            <div className="hidden md:block overflow-x-auto scrollbar-hide">
+            <div className="hidden md:block overflow-x-auto overflow-y-auto max-h-[560px] rounded-xl border border-slate-200/60 dark:border-slate-800">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                  <tr className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
                     <th className="px-4 py-4 text-left text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Student</th>
                     <th className="px-4 py-4 text-left text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Grade</th>
                     <th className="px-4 py-4 text-center text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">Stream</th>
@@ -819,7 +827,7 @@ export function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                  {filteredReports.map((report) => (
+                  {paginatedReports.map((report) => (
                     <tr key={report.student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-4 py-4">
                         <p className="text-sm font-black text-foreground uppercase">{report.student.name}</p>
@@ -842,6 +850,38 @@ export function Reports() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {filteredReports.length > PAGE_SIZE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <p className="text-muted-foreground font-medium">
+                  Showing <span className="font-bold text-foreground">{Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredReports.length)}</span> to <span className="font-bold text-foreground">{Math.min(currentPage * PAGE_SIZE, filteredReports.length)}</span> of <span className="font-bold text-foreground">{filteredReports.length}</span> students
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                    className="h-8 px-2.5 rounded-xl text-xs gap-1"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </Button>
+                  <span className="px-3 py-1 text-xs font-bold text-foreground">
+                    Page {currentPage} of {Math.max(1, Math.ceil(filteredReports.length / PAGE_SIZE))}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= Math.ceil(filteredReports.length / PAGE_SIZE)}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="h-8 px-2.5 rounded-xl text-xs gap-1"
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

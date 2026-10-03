@@ -892,7 +892,9 @@ class Database extends BaseDatabase {
     search?: string;
     geofenceVerified?: boolean | string;
     faceVerified?: boolean | string;
-  } = {}): Promise<any[]> {
+    page?: number;
+    limit?: number;
+  } = {}): Promise<any[] & { data: any[]; total: number; page: number; limit: number }> {
     const params = new URLSearchParams()
     if (filters.date) params.append("date", filters.date)
     if (filters.startDate) params.append("startDate", filters.startDate)
@@ -905,13 +907,20 @@ class Database extends BaseDatabase {
     if (filters.search) params.append("search", filters.search)
     if (filters.geofenceVerified !== undefined) params.append("geofenceVerified", String(filters.geofenceVerified))
     if (filters.faceVerified !== undefined) params.append("faceVerified", String(filters.faceVerified))
+    if (filters.page) params.append("page", String(filters.page))
+    if (filters.limit) params.append("limit", String(filters.limit))
     params.append("_t", Date.now().toString())
 
-    const result = await apiFetch<{ success: boolean; data: any[] }>(
+    const result = await apiFetch<{ success: boolean; data: any[]; total: number; page: number; limit: number }>(
       `${API_URL}/api/staff-attendance?${params.toString()}`,
       { headers: this.getApiHeaders(), cache: "no-store" }
     )
-    return result.data || []
+    const rawList: any = Array.isArray(result.data) ? result.data : []
+    rawList.data = rawList
+    rawList.total = result.total ?? rawList.length
+    rawList.page = result.page ?? 1
+    rawList.limit = result.limit ?? (rawList.length || 50)
+    return rawList
   }
 
   async getStaffAttendanceStats(date?: string, session?: string): Promise<any> {

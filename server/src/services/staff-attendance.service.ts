@@ -992,7 +992,7 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
   faceVerified?: string | boolean;
   limit?: number;
   page?: number;
-} = {}) {
+} = {}): Promise<{ records: any[]; total: number; page: number; limit: number }> {
   const settings = await prisma.schoolSettings.findFirst();
   const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
 
@@ -1068,29 +1068,37 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
     }
   }
 
-  const page = filters.page ? Math.max(1, Number(filters.page)) : 1;
-  const limit = filters.limit ? Math.min(Number(filters.limit), 500) : (filters.date || (filters.startDate && filters.endDate) ? undefined : 500);
+  // Enforce server-side pagination: default 50, max 100 per page
+  const pageNum = Math.max(1, Number(filters.page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(filters.limit) || 50));
+  const skip = (pageNum - 1) * limitNum;
 
-  return await prisma.staffAttendance.findMany({
-    where,
-    ...(limit ? { take: limit, skip: (page - 1) * limit } : {}),
-    include: {
-      user: {
-        select: {
-          id: true,
-          full_name: true,
-          email: true,
-          role: true,
-          phone: true,
-          profile_photo: true,
-          faceEnrollment: {
-            select: { id: true, enrolledAt: true }
+  const [records, total] = await Promise.all([
+    prisma.staffAttendance.findMany({
+      where,
+      take: limitNum,
+      skip,
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            role: true,
+            phone: true,
+            profile_photo: true,
+            faceEnrollment: {
+              select: { id: true, enrolledAt: true }
+            }
           }
         }
-      }
-    },
-    orderBy: [{ date: 'desc' }, { session: 'asc' }]
-  });
+      },
+      orderBy: [{ date: 'desc' }, { session: 'asc' }]
+    }),
+    prisma.staffAttendance.count({ where }),
+  ]);
+
+  return { records, total, page: pageNum, limit: limitNum };
 }
 
 /**

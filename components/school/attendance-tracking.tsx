@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { Spinner } from "@/components/ui/spinner"
@@ -36,6 +36,8 @@ import {
   History,
   AlertCircle,
   Unlock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { db, type Student } from "@/lib/db/database"
 import { notifications, combinedNotificationService, emailService } from "@/lib/utils/notifications"
@@ -92,6 +94,13 @@ export function AttendanceTracking() {
   const [uiType, setUiType] = useState<"card_based" | "tabular">("card_based")
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0)
   const [isSyncingOffline, setIsSyncingOffline] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 50
+
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredStudents.slice(start, start + PAGE_SIZE)
+  }, [filteredStudents, currentPage])
 
   // Refs so event listeners & polling intervals always use the current date/session
   // instead of the stale closure values from mount time
@@ -458,6 +467,7 @@ export function AttendanceTracking() {
   }
 
   const filterStudents = () => {
+    setCurrentPage(1)
     let filtered = students
 
     if (searchTerm) {
@@ -1447,7 +1457,7 @@ export function AttendanceTracking() {
         </div>
       ) : uiType === "card_based" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-24 md:pb-0 px-1 md:px-0">
-          {filteredStudents.map((student) => {
+          {paginatedStudents.map((student) => {
             const attendance = attendanceState[student.id] || { status: null, note: "" }
             return (
               <div 
@@ -1558,7 +1568,7 @@ export function AttendanceTracking() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStudents.map((student) => {
+                {paginatedStudents.map((student) => {
                   const attendance = attendanceState[student.id] || { status: null, note: "" }
                   return (
                     <TableRow key={student.id} className={`hover:bg-blue-50/30 transition-colors ${selectedStudents.has(student.id) ? 'bg-blue-50/50' : ''}`}>
@@ -1644,9 +1654,40 @@ export function AttendanceTracking() {
         </Card>
       )}
 
-      <div className="typography-body text-gray-600">
-        Showing {filteredStudents.length} of {students.length} students
-      </div>
+      {filteredStudents.length > PAGE_SIZE ? (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm text-xs">
+          <p className="text-muted-foreground font-medium">
+            Showing <span className="font-bold text-foreground">{Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredStudents.length)}</span> to <span className="font-bold text-foreground">{Math.min(currentPage * PAGE_SIZE, filteredStudents.length)}</span> of <span className="font-bold text-foreground">{filteredStudents.length}</span> students
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+              className="h-8 px-2.5 rounded-xl text-xs gap-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> Previous
+            </Button>
+            <span className="px-3 py-1 text-xs font-bold text-foreground">
+              Page {currentPage} of {Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE))}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage >= Math.ceil(filteredStudents.length / PAGE_SIZE)}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              className="h-8 px-2.5 rounded-xl text-xs gap-1"
+            >
+              Next <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="typography-body text-gray-600">
+          Showing {filteredStudents.length} of {students.length} students
+        </div>
+      )}
 
 
       <Dialog open={showAbsentStudents} onOpenChange={setShowAbsentStudents}>

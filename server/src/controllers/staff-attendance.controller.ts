@@ -67,7 +67,13 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response, 
 export const getStaffAttendance = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const result = await staffAttendanceService.getStaffAttendance(undefined, req.query as any);
-    res.status(200).json({ success: true, data: result });
+    res.status(200).json({
+      success: true,
+      data: result.records,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    });
   } catch (error: any) {
     next(error);
   }

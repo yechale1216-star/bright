@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
-import { ArrowLeft, User, TrendingUp, Calendar, AlertCircle, MessageSquare } from "lucide-react"
+import { ArrowLeft, User, TrendingUp, Calendar, AlertCircle, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,13 @@ function GradeDrillDownContent() {
   const [gradeName, setGradeName] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [settings, setSettings] = useState<any>(null)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 25
+
+  const paginatedStudents = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return students.slice(start, start + PAGE_SIZE)
+  }, [students, page])
 
   useEffect(() => {
     loadDrillDownData()
@@ -63,8 +70,18 @@ function GradeDrillDownContent() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[400px]">
-        <Spinner size="lg" className="text-primary" />
+      <div className="space-y-6 p-4 md:p-8 animate-pulse">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800" />
+          <div className="space-y-2">
+            <div className="h-7 w-48 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+            <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded-md" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 h-[420px] bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+          <div className="h-[420px] bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+        </div>
       </div>
     )
   }
@@ -91,57 +108,96 @@ function GradeDrillDownContent() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2 border-none shadow-sm bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-800">
+        <Card className="md:col-span-2 border-none shadow-sm bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
           <CardHeader>
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <User className="w-5 h-5 text-blue-500" />
-              Student List
+              Student List ({students.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead className="text-center">ID</TableHead>
-                  <TableHead className="text-center text-green-600">Present</TableHead>
-                  <TableHead className="text-center text-amber-500">Late</TableHead>
-                  <TableHead className="text-center text-indigo-500">Excused</TableHead>
-                  <TableHead className="text-center text-red-600">Absent</TableHead>
-                  <TableHead className="text-right">Rate %</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {students.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">{student.fullName}</TableCell>
-                    <TableCell className="text-center text-xs text-muted-foreground">{student.studentId}</TableCell>
-                    <TableCell className="text-center font-bold text-green-600">{student.present}</TableCell>
-                    <TableCell className="text-center font-bold text-amber-500">{student.late}</TableCell>
-                    <TableCell className="text-center font-bold text-indigo-500">{student.excused}</TableCell>
-                    <TableCell className="text-center font-bold text-red-600">{student.absent}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="text-xs font-bold">{student.attendanceRate}%</span>
-                        <Progress value={student.attendanceRate} className="h-1 w-20" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-primary hover:bg-primary/10"
-                        onClick={() => router.push(`/school/admin/messages?studentId=${student.id}&parentName=${encodeURIComponent(student.parent_name || '')}`)}
-                        title="Message Parent"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto overflow-y-auto max-h-[520px]">
+              <Table className="min-w-[650px]">
+                <TableHeader className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm">
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead className="text-center">ID</TableHead>
+                    <TableHead className="text-center text-green-600">Present</TableHead>
+                    <TableHead className="text-center text-amber-500">Late</TableHead>
+                    <TableHead className="text-center text-indigo-500">Excused</TableHead>
+                    <TableHead className="text-center text-red-600">Absent</TableHead>
+                    <TableHead className="text-right">Rate %</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedStudents.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                        No students found for this section.
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">{student.fullName}</TableCell>
+                      <TableCell className="text-center text-xs text-muted-foreground">{student.studentId}</TableCell>
+                      <TableCell className="text-center font-bold text-green-600">{student.present}</TableCell>
+                      <TableCell className="text-center font-bold text-amber-500">{student.late}</TableCell>
+                      <TableCell className="text-center font-bold text-indigo-500">{student.excused}</TableCell>
+                      <TableCell className="text-center font-bold text-red-600">{student.absent}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-xs font-bold">{student.attendanceRate}%</span>
+                          <Progress value={student.attendanceRate} className="h-1 w-20" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary hover:bg-primary/10"
+                          onClick={() => router.push(`/school/admin/messages?studentId=${student.id}&parentName=${encodeURIComponent(student.parent_name || '')}`)}
+                          title="Message Parent"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {students.length > PAGE_SIZE && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <p className="text-muted-foreground font-medium">
+                  Showing <span className="font-bold text-foreground">{Math.min((page - 1) * PAGE_SIZE + 1, students.length)}</span> to <span className="font-bold text-foreground">{Math.min(page * PAGE_SIZE, students.length)}</span> of <span className="font-bold text-foreground">{students.length}</span> students
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => p - 1)}
+                    className="h-8 px-2.5 rounded-xl text-xs gap-1"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </Button>
+                  <span className="px-3 py-1 text-xs font-bold text-foreground">
+                    Page {page} of {Math.max(1, Math.ceil(students.length / PAGE_SIZE))}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= Math.ceil(students.length / PAGE_SIZE)}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="h-8 px-2.5 rounded-xl text-xs gap-1"
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
