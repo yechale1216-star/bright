@@ -33,7 +33,8 @@ import {
   Sun,
   Lock,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  FileCheck
 } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/context/auth-context"
