@@ -608,7 +608,7 @@ export default function UsersAndRolesPage() {
       </div>
 
       {/* ── Glass Search & Filter Control Bar ── */}
-      <div className="rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 shadow-xl shadow-slate-900/5">
+      <div className="sticky top-4 z-10 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-4 shadow-xl shadow-slate-900/5">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -653,10 +653,10 @@ export default function UsersAndRolesPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
             <table className="w-full text-sm min-w-[860px]">
-              <thead>
-                <tr className="border-b border-white/40 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold backdrop-blur-sm">
+              <thead className="sticky top-0 z-20 bg-white dark:bg-slate-900 shadow-[0_1px_0_0_rgba(255,255,255,0.2)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
+                <tr className="border-b border-white/40 dark:border-white/10 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
                   <th className="px-6 py-4">Staff Member</th>
                   <th className="px-6 py-4">Assigned Role</th>
                   <th className="px-6 py-4 hidden sm:table-cell">Contact Phone</th>

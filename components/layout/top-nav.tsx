@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LogOut, User, Menu, GraduationCap, Sun, Moon, Search, CalendarDays } from "lucide-react"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils/utils"
 import { useAuth } from "@/lib/context/auth-context"
 import { useSchool } from "@/lib/context/school-context"
@@ -30,6 +30,7 @@ interface TopNavProps {
 
 export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
   const router = useRouter()
+  const pathname = usePathname() || ""
   const { settings } = useSchoolSettings()
   const { activeSchool } = useSchool()
   const { user, logout } = useAuth()
@@ -39,6 +40,30 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
   const [cachedLogo, setCachedLogo] = React.useState<string | null>(null)
   const { theme, setTheme } = useTheme()
   const { calendarPreference, setCalendarPreference } = useCalendar()
+
+  // Portal-specific search prompt and profile destination
+  const portalInfo = React.useMemo(() => {
+    const role = (user?.role || "").toLowerCase()
+    if (role === "parent" || pathname.startsWith("/parent")) {
+      return { searchLabel: "Search parent portal...", profileTarget: "/parent/profile" }
+    }
+    if (role === "staff" || role === "staff_member" || pathname.startsWith("/school/staff")) {
+      return { searchLabel: "Search staff portal...", profileTarget: "/school/staff/profile" }
+    }
+    if (role === "teacher" || pathname.startsWith("/school/teacher")) {
+      return { searchLabel: "Search teacher portal...", profileTarget: "/school/teacher/profile" }
+    }
+    if (role === "registrar" || pathname.startsWith("/school/registrar")) {
+      return { searchLabel: "Search registrar portal...", profileTarget: "/school/registrar/profile" }
+    }
+    if (role === "discipline_officer" || pathname.startsWith("/school/discipline-officer")) {
+      return { searchLabel: "Search discipline portal...", profileTarget: "/school/discipline-officer/profile" }
+    }
+    if (role === "admin" || role === "school_admin" || role === "super_admin" || pathname.startsWith("/school/admin")) {
+      return { searchLabel: "Search admin console...", profileTarget: "/school/admin/profile" }
+    }
+    return { searchLabel: "Search commands...", profileTarget: "/login" }
+  }, [user?.role, pathname])
 
   React.useEffect(() => {
     setMounted(true)
@@ -111,7 +136,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
             >
               <div className="flex items-center gap-2.5">
                 <Search className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
-                <span>Search pages, commands...</span>
+                <span className="truncate">{portalInfo.searchLabel}</span>
               </div>
               <kbd className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-2xs">
                 ⌘ K
@@ -155,8 +180,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="opacity-50" />
                 <DropdownMenuItem className="rounded-xl h-10 gap-2 font-semibold" onClick={() => {
-                  const target = user?.role === "parent" ? "/parent/profile" : "/school/admin/profile"
-                  router.push(target)
+                  router.push(portalInfo.profileTarget)
                 }}>
                   <User className="h-4 w-4" />
                   <span>Profile</span>

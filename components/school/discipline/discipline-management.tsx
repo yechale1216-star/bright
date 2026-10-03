@@ -822,9 +822,8 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">Case #{c.caseNumber || c.id.slice(0, 8)}</span>
                         {getSeverityBadge(c.severity)}
                         {getStatusBadge(c.status)}
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">{c.categoryName}</span>
                       </div>
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">{c.title}</h4>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">{c.categoryName}</h4>
                       <p className="text-xs text-slate-500 line-clamp-1">{c.description}</p>
                     </div>
 
@@ -1066,24 +1065,24 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50/80 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <div className="overflow-x-auto overflow-y-auto max-h-[min(70vh,650px)] relative overscroll-contain">
+                <table className="w-full min-w-[850px] text-sm text-left border-collapse">
+                  <thead className="sticky top-0 z-20 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest shadow-sm">
                     <tr>
-                      <th className="px-6 py-4">Case #</th>
-                      <th className="px-6 py-4">Student</th>
-                      <th className="px-6 py-4">Grade & Section</th>
-                      <th className="px-6 py-4">Incident Title & Category</th>
-                      <th className="px-6 py-4">Severity</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Case #</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Student</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Grade & Section</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Category</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Severity</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Status</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 whitespace-nowrap">Date</th>
+                      <th className="px-6 py-4 bg-slate-50 dark:bg-slate-950 text-right whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {incidents.map((inc) => (
                       <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                        <td className="px-6 py-4 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-xs">
+                        <td className="px-6 py-4 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-xs whitespace-nowrap">
                           {inc.caseNumber || `DC-${inc.id.slice(0, 4).toUpperCase()}`}
                         </td>
                         <td className="px-6 py-4 font-medium">
@@ -1099,17 +1098,16 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                             </p>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-500 font-medium text-xs">
+                        <td className="px-6 py-4 text-slate-500 font-medium text-xs whitespace-nowrap">
                           {inc.grade?.name || 'Grade'} - {inc.section?.name || 'Section'}
                         </td>
                         <td className="px-6 py-4">
-                          <p className="font-bold text-slate-900 dark:text-white text-xs">{inc.title}</p>
-                          <span className="inline-block mt-1 text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">
+                          <span className="inline-block text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 whitespace-nowrap">
                             {inc.categoryName}
                           </span>
                         </td>
-                        <td className="px-6 py-4">{getSeverityBadge(inc.severity)}</td>
-                        <td className="px-6 py-4">{getStatusBadge(inc.status)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{getSeverityBadge(inc.severity)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(inc.status)}</td>
                         <td className="px-6 py-4 text-xs font-medium text-slate-500 whitespace-nowrap">
                           {formatDate(inc.date)}
                           <span className="block text-[10px] text-slate-400">{inc.time}</span>
@@ -1220,10 +1218,10 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                     <div className="w-full bg-slate-100 dark:bg-slate-800/60 h-28 rounded-2xl flex items-end p-1 relative group overflow-hidden">
                       <div
                         className={`w-full rounded-xl transition-all duration-500 ${isCurrentMonth
-                            ? 'bg-gradient-to-t from-indigo-600 to-purple-500 shadow-md shadow-indigo-500/20'
-                            : count > 0
-                              ? 'bg-gradient-to-t from-indigo-400/80 to-purple-400/60 dark:from-indigo-600/80 dark:to-purple-600/60'
-                              : 'bg-transparent'
+                          ? 'bg-gradient-to-t from-indigo-600 to-purple-500 shadow-md shadow-indigo-500/20'
+                          : count > 0
+                            ? 'bg-gradient-to-t from-indigo-400/80 to-purple-400/60 dark:from-indigo-600/80 dark:to-purple-600/60'
+                            : 'bg-transparent'
                           }`}
                         style={{ height: `${heightPercent}%` }}
                       />
@@ -1293,9 +1291,9 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                         <div className="flex items-center justify-between text-xs font-bold gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${idx === 0 ? 'bg-amber-500 text-white shadow-sm' :
-                                idx === 1 ? 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200' :
-                                  idx === 2 ? 'bg-amber-700 text-white' :
-                                    'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                              idx === 1 ? 'bg-slate-300 dark:bg-slate-700 text-slate-800 dark:text-slate-200' :
+                                idx === 2 ? 'bg-amber-700 text-white' :
+                                  'bg-slate-100 dark:bg-slate-800 text-slate-500'
                               }`}>
                               #{idx + 1}
                             </span>
@@ -2042,9 +2040,9 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                       <div className="flex items-center gap-3 flex-wrap text-xs">
                         {selectedIncident.actionStatus && (
                           <span className={`px-2.5 py-0.5 rounded-full font-bold border ${selectedIncident.actionStatus === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' :
-                              selectedIncident.actionStatus === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 border-blue-300' :
-                                selectedIncident.actionStatus === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' :
-                                  'bg-amber-100 text-amber-700 border-amber-300'
+                            selectedIncident.actionStatus === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 border-blue-300' :
+                              selectedIncident.actionStatus === 'APPROVED' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' :
+                                'bg-amber-100 text-amber-700 border-amber-300'
                             }`}>{selectedIncident.actionStatus.replace('_', ' ')}</span>
                         )}
                         {selectedIncident.actionDate && (

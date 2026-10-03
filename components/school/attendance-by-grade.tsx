@@ -344,7 +344,7 @@ export function AttendanceByGrade() {
   ].filter(d => d.value > 0)
 
   return (
-    <div className="space-y-6 pb-32 max-w-7xl mx-auto w-full">
+    <div className="space-y-6 pb-8 max-w-7xl mx-auto w-full">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1 pt-safe">
         <div>
