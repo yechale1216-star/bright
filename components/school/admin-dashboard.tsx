@@ -1104,6 +1104,28 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                             </Badge>
                           </div>
                         )}
+                        {(req.grade || req.section) && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground text-[11px] font-medium">Class:</span>
+                            <div className="flex items-center gap-1 flex-wrap justify-end">
+                              {req.grade && (
+                                <Badge variant="outline" className="text-[10px] font-semibold bg-white dark:bg-slate-800 border-slate-200">
+                                  {req.grade.startsWith("Grade") ? req.grade : `Grade ${req.grade}`}
+                                </Badge>
+                              )}
+                              {req.section && (
+                                <Badge variant="outline" className="text-[10px] font-semibold bg-white dark:bg-slate-800 border-slate-200">
+                                  Sec {req.section}
+                                </Badge>
+                              )}
+                              {req.stream && (
+                                <Badge variant="outline" className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/20">
+                                  {req.stream}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         {req.reason && (
                           <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
                             <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2">

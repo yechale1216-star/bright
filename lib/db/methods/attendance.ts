@@ -158,33 +158,95 @@ export async function markSingleAttendance(
   }
 }
 
-export async function createEditRequest(headers: any, payload: { studentId?: string; gradeId?: string; sectionId?: string; date: string; session?: string | null; reason?: string }): Promise<any> {
+export async function createEditRequest(
+  headers: any,
+  payload: {
+    studentId?: string;
+    gradeId?: string;
+    sectionId?: string;
+    grade?: string;
+    section?: string;
+    stream?: string | null;
+    date: string;
+    session?: string | null;
+    reason?: string;
+  }
+): Promise<any> {
+  const { grade, section, stream } = payload;
+  const resolvedGrade = grade || payload.gradeId;
+  const resolvedSection = section || payload.sectionId;
+
+  let finalReason = (payload.reason || "").trim();
+  if (resolvedGrade || resolvedSection || stream) {
+    const metaTag = `[META:grade=${resolvedGrade || ""}|section=${resolvedSection || ""}|stream=${stream || ""}]`;
+    if (!finalReason.startsWith("[META:")) {
+      finalReason = `${metaTag} ${finalReason}`.trim();
+    }
+  }
+
   const result = await apiFetch<{ success: boolean; data: any }>(
     `${API_URL}/api/attendance/edit-requests`,
     {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        gradeId: resolvedGrade,
+        sectionId: resolvedSection,
+        grade: resolvedGrade,
+        section: resolvedSection,
+        stream: stream || null,
+        reason: finalReason,
+      }),
     }
-  )
-  notifyAttendanceDataChanged()
-  return result.data
+  );
+  notifyAttendanceDataChanged();
+  return result.data;
 }
 
 export async function getEditRequests(headers: any, filters: any = {}): Promise<any[]> {
-  const query = new URLSearchParams(filters).toString()
-  const cacheKey = `attendance_edit_requests_${query || 'all'}`
+  const query = new URLSearchParams(filters).toString();
+  const cacheKey = `attendance_edit_requests_${query || "all"}`;
   return queryCache.fetch(
     cacheKey,
     async () => {
       const result = await apiFetch<{ success: boolean; data: any[] }>(
-        `${API_URL}/api/attendance/edit-requests${query ? `?${query}` : ''}`,
-        { headers, cache: 'no-store' }
-      )
-      return result.data
+        `${API_URL}/api/attendance/edit-requests${query ? `?${query}` : ""}`,
+        { headers, cache: "no-store" }
+      );
+      const list = result.data || [];
+      return list.map((req: any) => {
+        let grade = req.grade || req.gradeId || null;
+        let section = req.section || req.sectionId || null;
+        let stream = req.stream || null;
+        let reason = req.reason || null;
+
+        if (reason && reason.startsWith("[META:")) {
+          const metaEnd = reason.indexOf("]");
+          if (metaEnd !== -1) {
+            const metaStr = reason.substring(6, metaEnd);
+            reason = reason.substring(metaEnd + 1).trim() || null;
+            const parts = metaStr.split("|");
+            parts.forEach((p: string) => {
+              const [k, v] = p.split("=");
+              if (k === "grade" && v) grade = v;
+              if (k === "section" && v) section = v;
+              if (k === "stream" && v) stream = v;
+            });
+          }
+        }
+
+        return {
+          ...req,
+          grade,
+          section,
+          stream,
+          reason,
+        };
+      });
     },
     { staleTime: 15_000, persist: false }
-  )
+  );
 }
 
 export async function approveEditRequest(headers: any, requestId: string, adminNote?: string): Promise<any> {

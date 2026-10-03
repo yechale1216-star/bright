@@ -140,7 +140,7 @@ class Database extends BaseDatabase {
     return attendance.markAttendance(this.getApiHeaders(), this.getSchoolId(), records, locationData)
   }
 
-  async createAttendanceEditRequest(payload: { studentId?: string; gradeId?: string; sectionId?: string; date: string; session?: string | null; reason?: string }): Promise<any> {
+  async createAttendanceEditRequest(payload: { studentId?: string; gradeId?: string; sectionId?: string; grade?: string; section?: string; stream?: string | null; date: string; session?: string | null; reason?: string }): Promise<any> {
     return attendance.createEditRequest(this.getApiHeaders(), payload)
   }
 

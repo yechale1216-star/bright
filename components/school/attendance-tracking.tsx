@@ -118,7 +118,16 @@ export function AttendanceTracking() {
   const [showAuditLogsModal, setShowAuditLogsModal] = useState(false)
   const [editReason, setEditReason] = useState("")
   const [adminNote, setAdminNote] = useState("")
+  const [requestGrade, setRequestGrade] = useState("")
+  const [requestSection, setRequestSection] = useState("")
+  const [requestStream, setRequestStream] = useState("")
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
+
+  const isGradeHigherThanTen = (g: string) => {
+    if (!g) return false
+    const num = parseInt(g.replace(/\D/g, ""), 10)
+    return !isNaN(num) && num > 10
+  }
 
   const pendingRequestsCount = editRequests.filter((r: any) => r.status === 'PENDING').length
 
@@ -237,10 +246,16 @@ export function AttendanceTracking() {
         date: selectedDate,
         session: settings?.attendanceMode === "session_based" ? selectedSession : null,
         reason: editReason,
+        grade: requestGrade || gradeFilter !== "All Grades" ? (requestGrade || gradeFilter) : undefined,
+        section: requestSection || sectionFilter !== "All Sections" ? (requestSection || sectionFilter) : undefined,
+        stream: isGradeHigherThanTen(requestGrade || gradeFilter) ? (requestStream || streamFilter !== "All Streams" ? (requestStream || streamFilter) : undefined) : undefined,
       })
       notifications.success("Request Submitted", "Your edit request has been sent to the School Admin for approval.")
       setEditRequestModalOpen(false)
       setEditReason("")
+      setRequestGrade("")
+      setRequestSection("")
+      setRequestStream("")
       await fetchEditRequests()
     } catch (err: any) {
       notifications.error("Error", err.message || "Failed to submit request")
@@ -1912,6 +1927,57 @@ export function AttendanceTracking() {
                 ? ` (${selectedSession === "morning" ? "Morning Session" : "Afternoon Session"})`
                 : " (Daily Mode)"} is currently restricted. Submit a request to the School Admin for approval.
             </p>
+
+            {/* Grade / Section / Stream selectors */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-semibold">Grade</Label>
+                <Select value={requestGrade} onValueChange={setRequestGrade}>
+                  <SelectTrigger className="mt-1 h-9 rounded-xl text-sm">
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— Any Grade —</SelectItem>
+                    {grades.map((g) => (
+                      <SelectItem key={g || ""} value={g || ""}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold">Section</Label>
+                <Select value={requestSection} onValueChange={setRequestSection}>
+                  <SelectTrigger className="mt-1 h-9 rounded-xl text-sm">
+                    <SelectValue placeholder="Select section" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— Any Section —</SelectItem>
+                    {sections.map((s) => (
+                      <SelectItem key={s || ""} value={s || ""}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Stream — only for grades > 10 */}
+            {isGradeHigherThanTen(requestGrade) && (
+              <div>
+                <Label className="text-xs font-semibold">Stream</Label>
+                <Select value={requestStream} onValueChange={setRequestStream}>
+                  <SelectTrigger className="mt-1 h-9 rounded-xl text-sm">
+                    <SelectValue placeholder="Select stream" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">— Any Stream —</SelectItem>
+                    {streams.map((st) => (
+                      <SelectItem key={st || ""} value={st || ""}>{st}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="editReason" className="text-xs font-semibold">
                 Reason for Edit Request (Optional)
@@ -1979,8 +2045,27 @@ export function AttendanceTracking() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Requested Date: <strong>{req.date?.split("T")[0]}</strong> {req.session ? `(${req.session})` : ""}
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                        <span>Requested Date: <strong>{req.date?.split("T")[0]}</strong> {req.session ? `(${req.session})` : ""}</span>
+                        {(req.grade || req.section) && (
+                          <span className="flex items-center gap-1 ml-1">
+                            {req.grade && (
+                              <Badge variant="outline" className="text-[10px] font-bold">
+                                {req.grade.startsWith("Grade") ? req.grade : `Grade ${req.grade}`}
+                              </Badge>
+                            )}
+                            {req.section && (
+                              <Badge variant="outline" className="text-[10px]">
+                                Sec {req.section}
+                              </Badge>
+                            )}
+                            {req.stream && (
+                              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                                {req.stream}
+                              </Badge>
+                            )}
+                          </span>
+                        )}
                       </p>
                       {req.reason && <p className="text-xs text-slate-700 dark:text-slate-300 italic">"{req.reason}"</p>}
                     </div>

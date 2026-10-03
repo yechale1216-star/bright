@@ -666,6 +666,29 @@ export function AttendanceEditRequestsScreen({ onBack }: AttendanceEditRequestsS
                         </div>
                       )}
 
+                      {(req.grade || req.section) && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground text-[11px] font-medium">Class:</span>
+                          <div className="flex items-center gap-1 flex-wrap justify-end">
+                            {req.grade && (
+                              <Badge variant="outline" className="text-[10px] font-bold bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                                {req.grade.startsWith("Grade") ? req.grade : `Grade ${req.grade}`}
+                              </Badge>
+                            )}
+                            {req.section && (
+                              <Badge variant="outline" className="text-[10px] font-bold bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                                Sec {req.section}
+                              </Badge>
+                            )}
+                            {req.stream && (
+                              <Badge variant="outline" className="text-[10px] font-bold bg-primary/10 text-primary border-primary/20">
+                                {req.stream}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Reason */}
                       {req.reason && (
                         <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
@@ -749,6 +772,7 @@ export function AttendanceEditRequestsScreen({ onBack }: AttendanceEditRequestsS
                   <th className="py-3 px-4">Teacher</th>
                   <th className="py-3 px-4">Target Date</th>
                   <th className="py-3 px-4">Session</th>
+                  <th className="py-3 px-4">Class</th>
                   <th className="py-3 px-4 min-w-[200px]">Reason</th>
                   <th className="py-3 px-4">Submitted</th>
                   <th className="py-3 px-4">Status</th>
@@ -793,6 +817,26 @@ export function AttendanceEditRequestsScreen({ onBack }: AttendanceEditRequestsS
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {req.grade && (
+                            <Badge variant="outline" className="text-[10px] font-bold">
+                              {req.grade.startsWith("Grade") ? req.grade : `Grade ${req.grade}`}
+                            </Badge>
+                          )}
+                          {req.section && (
+                            <Badge variant="outline" className="text-[10px]">
+                              Sec {req.section}
+                            </Badge>
+                          )}
+                          {req.stream && (
+                            <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                              {req.stream}
+                            </Badge>
+                          )}
+                          {!req.grade && !req.section && <span className="text-muted-foreground">—</span>}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
                         <span className="line-clamp-2 italic">

@@ -9,7 +9,7 @@ export default function AttendanceRequestsPage() {
   const router = useRouter()
 
   return (
-    <Suspense fallback={<PageSkeleton variant="cards" count={6} />}>
+    <Suspense fallback={<PageSkeleton variant="cards" />}>
       <div className="p-4 md:p-8">
         <AttendanceEditRequestsScreen onBack={() => router.push("/school/admin")} />
       </div>
