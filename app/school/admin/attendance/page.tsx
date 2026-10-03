@@ -4,9 +4,10 @@ import React, { Suspense } from 'react'
 import { StudentAttendanceOverview } from '@/components/school/student-attendance-overview'
 import { AttendanceByGrade } from '@/components/school/attendance-by-grade'
 import { Reports } from '@/components/school/reports'
+import { AttendanceEditRequestsScreen } from '@/components/school/attendance-edit-requests-screen'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, BarChart2, FileText } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, FileCheck } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { PageSkeleton } from '@/components/ui/page-skeleton'
 
@@ -26,6 +27,10 @@ function AttendancePageContent() {
     }
     if (tab === 'reports') {
       handleTabChange('reports')
+      return
+    }
+    if (tab === 'requests' || tab === 'attendance-requests') {
+      handleTabChange('requests')
       return
     }
     const tabToPath: Record<string, string> = {
@@ -87,12 +92,26 @@ function AttendancePageContent() {
             <FileText className="w-4 h-4" />
             <span>Attendance Reports</span>
           </Button>
+
+          <Button
+            variant={currentTab === 'requests' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => handleTabChange('requests')}
+            className={cn(
+              "rounded-xl px-4 py-2 text-xs font-bold gap-2 transition-all whitespace-nowrap shrink-0",
+              currentTab === 'requests' ? "shadow-sm" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <FileCheck className="w-4 h-4" />
+            <span>Edit Requests</span>
+          </Button>
         </div>
       </div>
 
       {/* View Content */}
       {currentTab === 'analytics' && <AttendanceByGrade />}
       {currentTab === 'reports' && <Reports />}
+      {currentTab === 'requests' && <AttendanceEditRequestsScreen onBack={() => handleTabChange('overview')} />}
       {currentTab === 'overview' && <StudentAttendanceOverview onNavigate={handleNavigate} />}
     </div>
   )

@@ -279,6 +279,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         { title: "Teachers Management", subtitle: "Faculty profiles, credentials, and schedules", href: "/school/admin/teachers", icon: GraduationCap, keywords: ["faculty", "instructors"] },
         { title: "Users & Roles", subtitle: "System access control and permissions", href: "/school/admin/users-and-roles", icon: ShieldCheck, keywords: ["security", "accounts", "passwords", "roles"] },
         { title: "Student Attendance", subtitle: "Daily student attendance tracking and logs", href: "/school/admin/attendance", icon: CheckSquare, keywords: ["roll call", "present", "absent"] },
+        { title: "Attendance Edit Requests", subtitle: "Review and approve teacher attendance unlock requests", href: "/school/admin/attendance/requests", icon: FileCheck, keywords: ["edit request", "unlock", "approval", "pending"] },
         { title: "Attendance by Grade", subtitle: "Grade-level breakdown and comparisons", href: "/school/admin/attendance-by-grade", icon: BarChart2, keywords: ["analytics", "grades"] },
         { title: "Staff Attendance Management", subtitle: "Biometric and staff check-in records", href: "/school/admin/staff-attendance", icon: UserCheck, keywords: ["employees", "timesheet", "clock in"] },
         { title: "Discipline Management", subtitle: "Incident tracking and disciplinary actions", href: "/school/admin/discipline", icon: ShieldAlert, keywords: ["conduct", "behavior", "cases"] },

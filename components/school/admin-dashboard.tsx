@@ -485,12 +485,16 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // Attendance Edit Requests helpers
   const pendingRequests = useMemo(() => editRequests.filter(r => r.status === "PENDING"), [editRequests])
   const resolvedRequests = useMemo(() => editRequests.filter(r => r.status === "APPROVED" || r.status === "REJECTED"), [editRequests])
+  // Dashboard requirement: only display recent 3 pending requests
+  const recentPendingRequests = useMemo(() => pendingRequests.slice(0, 3), [pendingRequests])
 
-  const displayedRequests = useMemo(() => {
-    if (requestsFilter === "pending") return pendingRequests
-    if (requestsFilter === "resolved") return resolvedRequests
-    return editRequests
-  }, [editRequests, pendingRequests, resolvedRequests, requestsFilter])
+  const navigateTo = (path: string) => {
+    if (onNavigate) {
+      const tabMatch = path.replace("/school/admin/", "").replace("/school/admin", "dashboard")
+      onNavigate(tabMatch || "dashboard")
+    }
+    router.push(path)
+  }
 
   const handleApproveRequest = async (requestId: string, note?: string) => {
     setActionLoadingId(requestId)
@@ -568,11 +572,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       title: `${pendingRequests.length} Attendance Edit Request${pendingRequests.length > 1 ? "s" : ""} Pending`,
       description: "Teachers have requested permission to modify submitted attendance records.",
       severity: "warning",
-      action: () => {
-        setRequestsFilter("pending")
-        const el = document.getElementById("attendance-edit-requests-section")
-        if (el) el.scrollIntoView({ behavior: "smooth" })
-      },
+      action: () => router.push("/school/admin/attendance/requests"),
       actionText: "Review Requests",
     })
   }
@@ -988,13 +988,13 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </Card>
       </div>
 
-      {/* 5. ATTENDANCE EDIT REQUESTS SECTION */}
+      {/* 5. ATTENDANCE EDIT REQUESTS SECTION (RECENT 3 PENDING ONLY) */}
       <div id="attendance-edit-requests-section" className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-black text-foreground uppercase tracking-wider">
-              Attendance Edit Requests
+              Pending Attendance Edit Requests
             </h3>
             <Badge
               variant="outline"
@@ -1009,33 +1009,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </Badge>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-full border border-slate-200 dark:border-slate-700/60 w-fit">
-            <Button
-              variant={requestsFilter === "pending" ? "default" : "ghost"}
-              onClick={() => setRequestsFilter("pending")}
-              size="sm"
-              className="h-6 px-3 text-[11px] font-bold rounded-full"
-            >
-              Pending ({pendingRequests.length})
-            </Button>
-            <Button
-              variant={requestsFilter === "all" ? "default" : "ghost"}
-              onClick={() => setRequestsFilter("all")}
-              size="sm"
-              className="h-6 px-3 text-[11px] font-bold rounded-full"
-            >
-              All ({editRequests.length})
-            </Button>
-            <Button
-              variant={requestsFilter === "resolved" ? "default" : "ghost"}
-              onClick={() => setRequestsFilter("resolved")}
-              size="sm"
-              className="h-6 px-3 text-[11px] font-bold rounded-full"
-            >
-              Resolved ({resolvedRequests.length})
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/school/admin/attendance/requests")}
+            className="h-8 px-3 text-xs font-bold rounded-xl gap-1.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <span>View All Requests ({editRequests.length})</span>
+            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+          </Button>
         </div>
 
         {isLoading ? (
@@ -1053,105 +1035,92 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
             ))}
           </div>
-        ) : displayedRequests.length === 0 ? (
-          <div className="p-8 text-center bg-white dark:bg-slate-900/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
+        ) : recentPendingRequests.length === 0 ? (
+          <div className="p-8 text-center bg-white dark:bg-slate-900/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
             <FileCheck className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
             <p className="text-sm font-bold text-foreground">
-              {requestsFilter === "pending"
-                ? "No Pending Attendance Edit Requests"
-                : "No Edit Requests Found"}
+              No Pending Attendance Edit Requests
             </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-              {requestsFilter === "pending"
-                ? "All teacher attendance submissions are locked and in sync. New unlock requests will appear here for review."
-                : "No attendance unlock records match the selected filter."}
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              All teacher attendance submissions are locked and in sync. New unlock requests will appear here for review.
             </p>
+            {editRequests.length > 0 && (
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push("/school/admin/attendance/requests")}
+                  className="h-8 px-3 text-xs font-bold rounded-xl"
+                >
+                  View Request History ({editRequests.length})
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {displayedRequests.map((req: any) => {
-              const teacherName = req.teacher?.name || "Teacher"
-              const teacherInitial = teacherName.slice(0, 1).toUpperCase()
-              const isPending = req.status === "PENDING"
-              const isApproved = req.status === "APPROVED"
-              const isRejected = req.status === "REJECTED"
-              const reqDate = req.date ? req.date.split("T")[0] : "N/A"
-              const isActingOnThis = actionLoadingId === req.id
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {recentPendingRequests.map((req: any) => {
+                const teacherName = req.teacher?.name || "Teacher"
+                const teacherInitial = teacherName.slice(0, 1).toUpperCase()
+                const reqDate = req.date ? req.date.split("T")[0] : "N/A"
+                const isActingOnThis = actionLoadingId === req.id
 
-              return (
-                <Card
-                  key={req.id}
-                  className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md group flex flex-col justify-between"
-                >
-                  <CardContent className="p-4 space-y-3">
-                    {/* Teacher & Status Header */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black border border-primary/20 shrink-0">
-                          {teacherInitial}
+                return (
+                  <Card
+                    key={req.id}
+                    className="border-amber-200/80 dark:border-amber-900/40 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md group flex flex-col justify-between"
+                  >
+                    <CardContent className="p-4 space-y-3">
+                      {/* Teacher & Status Header */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 font-black shrink-0">
+                            {teacherInitial}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-foreground uppercase tracking-tight truncate">
+                              {teacherName}
+                            </p>
+                            <p className="text-[10px] font-semibold text-muted-foreground/80 flex items-center gap-1">
+                              <Clock className="w-3 h-3 opacity-60" />
+                              {req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recent"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-black text-foreground uppercase tracking-tight truncate">
-                            {teacherName}
-                          </p>
-                          <p className="text-[10px] font-semibold text-muted-foreground/80 flex items-center gap-1">
-                            <Clock className="w-3 h-3 opacity-60" />
-                            {req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recent"}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
                         <Badge
                           variant="outline"
-                          className={cn(
-                            "text-[10px] font-bold uppercase px-2 py-0.5",
-                            isPending && "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700",
-                            isApproved && "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700",
-                            isRejected && "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-700"
-                          )}
+                          className="text-[10px] font-bold uppercase px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700"
                         >
-                          {req.status}
+                          Pending
                         </Badge>
-                        {req.isUsed && (
-                          <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-bold">
-                            Used
-                          </Badge>
+                      </div>
+
+                      {/* Target Date & Session Details */}
+                      <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground text-[11px] font-medium">Target Date:</span>
+                          <span className="font-bold text-foreground font-mono">{reqDate}</span>
+                        </div>
+                        {req.session && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground text-[11px] font-medium">Session:</span>
+                            <Badge variant="outline" className="text-[10px] font-semibold capitalize bg-white dark:bg-slate-800 border-slate-200">
+                              {req.session}
+                            </Badge>
+                          </div>
+                        )}
+                        {req.reason && (
+                          <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2">
+                              "{req.reason}"
+                            </p>
+                          </div>
                         )}
                       </div>
-                    </div>
 
-                    {/* Target Date & Session Details */}
-                    <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground text-[11px] font-medium">Target Date:</span>
-                        <span className="font-bold text-foreground">{reqDate}</span>
-                      </div>
-                      {req.session && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground text-[11px] font-medium">Session:</span>
-                          <Badge variant="outline" className="text-[10px] font-semibold capitalize bg-white dark:bg-slate-800 border-slate-200">
-                            {req.session}
-                          </Badge>
-                        </div>
-                      )}
-                      {req.reason && (
-                        <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2">
-                            "{req.reason}"
-                          </p>
-                        </div>
-                      )}
-                      {req.adminNote && (
-                        <div className="pt-1 border-t border-slate-100 dark:border-slate-800 flex items-start gap-1 text-[10px] text-muted-foreground">
-                          <MessageSquare className="w-3 h-3 mt-0.5 text-primary shrink-0" />
-                          <span>Admin Note: {req.adminNote}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Buttons for Pending Requests */}
-                    {isPending && (
+                      {/* Action Buttons */}
                       <div className="flex items-center gap-2 pt-1">
                         <Button
                           size="sm"
@@ -1181,11 +1150,30 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           Reject
                         </Button>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+
+            {/* If more than 3 pending requests, show banner */}
+            {pendingRequests.length > 3 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-medium">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span>
+                    Showing the 3 most recent requests. <strong>{pendingRequests.length - 3} more</strong> pending request{pendingRequests.length - 3 > 1 ? "s" : ""} awaiting your review.
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => router.push("/school/admin/attendance/requests")}
+                  className="h-7 px-3 text-[11px] font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shrink-0 self-start sm:self-auto shadow-xs"
+                >
+                  View All {pendingRequests.length} Pending
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
