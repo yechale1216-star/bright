@@ -132,15 +132,10 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
           <div className="hidden md:flex items-center flex-1 max-w-sm">
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-muted-foreground bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-xl transition-all shadow-2xs group"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-muted-foreground bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-xl transition-all shadow-2xs group"
             >
-              <div className="flex items-center gap-2.5">
-                <Search className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
-                <span className="truncate">{portalInfo.searchLabel}</span>
-              </div>
-              <kbd className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-2xs">
-                ⌘ K
-              </kbd>
+              <Search className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
+              <span className="truncate">{portalInfo.searchLabel}</span>
             </button>
           </div>
 
