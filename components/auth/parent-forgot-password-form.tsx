@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,10 +16,15 @@ interface ParentForgotPasswordFormProps {
   onBackToLogin: () => void;
 }
 
+const OTP_LENGTH = 6;
+
 export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPasswordFormProps) {
   const [step, setStep] = useState<"phone" | "otp" | "new-password" | "success">("phone");
   const [phone, setPhone] = useState("+251");
   const [otpCode, setOtpCode] = useState("");
+  // Individual digit boxes
+  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
+  const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,6 +39,58 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
     }
     return () => clearTimeout(timer);
   }, [resendCooldown]);
+
+  // Keep otpCode in sync with digit boxes
+  useEffect(() => {
+    setOtpCode(digits.join(""));
+  }, [digits]);
+
+  // Auto-focus first digit box when entering OTP step
+  useEffect(() => {
+    if (step === "otp") {
+      const timer = setTimeout(() => {
+        digitRefs.current[0]?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
+
+  const handleDigitChange = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    if (digit && index < OTP_LENGTH - 1) {
+      digitRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace") {
+      if (digits[index]) {
+        const next = [...digits];
+        next[index] = "";
+        setDigits(next);
+      } else if (index > 0) {
+        digitRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    } else if (e.key === "ArrowRight" && index < OTP_LENGTH - 1) {
+      digitRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDigitPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
+    if (!pasted) return;
+    const next = Array(OTP_LENGTH).fill("");
+    pasted.split("").forEach((ch, i) => { next[i] = ch; });
+    setDigits(next);
+    const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
+    digitRefs.current[focusIdx]?.focus();
+  };
 
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,10 +270,27 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
           </div>
         </CardHeader>
         <CardContent className="px-8 pb-8">
-          <form onSubmit={handleVerifyOTP} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="otpCode" className="typography-label text-slate-800 dark:text-slate-300">Verification Code (OTP)</Label>
-              <Input id="otpCode" type="text" inputMode="numeric" maxLength={6} placeholder="1 2 3 4 5 6" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))} required className="typography-body text-center text-xl tracking-[0.3em] font-mono h-12 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 rounded-xl text-slate-900 dark:text-white" />
+          <form onSubmit={handleVerifyOTP} className="space-y-5">
+            <div className="space-y-2">
+              <Label className="typography-label text-slate-800 dark:text-slate-300 text-center block">Verification Code (OTP)</Label>
+              <div className="flex items-center justify-center gap-2" onPaste={handleDigitPaste}>
+                {digits.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { digitRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => handleDigitChange(i, e.target.value)}
+                    onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                    autoFocus={i === 0}
+                    className="w-11 h-13 text-center text-xl font-black font-mono rounded-xl border-2 bg-slate-100/60 dark:bg-white/5 border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none transition-all caret-transparent"
+                    style={{ width: '2.75rem', height: '3.25rem' }}
+                  />
+                ))}
+              </div>
             </div>
             <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] mt-2">
               {isLoading ? <Spinner size="sm" className="text-white" /> : <><span>Verify Code</span><ArrowRight className="ml-2 h-4 w-4" /></>}
