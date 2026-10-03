@@ -241,13 +241,6 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
           </button>
         </div>
 
-        {searchParams.get("reason") === "expired" && !loginError && (
-          <Alert className="mb-6 animate-in slide-in-from-top-2 duration-300 bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400">
-            <AlertDescription className="typography-label">
-              Your session has expired. Please sign in again to continue.
-            </AlertDescription>
-          </Alert>
-        )}
 
         {loginError && (
           <Alert variant="destructive" className="mb-6 animate-in slide-in-from-top-2 duration-300 bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400">
