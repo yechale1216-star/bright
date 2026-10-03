@@ -1014,9 +1014,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3.5 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 no-scrollbar snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 animate-pulse shadow-sm">
+              <div key={i} className="min-w-[280px] sm:min-w-[320px] w-[84vw] sm:w-[320px] md:w-auto md:min-w-0 shrink-0 md:shrink snap-start p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 animate-pulse shadow-sm">
                 <div className="flex items-center space-x-3">
                   <div className="h-9 w-9 rounded-xl bg-slate-200 dark:bg-slate-700 shrink-0" />
                   <div className="space-y-1.5 w-full">
@@ -1052,7 +1052,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3.5 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 pt-0.5 no-scrollbar snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
               {recentPendingRequests.map((req: any) => {
                 const teacherName = req.teacher?.name || "Teacher"
                 const teacherInitial = teacherName.slice(0, 1).toUpperCase()
@@ -1062,7 +1062,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 return (
                   <Card
                     key={req.id}
-                    className="border-amber-200/80 dark:border-amber-900/40 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md group flex flex-col justify-between"
+                    className="min-w-[280px] sm:min-w-[320px] w-[84vw] sm:w-[320px] md:w-auto md:min-w-0 shrink-0 md:shrink snap-start border-amber-200/80 dark:border-amber-900/40 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md group flex flex-col justify-between"
                   >
                     <CardContent className="p-4 space-y-3">
                       {/* Teacher & Status Header */}
