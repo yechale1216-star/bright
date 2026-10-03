@@ -347,7 +347,11 @@ const getAttendanceByStudent = async (studentId, _schoolId, filters = {}) => {
 };
 exports.getAttendanceByStudent = getAttendanceByStudent;
 const createEditRequest = async (_schoolId, teacherId, data) => {
-    const { studentId, gradeId, sectionId, date, session, reason } = data;
+    const { studentId, date, session } = data;
+    const grade = data.grade || data.gradeId || null;
+    const section = data.section || data.sectionId || null;
+    const stream = data.stream || null;
+    let reason = data.reason || null;
     if (!date) {
         throw new Error("Date is required for edit request");
     }
@@ -364,8 +368,8 @@ const createEditRequest = async (_schoolId, teacherId, data) => {
         data: {
             teacherId: resolvedTeacherId,
             studentId: studentId || null,
-            gradeId: gradeId || null,
-            sectionId: sectionId || null,
+            gradeId: grade || null,
+            sectionId: section || null,
             date: parsedDate,
             session: session ? session.toLowerCase() : null,
             reason: reason || null,

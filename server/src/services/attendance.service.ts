@@ -399,8 +399,8 @@ export const createEditRequest = async (_schoolId: string | undefined, teacherId
     data: {
       teacherId: resolvedTeacherId,
       studentId: studentId || null,
-      gradeId: gradeId || null,
-      sectionId: sectionId || null,
+      gradeId: grade || null,
+      sectionId: section || null,
       date: parsedDate,
       session: session ? session.toLowerCase() : null,
       reason: reason || null,
