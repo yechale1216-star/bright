@@ -488,13 +488,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // Dashboard requirement: only display recent 3 pending requests
   const recentPendingRequests = useMemo(() => pendingRequests.slice(0, 3), [pendingRequests])
 
-  const navigateTo = (path: string) => {
-    if (onNavigate) {
-      const tabMatch = path.replace("/school/admin/", "").replace("/school/admin", "dashboard")
-      onNavigate(tabMatch || "dashboard")
-    }
-    router.push(path)
-  }
 
   const handleApproveRequest = async (requestId: string, note?: string) => {
     setActionLoadingId(requestId)
