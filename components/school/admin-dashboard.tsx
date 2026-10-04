@@ -60,6 +60,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // Avoid flashing skeleton spinners if initial data is already cached
   const [isLoading, setIsLoading] = useState(!dashboardSummary && !staffStats)
+  const [initialLoadDone, setInitialLoadDone] = useState(!!dashboardSummary?.totalTeachers || !!staffStats?.totalStaff)
   const [error, setError] = useState<string | null>(null)
 
   // Secondary/fallback states
@@ -130,11 +131,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         setAfternoonStaffStats(staffAttendanceStats?.sessionBreakdown?.afternoon ?? staffAttendanceStats)
       }
 
-      setIsLoading(false)
-
-      // Fallback for older backend versions that lack gradeDistribution:
-      if (!summary?.gradeDistribution) {
-        Promise.all([
+      // If backend didn't supply gradeDistribution or totalTeachers, await secondary fallback
+      let fallbackPromise: Promise<any> = Promise.resolve()
+      if (!summary?.gradeDistribution || summary?.totalTeachers === undefined) {
+        fallbackPromise = Promise.all([
           db.getStudents().catch(() => []),
           db.getAttendanceByDate(todayStr).catch(() => []),
           db.getTeachers().catch(() => []),
@@ -151,10 +151,30 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             setIncidents((disc as any).data)
           }
         }).catch(() => {})
+      } else {
+        // Still fetch edit requests and discipline incidents for quick actions
+        Promise.all([
+          db.getAttendanceByDate(todayStr).catch(() => []),
+          db.getAttendanceEditRequests().catch(() => []),
+          DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
+        ]).then(([att, reqs, disc]) => {
+          if (att) setTodayAttendance(att)
+          if (reqs) setEditRequests(reqs)
+          if (disc && Array.isArray(disc.items)) {
+            setIncidents(disc.items)
+          } else if (disc && Array.isArray((disc as any).data)) {
+            setIncidents((disc as any).data)
+          }
+        }).catch(() => {})
       }
+
+      await fallbackPromise
+      setInitialLoadDone(true)
+      setIsLoading(false)
     } catch (err: any) {
       console.error("Error loading admin dashboard data:", err)
       setError("Failed to load dashboard data. Click retry to refresh.")
+      setInitialLoadDone(true)
       setIsLoading(false)
     }
   }
@@ -170,7 +190,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // Calculated Metrics
   const totalStudents = dashboardSummary?.totalStudents ?? students.length
-  const totalTeachers = dashboardSummary?.totalTeachers ?? teachers.length
+  const totalTeachers = dashboardSummary?.totalTeachers ?? (teachers.length > 0 ? teachers.length : (typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : 0))
   const totalStaff = typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : totalTeachers
   const pendingRequestsCount = dashboardSummary?.pendingEditRequestsCount ?? editRequests.filter(r => r.status === "PENDING").length
   const openDisciplineCasesCount = dashboardSummary?.discipline?.openCases ?? incidents.filter(i => i.status === "OPEN" || i.status === "UNDER_REVIEW" || i.status === "INVESTIGATION" || i.status === "ACTION_REQUIRED").length
@@ -208,80 +228,96 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const isPresent = (status?: string) => status?.toLowerCase() === "present" || status?.toLowerCase() === "late"
 
   /**
-   * resolveFullDay — strict matching rule (matches student attendance page):
-   * A student is only counted for full day when BOTH morning and afternoon sessions
-   * have the EXACT same status:
-   *   morning present  + afternoon present  → full day present
-   *   morning late     + afternoon late     → full day late
-   *   morning excused  + afternoon excused  → full day excused
-   *   morning absent   + afternoon absent   → full day absent
-   *
-   * Mixed combinations (e.g. morning present, afternoon late/absent) or single-session
-   * records do NOT count towards any full-day status (returns null).
+   * resolveFullDay:
+   * Consolidates morning and afternoon sessions into a single daily status.
+   * If only one session has been taken so far today (e.g. morning), student's status reflects that session.
+   * If both sessions exist, matches strict agreement with precedence for presence/lateness.
    */
   const resolveFullDay = (m?: string, a?: string): "present" | "late" | "excused" | "absent" | null => {
-    if (!m || !a) return null
-    const mn = m.toLowerCase()
-    const an = a.toLowerCase()
-    if (mn !== an) return null
-    if (mn === "present") return "present"
-    if (mn === "late") return "late"
-    if (mn === "excused") return "excused"
-    if (mn === "absent") return "absent"
-    return null
+    if (!m && !a) return null
+    if (m && !a) return m.toLowerCase() as any
+    if (!m && a) return a.toLowerCase() as any
+    const mn = m!.toLowerCase()
+    const an = a!.toLowerCase()
+    if (mn === an) return mn as any
+    if (mn === "present" || an === "present") {
+      return (mn === "late" || an === "late") ? "late" : "present"
+    }
+    if (mn === "late" || an === "late") return "late"
+    if (mn === "excused" || an === "excused") return "excused"
+    return "absent"
   }
 
   // School-wide attendance metrics filtered by session (Full Day / Morning / Afternoon)
   // Scope: ALL active students in the current academic year (totalStudents)
   const attendanceMetrics = useMemo(() => {
-    // Fast path: use pre-aggregated dashboardSummary directly (zero overhead)
+    // Fast path: use pre-aggregated dashboardSummary directly if available
     if (dashboardSummary?.today) {
       if (sessionFilter === "morning" && dashboardSummary.sessionBreakdown?.morning) {
         const m = dashboardSummary.sessionBreakdown.morning
-        const notRecorded = Math.max(0, totalStudents - m.total)
-        const rate = totalStudents > 0 && m.total > 0
-          ? Math.round(((m.present + m.late) / totalStudents) * 100)
+        const present = m.present || 0
+        const late = m.late || 0
+        const absent = m.absent || 0
+        const excused = m.earlyDeparture ?? m.excused ?? 0
+        const total = m.total ?? (present + late + absent + excused)
+        const notRecorded = Math.max(0, totalStudents - total)
+        const rate = totalStudents > 0 && total > 0
+          ? Math.round(((present + late) / totalStudents) * 100)
           : 0
         return {
-          presentCount: m.present,
-          lateCount: m.late,
-          absentCount: m.absent,
-          excusedCount: m.earlyDeparture,
-          submittedCount: m.total,
+          presentCount: present,
+          lateCount: late,
+          absentCount: absent,
+          excusedCount: excused,
+          submittedCount: total,
           notRecordedCount: notRecorded,
           attendanceRate: rate,
         }
       }
       if (sessionFilter === "afternoon" && dashboardSummary.sessionBreakdown?.afternoon) {
         const a = dashboardSummary.sessionBreakdown.afternoon
-        const notRecorded = Math.max(0, totalStudents - a.total)
-        const rate = totalStudents > 0 && a.total > 0
-          ? Math.round(((a.present + a.late) / totalStudents) * 100)
+        const present = a.present || 0
+        const late = a.late || 0
+        const absent = a.absent || 0
+        const excused = a.earlyDeparture ?? a.excused ?? 0
+        const total = a.total ?? (present + late + absent + excused)
+        const notRecorded = Math.max(0, totalStudents - total)
+        const rate = totalStudents > 0 && total > 0
+          ? Math.round(((present + late) / totalStudents) * 100)
           : 0
         return {
-          presentCount: a.present,
-          lateCount: a.late,
-          absentCount: a.absent,
-          excusedCount: a.earlyDeparture,
-          submittedCount: a.total,
+          presentCount: present,
+          lateCount: late,
+          absentCount: absent,
+          excusedCount: excused,
+          submittedCount: total,
           notRecordedCount: notRecorded,
           attendanceRate: rate,
         }
       }
 
-      const { present, absent, late, earlyDeparture, total } = dashboardSummary.today
-      const notRecorded = Math.max(0, totalStudents - total)
-      const rate = totalStudents > 0 && total > 0
-        ? Math.round(((present + late) / totalStudents) * 100)
-        : 0
-      return {
-        presentCount: present,
-        lateCount: late,
-        absentCount: absent,
-        excusedCount: earlyDeparture,
-        submittedCount: total,
-        notRecordedCount: notRecorded,
-        attendanceRate: rate,
+      const t = dashboardSummary.today
+      const present = t.present || 0
+      const late = t.late || 0
+      const absent = t.absent || 0
+      const excused = t.earlyDeparture ?? t.excused ?? 0
+      const total = t.total ?? (present + late + absent + excused)
+
+      // Use pre-aggregated summary if it has records or if fallback attendance hasn't loaded
+      if (total > 0 || todayAttendance.length === 0) {
+        const notRecorded = Math.max(0, totalStudents - total)
+        const rate = totalStudents > 0 && total > 0
+          ? Math.round(((present + late) / totalStudents) * 100)
+          : 0
+        return {
+          presentCount: present,
+          lateCount: late,
+          absentCount: absent,
+          excusedCount: excused,
+          submittedCount: total,
+          notRecordedCount: notRecorded,
+          attendanceRate: rate,
+        }
       }
     }
 
@@ -293,7 +329,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       const present = records.filter(a => a.status?.toLowerCase() === "present").length
       const late = records.filter(a => a.status?.toLowerCase() === "late").length
       const absent = records.filter(a => a.status?.toLowerCase() === "absent").length
-      const excused = records.filter(a => a.status?.toLowerCase() === "excused").length
+      const excused = records.filter(a => a.status?.toLowerCase() === "excused" || a.status?.toLowerCase() === "early_departure").length
       const submitted = records.length
       const notRecorded = Math.max(0, totalStudents - submitted)
       const rate = totalStudents > 0 && submitted > 0
@@ -457,7 +493,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // System Alerts logic
   const systemAlerts = []
-  if (!isLoading && totalTeachers === 0) {
+  if (initialLoadDone && !isLoading && totalTeachers === 0) {
     systemAlerts.push({
       id: "no-teachers",
       title: "Incomplete Setup: No Teachers Registered",
@@ -467,7 +503,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       actionText: "Add Teachers",
     })
   }
-  if (!isLoading && totalStudents === 0) {
+  if (initialLoadDone && !isLoading && totalStudents === 0) {
     systemAlerts.push({
       id: "no-students",
       title: "Incomplete Setup: No Students Enrolled",
