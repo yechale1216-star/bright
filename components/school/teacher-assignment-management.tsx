@@ -1,16 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Trash2, Plus, GraduationCap, Users, CheckCircle2, RefreshCw, Pencil } from "lucide-react"
+import { Trash2, Plus, GraduationCap, Users, CheckCircle2, RefreshCw, Pencil, Search, ChevronDown, Check, X } from "lucide-react"
 
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { db } from "@/lib/db/database"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
+import { cn } from "@/lib/utils/utils"
 
 interface Teacher {
   id: string
@@ -65,6 +66,56 @@ export function TeacherAssignmentManagement() {
   const [availableGrades, setAvailableGrades] = useState<any[]>([])
   const [availableSections, setAvailableSections] = useState<any[]>([])
   const [availableStreams, setAvailableStreams] = useState<any[]>([])
+
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState("")
+  const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false)
+  const [assignmentSearch, setAssignmentSearch] = useState("")
+  const teacherDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (teacherDropdownRef.current && !teacherDropdownRef.current.contains(e.target as Node)) {
+        setIsTeacherDropdownOpen(false)
+      }
+    }
+    if (isTeacherDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [isTeacherDropdownOpen])
+
+  const currentTeacher = useMemo(() => {
+    return teachers.find((t) => t.id === selectedTeacher)
+  }, [teachers, selectedTeacher])
+
+  const filteredTeachers = useMemo(() => {
+    if (!teacherSearchQuery.trim()) return teachers
+    const q = teacherSearchQuery.toLowerCase()
+    return teachers.filter((t) => {
+      const name = (t.full_name || (t as any).name || "").toLowerCase()
+      const email = (t.email || "").toLowerCase()
+      return name.includes(q) || email.includes(q)
+    })
+  }, [teachers, teacherSearchQuery])
+
+  const filteredAssignments = useMemo(() => {
+    if (!assignmentSearch.trim()) return assignments
+    const q = assignmentSearch.toLowerCase()
+    return assignments.filter((assign) => {
+      const teacherName = (assign.teacher?.full_name || "").toLowerCase()
+      const teacherEmail = (assign.teacher?.email || "").toLowerCase()
+      const grade = String(typeof assign.grade === 'object' ? assign.grade?.name : (assign.grade || '')).toLowerCase()
+      const section = String(typeof assign.section === 'object' ? assign.section?.name : (assign.section || '')).toLowerCase()
+      const stream = String(typeof assign.stream === 'object' ? assign.stream?.name : (assign.stream || '')).toLowerCase()
+      return (
+        teacherName.includes(q) ||
+        teacherEmail.includes(q) ||
+        grade.includes(q) ||
+        section.includes(q) ||
+        stream.includes(q)
+      )
+    })
+  }, [assignments, assignmentSearch])
 
   const getInitials = (name: string) => {
     if (!name) return "T"
@@ -152,6 +203,8 @@ export function TeacherAssignmentManagement() {
     setSelectedGrade("")
     setSelectedSection("")
     setSelectedStream("")
+    setTeacherSearchQuery("")
+    setIsTeacherDropdownOpen(false)
     setIsEditing(false)
     setEditingAssignmentId(null)
     setShowSuccess(false)
@@ -242,6 +295,8 @@ export function TeacherAssignmentManagement() {
     setSelectedGrade(assignment.gradeId || assignment.grade?.id || "")
     setSelectedSection(assignment.sectionId || assignment.section?.id || "")
     setSelectedStream(assignment.streamId || assignment.stream?.id || "")
+    setTeacherSearchQuery("")
+    setIsTeacherDropdownOpen(false)
     setIsEditing(true)
     setIsDialogOpen(true)
   }
@@ -352,23 +407,174 @@ export function TeacherAssignmentManagement() {
               </DialogHeader>
 
               <div className="px-6 py-6 space-y-5">
-                {/* Teacher */}
-                <div className="space-y-2">
-                  <label className="typography-label text-slate-700 dark:text-slate-300 uppercase">
-                    Select Teacher <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedTeacher}
-                    onChange={(e) => setSelectedTeacher(e.target.value)}
-                    className="typography-body w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  >
-                    <option value="">-- Choose a Teacher --</option>
-                    {teachers.length > 0 ? (
-                      teachers.map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)
-                    ) : (
-                      <option disabled>No teachers available</option>
+                {/* Teacher Searchable Selector */}
+                <div className="space-y-2 relative" ref={teacherDropdownRef}>
+                  <div className="flex items-center justify-between">
+                    <label className="typography-label text-slate-700 dark:text-slate-300 uppercase">
+                      Select Teacher <span className="text-red-500">*</span>
+                    </label>
+                    {currentTeacher && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold truncate max-w-[200px]">
+                        {currentTeacher.email || ""}
+                      </span>
                     )}
-                  </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsTeacherDropdownOpen((prev) => !prev)}
+                    className={cn(
+                      "typography-body w-full px-3 py-2.5 rounded-xl border text-left flex items-center justify-between transition-all bg-white/70 dark:bg-slate-900/70",
+                      isTeacherDropdownOpen
+                        ? "border-blue-500 ring-2 ring-blue-500/20"
+                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
+                      !currentTeacher && "text-slate-400 dark:text-slate-500"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {currentTeacher ? (
+                        <>
+                          <div
+                            className={cn(
+                              "w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-[11px] font-black shrink-0 shadow-inner",
+                              getAvatarGradient(currentTeacher.id)
+                            )}
+                          >
+                            {getInitials(currentTeacher.full_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                              {currentTeacher.full_name}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span className="text-xs font-medium">-- Choose a Teacher --</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {currentTeacher && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedTeacher("")
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          title="Clear selection"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-slate-400 transition-transform duration-200",
+                          isTeacherDropdownOpen && "rotate-180"
+                        )}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Dropdown panel */}
+                  {isTeacherDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+                      {/* Search Header */}
+                      <div className="p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+                        <div className="relative">
+                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={teacherSearchQuery}
+                            onChange={(e) => setTeacherSearchQuery(e.target.value)}
+                            placeholder="Search teacher by name or email..."
+                            autoFocus
+                            className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          />
+                          {teacherSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setTeacherSearchQuery("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Teacher Options List */}
+                      <div className="max-h-56 overflow-y-auto p-1.5 space-y-0.5">
+                        {filteredTeachers.length > 0 ? (
+                          filteredTeachers.map((t) => {
+                            const isSelected = selectedTeacher === t.id
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTeacher(t.id)
+                                  setIsTeacherDropdownOpen(false)
+                                  setTeacherSearchQuery("")
+                                }}
+                                className={cn(
+                                  "w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between gap-2.5 text-xs transition-colors",
+                                  isSelected
+                                    ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold"
+                                    : "hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium"
+                                )}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div
+                                    className={cn(
+                                      "w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-[11px] font-black shrink-0",
+                                      getAvatarGradient(t.id)
+                                    )}
+                                  >
+                                    {getInitials(t.full_name)}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="truncate leading-tight font-semibold text-slate-800 dark:text-slate-200">
+                                      {t.full_name}
+                                    </p>
+                                    {t.email && (
+                                      <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
+                                        {t.email}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                )}
+                              </button>
+                            )
+                          })
+                        ) : (
+                          <div className="py-6 text-center text-xs text-muted-foreground">
+                            {teachers.length === 0 ? "No teachers available" : `No teachers matching "${teacherSearchQuery}"`}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer showing count */}
+                      <div className="px-3 py-1.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between text-[10px] text-muted-foreground font-medium">
+                        <span>{filteredTeachers.length} teacher{filteredTeachers.length === 1 ? "" : "s"} found</span>
+                        {teacherSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setTeacherSearchQuery("")}
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -460,11 +666,32 @@ export function TeacherAssignmentManagement() {
 
       {/* Assignments Grid */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
             <Users className="w-4 h-4 text-blue-600" />
-            Active Assignments ({assignments.length})
+            Active Assignments ({filteredAssignments.length}{assignmentSearch ? ` of ${assignments.length}` : ""})
           </h2>
+          {assignments.length > 0 && (
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={assignmentSearch}
+                onChange={(e) => setAssignmentSearch(e.target.value)}
+                placeholder="Search assignments..."
+                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+              />
+              {assignmentSearch && (
+                <button
+                  type="button"
+                  onClick={() => setAssignmentSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {assignments.length === 0 ? (
@@ -474,9 +701,23 @@ export function TeacherAssignmentManagement() {
             </div>
             <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No assignments found</p>
           </div>
+        ) : filteredAssignments.length === 0 ? (
+          <div className="py-16 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[28px] border border-dashed border-slate-200 dark:border-slate-800 mx-1">
+            <Search className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No assignments match your search</p>
+            <p className="text-xs text-muted-foreground mt-1">No assignments found for &quot;{assignmentSearch}&quot;</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAssignmentSearch("")}
+              className="mt-3 rounded-xl text-xs"
+            >
+              Clear Search
+            </Button>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 px-1 md:px-0">
-            {assignments.map((assignment) => {
+            {filteredAssignments.map((assignment) => {
               const teacherName = assignment.teacher?.full_name || "Unknown Teacher"
               const bgGradient = getAvatarGradient(assignment.teacher?.id || assignment.teacher_id)
               const gradeName = String(typeof assignment.grade === 'object' ? assignment.grade?.name : (assignment.grade || '')).replace(/^Grade\s+/i, '').trim()

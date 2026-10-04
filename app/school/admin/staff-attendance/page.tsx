@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -40,7 +40,9 @@ import {
   ScanFace,
   Info,
   CalendarClock,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  Check
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { db } from "@/lib/db/database"
@@ -225,6 +227,21 @@ export default function AdminStaffAttendanceDashboard() {
     session: "all" as string,  // "all" for full day or specific session
   })
   const [isSavingLeave, setIsSavingLeave] = useState(false)
+  const [leaveStaffSearch, setLeaveStaffSearch] = useState("")
+  const [isLeaveStaffDropdownOpen, setIsLeaveStaffDropdownOpen] = useState(false)
+  const leaveStaffDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (leaveStaffDropdownRef.current && !leaveStaffDropdownRef.current.contains(e.target as Node)) {
+        setIsLeaveStaffDropdownOpen(false)
+      }
+    }
+    if (isLeaveStaffDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [isLeaveStaffDropdownOpen])
 
 
   // Offline Sync State
@@ -346,6 +363,22 @@ export default function AdminStaffAttendanceDashboard() {
     },
     [availableRoles]
   )
+
+  const selectedLeaveUser = useMemo(() => {
+    return allUsers.find((u) => u.id === leaveForm.userId)
+  }, [allUsers, leaveForm.userId])
+
+  const filteredLeaveStaff = useMemo(() => {
+    if (!leaveStaffSearch.trim()) return allUsers
+    const q = leaveStaffSearch.toLowerCase()
+    return allUsers.filter((u) => {
+      const name = (u.full_name || "").toLowerCase()
+      const email = (u.email || "").toLowerCase()
+      const phone = (u.phone_number || u.phone || "").toLowerCase()
+      const roleLabel = getRoleBadge(u.role).label.toLowerCase()
+      return name.includes(q) || email.includes(q) || phone.includes(q) || roleLabel.includes(q)
+    })
+  }, [allUsers, leaveStaffSearch, getRoleBadge])
 
   const checkOfflineQueue = useCallback(async () => {
     try {
@@ -1080,17 +1113,6 @@ export default function AdminStaffAttendanceDashboard() {
             <BarChart3 className="w-4 h-4" />
             Reports & Analytics
           </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="rounded-xl h-9 px-3.5 text-xs font-bold border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5" /> Export CSV
-          </Button>
         </div>
       </div>
 
@@ -2086,7 +2108,11 @@ export default function AdminStaffAttendanceDashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsLeaveModalOpen(false)}
+                  onClick={() => {
+                    setIsLeaveModalOpen(false)
+                    setIsLeaveStaffDropdownOpen(false)
+                    setLeaveStaffSearch("")
+                  }}
                   className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -2094,22 +2120,167 @@ export default function AdminStaffAttendanceDashboard() {
               </div>
 
               <form onSubmit={handleSaveLeave} className="space-y-4 overflow-y-auto flex-1 py-3 pr-1">
-                {/* Staff Member Selector */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Staff Member *</label>
-                  <select
-                    required
-                    value={leaveForm.userId}
-                    onChange={(e) => setLeaveForm({ ...leaveForm, userId: e.target.value })}
-                    className="w-full mt-1 px-3.5 h-11 rounded-xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-slate-950/70 text-slate-800 dark:text-slate-200 text-xs font-semibold focus:outline-none"
+                {/* Staff Member Searchable Selector */}
+                <div className="space-y-1.5 relative" ref={leaveStaffDropdownRef}>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Staff Member *</label>
+                    {selectedLeaveUser && (
+                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold truncate max-w-[200px]">
+                        {getRoleBadge(selectedLeaveUser.role).label}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsLeaveStaffDropdownOpen((prev) => !prev)}
+                    className={cn(
+                      "w-full px-3.5 h-11 rounded-xl border text-left flex items-center justify-between transition-all bg-white/70 dark:bg-slate-950/70",
+                      isLeaveStaffDropdownOpen
+                        ? "border-purple-500 ring-2 ring-purple-500/20"
+                        : "border-white/40 dark:border-white/10 hover:border-slate-300 dark:hover:border-slate-700",
+                      !selectedLeaveUser && "text-slate-400 dark:text-slate-500"
+                    )}
                   >
-                    <option value="">Select a staff member...</option>
-                    {allUsers.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({getRoleBadge(u.role).label})
-                      </option>
-                    ))}
-                  </select>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {selectedLeaveUser ? (
+                        <>
+                          <Avatar className="w-7 h-7 border border-primary/20 shrink-0">
+                            <AvatarImage src={selectedLeaveUser.profile_photo || ""} />
+                            <AvatarFallback className="bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-bold text-[10px]">
+                              {selectedLeaveUser.full_name?.substring(0, 2).toUpperCase() || "ST"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                              {selectedLeaveUser.full_name}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span className="text-xs font-medium">Select a staff member...</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {selectedLeaveUser && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setLeaveForm({ ...leaveForm, userId: "" })
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          title="Clear selection"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-slate-400 transition-transform duration-200",
+                          isLeaveStaffDropdownOpen && "rotate-180"
+                        )}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Dropdown panel */}
+                  {isLeaveStaffDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+                      {/* Search Header */}
+                      <div className="p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+                        <div className="relative">
+                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={leaveStaffSearch}
+                            onChange={(e) => setLeaveStaffSearch(e.target.value)}
+                            placeholder="Search by name, role, email..."
+                            autoFocus
+                            className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                          />
+                          {leaveStaffSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setLeaveStaffSearch("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Staff Options List */}
+                      <div className="max-h-56 overflow-y-auto p-1.5 space-y-0.5">
+                        {filteredLeaveStaff.length > 0 ? (
+                          filteredLeaveStaff.map((u) => {
+                            const isSelected = leaveForm.userId === u.id
+                            const badge = getRoleBadge(u.role)
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  setLeaveForm({ ...leaveForm, userId: u.id })
+                                  setIsLeaveStaffDropdownOpen(false)
+                                  setLeaveStaffSearch("")
+                                }}
+                                className={cn(
+                                  "w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between gap-2.5 text-xs transition-colors",
+                                  isSelected
+                                    ? "bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-bold"
+                                    : "hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium"
+                                )}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <Avatar className="w-7 h-7 border border-primary/20 shrink-0">
+                                    <AvatarImage src={u.profile_photo || ""} />
+                                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-[10px]">
+                                      {u.full_name?.substring(0, 2).toUpperCase() || "ST"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="truncate leading-tight font-semibold text-slate-800 dark:text-slate-200">
+                                      {u.full_name}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
+                                      {badge.label}{u.email ? ` · ${u.email}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                )}
+                              </button>
+                            )
+                          })
+                        ) : (
+                          <div className="py-6 text-center text-xs text-muted-foreground">
+                            {allUsers.length === 0 ? "No staff members available" : `No staff matching "${leaveStaffSearch}"`}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer showing count */}
+                      <div className="px-3 py-1.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between text-[10px] text-muted-foreground font-medium">
+                        <span>{filteredLeaveStaff.length} staff member{filteredLeaveStaff.length === 1 ? "" : "s"} found</span>
+                        {leaveStaffSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setLeaveStaffSearch("")}
+                            className="text-purple-600 dark:text-purple-400 hover:underline"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration Type: Single Day vs Date Range */}

@@ -611,9 +611,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             value: totalStudents,
             sub: `${sortedGrades.length} Grades`,
             icon: GraduationCap,
-            iconBg: "bg-blue-50 dark:bg-blue-900/20",
-            iconColor: "text-blue-600 dark:text-blue-400",
-            valColor: "text-blue-600 dark:text-blue-400",
+            iconBg: "bg-slate-100 dark:bg-slate-800",
+            iconColor: "text-slate-600 dark:text-slate-400",
+            valColor: "text-foreground",
             href: "/school/admin/students",
           },
           {
@@ -621,9 +621,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             value: totalStaff,
             sub: "Registered",
             icon: Users,
-            iconBg: "bg-emerald-50 dark:bg-emerald-900/20",
-            iconColor: "text-emerald-600 dark:text-emerald-400",
-            valColor: "text-emerald-600 dark:text-emerald-400",
+            iconBg: "bg-slate-100 dark:bg-slate-800",
+            iconColor: "text-slate-600 dark:text-slate-400",
+            valColor: "text-foreground",
             href: "/school/admin/teachers",
           },
           {
@@ -631,15 +631,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             value: `${attendanceRate}%`,
             sub: `${presentCount + lateCount} of ${totalStudents} Present${sessionFilter !== "total" ? ` (${sessionFilter === "morning" ? "Morning" : "Afternoon"})` : ""}`,
             icon: TrendingUp,
-            iconBg: "bg-indigo-50 dark:bg-indigo-900/20",
-            iconColor: "text-indigo-600 dark:text-indigo-400",
-            valColor: "text-indigo-600 dark:text-indigo-400",
+            iconBg: "bg-slate-100 dark:bg-slate-800",
+            iconColor: "text-slate-600 dark:text-slate-400",
+            valColor: attendanceRate >= 80 ? "text-emerald-600 dark:text-emerald-400" : attendanceRate >= 60 ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400",
             href: `/school/admin/attendance${sessionFilter !== "total" ? `?session=${sessionFilter}` : ""}`,
           },
           {
             label: "Staff On Duty",
             value: (
-              <div className="flex items-center justify-center gap-1.5">
+              <div className="flex items-center justify-center gap-1">
                 <span>
                   {!isStaffSessionMode
                     ? dailyActiveStaff
@@ -649,20 +649,20 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     ? afternoonActiveStaff
                     : (dailyActiveStaff || activeStaffCount)}
                 </span>
-                <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
+                <span className="text-sm font-semibold text-muted-foreground">/{totalStaff}</span>
               </div>
             ),
             sub: !isStaffSessionMode
-              ? `${dailyActiveStaff} of ${totalStaff} staff clocked in today`
+              ? `${dailyActiveStaff} of ${totalStaff} clocked in`
               : sessionFilter === "morning"
-              ? `Morning: ${morningActiveStaff} of ${totalStaff} on duty`
+              ? `Morning: ${morningActiveStaff} of ${totalStaff}`
               : sessionFilter === "afternoon"
-              ? `Afternoon: ${afternoonActiveStaff} of ${totalStaff} on duty`
-              : `Morning (${morningActiveStaff}) · Afternoon (${afternoonActiveStaff})`,
+              ? `Afternoon: ${afternoonActiveStaff} of ${totalStaff}`
+              : `Morn. ${morningActiveStaff} · Aft. ${afternoonActiveStaff}`,
             icon: UserCheck,
-            iconBg: "bg-purple-50 dark:bg-purple-900/20",
-            iconColor: "text-purple-600 dark:text-purple-400",
-            valColor: "text-purple-600 dark:text-purple-400",
+            iconBg: "bg-slate-100 dark:bg-slate-800",
+            iconColor: "text-slate-600 dark:text-slate-400",
+            valColor: "text-foreground",
             href: `/school/admin/staff-attendance${isStaffSessionMode && sessionFilter !== "total" ? `?session=${sessionFilter}` : ""}`,
           },
           {
@@ -670,9 +670,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             value: openDisciplineCasesCount,
             sub: `${casesRequiringAttentionCount} High Severity`,
             icon: ShieldAlert,
-            iconBg: casesRequiringAttentionCount > 0 ? "bg-rose-50 dark:bg-rose-900/20" : "bg-amber-50 dark:bg-amber-900/20",
-            iconColor: casesRequiringAttentionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400",
-            valColor: casesRequiringAttentionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400",
+            iconBg: casesRequiringAttentionCount > 0 ? "bg-rose-50 dark:bg-rose-950/40" : "bg-slate-100 dark:bg-slate-800",
+            iconColor: casesRequiringAttentionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-slate-400",
+            valColor: casesRequiringAttentionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground",
             href: "/school/admin/discipline",
           },
         ].map((item, idx) => (
@@ -689,20 +689,20 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             tabIndex={0}
             className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center gap-1.5 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/20 select-none"
           >
-            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110", item.iconBg, item.iconColor)}>
-              <item.icon className="h-5 w-5" />
+            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0", item.iconBg, item.iconColor)}>
+              <item.icon className="h-[18px] w-[18px]" />
             </div>
-            <p className="text-xs font-medium text-slate-400 dark:text-slate-500 leading-tight mt-1">
+            <p className="text-[11px] font-semibold text-muted-foreground leading-tight mt-0.5">
               {item.label}
             </p>
-            <div className={cn("text-2xl md:text-3xl font-bold tracking-tight leading-none min-h-[32px] flex items-center justify-center", item.valColor)}>
+            <div className={cn("text-2xl md:text-3xl font-black tracking-tight leading-none min-h-[32px] flex items-center justify-center", item.valColor)}>
               {isLoading ? (
                 <span className="inline-block w-12 h-7 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
               ) : (
                 item.value
               )}
             </div>
-            <div className="text-[10px] font-semibold text-muted-foreground/80 truncate min-h-[14px] flex items-center justify-center">
+            <div className="text-[10px] font-medium text-muted-foreground/70 min-h-[14px] flex items-center justify-center text-center leading-snug px-1">
               {isLoading ? (
                 <span className="inline-block w-16 h-2.5 bg-slate-100 dark:bg-slate-800 animate-pulse rounded mt-0.5" />
               ) : (
