@@ -687,28 +687,33 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             }}
             role="button"
             tabIndex={0}
-            className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center gap-1.5 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/20 select-none"
+            className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/20 select-none"
           >
-            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0", item.iconBg, item.iconColor)}>
-              <item.icon className="h-[18px] w-[18px]" />
+            {/* Top row: icon + label */}
+            <div className="flex items-center gap-2.5">
+              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", item.iconBg, item.iconColor)}>
+                <item.icon className="h-4 w-4" />
+              </div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-tight">
+                {item.label}
+              </p>
             </div>
-            <p className="text-[11px] font-semibold text-muted-foreground leading-tight mt-0.5">
-              {item.label}
-            </p>
-            <div className={cn("text-2xl md:text-3xl font-black tracking-tight leading-none min-h-[32px] flex items-center justify-center", item.valColor)}>
+            {/* Value */}
+            <div className={cn("text-2xl font-black tracking-tight leading-none", item.valColor)}>
               {isLoading ? (
-                <span className="inline-block w-12 h-7 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+                <span className="inline-block w-14 h-7 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
               ) : (
                 item.value
               )}
             </div>
-            <div className="text-[10px] font-medium text-muted-foreground/70 min-h-[14px] flex items-center justify-center text-center leading-snug px-1">
+            {/* Sub-text */}
+            <p className="text-[10px] font-medium text-muted-foreground/70 leading-snug -mt-1.5">
               {isLoading ? (
-                <span className="inline-block w-16 h-2.5 bg-slate-100 dark:bg-slate-800 animate-pulse rounded mt-0.5" />
+                <span className="inline-block w-20 h-2.5 bg-slate-100 dark:bg-slate-800 animate-pulse rounded" />
               ) : (
                 item.sub
               )}
-            </div>
+            </p>
           </div>
         ))}
       </div>
