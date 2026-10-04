@@ -473,8 +473,8 @@ export function StaffDashboard() {
       case "PERMISSION":
         return {
           label: "Permission",
-          badgeClass: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
-          dotColor: "bg-purple-500",
+          badgeClass: "bg-secondary text-secondary-foreground border-primary/20",
+          dotColor: "bg-primary",
           subtitle: "Approved permission",
         }
       case "HOLIDAY":
@@ -509,8 +509,8 @@ export function StaffDashboard() {
     <div className="relative space-y-6 max-w-5xl mx-auto pb-10 w-full min-w-0">
       {/* ── Ambient Background Glow Spheres ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute -top-20 -left-20 w-96 h-96 bg-indigo-500/15 dark:bg-indigo-500/10 rounded-full blur-[120px]" />
-        <div className="absolute top-1/3 -right-20 w-96 h-96 bg-cyan-500/15 dark:bg-cyan-500/10 rounded-full blur-[140px]" />
+        <div className="absolute -top-20 -left-20 w-96 h-96 bg-primary/15 dark:bg-primary/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 -right-20 w-96 h-96 bg-primary/10 dark:bg-primary/8 rounded-full blur-[140px]" />
         <div className="absolute -bottom-20 left-1/3 w-96 h-96 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
 
@@ -543,13 +543,13 @@ export function StaffDashboard() {
       {calendarStatus && !calendarStatus.isWorkingDay && (
         <div
           className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-[22px] border backdrop-blur-xl flex items-start sm:items-center gap-3 sm:gap-3.5 shadow-md w-full min-w-0 ${calendarStatus.isHoliday
-              ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200 shadow-purple-500/5"
+              ? "bg-primary/8 border-primary/25 text-foreground dark:text-foreground shadow-primary/5"
               : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-amber-500/5"
             }`}
         >
           <div
             className={`p-2 sm:p-2.5 rounded-xl shrink-0 shadow-sm mt-0.5 sm:mt-0 ${calendarStatus.isHoliday
-                ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
+                ? "bg-primary/15 text-primary dark:text-primary"
                 : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
               }`}
           >
@@ -565,7 +565,7 @@ export function StaffDashboard() {
               <Badge
                 variant="outline"
                 className={`text-[9px] sm:text-[10px] uppercase font-black px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ${calendarStatus.isHoliday
-                    ? "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10"
+                    ? "border-primary/40 text-primary dark:text-primary/80 bg-primary/10"
                     : "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10"
                   }`}
               >
@@ -746,8 +746,8 @@ export function StaffDashboard() {
           {/* Card 4: Work Status */}
           <div className="p-4 sm:p-5 rounded-[24px] border border-white/40 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg shadow-slate-900/5 flex flex-col justify-between gap-3 hover:scale-[1.02] transition-all">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Status</span>
-              <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-primary dark:text-primary/80">Status</span>
+              <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-xs">
                 <Activity className="w-4 h-4" />
               </div>
             </div>
@@ -776,9 +776,9 @@ export function StaffDashboard() {
       </div>
 
       {/* ─── 4. DEDICATED ATTENDANCE CTA BANNER ─── */}
-      <div className="relative overflow-hidden rounded-[26px] border border-white/40 dark:border-white/10 bg-gradient-to-r from-primary/10 via-indigo-500/5 to-cyan-500/10 backdrop-blur-2xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="relative overflow-hidden rounded-[26px] border border-white/40 dark:border-white/10 bg-primary/8 dark:bg-primary/6 backdrop-blur-2xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-primary/25 shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/25 shrink-0">
             <Clock className="w-6 h-6" />
           </div>
           <div className="min-w-0">
@@ -791,7 +791,7 @@ export function StaffDashboard() {
           </div>
         </div>
         <Link href="/school/staff/attendance" className="w-full sm:w-auto shrink-0">
-          <Button className="w-full sm:w-auto font-black text-xs uppercase tracking-wider gap-2 rounded-xl h-11 px-6 bg-gradient-to-r from-primary to-indigo-600 text-white shadow-lg shadow-primary/25 active:scale-95">
+          <Button className="w-full sm:w-auto font-black text-xs uppercase tracking-wider gap-2 rounded-xl h-11 px-6 bg-primary text-primary-foreground shadow-lg shadow-primary/25 active:scale-95 hover:bg-primary/90">
             <UserCheck className="w-4 h-4" />
             <span>Open Attendance Portal</span>
             <ArrowRight className="w-4 h-4" />
