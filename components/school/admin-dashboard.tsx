@@ -189,7 +189,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     : dailyActiveStaff
 
   const [sessionFilter, setSessionFilter] = useState<"total" | "morning" | "afternoon">("total")
-  const isSessionBased = !settings || settings?.attendanceMode === "session_based" || settings?.attendanceMode === "session"
+  const isSessionBased = !!settings && (settings?.attendanceMode === "session_based" || settings?.attendanceMode === "session")
 
   // Attendance metrics
   const isPresent = (status?: string) => status?.toLowerCase() === "present" || status?.toLowerCase() === "late"
@@ -334,27 +334,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   // Chart data: 5-Day Attendance Trend (School Weekdays)
   const trendData = useMemo(() => {
-    // Fast path: use pre-aggregated data from dashboardSummary (available immediately)
-    if (dashboardSummary?.trend?.length > 0 && allAttendance.length === 0) {
-      return dashboardSummary.trend
-        .slice(-5)
-        .map((item: any) => {
-          const dateObj = new Date(item.date + "T00:00:00")
-          const label = dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-          const rate = totalStudents > 0 && item.total > 0
-            ? Math.round(((item.present + item.late) / totalStudents) * 100)
-            : (item.total > 0 ? Math.round(((item.present + item.late) / item.total) * 100) : 0)
-          return {
-            date: label,
-            rate,
-            present: item.present,
-            total: totalStudents > 0 ? totalStudents : item.total,
-            recorded: item.total,
-          }
-        })
-    }
-
-    // Full path: compute from detailed attendance records (once Phase 2 loads)
+    // Compute trend from detailed attendance records (always accurate for both modes)
     const TARGET_TZ = "Africa/Addis_Ababa"
     const trendDataMap: Record<string, { dateStr: string; present: number; total: number }> = {}
     let daysFound = 0
@@ -549,26 +529,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       actionText: "Add Students",
     })
   }
-  if (casesRequiringAttention.length > 0) {
-    systemAlerts.push({
-      id: "urgent-discipline",
-      title: `${casesRequiringAttention.length} High-Severity Discipline Case(s)`,
-      description: "Discipline incidents requiring immediate administrative review.",
-      severity: "danger",
-      action: () => navigateTo("/school/admin/discipline"),
-      actionText: "Review Cases",
-    })
-  }
-  if (pendingRequests.length > 0) {
-    systemAlerts.push({
-      id: "pending-edit-requests",
-      title: `${pendingRequests.length} Attendance Edit Request${pendingRequests.length > 1 ? "s" : ""} Pending`,
-      description: "Teachers have requested permission to modify submitted attendance records.",
-      severity: "warning",
-      action: () => router.push("/school/admin/attendance/requests"),
-      actionText: "Review Requests",
-    })
-  }
+
+
 
   const activeAcademicYearName = settings?.academicYear || "2017 E.C."
   const activeTerm = settings?.currentTerm || "Semester 1"
@@ -829,6 +791,65 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         ))}
       </div>
 
+      {/* Edit Requests Quick Action Banner */}
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border shadow-sm transition-all",
+          pendingRequests.length > 0
+            ? "bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50"
+            : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
+        )}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className={cn(
+            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+            pendingRequests.length > 0
+              ? "bg-amber-100 dark:bg-amber-900/40"
+              : "bg-slate-100 dark:bg-slate-800"
+          )}>
+            <FileCheck className={cn(
+              "w-4 h-4",
+              pendingRequests.length > 0
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-slate-400"
+            )} />
+          </div>
+          <div>
+            <p className="text-xs font-black text-foreground uppercase tracking-wider">
+              Attendance Edit Requests
+            </p>
+            <p className={cn(
+              "text-[11px] font-medium",
+              pendingRequests.length > 0
+                ? "text-amber-700 dark:text-amber-400"
+                : "text-muted-foreground"
+            )}>
+              {pendingRequests.length > 0
+                ? `${pendingRequests.length} request${pendingRequests.length > 1 ? "s" : ""} awaiting your review`
+                : "All clear — no pending requests"}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => router.push("/school/admin/attendance/requests")}
+          className={cn(
+            "h-8 px-3 text-xs font-bold rounded-xl gap-1.5 shrink-0",
+            pendingRequests.length > 0
+              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+              : "variant-outline border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-foreground hover:bg-slate-100 dark:hover:bg-slate-800"
+          )}
+        >
+          {pendingRequests.length > 0 && (
+            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-white/20 text-white text-[10px] font-black">
+              {pendingRequests.length}
+            </span>
+          )}
+          View Requests
+          <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+        </Button>
+      </div>
+
       {/* 4. ANALYTICS & VISUALIZATIONS SECTION (2:1 Grid) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 Cols): Dynamics Chart with Tabs */}
@@ -981,217 +1002,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </Card>
       </div>
 
-      {/* 5. ATTENDANCE EDIT REQUESTS SECTION (RECENT 3 PENDING ONLY) */}
-      <div id="attendance-edit-requests-section" className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-          <div className="flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-black text-foreground uppercase tracking-wider">
-              Pending Attendance Edit Requests
-            </h3>
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded-full",
-                pendingRequests.length > 0
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-              )}
-            >
-              {pendingRequests.length > 0 ? `${pendingRequests.length} Pending Approval` : "All Cleared"}
-            </Badge>
-          </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/school/admin/attendance/requests")}
-            className="h-8 px-3 text-xs font-bold rounded-xl gap-1.5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <span>View All Requests ({editRequests.length})</span>
-            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-          </Button>
-        </div>
-
-        {isLoading ? (
-          <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3.5 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 no-scrollbar snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="min-w-[280px] sm:min-w-[320px] w-[84vw] sm:w-[320px] md:w-auto md:min-w-0 shrink-0 md:shrink snap-start p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 animate-pulse shadow-sm">
-                <div className="flex items-center space-x-3">
-                  <div className="h-9 w-9 rounded-xl bg-slate-200 dark:bg-slate-700 shrink-0" />
-                  <div className="space-y-1.5 w-full">
-                    <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
-                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-1/3" />
-                  </div>
-                </div>
-                <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl" />
-              </div>
-            ))}
-          </div>
-        ) : recentPendingRequests.length === 0 ? (
-          <div className="p-8 text-center bg-white dark:bg-slate-900/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <FileCheck className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
-            <p className="text-sm font-bold text-foreground">
-              No Pending Attendance Edit Requests
-            </p>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              All teacher attendance submissions are locked and in sync. New unlock requests will appear here for review.
-            </p>
-            {editRequests.length > 0 && (
-              <div className="pt-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/school/admin/attendance/requests")}
-                  className="h-8 px-3 text-xs font-bold rounded-xl"
-                >
-                  View Request History ({editRequests.length})
-                </Button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3.5 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 pt-0.5 no-scrollbar snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0">
-              {recentPendingRequests.map((req: any) => {
-                const teacherName = req.teacher?.name || "Teacher"
-                const teacherInitial = teacherName.slice(0, 1).toUpperCase()
-                const reqDate = req.date ? req.date.split("T")[0] : "N/A"
-                const isActingOnThis = actionLoadingId === req.id
-
-                return (
-                  <Card
-                    key={req.id}
-                    className="min-w-[280px] sm:min-w-[320px] w-[84vw] sm:w-[320px] md:w-auto md:min-w-0 shrink-0 md:shrink snap-start border-amber-200/80 dark:border-amber-900/40 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md group flex flex-col justify-between"
-                  >
-                    <CardContent className="p-4 space-y-3">
-                      {/* Teacher & Status Header */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 font-black shrink-0">
-                            {teacherInitial}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-black text-foreground uppercase tracking-tight truncate">
-                              {teacherName}
-                            </p>
-                            <p className="text-[10px] font-semibold text-muted-foreground/80 flex items-center gap-1">
-                              <Clock className="w-3 h-3 opacity-60" />
-                              {req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recent"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-bold uppercase px-2 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700"
-                        >
-                          Pending
-                        </Badge>
-                      </div>
-
-                      {/* Target Date & Session Details */}
-                      <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground text-[11px] font-medium">Target Date:</span>
-                          <span className="font-bold text-foreground font-mono">{reqDate}</span>
-                        </div>
-                        {req.session && (
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground text-[11px] font-medium">Session:</span>
-                            <Badge variant="outline" className="text-[10px] font-semibold capitalize bg-white dark:bg-slate-800 border-slate-200">
-                              {req.session}
-                            </Badge>
-                          </div>
-                        )}
-                        {(req.grade || req.section) && (
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground text-[11px] font-medium">Class:</span>
-                            <div className="flex items-center gap-1 flex-wrap justify-end">
-                              {req.grade && (
-                                <Badge variant="outline" className="text-[10px] font-semibold bg-white dark:bg-slate-800 border-slate-200">
-                                  {req.grade.startsWith("Grade") ? req.grade : `Grade ${req.grade}`}
-                                </Badge>
-                              )}
-                              {req.section && (
-                                <Badge variant="outline" className="text-[10px] font-semibold bg-white dark:bg-slate-800 border-slate-200">
-                                  Sec {req.section}
-                                </Badge>
-                              )}
-                              {req.stream && (
-                                <Badge variant="outline" className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/20">
-                                  {req.stream}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {req.reason && (
-                          <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-                            <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2">
-                              "{req.reason}"
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          disabled={isActingOnThis}
-                          onClick={() => {
-                            setSelectedRequestForAction(req)
-                            setActionType("approve")
-                            setAdminNote("")
-                          }}
-                          className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs"
-                        >
-                          <Check className="w-3.5 h-3.5 mr-1" />
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isActingOnThis}
-                          onClick={() => {
-                            setSelectedRequestForAction(req)
-                            setActionType("reject")
-                            setAdminNote("")
-                          }}
-                          className="flex-1 h-8 border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-bold rounded-xl"
-                        >
-                          <X className="w-3.5 h-3.5 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-
-            {/* If more than 3 pending requests, show banner */}
-            {pendingRequests.length > 3 && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-medium">
-                  <Clock className="w-4 h-4 shrink-0" />
-                  <span>
-                    Showing the 3 most recent requests. <strong>{pendingRequests.length - 3} more</strong> pending request{pendingRequests.length - 3 > 1 ? "s" : ""} awaiting your review.
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => router.push("/school/admin/attendance/requests")}
-                  className="h-7 px-3 text-[11px] font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shrink-0 self-start sm:self-auto shadow-xs"
-                >
-                  View All {pendingRequests.length} Pending
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Action Dialog for Approval/Rejection with Optional Note */}
       <Dialog open={!!selectedRequestForAction} onOpenChange={(open) => !open && setSelectedRequestForAction(null)}>

@@ -14,6 +14,7 @@ import { API_URL } from '@/lib/api-config'
 import { notifications } from '@/lib/utils/notifications'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { queryCache } from '@/lib/utils/query-cache'
+import { validatePassword, PASSWORD_REQUIREMENTS } from '@/lib/utils/password-validator'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 
@@ -164,6 +165,12 @@ export default function UsersAndRolesPage() {
       return
     }
 
+    const pv = validatePassword(createForm.password)
+    if (!pv.isValid) {
+      notifications.error('Password Requirements', pv.message)
+      return
+    }
+
     setCreating(true)
     try {
       const res = await apiFetch<{ success: boolean; data: any }>(`${API_URL}/api/users`, {
@@ -221,6 +228,11 @@ export default function UsersAndRolesPage() {
         is_active: editForm.is_active,
       }
       if (editForm.password.trim()) {
+        const pv = validatePassword(editForm.password.trim())
+        if (!pv.isValid) {
+          notifications.error('Password Requirements', pv.message)
+          return
+        }
         payload.password_hash = editForm.password.trim()
       }
 
@@ -859,12 +871,38 @@ export default function UsersAndRolesPage() {
                   <Input
                     required
                     type="password"
-                    placeholder="Set account password"
+                    placeholder="Min. 8 chars (A-Z, a-z, 0-9)"
                     value={createForm.password}
                     onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
                     className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10"
                   />
+                  <p className="text-[11px] text-muted-foreground mt-1">{PASSWORD_REQUIREMENTS}</p>
                 </div>
+
+                {/* Live validation feedback for create */}
+                {createForm.password && (() => {
+                  const pv = validatePassword(createForm.password)
+                  return (
+                    <div className="grid grid-cols-2 gap-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-white/5">
+                      {[
+                        { label: '8+ characters', ok: pv.hasMinLength },
+                        { label: 'Uppercase (A–Z)', ok: pv.hasUppercase },
+                        { label: 'Lowercase (a–z)', ok: pv.hasLowercase },
+                        { label: 'Number (0–9)', ok: pv.hasNumber },
+                      ].map(({ label, ok }) => (
+                        <div
+                          key={label}
+                          className={`flex items-center gap-1.5 text-xs font-medium ${
+                            ok ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {ok ? <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 {/* ── Dynamic Database-Backed Role Selection Dropdown ── */}
                 <div>
@@ -1018,12 +1056,38 @@ export default function UsersAndRolesPage() {
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Reset Password (Optional)</label>
                   <Input
                     type="password"
-                    placeholder="Leave empty to keep current password"
+                    placeholder="Min. 8 chars to change (or leave empty to keep)"
                     value={editForm.password}
                     onChange={e => setEditForm({ ...editForm, password: e.target.value })}
                     className="mt-1 h-11 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10"
                   />
+                  <p className="text-[11px] text-muted-foreground mt-1">{PASSWORD_REQUIREMENTS}</p>
                 </div>
+
+                {/* Live validation feedback for edit */}
+                {editForm.password && (() => {
+                  const pv = validatePassword(editForm.password)
+                  return (
+                    <div className="grid grid-cols-2 gap-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-white/5">
+                      {[
+                        { label: '8+ characters', ok: pv.hasMinLength },
+                        { label: 'Uppercase (A–Z)', ok: pv.hasUppercase },
+                        { label: 'Lowercase (a–z)', ok: pv.hasLowercase },
+                        { label: 'Number (0–9)', ok: pv.hasNumber },
+                      ].map(({ label, ok }) => (
+                        <div
+                          key={label}
+                          className={`flex items-center gap-1.5 text-xs font-medium ${
+                            ok ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {ok ? <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 <div className="flex items-center gap-2.5 pt-1">
                   <input

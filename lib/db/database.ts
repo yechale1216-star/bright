@@ -456,7 +456,7 @@ class Database extends BaseDatabase {
         body: JSON.stringify({
           ...teacherData,
           role: "teacher",
-          password_hash: teacherData.password || teacherData.password_hash || "demo123456",
+          ...(teacherData.password || teacherData.password_hash ? { password_hash: teacherData.password || teacherData.password_hash } : {}),
           schoolId: schoolId,
           is_active: true,
         }),

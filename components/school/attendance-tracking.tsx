@@ -118,13 +118,20 @@ export function AttendanceTracking() {
   const [showAuditLogsModal, setShowAuditLogsModal] = useState(false)
   const [editReason, setEditReason] = useState("")
   const [adminNote, setAdminNote] = useState("")
-  const [requestGrade, setRequestGrade] = useState("")
-  const [requestSection, setRequestSection] = useState("")
-  const [requestStream, setRequestStream] = useState("")
+  const [requestGrade, setRequestGrade] = useState("all")
+  const [requestSection, setRequestSection] = useState("all")
+  const [requestStream, setRequestStream] = useState("all")
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false)
 
+  const handleOpenEditRequestModal = () => {
+    setRequestGrade(gradeFilter !== "All Grades" ? gradeFilter : "all")
+    setRequestSection(sectionFilter !== "All Sections" ? sectionFilter : "all")
+    setRequestStream(streamFilter !== "All Streams" ? streamFilter : "all")
+    setEditRequestModalOpen(true)
+  }
+
   const isGradeHigherThanTen = (g: string) => {
-    if (!g) return false
+    if (!g || g === "all") return false
     const num = parseInt(g.replace(/\D/g, ""), 10)
     return !isNaN(num) && num > 10
   }
@@ -206,12 +213,15 @@ export function AttendanceTracking() {
     window.addEventListener("online", handleOnline)
     window.addEventListener("offlineAttendanceSynced", handleOfflineSynced)
 
-    // Background polling every 30 seconds
+    // Background polling: fast (6s) if a request is pending, otherwise 25s
+    const hasPending = editRequests.some((r: any) => r.status === "PENDING")
+    const intervalMs = hasPending ? 6000 : 25000
+
     const pollInterval = setInterval(() => {
       loadAttendanceForDateStable(true)
       fetchEditRequests()
       checkOfflineQueue()
-    }, 30000)
+    }, intervalMs)
 
     return () => {
       window.removeEventListener("attendanceDataChanged", handleAttendanceChanged)
@@ -219,7 +229,7 @@ export function AttendanceTracking() {
       window.removeEventListener("offlineAttendanceSynced", handleOfflineSynced)
       clearInterval(pollInterval)
     }
-  }, [checkOfflineQueue])
+  }, [checkOfflineQueue, editRequests])
 
   const fetchEditRequests = async () => {
     try {
@@ -242,20 +252,26 @@ export function AttendanceTracking() {
   const handleRequestPermission = async () => {
     setIsSubmittingRequest(true)
     try {
+      const selectedGrade = requestGrade && requestGrade !== "all" ? requestGrade : (gradeFilter !== "All Grades" ? gradeFilter : undefined)
+      const selectedSection = requestSection && requestSection !== "all" ? requestSection : (sectionFilter !== "All Sections" ? sectionFilter : undefined)
+      const selectedStream = isGradeHigherThanTen(selectedGrade || "")
+        ? (requestStream && requestStream !== "all" ? requestStream : (streamFilter !== "All Streams" ? streamFilter : undefined))
+        : undefined
+
       await db.createAttendanceEditRequest({
         date: selectedDate,
         session: settings?.attendanceMode === "session_based" ? selectedSession : null,
         reason: editReason,
-        grade: requestGrade || gradeFilter !== "All Grades" ? (requestGrade || gradeFilter) : undefined,
-        section: requestSection || sectionFilter !== "All Sections" ? (requestSection || sectionFilter) : undefined,
-        stream: isGradeHigherThanTen(requestGrade || gradeFilter) ? (requestStream || streamFilter !== "All Streams" ? (requestStream || streamFilter) : undefined) : undefined,
+        grade: selectedGrade,
+        section: selectedSection,
+        stream: selectedStream,
       })
-      notifications.success("Request Submitted", "Your edit request has been sent to the School Admin for approval.")
+      notifications.success("Request Submitted", "Your edit request has been sent to School Admin. Status: Waiting Response.")
       setEditRequestModalOpen(false)
       setEditReason("")
-      setRequestGrade("")
-      setRequestSection("")
-      setRequestStream("")
+      setRequestGrade("all")
+      setRequestSection("all")
+      setRequestStream("all")
       await fetchEditRequests()
     } catch (err: any) {
       notifications.error("Error", err.message || "Failed to submit request")
@@ -313,6 +329,51 @@ export function AttendanceTracking() {
 
     return !hasApproved
   }
+
+  // Active edit request for current date & session
+  const currentRequest = useMemo(() => {
+    if (!isTeacher) return null
+    const dateStr = selectedDate
+    const isSessionBased = settings?.attendanceMode === "session_based"
+
+    const matching = editRequests.filter((req: any) => {
+      const reqDateStr = req.date?.split("T")[0]
+      if (reqDateStr !== dateStr) return false
+
+      if (isSessionBased) {
+        return req.session && req.session.toLowerCase() === selectedSession.toLowerCase()
+      } else {
+        return !req.session || req.session.toLowerCase() === "daily" || req.session === ""
+      }
+    })
+
+    return matching[0] || null
+  }, [isTeacher, editRequests, selectedDate, selectedSession, settings?.attendanceMode])
+
+  // Track previous requests to alert teacher immediately when admin approves or rejects
+  const prevEditRequestsRef = useRef<any[]>([])
+  useEffect(() => {
+    if (prevEditRequestsRef.current.length > 0 && isTeacher) {
+      editRequests.forEach((req: any) => {
+        const prev = prevEditRequestsRef.current.find((p) => p.id === req.id)
+        if (prev && prev.status === "PENDING" && req.status !== "PENDING") {
+          const reqDate = req.date?.split("T")[0]
+          if (req.status === "APPROVED") {
+            notifications.success(
+              "Edit Request Approved",
+              `School Admin approved your request for ${reqDate}.${req.adminNote ? ` Admin note: "${req.adminNote}"` : ""}`
+            )
+          } else if (req.status === "REJECTED") {
+            notifications.error(
+              "Edit Request Rejected",
+              `School Admin rejected your request for ${reqDate}.${req.adminNote ? ` Reason: "${req.adminNote}"` : ""}`
+            )
+          }
+        }
+      })
+    }
+    prevEditRequestsRef.current = editRequests
+  }, [editRequests, isTeacher])
 
   // Keep refs in sync with state
   useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate])
@@ -676,11 +737,26 @@ export function AttendanceTracking() {
   const saveSingleStudentAttendance = async (studentId: string) => {
     // 1. Check Edit Permission Restriction for Teachers
     if (isEditingBlockedForTeacher()) {
+      if (currentRequest?.status === "PENDING") {
+        notifications.info(
+          "Waiting Response",
+          "Your edit request has been submitted. Please wait for the School Admin to approve or reject."
+        )
+        return
+      }
+      if (currentRequest?.status === "REJECTED") {
+        notifications.error(
+          "Request Rejected",
+          `School Admin rejected your edit request${currentRequest.adminNote ? `: "${currentRequest.adminNote}"` : ""}. Please submit a new request if needed.`
+        )
+        handleOpenEditRequestModal()
+        return
+      }
       notifications.warning(
         "Edit Permission Required",
         "Attendance editing is disabled by School Admin. Please submit an edit request for approval."
       )
-      setEditRequestModalOpen(true)
+      handleOpenEditRequestModal()
       return
     }
 
@@ -738,11 +814,26 @@ export function AttendanceTracking() {
   const saveAttendance = async () => {
     // 1. Check Edit Permission Restriction for Teachers
     if (isEditingBlockedForTeacher()) {
+      if (currentRequest?.status === "PENDING") {
+        notifications.info(
+          "Waiting Response",
+          "Your edit request has been submitted. Please wait for the School Admin to approve or reject."
+        )
+        return
+      }
+      if (currentRequest?.status === "REJECTED") {
+        notifications.error(
+          "Request Rejected",
+          `School Admin rejected your edit request${currentRequest.adminNote ? `: "${currentRequest.adminNote}"` : ""}. Please submit a new request if needed.`
+        )
+        handleOpenEditRequestModal()
+        return
+      }
       notifications.warning(
         "Edit Permission Required",
         "Attendance editing is disabled by School Admin. Please submit an edit request for approval."
       )
-      setEditRequestModalOpen(true)
+      handleOpenEditRequestModal()
       return
     }
 
@@ -1154,47 +1245,65 @@ export function AttendanceTracking() {
             CSV
           </Button>
 
-          {!isTeacher && (
-            <>
-              <Button
-                onClick={() => {
-                  fetchEditRequests()
-                  setShowRequestsModal(true)
-                }}
-                variant="outline"
-                className="relative flex-1 sm:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
-              >
-                <FileCheck className="w-4 h-4 mr-2 text-primary" />
-                Requests
-                {pendingRequestsCount > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white rounded-full">
-                    {pendingRequestsCount}
-                  </span>
-                )}
-              </Button>
+          {/* Requests button for both Admin and Teacher */}
+          <Button
+            onClick={() => {
+              fetchEditRequests()
+              setShowRequestsModal(true)
+            }}
+            variant="outline"
+            className="relative flex-1 sm:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+          >
+            <FileCheck className="w-4 h-4 mr-2 text-primary" />
+            {isTeacher ? "My Requests" : "Requests"}
+            {pendingRequestsCount > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 text-[9px] font-bold bg-amber-500 text-white rounded-full animate-pulse">
+                {pendingRequestsCount}
+              </span>
+            )}
+          </Button>
 
-              <Button
-                onClick={() => {
-                  fetchAuditLogs()
-                  setShowAuditLogsModal(true)
-                }}
-                variant="outline"
-                className="flex-1 sm:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
-              >
-                <History className="w-4 h-4 mr-2 text-primary" />
-                Audit Log
-              </Button>
-            </>
+          {!isTeacher && (
+            <Button
+              onClick={() => {
+                fetchAuditLogs()
+                setShowAuditLogsModal(true)
+              }}
+              variant="outline"
+              className="flex-1 sm:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+            >
+              <History className="w-4 h-4 mr-2 text-primary" />
+              Audit Log
+            </Button>
           )}
 
           {isTeacher && isEditingBlockedForTeacher() ? (
-            <Button
-              onClick={() => setEditRequestModalOpen(true)}
-              className="flex-1 sm:flex-none h-11 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest px-5 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
-            >
-              <Lock className="w-4 h-4 mr-2" />
-              Request Permission
-            </Button>
+            currentRequest?.status === "PENDING" ? (
+              <Button
+                disabled
+                variant="outline"
+                className="flex-1 sm:flex-none h-11 rounded-2xl border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-black text-[10px] uppercase tracking-widest px-5 cursor-not-allowed shadow-sm"
+              >
+                <Clock className="w-4 h-4 mr-2 animate-spin text-amber-600" />
+                Waiting Response
+              </Button>
+            ) : currentRequest?.status === "REJECTED" ? (
+              <Button
+                onClick={handleOpenEditRequestModal}
+                className="flex-1 sm:flex-none h-11 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase tracking-widest px-5 shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+              >
+                <AlertCircle className="w-4 h-4 mr-2" />
+                Request Again
+              </Button>
+            ) : (
+              <Button
+                onClick={handleOpenEditRequestModal}
+                className="flex-1 sm:flex-none h-11 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest px-5 shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                <Lock className="w-4 h-4 mr-2" />
+                Request Permission
+              </Button>
+            )
           ) : (
             <Button
               onClick={saveAttendance}
@@ -1226,27 +1335,132 @@ export function AttendanceTracking() {
           </div>
         )}
 
-        {isTeacher && settings?.allowAttendanceEditing === false && isEditingBlockedForTeacher() && (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0">
-                <Lock className="h-5 w-5" />
+        {isTeacher && settings?.allowAttendanceEditing === false && (
+          <>
+            {/* 1. Request is PENDING: Waiting Response */}
+            {currentRequest?.status === "PENDING" && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 gap-3 shadow-sm animate-in fade-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
+                    <Clock className="h-5 w-5 animate-spin text-amber-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold">Waiting Response</p>
+                      <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border-amber-300 text-[10px] font-bold uppercase animate-pulse">
+                        Admin Approval Pending
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
+                      Your attendance edit request for <strong>{selectedDate}</strong> {settings?.attendanceMode === "session_based" ? `(${selectedSession === "morning" ? "Morning Session" : "Afternoon Session"})` : "(Daily Mode)"} has been submitted. Waiting for School Admin response...
+                    </p>
+                    {currentRequest.reason && (
+                      <p className="text-xs italic bg-white/60 dark:bg-black/30 p-2 rounded-lg border border-amber-500/20 text-slate-700 dark:text-slate-300 mt-1">
+                        <span className="font-semibold not-italic">Submitted Reason:</span> "{currentRequest.reason}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fetchEditRequests()}
+                    className="bg-white/80 dark:bg-slate-900/80 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 rounded-xl font-bold uppercase text-[10px] tracking-wider px-3 h-8"
+                  >
+                    Check Status
+                  </Button>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-bold">Attendance Editing Restricted</p>
-                <p className="text-xs opacity-80">
-                  School Admin has disabled attendance record modifications after submission without prior approval.
-                </p>
+            )}
+
+            {/* 2. Request is APPROVED (and not yet used) */}
+            {currentRequest?.status === "APPROVED" && !currentRequest.isUsed && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-950 dark:text-emerald-100 gap-3 shadow-sm animate-in fade-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold">Edit Permission Approved</p>
+                      <Badge variant="outline" className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-300 text-[10px] font-bold uppercase">
+                        Approved
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-emerald-800/90 dark:text-emerald-200/90">
+                      The School Admin approved your attendance edit request for <strong>{selectedDate}</strong>. You can now make changes and save attendance.
+                    </p>
+                    {currentRequest.adminNote && (
+                      <div className="text-xs bg-white/70 dark:bg-black/30 p-2 rounded-lg border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 mt-1">
+                        <span className="font-bold">Admin Response:</span> "{currentRequest.adminNote}"
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-            <Button
-              size="sm"
-              className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold uppercase text-[10px] tracking-wider px-4 shrink-0"
-              onClick={() => setEditRequestModalOpen(true)}
-            >
-              <FileCheck className="h-4 w-4 mr-2" /> Request Permission
-            </Button>
-          </div>
+            )}
+
+            {/* 3. Request was REJECTED */}
+            {currentRequest?.status === "REJECTED" && isEditingBlockedForTeacher() && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-950 dark:text-rose-100 gap-3 shadow-sm animate-in fade-in duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-700 dark:text-rose-300 shrink-0 mt-0.5">
+                    <XCircle className="h-5 w-5 text-rose-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold">Edit Request Rejected</p>
+                      <Badge variant="outline" className="bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200 border-rose-300 text-[10px] font-bold uppercase">
+                        Rejected
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-rose-800/90 dark:text-rose-200/90">
+                      The School Admin rejected your attendance edit request for <strong>{selectedDate}</strong>.
+                    </p>
+                    {currentRequest.adminNote ? (
+                      <div className="text-xs bg-white/70 dark:bg-black/30 p-2 rounded-lg border border-rose-500/30 text-rose-900 dark:text-rose-200 mt-1">
+                        <span className="font-bold">Admin Response:</span> "{currentRequest.adminNote}"
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No admin response note provided.</p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold uppercase text-[10px] tracking-wider px-4 shrink-0"
+                  onClick={handleOpenEditRequestModal}
+                >
+                  <FileCheck className="h-4 w-4 mr-2" /> Request Again
+                </Button>
+              </div>
+            )}
+
+            {/* 4. No request submitted yet, but editing is blocked */}
+            {!currentRequest && isEditingBlockedForTeacher() && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Attendance Editing Restricted</p>
+                    <p className="text-xs opacity-80">
+                      School Admin has disabled attendance record modifications after submission without prior approval.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold uppercase text-[10px] tracking-wider px-4 shrink-0"
+                  onClick={handleOpenEditRequestModal}
+                >
+                  <FileCheck className="h-4 w-4 mr-2" /> Request Permission
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -1937,9 +2151,9 @@ export function AttendanceTracking() {
                     <SelectValue placeholder="Select grade" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— Any Grade —</SelectItem>
+                    <SelectItem value="all">— Any Grade —</SelectItem>
                     {grades.map((g) => (
-                      <SelectItem key={g || ""} value={g || ""}>{g}</SelectItem>
+                      <SelectItem key={g || "unknown"} value={g || "unknown"}>{g}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1951,9 +2165,9 @@ export function AttendanceTracking() {
                     <SelectValue placeholder="Select section" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— Any Section —</SelectItem>
+                    <SelectItem value="all">— Any Section —</SelectItem>
                     {sections.map((s) => (
-                      <SelectItem key={s || ""} value={s || ""}>{s}</SelectItem>
+                      <SelectItem key={s || "unknown"} value={s || "unknown"}>{s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1961,7 +2175,7 @@ export function AttendanceTracking() {
             </div>
 
             {/* Stream — only for grades > 10 */}
-            {isGradeHigherThanTen(requestGrade) && (
+            {isGradeHigherThanTen(requestGrade && requestGrade !== "all" ? requestGrade : (gradeFilter !== "All Grades" ? gradeFilter : "")) && (
               <div>
                 <Label className="text-xs font-semibold">Stream</Label>
                 <Select value={requestStream} onValueChange={setRequestStream}>
@@ -1969,9 +2183,9 @@ export function AttendanceTracking() {
                     <SelectValue placeholder="Select stream" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">— Any Stream —</SelectItem>
+                    <SelectItem value="all">— Any Stream —</SelectItem>
                     {streams.map((st) => (
-                      <SelectItem key={st || ""} value={st || ""}>{st}</SelectItem>
+                      <SelectItem key={st || "unknown"} value={st || "unknown"}>{st}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -2003,13 +2217,13 @@ export function AttendanceTracking() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Edit Requests Modal */}
+      {/* Edit Requests Modal (Admin & Teacher) */}
       <Dialog open={showRequestsModal} onOpenChange={setShowRequestsModal}>
         <DialogContent className="max-w-3xl rounded-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileCheck className="w-5 h-5 text-blue-600" />
-              Attendance Edit Requests
+              {isTeacher ? "My Attendance Edit Requests" : "Attendance Edit Requests"}
             </DialogTitle>
           </DialogHeader>
           <div className="py-2 space-y-4">
@@ -2023,21 +2237,24 @@ export function AttendanceTracking() {
                 {editRequests.map((req: any) => (
                   <div
                     key={req.id}
-                    className="p-4 rounded-xl border bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-3"
+                    className="p-4 rounded-xl border bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-sm"
                   >
-                    <div className="space-y-1 min-w-0">
+                    <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm">{req.teacher?.name || "Teacher"}</span>
+                        <span className="font-bold text-sm">{req.teacher?.name || (isTeacher ? "My Request" : "Teacher")}</span>
                         <Badge
                           variant="outline"
                           className={cn(
-                            "uppercase text-[10px]",
-                            req.status === "PENDING" && "bg-amber-50 text-amber-700 border-amber-300",
+                            "uppercase text-[10px] font-bold flex items-center gap-1",
+                            req.status === "PENDING" && "bg-amber-50 text-amber-700 border-amber-300 animate-pulse",
                             req.status === "APPROVED" && "bg-emerald-50 text-emerald-700 border-emerald-300",
                             req.status === "REJECTED" && "bg-rose-50 text-rose-700 border-rose-300"
                           )}
                         >
-                          {req.status}
+                          {req.status === "PENDING" && <Clock className="w-3 h-3 animate-spin" />}
+                          {req.status === "APPROVED" && <CheckCircle2 className="w-3 h-3" />}
+                          {req.status === "REJECTED" && <XCircle className="w-3 h-3" />}
+                          {req.status === "PENDING" ? "Waiting Response" : req.status}
                         </Badge>
                         {req.isUsed && (
                           <Badge variant="outline" className="bg-slate-100 text-slate-600 text-[10px]">
@@ -2067,7 +2284,31 @@ export function AttendanceTracking() {
                           </span>
                         )}
                       </p>
-                      {req.reason && <p className="text-xs text-slate-700 dark:text-slate-300 italic">"{req.reason}"</p>}
+                      {req.reason && <p className="text-xs text-slate-700 dark:text-slate-300 italic">Submitted reason: "{req.reason}"</p>}
+                      {req.status === "PENDING" && (
+                        <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium pt-0.5">
+                          <Clock className="w-3.5 h-3.5 animate-spin" />
+                          <span>Waiting response from School Admin...</span>
+                        </div>
+                      )}
+                      {req.adminNote && (
+                        <div className={cn(
+                          "mt-2 text-xs p-2.5 rounded-xl border flex flex-col gap-0.5",
+                          req.status === "APPROVED" && "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200",
+                          req.status === "REJECTED" && "bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200",
+                          req.status === "PENDING" && "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                        )}>
+                          <span className="font-bold text-[10px] uppercase tracking-wider">
+                            Admin Response:
+                          </span>
+                          <span className="font-medium italic">"{req.adminNote}"</span>
+                          {req.processedAt && (
+                            <span className="text-[10px] opacity-75 mt-0.5 not-italic">
+                              Responded on {new Date(req.processedAt).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {!isTeacher && req.status === "PENDING" && (

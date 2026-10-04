@@ -25,8 +25,10 @@ import {
   ArrowUpDown,
   RotateCcw,
   ShieldAlert,
-  Users
+  Users,
+  XCircle,
 } from "lucide-react"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { Spinner } from "@/components/ui/spinner"
@@ -243,6 +245,15 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
         notifications.error("Validation Error", "Password is required for new teachers")
         setIsSaving(false)
         return
+      }
+
+      if (formData.password) {
+        const pv = validatePassword(formData.password)
+        if (!pv.isValid) {
+          notifications.error("Password Requirements", pv.message)
+          setIsSaving(false)
+          return
+        }
       }
 
       const payload = {
@@ -942,9 +953,35 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                         value={formData.password}
                         onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
                         required={!editingTeacher}
-                        placeholder={editingTeacher ? "Leave empty to keep current password" : "Enter a secure password"}
+                        placeholder={editingTeacher ? "Min. 8 chars to change (or leave empty)" : "Min. 8 chars (A-Z, a-z, 0-9)"}
                         className="rounded-xl border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:ring-2 focus:ring-blue-500/20"
                       />
+                      <p className="text-[11px] text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
+                      
+                      {/* Live validation feedback */}
+                      {formData.password && (() => {
+                        const pv = validatePassword(formData.password)
+                        return (
+                          <div className="grid grid-cols-2 gap-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-white/5">
+                            {[
+                              { label: '8+ characters', ok: pv.hasMinLength },
+                              { label: 'Uppercase (A–Z)', ok: pv.hasUppercase },
+                              { label: 'Lowercase (a–z)', ok: pv.hasLowercase },
+                              { label: 'Number (0–9)', ok: pv.hasNumber },
+                            ].map(({ label, ok }) => (
+                              <div
+                                key={label}
+                                className={`flex items-center gap-1.5 text-xs font-medium ${
+                                  ok ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                                }`}
+                              >
+                                {ok ? <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">Phone (Ethiopia +251)</Label>

@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, CheckCircle2, Clock, ShieldCheck, Eye, X, Calendar, Mail, Phone, GraduationCap, UploadCloud, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
+import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, CheckCircle2, Clock, ShieldCheck, Eye, X, Calendar, Mail, Phone, GraduationCap, UploadCloud, RefreshCw, ChevronLeft, ChevronRight, XCircle } from "lucide-react"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { db, type Student } from "@/lib/db/database"
 import { StudentImportPreview } from "./student-import-preview"
 import { motion, AnimatePresence } from "framer-motion"
@@ -397,6 +398,18 @@ export function StudentManagement() {
       parentPhoneValidation,
       parentNameValidation,
     )
+
+    if (!editingStudent && parentLookupState === 'not_found') {
+      if (!formData.parent_password) {
+        notifications.error("Password Required", "Portal password is required for new parent accounts.")
+        return false
+      }
+      const pv = validatePassword(formData.parent_password)
+      if (!pv.isValid) {
+        notifications.error("Password Requirements", pv.message)
+        return false
+      }
+    }
 
     setValidationErrors(combinedResult.errors)
     return combinedResult.isValid
@@ -1208,12 +1221,38 @@ export function StudentManagement() {
                                   <Input
                                     id="parent_password"
                                     type="text"
-                                    placeholder="Temporary password"
+                                    placeholder="Min. 8 chars (A-Z, a-z, 0-9)"
                                     value={formData.parent_password || ""}
                                     onChange={(e) => setFormData((prev) => ({ ...prev, parent_password: e.target.value }))}
                                     required={parentLookupState === 'not_found' && !editingStudent}
                                     className="typography-body h-11 rounded-xl bg-background/50 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                                   />
+                                  <p className="text-[11px] text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
+
+                                  {/* Live validation feedback */}
+                                  {formData.parent_password && (() => {
+                                    const pv = validatePassword(formData.parent_password)
+                                    return (
+                                      <div className="grid grid-cols-2 gap-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800">
+                                        {[
+                                          { label: '8+ characters', ok: pv.hasMinLength },
+                                          { label: 'Uppercase (A–Z)', ok: pv.hasUppercase },
+                                          { label: 'Lowercase (a–z)', ok: pv.hasLowercase },
+                                          { label: 'Number (0–9)', ok: pv.hasNumber },
+                                        ].map(({ label, ok }) => (
+                                          <div
+                                            key={label}
+                                            className={`flex items-center gap-1 text-[11px] font-medium ${
+                                              ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                                            }`}
+                                          >
+                                            {ok ? <ShieldCheck className="w-3 h-3 shrink-0" /> : <XCircle className="w-3 h-3 shrink-0" />}
+                                            {label}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )
+                                  })()}
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                   <Label htmlFor="parent_address" className="typography-label text-slate-600">Home Address (Optional)</Label>

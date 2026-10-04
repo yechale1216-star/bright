@@ -3,7 +3,7 @@ import z from "zod"
 // Auth validation schemas
 export const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"),
 })
 
 export const registerSchema = z.object({
@@ -11,8 +11,9 @@ export const registerSchema = z.object({
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain uppercase")
-    .regex(/[0-9]/, "Password must contain numbers"),
+    .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least 1 lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least 1 number"),
   full_name: z.string().min(2, "Full name required"),
   school_id: z.union([z.string(), z.number()]).optional().default("single-school"),
   role: z.enum(["admin", "teacher", "staff"]),
@@ -21,7 +22,14 @@ export const registerSchema = z.object({
 export const teacherSchema = z.object({
   full_name: z.string().min(2, "Teacher name required"),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")), // Added password field for teacher account creation
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least 1 lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least 1 number")
+    .optional()
+    .or(z.literal("")), // Added password field for teacher account creation
   phone: z.string().optional().or(z.literal("")),
   subject: z.string().optional().or(z.literal("")),
   qualification: z.string().optional().or(z.literal("")),

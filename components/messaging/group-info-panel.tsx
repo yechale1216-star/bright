@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/utils/supabase';
 import { 
   ArrowLeft, Key, UserPlus, Star, ClipboardList, Edit, MoreVertical,
   MessageSquare, Volume2, VolumeX, LogOut, Sliders, Shield,
@@ -92,6 +93,10 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
   const [mediaItems, setMediaItems] = useState<any[]>([]);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<string | null>(null);
+
+  // Avatar upload
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const members = group?.members || [];
   const myMember = members.find((m: any) => m.userId === currentUser?.id);
@@ -187,6 +192,51 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
       notifications.error("Error", err.message || "Failed to add members");
     } finally {
       setIsAddingMembers(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !group?.id) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `group-${group.id}-${Date.now()}.${fileExt}`;
+      const filePath = `group-avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const avatarUrl = data.publicUrl;
+
+      const res = await fetch(`${API_URL}/api/groups/${group.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: group.name,
+          description: group.description,
+          avatar: avatarUrl,
+        }),
+      });
+
+      if (res.ok) {
+        notifications.success('Avatar Updated', 'Group photo changed successfully');
+        if (onGroupUpdated) onGroupUpdated({ ...group, avatar: avatarUrl });
+      } else {
+        const err = await res.json();
+        notifications.error('Error', err.error || err.message || 'Failed to update avatar');
+      }
+    } catch (err: any) {
+      notifications.error('Upload Failed', err.message || 'Failed to upload photo');
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset so same file can be picked again
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
@@ -399,17 +449,37 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
         
         {/* ── 2. Hero Profile Header Section ──────────────────────────────── */}
         <div className="p-6 flex flex-col items-center text-center space-y-3 relative">
-          <div className="relative group cursor-pointer" onClick={() => isAdminOrOwner && setShowEditModal(true)}>
-            <Avatar className="h-32 w-32 border-4 border-[#172436] shadow-2xl ring-4 ring-emerald-500/10 transition-all duration-300 group-hover:ring-emerald-500/30">
+          <div className="relative group cursor-pointer">
+            <Avatar
+              className="h-32 w-32 border-4 border-[#172436] shadow-2xl ring-4 ring-emerald-500/10 transition-all duration-300 group-hover:ring-emerald-500/30"
+              onClick={() => isAdminOrOwner && setShowEditModal(true)}
+            >
               <AvatarImage src={group?.avatar} className="object-cover" />
               <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-3xl font-black">
                 {group?.name?.slice(0, 2).toUpperCase() || 'GR'}
               </AvatarFallback>
             </Avatar>
             {isAdminOrOwner && (
-              <div className="absolute bottom-1 right-1 bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-[#0c131d] opacity-90 group-hover:scale-110 transition-transform">
-                <Camera className="h-4 w-4" />
-              </div>
+              <>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="absolute bottom-1 right-1 bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-[#0c131d] opacity-90 hover:bg-emerald-500 group-hover:scale-110 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="Change group photo"
+                >
+                  {isUploadingAvatar
+                    ? <Spinner size="sm" className="text-white w-4 h-4" />
+                    : <Camera className="h-4 w-4" />}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                />
+              </>
             )}
           </div>
 

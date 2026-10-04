@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
-import { ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, MessageSquare, ArrowRight } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Lock, Eye, EyeOff, MessageSquare, ArrowRight, XCircle } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { PhoneInput } from "@/components/ui/phone-input"
 import { Spinner } from "@/components/ui/spinner"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 
 interface ParentForgotPasswordFormProps {
   onBackToLogin: () => void;
@@ -163,8 +164,13 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
     e.preventDefault();
     const cleanPhone = phone.replace(/\s+/g, "");
     const cleanCode = otpCode.trim();
-    if (!newPassword || newPassword.length < 6) {
-      notifications.error("Validation Error", "Password must be at least 6 characters long.");
+    if (!newPassword) {
+      notifications.error("Validation Error", "Please enter a new password.");
+      return;
+    }
+    const pv = validatePassword(newPassword);
+    if (!pv.isValid) {
+      notifications.error("Password Requirements", pv.message);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -227,23 +233,65 @@ export function ParentForgotPasswordForm({ onBackToLogin }: ParentForgotPassword
               <Label htmlFor="newPassword" className="typography-label text-slate-800 dark:text-slate-300">New Password</Label>
               <div className="relative group">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Lock className="w-4 h-4" /></div>
-                <Input id="newPassword" type={showPassword ? "text" : "password"} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl" />
+                <Input id="newPassword" type={showPassword ? "text" : "password"} placeholder="Min. 8 chars (A-Z, a-z, 0-9)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 dark:hover:text-white">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <p className="text-[11px] text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
             </div>
+
+            {/* Live validation feedback */}
+            {newPassword && (() => {
+              const pv = validatePassword(newPassword);
+              return (
+                <div className="grid grid-cols-2 gap-1.5 p-3 rounded-xl bg-slate-100/60 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                  {[
+                    { label: "8+ characters", ok: pv.hasMinLength },
+                    { label: "Uppercase (A–Z)", ok: pv.hasUppercase },
+                    { label: "Lowercase (a–z)", ok: pv.hasLowercase },
+                    { label: "Number (0–9)", ok: pv.hasNumber },
+                  ].map(({ label, ok }) => (
+                    <div
+                      key={label}
+                      className={`flex items-center gap-1.5 text-xs font-medium ${
+                        ok ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                      }`}
+                    >
+                      {ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <div className="space-y-1.5">
               <Label htmlFor="confirmPassword" className="typography-label text-slate-800 dark:text-slate-300">Confirm New Password</Label>
               <div className="relative group">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"><Lock className="w-4 h-4" /></div>
-                <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Repeat new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl" />
+                <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Repeat new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8} className="typography-body pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white rounded-xl" />
                 <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 dark:hover:text-white">
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-            <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] mt-2">
+
+            {/* Match status */}
+            {confirmPassword && newPassword !== confirmPassword && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400">
+                <XCircle className="w-3.5 h-3.5 shrink-0" />
+                Passwords do not match
+              </div>
+            )}
+            {newPassword && confirmPassword && newPassword === confirmPassword && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                Passwords match
+              </div>
+            )}
+
+            <Button type="submit" disabled={isLoading || !newPassword || !confirmPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98] mt-2">
               {isLoading ? <Spinner size="sm" className="text-white" /> : "Set New Password"}
             </Button>
           </form>

@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
 import * as schoolService from './school.service';
 import * as smsService from './sms.service';
+import { validatePassword } from '../utils/password-validator';
 
 /**
  * List all schools associated with a parent's phone number.
@@ -504,6 +505,9 @@ export const updatePassword = async (phone: string, currentPassword: string, new
   const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
   if (!isValidPassword) throw new Error("Incorrect current password.");
 
+  const val = validatePassword(newPassword);
+  if (!val.isValid) throw new Error(val.error);
+
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({
     where: { id: user.id },
@@ -830,8 +834,9 @@ export const verifyParentPasswordResetOTP = async (phone: string, code: string) 
  * Reset the parent's password using verified OTP.
  */
 export const resetParentPasswordWithOTP = async (phone: string, code: string, newPassword: string) => {
-  if (!newPassword || newPassword.length < 6) {
-    throw new Error('Password must be at least 6 characters long.');
+  const val = validatePassword(newPassword);
+  if (!val.isValid) {
+    throw new Error(val.error);
   }
 
   const cleanPhone = normalizePhoneNumber(phone);

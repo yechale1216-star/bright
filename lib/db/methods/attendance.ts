@@ -200,6 +200,8 @@ export async function createEditRequest(
       }),
     }
   );
+  queryCache.invalidate(/^attendance_edit_requests/)
+  queryCache.invalidate("attendance_edit_requests_")
   notifyAttendanceDataChanged();
   return result.data;
 }
@@ -258,6 +260,8 @@ export async function approveEditRequest(headers: any, requestId: string, adminN
       body: JSON.stringify({ adminNote }),
     }
   )
+  queryCache.invalidate(/^attendance_edit_requests/)
+  queryCache.invalidate("attendance_edit_requests_")
   notifyAttendanceDataChanged()
   return result.data
 }
@@ -271,6 +275,8 @@ export async function rejectEditRequest(headers: any, requestId: string, adminNo
       body: JSON.stringify({ adminNote }),
     }
   )
+  queryCache.invalidate(/^attendance_edit_requests/)
+  queryCache.invalidate("attendance_edit_requests_")
   notifyAttendanceDataChanged()
   return result.data
 }

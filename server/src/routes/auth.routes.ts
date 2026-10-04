@@ -7,6 +7,7 @@ import { getMemberships } from '../services/auth_resolution.service';
 import * as parentService from '../services/parent.service';
 import { generateToken, verifyToken } from '../utils/jwt';
 import { validateSignup } from '../middleware/validate';
+import { validatePassword, PASSWORD_REQUIREMENTS_MESSAGE } from '../utils/password-validator';
 import prisma from '../config/db';
 import jwt from 'jsonwebtoken';
 
@@ -361,6 +362,12 @@ router.post('/parent-reset-password', async (req: Request, res: Response, next: 
     if (!phone || !code || !newPassword) {
       return res.status(400).json({ success: false, message: 'Phone, code, and new password are required' });
     }
+
+    const pv = validatePassword(newPassword);
+    if (!pv.isValid) {
+      return res.status(400).json({ success: false, message: pv.error || PASSWORD_REQUIREMENTS_MESSAGE });
+    }
+
     await parentService.resetParentPasswordWithOTP(phone, code, newPassword);
     res.status(200).json({ success: true, message: 'Password successfully reset. You can now login with your new password.' });
   } catch (error) {
@@ -393,6 +400,11 @@ router.post('/reset-password', async (req: Request, res: Response, next: NextFun
     const { token, password } = req.body;
     if (!token || !password) {
       return res.status(400).json({ success: false, message: 'Token and password are required' });
+    }
+
+    const pv = validatePassword(password);
+    if (!pv.isValid) {
+      return res.status(400).json({ success: false, message: pv.error || PASSWORD_REQUIREMENTS_MESSAGE });
     }
 
     await userService.resetPasswordByToken(token, password);

@@ -83,8 +83,8 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
       return
     }
 
-    if (!parentPassword || parentPassword.length < 6) {
-      const errorMsg = "Please enter your password (min 6 characters)"
+    if (!parentPassword) {
+      const errorMsg = "Please enter your password"
       setLoginError(errorMsg)
       notifications.error("Validation Error", errorMsg)
       return
@@ -141,13 +141,6 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
 
     if (!credentials.email.includes("@")) {
       const errorMsg = "Please enter a valid email address"
-      setLoginError(errorMsg)
-      notifications.error("Validation Error", errorMsg)
-      return
-    }
-
-    if (credentials.password.length < 6) {
-      const errorMsg = "Password must be at least 6 characters long"
       setLoginError(errorMsg)
       notifications.error("Validation Error", errorMsg)
       return

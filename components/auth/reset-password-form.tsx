@@ -11,6 +11,7 @@ import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { Logo } from "@/components/logo"
 import { Eye, EyeOff, CheckCircle2, Lock, XCircle } from "lucide-react"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 
 interface ResetPasswordFormProps {
   token: string
@@ -54,13 +55,14 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
       return
     }
 
-    if (passwords.password !== passwords.confirmPassword) {
-      notifications.error("Validation Error", "Passwords do not match")
+    const pv = validatePassword(passwords.password)
+    if (!pv.isValid) {
+      notifications.error("Password Requirements", pv.message)
       return
     }
 
-    if (passwords.password.length < 6) {
-      notifications.error("Validation Error", "Password must be at least 6 characters")
+    if (passwords.password !== passwords.confirmPassword) {
+      notifications.error("Validation Error", "Passwords do not match")
       return
     }
 
@@ -135,11 +137,11 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter new password"
+                placeholder="Min. 8 chars (A-Z, a-z, 0-9)"
                 value={passwords.password}
                 onChange={(e) => setPasswords((prev) => ({ ...prev, password: e.target.value }))}
                 required
-                minLength={6}
+                minLength={8}
                 className="pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all rounded-xl"
               />
               <button
@@ -150,7 +152,33 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <p className="text-[11px] text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
           </div>
+
+          {/* Live validation feedback */}
+          {passwords.password && (() => {
+            const pv = validatePassword(passwords.password)
+            return (
+              <div className="grid grid-cols-2 gap-1.5 p-3 rounded-xl bg-slate-100/60 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                {[
+                  { label: "8+ characters", ok: pv.hasMinLength },
+                  { label: "Uppercase (A–Z)", ok: pv.hasUppercase },
+                  { label: "Lowercase (a–z)", ok: pv.hasLowercase },
+                  { label: "Number (0–9)", ok: pv.hasNumber },
+                ].map(({ label, ok }) => (
+                  <div
+                    key={label}
+                    className={`flex items-center gap-1.5 text-xs font-medium ${
+                      ok ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                    }`}
+                  >
+                    {ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                    {label}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword" className="text-slate-800 dark:text-slate-300">Confirm New Password</Label>
@@ -165,7 +193,7 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
                 value={passwords.confirmPassword}
                 onChange={(e) => setPasswords((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                 required
-                minLength={6}
+                minLength={8}
                 className="pl-10 pr-10 bg-slate-100/50 dark:bg-white/5 border-slate-300 dark:border-white/10 h-12 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all rounded-xl"
               />
               <button
@@ -197,7 +225,7 @@ export function ResetPasswordForm({ token, onResetSuccess }: ResetPasswordFormPr
           <Button 
             type="submit" 
             className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 transition-all active:scale-[0.98]" 
-            disabled={isLoading || passwords.password !== passwords.confirmPassword}
+            disabled={isLoading || !passwords.password || !passwords.confirmPassword || !validatePassword(passwords.password).isValid || passwords.password !== passwords.confirmPassword}
           >
             {isLoading ? (
               <>

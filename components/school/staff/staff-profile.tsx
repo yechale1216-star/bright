@@ -21,13 +21,16 @@ import {
   Mail,
   Phone,
   Sparkles,
+  XCircle,
 } from "lucide-react"
 import { useAuth } from "@/lib/context/auth-context"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { API_URL } from "@/lib/api-config"
 import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 import { db } from "@/lib/db/database"
+import { supabase } from "@/lib/utils/supabase"
 
 export function StaffProfile() {
   const { user } = useAuth()
@@ -63,6 +66,35 @@ export function StaffProfile() {
     }
     checkFaceStatus()
   }, [user, checkFaceStatus])
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user?.id || 'staff'}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file)
+      if (!uploadError) {
+        const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
+        setProfilePhoto(data.publicUrl)
+        notifications.success("Success", "Profile photo selected. Click 'Save Changes' to update.")
+        return
+      }
+      console.warn("Supabase avatar upload error, fallback to local:", uploadError)
+    } catch (err) {
+      console.warn("Supabase avatar upload error, fallback to local:", err)
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = reader.result as string
+      setProfilePhoto(base64)
+      notifications.success("Success", "Profile photo selected. Click 'Save Changes' to update.")
+    }
+    reader.readAsDataURL(file)
+  }
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -100,13 +132,25 @@ export function StaffProfile() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (newPassword !== confirmPassword) {
-      notifications.error("Password Mismatch", "New passwords do not match.")
+
+    if (!currentPassword) {
+      notifications.error("Current Password Required", "Please enter your current password.")
       return
     }
 
-    if (newPassword.length < 6) {
-      notifications.error("Password Too Short", "Password must be at least 6 characters.")
+    if (!newPassword) {
+      notifications.error("New Password Required", "Please enter a new password.")
+      return
+    }
+
+    const pv = validatePassword(newPassword)
+    if (!pv.isValid) {
+      notifications.error("Password Requirements", pv.message)
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      notifications.error("Password Mismatch", "New passwords do not match.")
       return
     }
 
@@ -166,6 +210,20 @@ export function StaffProfile() {
                 </AvatarFallback>
               </Avatar>
             </div>
+            <label
+              htmlFor="staff-avatar-upload"
+              className="absolute -bottom-1 -right-1 p-2 rounded-xl bg-primary text-white shadow-md shadow-primary/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              title="Upload profile photo"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <input
+                id="staff-avatar-upload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
+            </label>
           </div>
 
           <div className="space-y-1.5 flex-1 min-w-0">
@@ -261,16 +319,6 @@ export function StaffProfile() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Profile Photo URL</Label>
-                <Input
-                  value={profilePhoto}
-                  onChange={(e) => setProfilePhoto(e.target.value)}
-                  placeholder="https://..."
-                  className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs font-medium"
-                />
-              </div>
-
               <div className="pt-2 flex justify-end">
                 <Button
                   type="submit"
@@ -315,9 +363,10 @@ export function StaffProfile() {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Min. 6 characters"
+                    placeholder="Min. 8 chars (A-Z, a-z, 0-9)"
                     className="h-10 rounded-xl bg-white/70 dark:bg-slate-950/70 border-white/40 dark:border-white/10 text-xs"
                   />
+                  <p className="text-[11px] text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Confirm New Password</Label>
@@ -331,10 +380,49 @@ export function StaffProfile() {
                 </div>
               </div>
 
+              {/* Live validation feedback */}
+              {newPassword && (() => {
+                const pv = validatePassword(newPassword)
+                return (
+                  <div className="grid grid-cols-2 gap-1.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-white/5">
+                    {[
+                      { label: "8+ characters", ok: pv.hasMinLength },
+                      { label: "Uppercase (A–Z)", ok: pv.hasUppercase },
+                      { label: "Lowercase (a–z)", ok: pv.hasLowercase },
+                      { label: "Number (0–9)", ok: pv.hasNumber },
+                    ].map(({ label, ok }) => (
+                      <div
+                        key={label}
+                        className={`flex items-center gap-1.5 text-xs font-medium ${
+                          ok ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                        }`}
+                      >
+                        {ok ? <ShieldCheck className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {/* Password match feedback */}
+              {confirmPassword && newPassword !== confirmPassword && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400">
+                  <XCircle className="w-3.5 h-3.5 shrink-0" />
+                  Passwords do not match
+                </div>
+              )}
+              {newPassword && confirmPassword && newPassword === confirmPassword && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-green-600 dark:text-green-400">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  Passwords match
+                </div>
+              )}
+
               <div className="pt-2 flex justify-end">
                 <Button
                   type="submit"
-                  disabled={isChangingPassword}
+                  disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword}
                   variant="outline"
                   className="h-10 px-5 rounded-xl font-bold text-xs border-purple-500/30 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 gap-2"
                 >

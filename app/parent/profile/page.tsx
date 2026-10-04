@@ -24,10 +24,12 @@ import {
   X,
   CheckCircle2,
   ImageIcon,
-  Trash2
+  Trash2,
+  XCircle,
 } from "lucide-react"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -473,12 +475,13 @@ export default function ProfilePage() {
           <CardContent className="p-6">
             <form onSubmit={async (e) => {
               e.preventDefault()
-              if (newPassword !== confirmPassword) {
-                notifications.error(t("validation_error"), t("passwords_not_match"))
+              const pv = validatePassword(newPassword)
+              if (!pv.isValid) {
+                notifications.error(t("validation_error") || "Validation Error", pv.message)
                 return
               }
-              if (newPassword.length < 6) {
-                notifications.error(t("validation_error"), t("password_len_error"))
+              if (newPassword !== confirmPassword) {
+                notifications.error(t("validation_error"), t("passwords_not_match"))
                 return
               }
               setIsChangingPassword(true)
@@ -517,13 +520,39 @@ export default function ProfilePage() {
                 <Input
                   id="newPassword"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="Min. 8 chars (A-Z, a-z, 0-9)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   className="typography-body h-11 rounded-xl bg-background/50 border-border/50 focus:ring-emerald-500/20"
                 />
+                <p className="text-[11px] text-muted-foreground">{PASSWORD_REQUIREMENTS}</p>
               </div>
+
+              {/* Live validation checklist */}
+              {newPassword && (() => {
+                const pv = validatePassword(newPassword)
+                return (
+                  <div className="grid grid-cols-2 gap-1.5 p-3 rounded-xl bg-muted/40 border border-border/40">
+                    {[
+                      { label: "8+ characters", ok: pv.hasMinLength },
+                      { label: "Uppercase (A–Z)", ok: pv.hasUppercase },
+                      { label: "Lowercase (a–z)", ok: pv.hasLowercase },
+                      { label: "Number (0–9)", ok: pv.hasNumber },
+                    ].map(({ label, ok }) => (
+                      <div
+                        key={label}
+                        className={`flex items-center gap-1.5 text-xs font-medium ${
+                          ok ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                        }`}
+                      >
+                        {ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
               
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="typography-label text-muted-foreground">{t("confirm_password")}</Label>
@@ -538,9 +567,23 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {/* Match status */}
+              {confirmPassword && newPassword !== confirmPassword && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-destructive">
+                  <XCircle className="w-3.5 h-3.5 shrink-0" />
+                  {t("passwords_not_match")}
+                </div>
+              )}
+              {newPassword && confirmPassword && newPassword === confirmPassword && (
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  Passwords match
+                </div>
+              )}
+
               <Button 
                 type="submit" 
-                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword || !validatePassword(newPassword).isValid || newPassword !== confirmPassword}
                 className="typography-label mt-2 h-11 w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-md shadow-emerald-500/10"
               >
                 {isChangingPassword ? (

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../config/db';
+import { validatePassword, generateCompliantPassword } from '../utils/password-validator';
 
 export const getUserByEmail = async (email: string) => {
   // Intentionally excludes password_hash to prevent accidental serialization
@@ -167,8 +168,18 @@ export const createUser = async (data: any) => {
 
   // Generate a cryptographically random temporary password if none supplied.
   // This prevents all auto-created accounts from sharing a well-known default.
-  const randomTemp = crypto.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
-  const rawPassword = data.password_hash || data.password || randomTemp;
+  let rawPassword = data.password_hash || data.password;
+  if (rawPassword) {
+    if (!rawPassword.startsWith('$2')) {
+      const val = validatePassword(rawPassword);
+      if (!val.isValid) {
+        throw new Error(val.error);
+      }
+    }
+  } else {
+    rawPassword = generateCompliantPassword();
+  }
+
   const hashedPassword = rawPassword.startsWith('$2')
     ? rawPassword
     : bcrypt.hashSync(rawPassword, 10);
@@ -237,6 +248,12 @@ export const updateUser = async (id: string, data: any, _schoolId?: string) => {
   
   const passToUpdate = data.password_hash !== undefined ? data.password_hash : data.password;
   if (passToUpdate !== undefined && passToUpdate !== null && passToUpdate !== "") {
+    if (!passToUpdate.startsWith('$2')) {
+      const val = validatePassword(passToUpdate);
+      if (!val.isValid) {
+        throw new Error(val.error);
+      }
+    }
     updateData.password_hash = passToUpdate.startsWith('$2')
       ? passToUpdate
       : bcrypt.hashSync(passToUpdate, 10);
@@ -317,6 +334,11 @@ export const createPasswordResetToken = async (email: string) => {
 };
 
 export const resetPasswordByToken = async (token: string, newPassword: any) => {
+  const val = validatePassword(newPassword);
+  if (!val.isValid) {
+    throw new Error(val.error);
+  }
+
   const user = await prisma.user.findFirst({
     where: {
       reset_password_token: token,
@@ -366,16 +388,19 @@ export const changePassword = async (userId: string, currentPassword?: string, n
     throw new Error('User not found');
   }
 
-  // Verify current password against stored hash if provided
-  if (currentPassword) {
-    const isMatch = verifyPassword(currentPassword, user.password_hash);
-    if (!isMatch) {
-      throw new Error('Current password is incorrect.');
-    }
+  // Verify current password against stored hash
+  if (!currentPassword) {
+    throw new Error('Current password is required.');
   }
 
-  if (!newPassword || newPassword.length < 6) {
-    throw new Error('New password must be at least 6 characters.');
+  const isMatch = verifyPassword(currentPassword, user.password_hash);
+  if (!isMatch) {
+    throw new Error('Current password is incorrect.');
+  }
+
+  const val = validatePassword(newPassword);
+  if (!val.isValid) {
+    throw new Error(val.error);
   }
 
   const hashedPassword = !newPassword.startsWith('$2')

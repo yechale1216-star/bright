@@ -40,6 +40,7 @@ import { db } from "@/lib/db/database"
 import { notifications } from "@/lib/utils/notifications"
 import { getStaffAttendanceDisplay, addMinutesToHHMM } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime } from "@/lib/utils/ethiopian-time"
+import { toEthiopianDate, ET_MONTHS_EN } from "@/lib/utils/ethiopian-calendar"
 import { API_URL } from "@/lib/api-config"
 import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 
@@ -47,6 +48,7 @@ import { apiFetch } from "@/lib/utils/fetch-with-timeout"
 // Prevents the full loading spinner and blank-state flicker when navigating back to the dashboard.
 interface StaffDashboardDataCache {
   hasLoaded: boolean
+  attendanceLoaded: boolean
   calendarStatus: any
   allAttendance: any[]
   enrolledDescriptor: number[] | null
@@ -55,6 +57,7 @@ interface StaffDashboardDataCache {
 
 let _staffDashboardCache: StaffDashboardDataCache = {
   hasLoaded: false,
+  attendanceLoaded: false,
   calendarStatus: null,
   allAttendance: [],
   enrolledDescriptor: null,
@@ -76,12 +79,15 @@ export function StaffDashboard() {
   const [calendarStatus, setCalendarStatus] = useState<any>(_staffDashboardCache.calendarStatus)
   const [announcements, setAnnouncements] = useState<any[]>(_staffDashboardCache.announcements)
   const [isLoading, setIsLoading] = useState(!_staffDashboardCache.hasLoaded)
+  const [isAttendanceLoaded, setIsAttendanceLoaded] = useState(
+    Boolean(_staffDashboardCache.attendanceLoaded && _staffDashboardCache.allAttendance?.length > 0)
+  )
   const [enrolledDescriptor, setEnrolledDescriptor] = useState<number[] | null>(_staffDashboardCache.enrolledDescriptor)
   const [allAttendance, setAllAttendance] = useState<any[]>(_staffDashboardCache.allAttendance)
 
 
-  // Session filter for Monthly Performance ("all" | "morning" | "afternoon")
-  const [monthlySessionFilter, setMonthlySessionFilter] = useState<"all" | "morning" | "afternoon">("all")
+  // Session filter for Monthly Performance ("morning" | "afternoon")
+  const [monthlySessionFilter, setMonthlySessionFilter] = useState<"all" | "morning" | "afternoon">("morning")
 
   // Live active work duration tracker
   const [workingDuration, setWorkingDuration] = useState<string>("")
@@ -108,16 +114,15 @@ export function StaffDashboard() {
     return defaults
   }, [settings?.staffSessions, settings?.staff_sessions])
 
-  // Monthly statistics computation with Addis Ababa timezone accuracy & independent session filtering
+  // Monthly statistics computation using Ethiopian Calendar month/year
   const monthlyStats = useMemo(() => {
     const now = new Date()
-    const addisParts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Africa/Addis_Ababa",
-      year: "numeric",
-      month: "2-digit",
-    }).formatToParts(now)
-    const currentYear = parseInt(addisParts.find((p) => p.type === "year")?.value || String(now.getFullYear()), 10)
-    const currentMonth = parseInt(addisParts.find((p) => p.type === "month")?.value || String(now.getMonth() + 1), 10)
+
+    // ── Determine the current Ethiopian year & month ─────────────────────
+    // toEthiopianDate returns { year, month (0-indexed), day } (Africa/Addis_Ababa)
+    const ecNow = toEthiopianDate(now)
+    const currentECYear = ecNow.year
+    const currentECMonth = ecNow.month // 0-indexed (0=Meskerem … 12=Pagume)
 
     const parseDateStr = (dateVal: any): string => {
       if (!dateVal) return ""
@@ -133,8 +138,10 @@ export function StaffDashboard() {
     const thisMonthRecords = allAttendance.filter((r) => {
       const dStr = parseDateStr(r?.date)
       if (!dStr) return false
-      const [y, m] = dStr.split("-").map(Number)
-      if (y !== currentYear || m !== currentMonth) return false
+
+      // Convert this attendance record's Gregorian date → Ethiopian date
+      const ec = toEthiopianDate(dStr)
+      if (ec.year !== currentECYear || ec.month !== currentECMonth) return false
 
       if (isSessionMode && monthlySessionFilter !== "all") {
         const sess = (r.session || "morning").toLowerCase()
@@ -147,6 +154,7 @@ export function StaffDashboard() {
     let lateCount = 0
     let absentCount = 0
     const datesPresent = new Set<string>()
+    const datesOnTime = new Set<string>()
     const datesLate = new Set<string>()
     const datesAbsent = new Set<string>()
 
@@ -165,6 +173,7 @@ export function StaffDashboard() {
       } else if (isPresent) {
         onTimeCount++
         datesPresent.add(dStr)
+        datesOnTime.add(dStr)
       } else if (s === "ABSENT") {
         absentCount++
         datesAbsent.add(dStr)
@@ -173,6 +182,9 @@ export function StaffDashboard() {
 
     // Days / shifts present
     const presentCount = datesPresent.size
+
+    // On-Time count: distinct on-time days if combined, or session count
+    const onTimeDaysCount = monthlySessionFilter === "all" ? datesOnTime.size : onTimeCount
 
     // Late count: in independent session view, exact count of late shifts; in combined view, distinct late days
     const lateDaysCount = monthlySessionFilter === "all" ? datesLate.size : lateCount
@@ -190,12 +202,16 @@ export function StaffDashboard() {
     return {
       total: thisMonthRecords.length,
       presentCount,
-      onTimeCount,
+      onTimeCount: onTimeDaysCount,
       lateCount: lateDaysCount,
       absentCount: absentDaysCount,
       onTimeRate,
+      ecMonthName: ET_MONTHS_EN[currentECMonth] ?? "",
+      ecYear: currentECYear,
     }
   }, [allAttendance, isSessionMode, monthlySessionFilter])
+
+  const isPunctualityLoading = isLoading || !isAttendanceLoaded
 
   // Request ID and in-flight guard to prevent race conditions & out-of-order state overwrites
   const loadRequestIdRef = useRef(0)
@@ -210,6 +226,7 @@ export function StaffDashboard() {
     const currentReqId = ++loadRequestIdRef.current
     if (!options?.silent) {
       setIsLoading(true)
+      setIsAttendanceLoaded(false)
     }
 
     const currentToday = getTodayStr()
@@ -222,7 +239,7 @@ export function StaffDashboard() {
           mode: isSessionModeRef.current ? "session_based" : "daily",
         }),
         db.getStaffFaceDescriptor(),
-        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/announcements?limit=3`, {
+        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/announcements?limit=1`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("attendance_token") || ""}`,
             "x-school-id": schoolIdRef.current || "single-school",
@@ -241,6 +258,8 @@ export function StaffDashboard() {
         const attData = myAttRes.value || []
         setAllAttendance(attData)
         _staffDashboardCache.allAttendance = attData
+        _staffDashboardCache.attendanceLoaded = true
+        setIsAttendanceLoaded(true)
       }
       if (descRes.status === "fulfilled") {
         const descData = descRes.value?.descriptor || null
@@ -248,7 +267,7 @@ export function StaffDashboard() {
         _staffDashboardCache.enrolledDescriptor = descData
       }
       if (annRes.status === "fulfilled" && (annRes.value as any)?.success && Array.isArray((annRes.value as any).data)) {
-        const annData = (annRes.value as any).data.slice(0, 3)
+        const annData = (annRes.value as any).data.slice(0, 1)
         setAnnouncements(annData)
         _staffDashboardCache.announcements = annData
       }
@@ -257,6 +276,7 @@ export function StaffDashboard() {
     } finally {
       if (currentReqId === loadRequestIdRef.current) {
         _staffDashboardCache.hasLoaded = true
+        setIsAttendanceLoaded(true)
         setIsLoading(false)
       }
     }
@@ -352,8 +372,9 @@ export function StaffDashboard() {
   }, [todayRecs, todayStr, isSessionMode, currentSession, morningRec, afternoonRec])
 
   useEffect(() => {
-    // On first mount: show spinner if not cached. On re-navigation: silent refresh
-    loadData({ silent: _staffDashboardCache.hasLoaded })
+    // On first mount: show skeleton if attendance not cached; only silent if already loaded
+    const shouldBeSilent = Boolean(_staffDashboardCache.hasLoaded && _staffDashboardCache.attendanceLoaded)
+    loadData({ silent: shouldBeSilent })
 
     const handleChanged = () => {
       loadData({ silent: true })
@@ -505,7 +526,7 @@ export function StaffDashboard() {
           {/* Date & Refresh Pill */}
           <div className="text-xs font-semibold bg-primary/10 text-primary px-3.5 py-2 rounded-full border border-primary/20 shadow-2xs flex items-center gap-2.5">
             <Calendar className="w-3.5 h-3.5" />
-            <span>{formatDate(todayStr)}</span>
+            <span>{formatDate(todayStr || new Date(), { weekday: "short", year: "numeric", month: "short", day: "numeric" })}</span>
             <button
               onClick={() => loadData()}
               className="hover:text-primary-focus transition-colors p-0.5 rounded-full hover:bg-primary/20"
@@ -788,29 +809,14 @@ export function StaffDashboard() {
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
               Monthly Punctuality &amp; Attendance Performance
             </h2>
-            {isSessionMode && (
-              <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                {monthlySessionFilter === "all"
-                  ? "Overall performance across all shifts"
-                  : `Independent metrics for ${monthlySessionFilter} shift`}
-              </p>
-            )}
+            <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+              {`Independent metrics for ${monthlySessionFilter} shift`}
+            </p>
           </div>
 
-          {/* Session Switcher Tabs (Matching School Admin Header Style) */}
+          {/* Session Switcher Tabs */}
           {isSessionMode && (
             <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs self-start sm:self-auto">
-              <Button
-                variant={monthlySessionFilter === "all" ? "default" : "ghost"}
-                onClick={() => setMonthlySessionFilter("all")}
-                size="sm"
-                className={cn(
-                  "h-7 px-3 text-xs font-bold rounded-full transition-all",
-                  monthlySessionFilter === "all" ? "shadow-xs" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                All
-              </Button>
               <Button
                 variant={monthlySessionFilter === "morning" ? "default" : "ghost"}
                 onClick={() => setMonthlySessionFilter("morning")}
@@ -842,13 +848,13 @@ export function StaffDashboard() {
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 mb-2">
               <UserCheck className="w-5 h-5" />
             </div>
-            {isLoading ? (
+            {isPunctualityLoading ? (
               <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
             ) : (
-              <span className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">{monthlyStats.presentCount}</span>
+              <span className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">{monthlyStats.onTimeCount}</span>
             )}
             <span className="text-[11px] font-bold text-slate-500 mt-0.5">
-              {monthlySessionFilter === "all" ? "Days Present" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} Shifts`}
+              Days On-Time
             </span>
           </div>
 
@@ -856,13 +862,13 @@ export function StaffDashboard() {
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary mb-2">
               <TrendingUp className="w-5 h-5" />
             </div>
-            {isLoading ? (
+            {isPunctualityLoading ? (
               <span className="inline-block w-14 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
             ) : (
               <span className="text-xl sm:text-3xl font-black text-primary tracking-tight">{monthlyStats.onTimeRate}%</span>
             )}
             <span className="text-[11px] font-bold text-slate-500 mt-0.5">
-              {monthlySessionFilter === "all" ? "On-Time Rate" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} On-Time`}
+              On-Time Rate
             </span>
           </div>
 
@@ -870,13 +876,13 @@ export function StaffDashboard() {
             <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 mb-2">
               <Clock className="w-5 h-5" />
             </div>
-            {isLoading ? (
+            {isPunctualityLoading ? (
               <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
             ) : (
               <span className="text-xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">{monthlyStats.lateCount}</span>
             )}
             <span className="text-[11px] font-bold text-slate-500 mt-0.5">
-              {monthlySessionFilter === "all" ? "Late Days" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} Late Shifts`}
+              Late Days
             </span>
           </div>
 
@@ -884,13 +890,13 @@ export function StaffDashboard() {
             <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 mb-2">
               <UserX className="w-5 h-5" />
             </div>
-            {isLoading ? (
+            {isPunctualityLoading ? (
               <span className="inline-block w-12 h-8 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg my-0.5" />
             ) : (
               <span className="text-xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">{monthlyStats.absentCount}</span>
             )}
             <span className="text-[11px] font-bold text-slate-500 mt-0.5">
-              {monthlySessionFilter === "all" ? "Absent Days" : `${monthlySessionFilter === "morning" ? "Morning" : "Afternoon"} Absent Shifts`}
+              Absent Days
             </span>
           </div>
         </div>
@@ -914,25 +920,20 @@ export function StaffDashboard() {
         </div>
         <div className="p-4 space-y-2.5">
           {isLoading ? (
-            [1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-2 animate-pulse shadow-xs"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
-                  <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-16" />
-                </div>
-                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-full" />
-                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+            <div className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-2 animate-pulse shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-16" />
               </div>
-            ))
+              <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-full" />
+              <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
+            </div>
           ) : announcements.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-500">
+            <div className="py-6 text-center text-xs text-slate-500">
               No active announcements at this time.
             </div>
           ) : (
-            announcements.map((ann: any) => (
+            announcements.slice(0, 1).map((ann: any) => (
               <div
                 key={ann.id}
                 className="p-3.5 rounded-2xl bg-white/50 dark:bg-slate-950/50 border border-white/40 dark:border-white/10 space-y-1 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-xs"

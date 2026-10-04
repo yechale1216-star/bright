@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import * as userService from '../services/user.service';
 import { AuthenticatedRequest, authorize } from '../middleware/auth.middleware';
 import * as settingsService from '../services/settings.service';
+import { validatePassword, PASSWORD_REQUIREMENTS_MESSAGE } from '../utils/password-validator';
 
 const loginLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -117,8 +118,13 @@ router.post(['/change-password', '/update-password'], async (req: AuthenticatedR
     }
 
     const { currentPassword, newPassword } = req.body;
-    if (!newPassword) {
-      return res.status(400).json({ success: false, message: 'New password is required' });
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    const pv = validatePassword(newPassword);
+    if (!pv.isValid) {
+      return res.status(400).json({ success: false, message: pv.error || PASSWORD_REQUIREMENTS_MESSAGE });
     }
 
     await userService.changePassword(userId, currentPassword, newPassword);

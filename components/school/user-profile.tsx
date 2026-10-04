@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Mail, Save, Calendar, Lock, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react"
+import { User, Mail, Save, Calendar, Lock, Eye, EyeOff, KeyRound, ShieldCheck, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { authService } from "@/lib/auth/auth"
@@ -10,6 +10,7 @@ import { db } from "@/lib/db/database"
 import { supabase } from "@/lib/utils/supabase"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { useGreeting } from "@/lib/utils/greeting-utils"
+import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 
 export function UserProfile() {
   const { calendarPreference, setCalendarPreference } = useCalendar()
@@ -22,7 +23,8 @@ export function UserProfile() {
 
   // Password change section state
   const [showPasswordSection, setShowPasswordSection] = useState(false)
-  const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirmPassword: "" })
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" })
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false)
   const [showNewPwd, setShowNewPwd] = useState(false)
   const [showConfirmPwd, setShowConfirmPwd] = useState(false)
   const [isSavingPassword, setIsSavingPassword] = useState(false)
@@ -142,13 +144,18 @@ export function UserProfile() {
   }
 
   const handleSavePassword = async () => {
-    const { newPassword, confirmPassword } = passwordForm
+    const { currentPassword, newPassword, confirmPassword } = passwordForm
+    if (!currentPassword) {
+      notifications.error("Password Update", "Please enter your current password")
+      return
+    }
     if (!newPassword) {
       notifications.error("Password Update", "Please enter a new password")
       return
     }
-    if (newPassword.length < 6) {
-      notifications.error("Password Update", "Password must be at least 6 characters")
+    const pv = validatePassword(newPassword)
+    if (!pv.isValid) {
+      notifications.error("Password Update", pv.message)
       return
     }
     if (newPassword !== confirmPassword) {
@@ -157,8 +164,11 @@ export function UserProfile() {
     }
     setIsSavingPassword(true)
     try {
-      await db.updateTeacher(user.id, { password_hash: newPassword })
-      setPasswordForm({ newPassword: "", confirmPassword: "" })
+      const res = await authService.changePassword(currentPassword, newPassword)
+      if (!res.success) {
+        throw new Error(res.message || res.error || "Failed to update password")
+      }
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
       setShowPasswordSection(false)
       notifications.success("Password Update", "Password changed successfully")
     } catch (error) {
@@ -318,13 +328,34 @@ export function UserProfile() {
 
           {showPasswordSection && (
             <div className="px-6 pb-6 space-y-4 border-t border-border pt-5">
+              {/* Current Password */}
+              <div className="space-y-2">
+                <label className="typography-label block text-muted-foreground">Current Password</label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPwd ? "text" : "password"}
+                    placeholder="Enter current password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                    className="w-full px-4 py-2.5 pr-11 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPwd((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showCurrentPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
               {/* New Password */}
               <div className="space-y-2">
                 <label className="typography-label block text-muted-foreground">New Password</label>
                 <div className="relative">
                   <input
                     type={showNewPwd ? "text" : "password"}
-                    placeholder="Enter new password (min. 6 characters)"
+                    placeholder="Min. 8 chars, A–Z, a–z, 0–9"
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
                     className="w-full px-4 py-2.5 pr-11 border border-input bg-background rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
@@ -337,6 +368,10 @@ export function UserProfile() {
                     {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {/* Password requirements hint */}
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {PASSWORD_REQUIREMENTS}
+                </p>
               </div>
 
               {/* Confirm Password */}
@@ -360,7 +395,31 @@ export function UserProfile() {
                 </div>
               </div>
 
-              {/* Mismatch & Strength Hints */}
+              {/* Live validation feedback */}
+              {passwordForm.newPassword && (() => {
+                const pv = validatePassword(passwordForm.newPassword)
+                return (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { label: '8+ characters', ok: pv.hasMinLength },
+                      { label: 'Uppercase (A–Z)', ok: pv.hasUppercase },
+                      { label: 'Lowercase (a–z)', ok: pv.hasLowercase },
+                      { label: 'Number (0–9)', ok: pv.hasNumber },
+                    ].map(({ label, ok }) => (
+                      <div key={label} className={`flex items-center gap-1.5 text-xs font-medium ${
+                        ok ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                      }`}>
+                        {ok
+                          ? <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                          : <XCircle className="w-3.5 h-3.5 shrink-0" />}
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+
+              {/* Match feedback */}
               {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
                 <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
@@ -373,19 +432,13 @@ export function UserProfile() {
                   Passwords match
                 </div>
               )}
-              {passwordForm.newPassword && !passwordForm.confirmPassword && (
-                <div className={`flex items-center gap-2 text-xs font-semibold ${passwordForm.newPassword.length >= 8 ? "text-green-600" : "text-amber-600"}`}>
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {passwordForm.newPassword.length >= 8 ? "Strong password" : "Use 8+ characters for a stronger password"}
-                </div>
-              )}
 
               <div className="flex gap-3 justify-end pt-2">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setShowPasswordSection(false)
-                    setPasswordForm({ newPassword: "", confirmPassword: "" })
+                    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
                   }}
                   disabled={isSavingPassword}
                   className="px-5"
@@ -394,7 +447,7 @@ export function UserProfile() {
                 </Button>
                 <Button
                   onClick={handleSavePassword}
-                  disabled={isSavingPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
+                  disabled={isSavingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword}
                   className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white flex items-center gap-2 px-6"
                 >
                   <KeyRound className="w-4 h-4" />
