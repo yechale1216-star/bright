@@ -110,7 +110,7 @@ export function StaffDashboard() {
           { ...defaults[1], ...afternoon, id: "afternoon", name: "Afternoon" },
         ].filter((s: any) => s.isActive !== false)
       }
-    } catch (_) {}
+    } catch (_) { }
     return defaults
   }, [settings?.staffSessions, settings?.staff_sessions])
 
@@ -131,7 +131,7 @@ export function StaffDashboard() {
       try {
         const d = new Date(dateVal)
         if (!isNaN(d.getTime())) return d.toISOString().split("T")[0]
-      } catch {}
+      } catch { }
       return ""
     }
 
@@ -280,7 +280,7 @@ export function StaffDashboard() {
         setIsLoading(false)
       }
     }
-  // Stable: reads isSessionMode & schoolId via refs, not as deps
+    // Stable: reads isSessionMode & schoolId via refs, not as deps
   }, [getTodayStr])
 
   const normalizeDateStr = useCallback((d: any) => {
@@ -404,8 +404,8 @@ export function StaffDashboard() {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       window.removeEventListener("online", handleOnline)
     }
-  // Only run once on mount; loadData is now stable
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Only run once on mount; loadData is now stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Live timer for active check-in duration
@@ -542,18 +542,16 @@ export function StaffDashboard() {
       {/* ─── Holiday / Non-Working Day Glass Banner ─── */}
       {calendarStatus && !calendarStatus.isWorkingDay && (
         <div
-          className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-[22px] border backdrop-blur-xl flex items-start sm:items-center gap-3 sm:gap-3.5 shadow-md w-full min-w-0 ${
-            calendarStatus.isHoliday
+          className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-[22px] border backdrop-blur-xl flex items-start sm:items-center gap-3 sm:gap-3.5 shadow-md w-full min-w-0 ${calendarStatus.isHoliday
               ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-200 shadow-purple-500/5"
               : "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-200 shadow-amber-500/5"
-          }`}
+            }`}
         >
           <div
-            className={`p-2 sm:p-2.5 rounded-xl shrink-0 shadow-sm mt-0.5 sm:mt-0 ${
-              calendarStatus.isHoliday
+            className={`p-2 sm:p-2.5 rounded-xl shrink-0 shadow-sm mt-0.5 sm:mt-0 ${calendarStatus.isHoliday
                 ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
                 : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-            }`}
+              }`}
           >
             {calendarStatus.isHoliday ? <CalendarOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />}
           </div>
@@ -566,11 +564,10 @@ export function StaffDashboard() {
               </span>
               <Badge
                 variant="outline"
-                className={`text-[9px] sm:text-[10px] uppercase font-black px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ${
-                  calendarStatus.isHoliday
+                className={`text-[9px] sm:text-[10px] uppercase font-black px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ${calendarStatus.isHoliday
                     ? "border-purple-500/40 text-purple-600 dark:text-purple-300 bg-purple-500/10"
                     : "border-amber-500/40 text-amber-600 dark:text-amber-300 bg-amber-500/10"
-                }`}
+                  }`}
               >
                 {calendarStatus.isHoliday ? "Official Holiday" : "Non-Working Day"}
               </Badge>
@@ -962,3 +959,4 @@ export function StaffDashboard() {
     </div>
   )
 }
+
