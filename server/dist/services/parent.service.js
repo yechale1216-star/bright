@@ -43,6 +43,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jwt_1 = require("../utils/jwt");
 const schoolService = __importStar(require("./school.service"));
 const smsService = __importStar(require("./sms.service"));
+const password_validator_1 = require("../utils/password-validator");
 /**
  * List all schools associated with a parent's phone number.
  */
@@ -497,6 +498,9 @@ const updatePassword = async (phone, currentPassword, newPassword, _schoolId) =>
     const isValidPassword = await bcryptjs_1.default.compare(currentPassword, user.password_hash);
     if (!isValidPassword)
         throw new Error("Incorrect current password.");
+    const val = (0, password_validator_1.validatePassword)(newPassword);
+    if (!val.isValid)
+        throw new Error(val.error);
     const hashedPassword = await bcryptjs_1.default.hash(newPassword, 10);
     await db_1.default.user.update({
         where: { id: user.id },
@@ -795,8 +799,9 @@ exports.verifyParentPasswordResetOTP = verifyParentPasswordResetOTP;
  * Reset the parent's password using verified OTP.
  */
 const resetParentPasswordWithOTP = async (phone, code, newPassword) => {
-    if (!newPassword || newPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters long.');
+    const val = (0, password_validator_1.validatePassword)(newPassword);
+    if (!val.isValid) {
+        throw new Error(val.error);
     }
     const cleanPhone = (0, exports.normalizePhoneNumber)(phone);
     const user = await db_1.default.user.findFirst({

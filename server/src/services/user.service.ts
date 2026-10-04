@@ -403,6 +403,10 @@ export const changePassword = async (userId: string, currentPassword?: string, n
     throw new Error(val.error);
   }
 
+  if (!newPassword) {
+    throw new Error('New password is required.');
+  }
+
   const hashedPassword = !newPassword.startsWith('$2')
     ? bcrypt.hashSync(newPassword, 10)
     : newPassword;

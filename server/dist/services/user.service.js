@@ -7,6 +7,7 @@ exports.changePassword = exports.getUserByResetToken = exports.resetPasswordByTo
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_1 = __importDefault(require("../config/db"));
+const password_validator_1 = require("../utils/password-validator");
 const getUserByEmail = async (email) => {
     // Intentionally excludes password_hash to prevent accidental serialization
     return await db_1.default.user.findUnique({
@@ -164,8 +165,18 @@ const createUser = async (data) => {
     }
     // Generate a cryptographically random temporary password if none supplied.
     // This prevents all auto-created accounts from sharing a well-known default.
-    const randomTemp = crypto_1.default.randomBytes(9).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
-    const rawPassword = data.password_hash || data.password || randomTemp;
+    let rawPassword = data.password_hash || data.password;
+    if (rawPassword) {
+        if (!rawPassword.startsWith('$2')) {
+            const val = (0, password_validator_1.validatePassword)(rawPassword);
+            if (!val.isValid) {
+                throw new Error(val.error);
+            }
+        }
+    }
+    else {
+        rawPassword = (0, password_validator_1.generateCompliantPassword)();
+    }
     const hashedPassword = rawPassword.startsWith('$2')
         ? rawPassword
         : bcryptjs_1.default.hashSync(rawPassword, 10);
@@ -230,6 +241,12 @@ const updateUser = async (id, data, _schoolId) => {
     }
     const passToUpdate = data.password_hash !== undefined ? data.password_hash : data.password;
     if (passToUpdate !== undefined && passToUpdate !== null && passToUpdate !== "") {
+        if (!passToUpdate.startsWith('$2')) {
+            const val = (0, password_validator_1.validatePassword)(passToUpdate);
+            if (!val.isValid) {
+                throw new Error(val.error);
+            }
+        }
         updateData.password_hash = passToUpdate.startsWith('$2')
             ? passToUpdate
             : bcryptjs_1.default.hashSync(passToUpdate, 10);
@@ -317,6 +334,10 @@ const createPasswordResetToken = async (email) => {
 };
 exports.createPasswordResetToken = createPasswordResetToken;
 const resetPasswordByToken = async (token, newPassword) => {
+    const val = (0, password_validator_1.validatePassword)(newPassword);
+    if (!val.isValid) {
+        throw new Error(val.error);
+    }
     const user = await db_1.default.user.findFirst({
         where: {
             reset_password_token: token,
@@ -361,15 +382,20 @@ const changePassword = async (userId, currentPassword, newPassword) => {
     if (!user) {
         throw new Error('User not found');
     }
-    // Verify current password against stored hash if provided
-    if (currentPassword) {
-        const isMatch = (0, exports.verifyPassword)(currentPassword, user.password_hash);
-        if (!isMatch) {
-            throw new Error('Current password is incorrect.');
-        }
+    // Verify current password against stored hash
+    if (!currentPassword) {
+        throw new Error('Current password is required.');
     }
-    if (!newPassword || newPassword.length < 6) {
-        throw new Error('New password must be at least 6 characters.');
+    const isMatch = (0, exports.verifyPassword)(currentPassword, user.password_hash);
+    if (!isMatch) {
+        throw new Error('Current password is incorrect.');
+    }
+    const val = (0, password_validator_1.validatePassword)(newPassword);
+    if (!val.isValid) {
+        throw new Error(val.error);
+    }
+    if (!newPassword) {
+        throw new Error('New password is required.');
     }
     const hashedPassword = !newPassword.startsWith('$2')
         ? bcryptjs_1.default.hashSync(newPassword, 10)

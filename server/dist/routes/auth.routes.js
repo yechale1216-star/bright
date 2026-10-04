@@ -43,6 +43,7 @@ const userService = __importStar(require("../services/user.service"));
 const schoolService = __importStar(require("../services/school.service"));
 const parentService = __importStar(require("../services/parent.service"));
 const jwt_1 = require("../utils/jwt");
+const password_validator_1 = require("../utils/password-validator");
 const db_1 = __importDefault(require("../config/db"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Rate limiters — applied per IP to prevent brute force and credential stuffing
@@ -367,6 +368,10 @@ router.post('/parent-reset-password', async (req, res, next) => {
         if (!phone || !code || !newPassword) {
             return res.status(400).json({ success: false, message: 'Phone, code, and new password are required' });
         }
+        const pv = (0, password_validator_1.validatePassword)(newPassword);
+        if (!pv.isValid) {
+            return res.status(400).json({ success: false, message: pv.error || password_validator_1.PASSWORD_REQUIREMENTS_MESSAGE });
+        }
         await parentService.resetParentPasswordWithOTP(phone, code, newPassword);
         res.status(200).json({ success: true, message: 'Password successfully reset. You can now login with your new password.' });
     }
@@ -397,6 +402,10 @@ router.post('/reset-password', async (req, res, next) => {
         const { token, password } = req.body;
         if (!token || !password) {
             return res.status(400).json({ success: false, message: 'Token and password are required' });
+        }
+        const pv = (0, password_validator_1.validatePassword)(password);
+        if (!pv.isValid) {
+            return res.status(400).json({ success: false, message: pv.error || password_validator_1.PASSWORD_REQUIREMENTS_MESSAGE });
         }
         await userService.resetPasswordByToken(token, password);
         res.status(200).json({

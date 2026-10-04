@@ -80,19 +80,20 @@ const validateSignup = (req, res, next) => {
             message: 'Invalid email format',
         });
     }
-    // Password strength check (min 8 characters, at least one letter and one number)
+    // Password strength: min 8 chars, at least 1 uppercase, 1 lowercase, 1 number
     if (password.length < 8) {
         return res.status(400).json({
             success: false,
-            message: 'Password must be at least 8 characters long',
+            message: 'Password must be at least 8 characters long.',
         });
     }
-    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
-    if (!hasLetter || !hasNumber) {
+    if (!hasUppercase || !hasLowercase || !hasNumber) {
         return res.status(400).json({
             success: false,
-            message: 'Password must contain at least one letter and one number',
+            message: 'Password must contain at least 1 uppercase letter (A–Z), 1 lowercase letter (a–z), and 1 number (0–9).',
         });
     }
     if (name.trim().length < 2) {

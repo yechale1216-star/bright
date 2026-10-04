@@ -41,6 +41,7 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const userService = __importStar(require("../services/user.service"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const settingsService = __importStar(require("../services/settings.service"));
+const password_validator_1 = require("../utils/password-validator");
 const loginLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60 * 1000,
     max: 10,
@@ -156,8 +157,12 @@ router.post(['/change-password', '/update-password'], async (req, res, next) => 
             return res.status(401).json({ success: false, message: 'Authentication required' });
         }
         const { currentPassword, newPassword } = req.body;
-        if (!newPassword) {
-            return res.status(400).json({ success: false, message: 'New password is required' });
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+        }
+        const pv = (0, password_validator_1.validatePassword)(newPassword);
+        if (!pv.isValid) {
+            return res.status(400).json({ success: false, message: pv.error || password_validator_1.PASSWORD_REQUIREMENTS_MESSAGE });
         }
         await userService.changePassword(userId, currentPassword, newPassword);
         res.status(200).json({ success: true, message: 'Password updated successfully' });
