@@ -19,7 +19,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { notifications } from "@/lib/utils/notifications"
 import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip
 } from "recharts"
 
@@ -44,14 +44,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeChartTab, setActiveChartTab] = useState<"trend" | "grades">("trend")
 
   // Data states
   const [dashboardSummary, setDashboardSummary] = useState<any>(null)
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
-  const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([])
   const [incidents, setIncidents] = useState<StudentDiscipline[]>([])
   const [staffStats, setStaffStats] = useState<any>(null)
   const [morningStaffStats, setMorningStaffStats] = useState<any>(null)
@@ -331,110 +329,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const sortedGrades = Object.entries(gradeCounts).sort((a, b) => b[1] - a[1])
   const sortedSections = Object.entries(sectionCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-  // Chart data: 5-Day Attendance Trend (School Weekdays)
-  const trendData = useMemo(() => {
-    // Compute trend from detailed attendance records (always accurate for both modes)
-    const TARGET_TZ = "Africa/Addis_Ababa"
-    const trendDataMap: Record<string, { dateStr: string; present: number; total: number }> = {}
-    let daysFound = 0
-    let dayOffset = 0
-
-    const getTargetDateStr = (date: Date) => {
-      const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: TARGET_TZ,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).formatToParts(date)
-      const y = parts.find((p) => p.type === "year")?.value
-      const m = parts.find((p) => p.type === "month")?.value
-      const d = parts.find((p) => p.type === "day")?.value
-      return `${y}-${m}-${d}`
-    }
-
-    const currentAddisDate = new Date()
-
-    while (daysFound < 5 && dayOffset < 14) {
-      const d = new Date(currentAddisDate)
-      d.setDate(d.getDate() - dayOffset)
-
-      const dayShort = new Intl.DateTimeFormat("en-US", {
-        timeZone: TARGET_TZ,
-        weekday: "short",
-      }).format(d)
-
-      if (dayShort !== "Sat" && dayShort !== "Sun") {
-        const dateStr = getTargetDateStr(d)
-        trendDataMap[dateStr] = { dateStr, present: 0, total: 0 }
-        daysFound++
-      }
-      dayOffset++
-    }
-
-    if (!isSessionBased || sessionFilter !== "total") {
-      allAttendance.forEach((record) => {
-        const d = record.attendance_date || (record as any).date
-        if (!d || !trendDataMap[d]) return
-
-        if (isSessionBased) {
-          const sess = record.session?.toLowerCase()
-          if (sess !== sessionFilter.toLowerCase()) return
-        }
-
-        trendDataMap[d].total++
-        if (isPresent(record.status)) {
-          trendDataMap[d].present++
-        }
-      })
-    } else {
-      // Full Day session-based: group by (date + student)
-      const dateStudentGroups: Record<string, Record<string, { morning?: string; afternoon?: string }>> = {}
-
-      allAttendance.forEach((record) => {
-        const d = record.attendance_date || (record as any).date
-        if (!d || !trendDataMap[d]) return
-        const sId = record.student_id
-        if (!sId) return
-
-        if (!dateStudentGroups[d]) dateStudentGroups[d] = {}
-        if (!dateStudentGroups[d][sId]) dateStudentGroups[d][sId] = {}
-
-        const sess = record.session?.toLowerCase()
-        if (sess === "morning") dateStudentGroups[d][sId].morning = record.status
-        else if (sess === "afternoon") dateStudentGroups[d][sId].afternoon = record.status
-        else dateStudentGroups[d][sId].morning = record.status
-      })
-
-      Object.entries(dateStudentGroups).forEach(([d, studentsMap]) => {
-        if (!trendDataMap[d]) return
-        trendDataMap[d].total = Object.keys(studentsMap).length
-        Object.values(studentsMap).forEach((group) => {
-          const status = resolveFullDay(group.morning, group.afternoon)
-          if (status === "present" || status === "late") {
-            trendDataMap[d].present++
-          }
-        })
-      })
-    }
-
-    return Object.values(trendDataMap)
-      .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
-      .map((item) => {
-        const dateObj = new Date(item.dateStr + "T00:00:00")
-        const label = dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
-        const rate = totalStudents > 0 && item.total > 0
-          ? Math.round((item.present / totalStudents) * 100)
-          : (item.total > 0 ? Math.round((item.present / item.total) * 100) : 0)
-        return {
-          date: label,
-          rate,
-          present: item.present,
-          total: totalStudents > 0 ? totalStudents : item.total,
-          recorded: item.total,
-        }
-      })
-  }, [dashboardSummary, allAttendance, sessionFilter, isSessionBased, totalStudents])
 
   // Chart data: Grade Enrollment
   const gradeChartData = useMemo(() => {
@@ -852,63 +746,18 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
       {/* 4. ANALYTICS & VISUALIZATIONS SECTION (2:1 Grid) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (2 Cols): Dynamics Chart with Tabs */}
+        {/* Left Column (2 Cols): Grade Enrollment Chart */}
         <div className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <h3 className="text-sm font-black text-foreground uppercase tracking-tight">
-                {activeChartTab === "trend"
-                  ? `5-Day Attendance Trend${sessionFilter !== "total" ? ` (${sessionFilter === "morning" ? "Morning" : "Afternoon"})` : ""}`
-                  : "Student Enrollment by Grade"}
-              </h3>
-            </div>
-
-            {/* Tab Filter Pills */}
-            <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700">
-              <Button
-                variant={activeChartTab === "trend" ? "default" : "ghost"}
-                onClick={() => setActiveChartTab("trend")}
-                size="sm"
-                className="h-6 px-2.5 text-[11px] font-bold rounded-full"
-              >
-                Trend
-              </Button>
-              <Button
-                variant={activeChartTab === "grades" ? "default" : "ghost"}
-                onClick={() => setActiveChartTab("grades")}
-                size="sm"
-                className="h-6 px-2.5 text-[11px] font-bold rounded-full"
-              >
-                Grades
-              </Button>
-            </div>
+          <div className="flex items-center gap-2 px-1">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="text-sm font-black text-foreground uppercase tracking-tight">
+              Student Enrollment by Grade
+            </h3>
           </div>
 
           <div className="h-[310px] w-full p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex items-center justify-center">
             {isLoading ? (
               <div className="w-full h-full bg-slate-100/80 dark:bg-slate-800/30 animate-pulse rounded-xl" />
-            ) : activeChartTab === "trend" ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorAdminTrend" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
-                  <RechartsTooltip
-                    contentStyle={{ backgroundColor: "var(--card)", borderRadius: "12px", border: "1px solid var(--border)", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
-                    itemStyle={{ color: "var(--primary)", fontWeight: "bold" }}
-                    labelStyle={{ color: "var(--foreground)", marginBottom: "4px" }}
-                    formatter={(value: number) => [`${value}%`, "Attendance Rate"]}
-                  />
-                  <Area type="monotone" dataKey="rate" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAdminTrend)" />
-                </AreaChart>
-              </ResponsiveContainer>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={gradeChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>

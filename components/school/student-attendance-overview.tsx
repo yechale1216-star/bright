@@ -1,10 +1,14 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Users, UserCheck, UserX, Clock, AlertTriangle, TrendingUp, Calendar, RefreshCw } from "lucide-react"
+import { Users, UserCheck, UserX, Clock, AlertTriangle, TrendingUp, Calendar, RefreshCw, BarChart3 } from "lucide-react"
+import {
+  ResponsiveContainer, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+} from "recharts"
 import { db, type Student } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { useAuth } from "@/lib/context/auth-context"
@@ -379,6 +383,99 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
     setRecentActivity(activity as StudentAttendanceRecentActivity[])
   }, [rawData, sessionFilter, calendarPreference, formatDate, isSessionBased])
 
+  // 5-Day Attendance Trend (last 5 school weekdays in Addis Ababa timezone)
+  const trendData = useMemo(() => {
+    if (!rawData) return []
+
+    const TARGET_TZ = "Africa/Addis_Ababa"
+    const trendDataMap: Record<string, { dateStr: string; present: number; total: number }> = {}
+    let daysFound = 0
+    let dayOffset = 0
+
+    const getTargetDateStr = (date: Date) => {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TARGET_TZ,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(date)
+      const y = parts.find((p) => p.type === "year")?.value
+      const m = parts.find((p) => p.type === "month")?.value
+      const d = parts.find((p) => p.type === "day")?.value
+      return `${y}-${m}-${d}`
+    }
+
+    const now = new Date()
+    while (daysFound < 5 && dayOffset < 14) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - dayOffset)
+      const dayShort = new Intl.DateTimeFormat("en-US", { timeZone: TARGET_TZ, weekday: "short" }).format(d)
+      if (dayShort !== "Sat" && dayShort !== "Sun") {
+        const dateStr = getTargetDateStr(d)
+        trendDataMap[dateStr] = { dateStr, present: 0, total: 0 }
+        daysFound++
+      }
+      dayOffset++
+    }
+
+    const { all: rawAll, students } = rawData
+    const isPresent = (s?: string) => s?.toLowerCase() === "present" || s?.toLowerCase() === "late"
+
+    // Mode-isolate: session-based records have a session field; daily records don't
+    const modeFiltered = isSessionBased
+      ? rawAll.filter((r) => r.session && r.session !== "")
+      : rawAll.filter((r) => !r.session)
+
+    const totalStudents = students.length
+
+    if (!isSessionBased || sessionFilter !== "total") {
+      modeFiltered.forEach((record) => {
+        const d = record.attendance_date || (record as any).date
+        if (!d || !trendDataMap[d]) return
+        if (isSessionBased) {
+          if (record.session?.toLowerCase() !== sessionFilter.toLowerCase()) return
+        }
+        trendDataMap[d].total++
+        if (isPresent(record.status)) trendDataMap[d].present++
+      })
+    } else {
+      // Full-day session mode: pair morning + afternoon per student per day
+      const dateStudentGroups: Record<string, Record<string, { morning?: string; afternoon?: string }>> = {}
+      modeFiltered.forEach((record) => {
+        const d = record.attendance_date || (record as any).date
+        if (!d || !trendDataMap[d] || !record.student_id) return
+        if (!dateStudentGroups[d]) dateStudentGroups[d] = {}
+        if (!dateStudentGroups[d][record.student_id]) dateStudentGroups[d][record.student_id] = {}
+        const sess = record.session?.toLowerCase()
+        if (sess === "morning") dateStudentGroups[d][record.student_id].morning = record.status
+        else if (sess === "afternoon") dateStudentGroups[d][record.student_id].afternoon = record.status
+        else dateStudentGroups[d][record.student_id].morning = record.status
+      })
+      Object.entries(dateStudentGroups).forEach(([d, studentsMap]) => {
+        if (!trendDataMap[d]) return
+        trendDataMap[d].total = Object.keys(studentsMap).length
+        Object.values(studentsMap).forEach((group) => {
+          const mn = group.morning?.toLowerCase()
+          const an = group.afternoon?.toLowerCase()
+          if (mn && an && mn === an && (mn === "present" || mn === "late")) {
+            trendDataMap[d].present++
+          }
+        })
+      })
+    }
+
+    return Object.values(trendDataMap)
+      .sort((a, b) => a.dateStr.localeCompare(b.dateStr))
+      .map((item) => {
+        const dateObj = new Date(item.dateStr + "T00:00:00")
+        const label = dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+        const rate = totalStudents > 0 && item.total > 0
+          ? Math.round((item.present / totalStudents) * 100)
+          : (item.total > 0 ? Math.round((item.present / item.total) * 100) : 0)
+        return { date: label, rate, present: item.present, total: totalStudents > 0 ? totalStudents : item.total, recorded: item.total }
+      })
+  }, [rawData, sessionFilter, isSessionBased])
+
   return (
     <div className="space-y-6 px-4 md:px-0 pb-24">
       {/* Error Banner */}
@@ -463,6 +560,54 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
             </p>
           </div>
         ))}
+      </div>
+
+      {/* 5-Day Attendance Trend Chart */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <h3 className="text-sm font-black text-foreground uppercase tracking-wider">
+              5-Day Attendance Trend
+              {isSessionBased && sessionFilter !== "total" && (
+                <span className="ml-1 font-semibold text-muted-foreground normal-case tracking-normal">
+                  ({sessionFilter === "morning" ? "Morning" : "Afternoon"})
+                </span>
+              )}
+            </h3>
+          </div>
+        </div>
+        <div className="h-[220px] w-full p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+          {isLoading ? (
+            <div className="w-full h-full bg-slate-100/80 dark:bg-slate-800/30 animate-pulse rounded-xl" />
+          ) : trendData.length === 0 ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+              <TrendingUp className="w-8 h-8 opacity-20" />
+              <p className="text-xs font-medium">No attendance data for the last 5 school days</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorOverviewTrend" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: "var(--card)", borderRadius: "12px", border: "1px solid var(--border)", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
+                  itemStyle={{ color: "var(--primary)", fontWeight: "bold" }}
+                  labelStyle={{ color: "var(--foreground)", marginBottom: "4px" }}
+                  formatter={(value: number) => [`${value}%`, "Attendance Rate"]}
+                />
+                <Area type="monotone" dataKey="rate" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorOverviewTrend)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* Realtime Attendance Feed */}
