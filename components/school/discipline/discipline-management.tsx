@@ -164,6 +164,8 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [previewStudent, setPreviewStudent] = useState<any | null>(null);
   const [showStudentResults, setShowStudentResults] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
 
   // Modal States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -331,11 +333,14 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
   };
 
   // Student search for wizard
-  const fetchStudents = async (query: string) => {
+  const fetchStudents = useCallback(async (query: string) => {
     const trimmed = query.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setStudents([]);
+      setHasSearched(false);
+      return;
+    }
 
-    setStudents([]);
     setIsLoadingStudents(true);
     setShowStudentResults(true);
 
@@ -347,10 +352,17 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
       if (token) headers['Authorization'] = `Bearer ${token}`;
       if (schoolId) headers['x-school-id'] = schoolId;
 
-      const res = await fetch(`${apiUrl}/api/students?status=ACTIVE&search=${encodeURIComponent(trimmed)}&limit=20`, { headers });
-      if (!res.ok) return;
+      const res = await fetch(`${apiUrl}/api/students?status=ALL&search=${encodeURIComponent(trimmed)}&limit=25`, { headers });
+      if (!res.ok) {
+        setHasSearched(true);
+        return;
+      }
       const data = await res.json();
-      const rawList: any[] = data.students || data.data || [];
+      const rawList: any[] = Array.isArray(data?.data)
+        ? data.data
+        : (Array.isArray(data?.data?.items)
+          ? data.data.items
+          : (Array.isArray(data?.students) ? data.students : []));
 
       const lowerQ = trimmed.toLowerCase();
       const filtered = rawList.filter((s) => {
@@ -359,13 +371,35 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
         return name.includes(lowerQ) || id.includes(lowerQ);
       });
 
-      setStudents(filtered);
+      setStudents(filtered.length > 0 ? filtered : rawList);
+      setHasSearched(true);
     } catch (err) {
       console.error('Error loading students:', err);
     } finally {
       setIsLoadingStudents(false);
     }
-  };
+  }, []);
+
+  // Debounced auto-search when typing student name or ID
+  useEffect(() => {
+    if (!isCreateOpen || createStep !== 1 || previewStudent) return;
+    const query = studentSearch.trim();
+    if (query.length < 2) {
+      if (!query) {
+        setStudents([]);
+        setShowStudentResults(false);
+        setHasSearched(false);
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      fetchStudents(query);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [studentSearch, isCreateOpen, createStep, previewStudent, fetchStudents]);
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -1531,6 +1565,7 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
             setStudents([]);
             setPreviewStudent(null);
             setShowStudentResults(false);
+            setHasSearched(false);
             setFormData({
               studentId: '',
               selectedStudentName: '',
@@ -1587,10 +1622,11 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                     onChange={(e) => {
                       const val = e.target.value;
                       setStudentSearch(val);
-                      setStudents([]);
                       if (previewStudent) setPreviewStudent(null);
                       if (!val.trim()) {
                         setShowStudentResults(false);
+                        setStudents([]);
+                        setHasSearched(false);
                       } else {
                         setShowStudentResults(true);
                       }
@@ -1616,6 +1652,11 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
                     <div className="flex items-center justify-center gap-2 py-8 text-xs font-bold text-slate-400">
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       Searching students...
+                    </div>
+                  ) : !hasSearched ? (
+                    <div className="py-6 text-center space-y-1">
+                      <Search className="w-5 h-5 text-slate-300 mx-auto" />
+                      <p className="text-xs text-slate-400">Searching as you type, or press Enter / click Search</p>
                     </div>
                   ) : students.length === 0 ? (
                     <div className="py-8 text-center space-y-2">
@@ -1945,7 +1986,30 @@ export function DisciplineManagement({ userRole = 'school_admin', initialTab = '
               </Button>
             )}
             {createStep < 5 ? (
-              <Button onClick={() => setCreateStep((s) => s + 1)} className="rounded-2xl font-bold text-xs h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white">
+              <Button
+                onClick={() => {
+                  if (createStep === 1) {
+                    if (previewStudent) {
+                      const st = previewStudent;
+                      setFormData((prev) => ({
+                        ...prev,
+                        studentId: st.id,
+                        selectedStudentName: st.fullName || st.name,
+                        selectedStudentGrade: `${st.grade?.name || st.grade || ''} – ${st.section?.name || st.section || ''}`
+                      }));
+                      setCreateStep(2);
+                      return;
+                    }
+                    if (!formData.studentId) {
+                      toast.error('Please select and confirm a student first.');
+                      return;
+                    }
+                  }
+                  setCreateStep((s) => s + 1);
+                }}
+                disabled={createStep === 1 && !formData.studentId && !previewStudent}
+                className="rounded-2xl font-bold text-xs h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+              >
                 Next
               </Button>
             ) : (
