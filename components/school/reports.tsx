@@ -43,7 +43,6 @@ export function Reports() {
   const [reportData, setReportData] = useState<StudentReport[]>([])
   const [filteredReports, setFilteredReports] = useState<StudentReport[]>([])
   const [rawAttendance, setRawAttendance] = useState<any[]>([])
-  const [reportType, setReportType] = useState("monthly")
   const [startDate, setStartDate] = useState(() => {
     const today = new Date()
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -87,36 +86,19 @@ export function Reports() {
   useEffect(() => {
     const TARGET_TZ = 'Africa/Addis_Ababa'
     const getAddisDate = () => new Date()
-    
-    if (reportType === "daily") {
-      const todayString = getAddisDate().toLocaleDateString('en-CA', { timeZone: TARGET_TZ })
-      setStartDate(todayString)
-      setEndDate(todayString)
-    } else if (reportType === "weekly") {
-      const today = getAddisDate()
-      // Get day of week in Addis Ababa (0-6, 0=Sunday)
-      const dayOfWeek = new Date(today.toLocaleString("en-US", { timeZone: TARGET_TZ })).getDay()
-      
-      const firstDayOfWeek = new Date(today)
-      firstDayOfWeek.setDate(today.getDate() - dayOfWeek)
-      
-      setStartDate(firstDayOfWeek.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
-      setEndDate(today.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
-    } else if (reportType === "monthly") {
-      const today = getAddisDate()
-      if (calendarPreference === "ethiopian") {
-        const ec = toEthiopianDate(today)
-        const jdn = ethiopicToJDN(ec.year, ec.month, 1)
-        const startGregorian = jdnToGregorian(jdn)
-        const startISO = startGregorian.toISOString().split("T")[0]
-        setStartDate(startISO)
-      } else {
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-        setStartDate(firstDayOfMonth.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
-      }
-      setEndDate(today.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
+    const today = getAddisDate()
+    if (calendarPreference === "ethiopian") {
+      const ec = toEthiopianDate(today)
+      const jdn = ethiopicToJDN(ec.year, ec.month, 1)
+      const startGregorian = jdnToGregorian(jdn)
+      const startISO = startGregorian.toISOString().split("T")[0]
+      setStartDate(startISO)
+    } else {
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+      setStartDate(firstDayOfMonth.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
     }
-  }, [reportType, calendarPreference])
+    setEndDate(today.toLocaleDateString('en-CA', { timeZone: TARGET_TZ }))
+  }, [calendarPreference])
 
   // Re-generate the report whenever dates, mode, session filter, or the student list changes.
   // `studentsLoaded` is included so the first report fires only AFTER loadStudents() has resolved,
@@ -131,7 +113,7 @@ export function Reports() {
         generateReport()
       }
     }
-  }, [startDate, endDate, reportType, sessionFilter, isSessionBased, studentsLoaded, students])
+  }, [startDate, endDate, sessionFilter, isSessionBased, studentsLoaded, students])
 
 
   useEffect(() => {
@@ -557,21 +539,7 @@ export function Reports() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="typography-label text-[10px] uppercase text-muted-foreground ml-1">Report Type</label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11 focus:ring-primary/20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily Report</SelectItem>
-                  <SelectItem value="weekly">Weekly Summary</SelectItem>
-                  <SelectItem value="monthly">Monthly Overview</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
+          <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6", isSessionBased && "lg:grid-cols-3")}>
             <div className="space-y-2">
               <label className="typography-label text-[10px] uppercase text-muted-foreground ml-1">Start Date</label>
               <DualDatePicker value={startDate} onChange={(val) => setStartDate(val)} className="bg-white/95 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 rounded-xl h-11" />

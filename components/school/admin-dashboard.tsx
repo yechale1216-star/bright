@@ -10,14 +10,14 @@ import {
   Users, UserCheck, ShieldAlert, GraduationCap, Calendar,
   ChevronRight, TrendingUp, ShieldCheck,
   Activity, AlertTriangle, RefreshCw, BarChart3, FileCheck,
-  CheckCircle2, XCircle, Clock, Lock, MessageSquare, Check, X,
-  Sun, Sunset
+  CheckCircle2, XCircle, Lock, MessageSquare, Check, X
 } from "lucide-react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { notifications } from "@/lib/utils/notifications"
+import { queryCache } from "@/lib/utils/query-cache"
 import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip
@@ -42,18 +42,31 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const greeting = useGreeting("school_admin")
   const { settings } = useSchoolSettings()
 
-  const [isLoading, setIsLoading] = useState(true)
+  const todayStr = useMemo(() => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" }), [])
+
+  // Instant 0ms SWR hydration from query cache if already cached in session
+  const [dashboardSummary, setDashboardSummary] = useState<any>(() => {
+    return queryCache.get<any>(`dashboard_summary_single-school_${todayStr}_all`) ?? null
+  })
+  const [staffStats, setStaffStats] = useState<any>(() => {
+    return queryCache.get<any>(`staff_attendance_stats_${todayStr}_daily`) ?? null
+  })
+  const [morningStaffStats, setMorningStaffStats] = useState<any>(() => {
+    return staffStats?.sessionBreakdown?.morning ?? staffStats
+  })
+  const [afternoonStaffStats, setAfternoonStaffStats] = useState<any>(() => {
+    return staffStats?.sessionBreakdown?.afternoon ?? staffStats
+  })
+
+  // Avoid flashing skeleton spinners if initial data is already cached
+  const [isLoading, setIsLoading] = useState(!dashboardSummary && !staffStats)
   const [error, setError] = useState<string | null>(null)
 
-  // Data states
-  const [dashboardSummary, setDashboardSummary] = useState<any>(null)
+  // Secondary/fallback states
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
   const [incidents, setIncidents] = useState<StudentDiscipline[]>([])
-  const [staffStats, setStaffStats] = useState<any>(null)
-  const [morningStaffStats, setMorningStaffStats] = useState<any>(null)
-  const [afternoonStaffStats, setAfternoonStaffStats] = useState<any>(null)
   const [editRequests, setEditRequests] = useState<any[]>([])
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null)
@@ -92,53 +105,53 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }, [])
 
   const loadDashboardData = async (isBackground = false) => {
-    if (!isBackground) setIsLoading(true)
+    // Only toggle isLoading to true if we don't already have cached summary data
+    if (!isBackground && !dashboardSummary && !staffStats) {
+      setIsLoading(true)
+    }
     setError(null)
 
     try {
-      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" })
-
-      // Phase 1 — Fast critical path: lightweight summary + staff stats (single request each)
-      // getDashboardSummary replaces: getStudents + getAttendanceByDate + getAttendanceByDateRange
-      // getStaffAttendanceStats replaces 3 concurrent calls with 1 (sessions split client-side)
-      const [summary, staffAttendanceStats, disciplineRes, fetchedEditRequests, fetchedTeachers] =
-        await Promise.all([
-          db.getDashboardSummary(today).catch(() => null),
-          db.getStaffAttendanceStats(today).catch(() => null),
-          DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
-          db.getAttendanceEditRequests().catch(() => []),
-          db.getTeachers().catch(() => []),
-        ])
+      // High-performance consolidated load:
+      // db.getDashboardSummary returns active student count, attendance counts, grade distribution,
+      // teacher count, pending requests count, discipline stats, recent student in ONE indexed query set.
+      // db.getStaffAttendanceStats returns staff clock-in stats & session breakdown.
+      const [summary, staffAttendanceStats] = await Promise.all([
+        db.getDashboardSummary(todayStr, undefined, isBackground).catch(() => null),
+        db.getStaffAttendanceStats(todayStr).catch(() => null),
+      ])
 
       if (summary) {
         setDashboardSummary(summary)
       }
-      setTeachers(fetchedTeachers || [])
-      setStaffStats(staffAttendanceStats)
-      // In session mode, the single stats response contains both morning & afternoon
-      setMorningStaffStats(staffAttendanceStats?.sessionBreakdown?.morning ?? staffAttendanceStats)
-      setAfternoonStaffStats(staffAttendanceStats?.sessionBreakdown?.afternoon ?? staffAttendanceStats)
-      setEditRequests(fetchedEditRequests || [])
-
-      if (disciplineRes && Array.isArray(disciplineRes.items)) {
-        setIncidents(disciplineRes.items)
-      } else if (disciplineRes && Array.isArray((disciplineRes as any).data)) {
-        setIncidents((disciplineRes as any).data)
-      } else if (Array.isArray(disciplineRes)) {
-        setIncidents(disciplineRes)
+      if (staffAttendanceStats) {
+        setStaffStats(staffAttendanceStats)
+        setMorningStaffStats(staffAttendanceStats?.sessionBreakdown?.morning ?? staffAttendanceStats)
+        setAfternoonStaffStats(staffAttendanceStats?.sessionBreakdown?.afternoon ?? staffAttendanceStats)
       }
 
-      // Phase 2 — Background (non-blocking): load full student & detailed attendance
-      // only when needed for the student-breakdown chart or grade view
       setIsLoading(false)
-      Promise.all([
-        db.getStudents().catch(() => []),
-        db.getAttendanceByDate(today).catch(() => []),
-      ]).then(([fetchedStudents, fetchedTodayAttendance]) => {
-        setStudents(fetchedStudents || [])
-        setTodayAttendance(fetchedTodayAttendance || [])
-      }).catch(() => {})
 
+      // Fallback for older backend versions that lack gradeDistribution:
+      if (!summary?.gradeDistribution) {
+        Promise.all([
+          db.getStudents().catch(() => []),
+          db.getAttendanceByDate(todayStr).catch(() => []),
+          db.getTeachers().catch(() => []),
+          db.getAttendanceEditRequests().catch(() => []),
+          DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
+        ]).then(([st, att, tchs, reqs, disc]) => {
+          setStudents(st || [])
+          setTodayAttendance(att || [])
+          setTeachers(tchs || [])
+          setEditRequests(reqs || [])
+          if (disc && Array.isArray(disc.items)) {
+            setIncidents(disc.items)
+          } else if (disc && Array.isArray((disc as any).data)) {
+            setIncidents((disc as any).data)
+          }
+        }).catch(() => {})
+      }
     } catch (err: any) {
       console.error("Error loading admin dashboard data:", err)
       setError("Failed to load dashboard data. Click retry to refresh.")
@@ -156,10 +169,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }
 
   // Calculated Metrics
-  // Prefer fast dashboardSummary count (available ~200ms); falls back to full student list when loaded
   const totalStudents = dashboardSummary?.totalStudents ?? students.length
-  const totalTeachers = teachers.length
+  const totalTeachers = dashboardSummary?.totalTeachers ?? teachers.length
   const totalStaff = typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : totalTeachers
+  const pendingRequestsCount = dashboardSummary?.pendingEditRequestsCount ?? editRequests.filter(r => r.status === "PENDING").length
+  const openDisciplineCasesCount = dashboardSummary?.discipline?.openCases ?? incidents.filter(i => i.status === "OPEN" || i.status === "UNDER_REVIEW" || i.status === "INVESTIGATION" || i.status === "ACTION_REQUIRED").length
+  const casesRequiringAttentionCount = dashboardSummary?.discipline?.criticalCases ?? incidents.filter(i => (i.severity === "HIGH" || i.severity === "CRITICAL") && (i.status === "OPEN" || i.status === "UNDER_REVIEW" || i.status === "INVESTIGATION" || i.status === "ACTION_REQUIRED")).length
 
   const getStaffActive = (st: any) => {
     if (!st) return 0
@@ -219,9 +234,41 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // School-wide attendance metrics filtered by session (Full Day / Morning / Afternoon)
   // Scope: ALL active students in the current academic year (totalStudents)
   const attendanceMetrics = useMemo(() => {
-    // Fast path: use pre-aggregated today summary (available within ~200ms)
-    // Only used while todayAttendance (Phase 2) hasn't loaded yet
-    if (dashboardSummary?.today && todayAttendance.length === 0) {
+    // Fast path: use pre-aggregated dashboardSummary directly (zero overhead)
+    if (dashboardSummary?.today) {
+      if (sessionFilter === "morning" && dashboardSummary.sessionBreakdown?.morning) {
+        const m = dashboardSummary.sessionBreakdown.morning
+        const notRecorded = Math.max(0, totalStudents - m.total)
+        const rate = totalStudents > 0 && m.total > 0
+          ? Math.round(((m.present + m.late) / totalStudents) * 100)
+          : 0
+        return {
+          presentCount: m.present,
+          lateCount: m.late,
+          absentCount: m.absent,
+          excusedCount: m.earlyDeparture,
+          submittedCount: m.total,
+          notRecordedCount: notRecorded,
+          attendanceRate: rate,
+        }
+      }
+      if (sessionFilter === "afternoon" && dashboardSummary.sessionBreakdown?.afternoon) {
+        const a = dashboardSummary.sessionBreakdown.afternoon
+        const notRecorded = Math.max(0, totalStudents - a.total)
+        const rate = totalStudents > 0 && a.total > 0
+          ? Math.round(((a.present + a.late) / totalStudents) * 100)
+          : 0
+        return {
+          presentCount: a.present,
+          lateCount: a.late,
+          absentCount: a.absent,
+          excusedCount: a.earlyDeparture,
+          submittedCount: a.total,
+          notRecordedCount: notRecorded,
+          attendanceRate: rate,
+        }
+      }
+
       const { present, absent, late, earlyDeparture, total } = dashboardSummary.today
       const notRecorded = Math.max(0, totalStudents - total)
       const rate = totalStudents > 0 && total > 0
@@ -330,14 +377,21 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const sortedGrades = Object.entries(gradeCounts).sort((a, b) => b[1] - a[1])
   const sortedSections = Object.entries(sectionCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
 
-  // Chart data: Grade Enrollment
+  // Chart data: Grade Enrollment (pre-aggregated server-side or fallback)
   const gradeChartData = useMemo(() => {
+    if (dashboardSummary?.gradeDistribution && dashboardSummary.gradeDistribution.length > 0) {
+      return dashboardSummary.gradeDistribution.slice(0, 7).map((item: any) => ({
+        grade: (item.grade || "").replace(/^Grade\s+/i, "G-"),
+        fullName: item.grade,
+        students: item.students || item.count || 0,
+      }))
+    }
     return sortedGrades.slice(0, 7).map(([grade, count]) => ({
       grade: grade.replace(/^Grade\s+/i, "G-"),
       fullName: grade,
       students: count,
     }))
-  }, [sortedGrades])
+  }, [dashboardSummary?.gradeDistribution, sortedGrades])
 
   // Chart data: Today's Attendance Status Donut
   // Includes "Not Recorded" slice for students whose class hasn't been submitted yet
@@ -584,44 +638,18 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           },
           {
             label: "Staff On Duty",
-            value: !isStaffSessionMode ? (
+            value: (
               <div className="flex items-center justify-center gap-1.5">
-                <span className="text-2xl md:text-3xl font-bold tracking-tight text-purple-600 dark:text-purple-400">{dailyActiveStaff}</span>
-                <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 ml-0.5 flex items-center gap-0.5">
-                  <Clock className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" /> Daily
+                <span>
+                  {!isStaffSessionMode
+                    ? dailyActiveStaff
+                    : sessionFilter === "morning"
+                    ? morningActiveStaff
+                    : sessionFilter === "afternoon"
+                    ? afternoonActiveStaff
+                    : (dailyActiveStaff || activeStaffCount)}
                 </span>
-              </div>
-            ) : sessionFilter === "morning" ? (
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="text-2xl md:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{morningActiveStaff}</span>
                 <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 ml-0.5 flex items-center gap-0.5">
-                  <Sun className="w-2.5 h-2.5 text-amber-600" /> Morn
-                </span>
-              </div>
-            ) : sessionFilter === "afternoon" ? (
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="text-2xl md:text-3xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">{afternoonActiveStaff}</span>
-                <span className="text-xs font-semibold text-muted-foreground">/{totalStaff}</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 ml-0.5 flex items-center gap-0.5">
-                  <Sunset className="w-2.5 h-2.5 text-indigo-600" /> Aft
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-1 sm:gap-1.5 w-full">
-                <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 shadow-2xs">
-                  <Sun className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="text-[10px] sm:text-[11px] font-bold text-amber-600 dark:text-amber-400">M:</span>
-                  <span className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-300">{morningActiveStaff}</span>
-                  <span className="text-[9px] sm:text-[10px] font-medium text-muted-foreground">/{totalStaff}</span>
-                </div>
-                <div className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 shadow-2xs">
-                  <Sunset className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400">A:</span>
-                  <span className="text-sm sm:text-base font-black text-indigo-700 dark:text-indigo-300">{afternoonActiveStaff}</span>
-                  <span className="text-[9px] sm:text-[10px] font-medium text-muted-foreground">/{totalStaff}</span>
-                </div>
               </div>
             ),
             sub: !isStaffSessionMode
@@ -639,12 +667,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           },
           {
             label: "Open Conduct Cases",
-            value: openDisciplineCases.length,
-            sub: `${casesRequiringAttention.length} High Severity`,
+            value: openDisciplineCasesCount,
+            sub: `${casesRequiringAttentionCount} High Severity`,
             icon: ShieldAlert,
-            iconBg: casesRequiringAttention.length > 0 ? "bg-rose-50 dark:bg-rose-900/20" : "bg-amber-50 dark:bg-amber-900/20",
-            iconColor: casesRequiringAttention.length > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400",
-            valColor: casesRequiringAttention.length > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400",
+            iconBg: casesRequiringAttentionCount > 0 ? "bg-rose-50 dark:bg-rose-900/20" : "bg-amber-50 dark:bg-amber-900/20",
+            iconColor: casesRequiringAttentionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400",
+            valColor: casesRequiringAttentionCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400",
             href: "/school/admin/discipline",
           },
         ].map((item, idx) => (
@@ -689,7 +717,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       <div
         className={cn(
           "flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border shadow-sm transition-all",
-          pendingRequests.length > 0
+          pendingRequestsCount > 0
             ? "bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50"
             : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
         )}
@@ -697,13 +725,13 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         <div className="flex items-center gap-2.5">
           <div className={cn(
             "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
-            pendingRequests.length > 0
+            pendingRequestsCount > 0
               ? "bg-amber-100 dark:bg-amber-900/40"
               : "bg-slate-100 dark:bg-slate-800"
           )}>
             <FileCheck className={cn(
               "w-4 h-4",
-              pendingRequests.length > 0
+              pendingRequestsCount > 0
                 ? "text-amber-600 dark:text-amber-400"
                 : "text-slate-400"
             )} />
@@ -714,11 +742,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </p>
             <p className={cn(
               "text-[11px] font-medium",
-              pendingRequests.length > 0
+              pendingRequestsCount > 0
                 ? "text-amber-700 dark:text-amber-400"
                 : "text-muted-foreground"
             )}>
-              {pendingRequests.length > 0
+              {pendingRequestsCount > 0
                 ? `${pendingRequests.length} request${pendingRequests.length > 1 ? "s" : ""} awaiting your review`
                 : "All clear — no pending requests"}
             </p>
@@ -729,14 +757,14 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           onClick={() => router.push("/school/admin/attendance/requests")}
           className={cn(
             "h-8 px-3 text-xs font-bold rounded-xl gap-1.5 shrink-0",
-            pendingRequests.length > 0
+            pendingRequestsCount > 0
               ? "bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
               : "variant-outline border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-foreground hover:bg-slate-100 dark:hover:bg-slate-800"
           )}
         >
-          {pendingRequests.length > 0 && (
+          {pendingRequestsCount > 0 && (
             <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-white/20 text-white text-[10px] font-black">
-              {pendingRequests.length}
+              {pendingRequestsCount}
             </span>
           )}
           View Requests
@@ -1007,7 +1035,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {recentStudents.length > 0
+                  {dashboardSummary?.recentStudent?.name
+                    ? `Latest enrolled student: ${dashboardSummary.recentStudent.name} (${dashboardSummary.recentStudent.grade || "Grade N/A"}).`
+                    : recentStudents.length > 0
                     ? `Latest enrolled student: ${recentStudents[0]?.first_name ? `${recentStudents[0].first_name} ${recentStudents[0].last_name || ""}`.trim() : (recentStudents[0]?.name || "Student")} (${recentStudents[0]?.grade || "Grade N/A"}).`
                     : "All student enrollment records verified and in good standing."}
                 </p>
@@ -1024,7 +1054,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     </div>
                     <div>
                       <p className="text-xs font-black text-foreground uppercase tracking-tight">School Climate</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">{openDisciplineCases.length} Open Cases</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground">{openDisciplineCasesCount} Open Cases</p>
                     </div>
                   </div>
                   <Badge
@@ -1036,12 +1066,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         : "text-emerald-600 bg-emerald-50 border-emerald-200"
                     )}
                   >
-                    {casesRequiringAttention.length > 0 ? "Review Required" : "Stable"}
+                    {casesRequiringAttentionCount > 0 ? "Review Required" : "Stable"}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {casesRequiringAttention.length > 0
-                    ? `${casesRequiringAttention.length} cases flagged for administrative follow-up.`
+                  {casesRequiringAttentionCount > 0
+                    ? `${casesRequiringAttentionCount} cases flagged for administrative follow-up.`
                     : "Campus conduct guidelines and student discipline tracking up to date."}
                 </p>
               </CardContent>

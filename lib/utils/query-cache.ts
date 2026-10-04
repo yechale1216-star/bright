@@ -138,8 +138,10 @@ class QueryCache {
 
     if (hasChanged && typeof window !== "undefined") {
       if (key.startsWith("students_")) {
+        this.invalidate(/^dashboard_summary_/)
         window.dispatchEvent(new CustomEvent("studentDataChanged"))
       } else if (key.startsWith("attendance_")) {
+        this.invalidate(/^dashboard_summary_/)
         window.dispatchEvent(new CustomEvent("attendanceDataChanged"))
       } else if (key.startsWith("settings_")) {
         window.dispatchEvent(new CustomEvent("settingsDataChanged"))

@@ -124,16 +124,25 @@ class Database extends BaseDatabase {
     return this.getAttendance()
   }
 
-  async getDashboardSummary(date?: string, session?: string): Promise<any> {
+  async getDashboardSummary(date?: string, session?: string, forceRefetch = false): Promise<any> {
+    const schoolId = this.getSchoolId() || "single-school"
     const params = new URLSearchParams()
     if (date) params.set("date", date)
     if (session) params.set("session", session)
     const qs = params.toString() ? `?${params.toString()}` : ""
-    const result = await apiFetch<{ success: boolean; data: any }>(
-      `${API_URL}/api/attendance/dashboard-summary${qs}`,
-      { headers: this.getApiHeaders(), cache: "no-store" }
+    const cacheKey = `dashboard_summary_${schoolId}_${date || 'today'}_${session || 'all'}`
+
+    return queryCache.fetch(
+      cacheKey,
+      async () => {
+        const result = await apiFetch<{ success: boolean; data: any }>(
+          `${API_URL}/api/attendance/dashboard-summary${qs}`,
+          { headers: this.getApiHeaders() }
+        )
+        return result.data
+      },
+      { staleTime: 20_000, persist: false, forceRefetch }
     )
-    return result.data
   }
 
   async markAttendance(records: Partial<AttendanceRecord>[], locationData?: any): Promise<void> {

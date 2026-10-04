@@ -17,6 +17,7 @@ export function mapAttendance(r: any, schoolId = "single-school"): AttendanceRec
 
 function notifyAttendanceDataChanged() {
   queryCache.invalidate(/^attendance_/)
+  queryCache.invalidate(/^dashboard_summary_/)
   queryCache.invalidate("attendance_")
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("attendanceDataChanged"))
