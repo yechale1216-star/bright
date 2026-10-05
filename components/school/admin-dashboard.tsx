@@ -87,6 +87,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   )
 
   // Secondary/fallback states
+  const [gradesList, setGradesList] = useState<any[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
@@ -150,10 +151,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       // db.getDashboardSummary returns active student count, attendance counts, grade distribution,
       // teacher count, pending requests count, discipline stats, recent student in ONE indexed query set.
       // db.getStaffAttendanceStats returns staff clock-in stats & session breakdown.
-      const [summary, staffAttendanceStats] = await Promise.all([
+      const [summary, staffAttendanceStats, fetchedGrades] = await Promise.all([
         db.getDashboardSummary(todayStr, undefined, isBackground).catch(() => null),
         db.getStaffAttendanceStats(todayStr).catch(() => null),
+        db.getGrades().catch(() => []),
       ])
+
+      if (Array.isArray(fetchedGrades) && fetchedGrades.length > 0) {
+        setGradesList(fetchedGrades)
+      }
 
       // Track whether the primary API delivered a confirmed response
       const summaryOk = summary !== null && summary !== undefined
@@ -480,6 +486,16 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const sortedGrades = Object.entries(gradeCounts).sort((a, b) => b[1] - a[1])
   const sortedSections = Object.entries(sectionCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)
 
+  // Total Registered Grade Levels: use pre-aggregated backend totalGrades, fetched gradesList,
+  // or gradeDistribution to avoid 0 when individual students array is not loaded.
+  const totalGradesCount: number = typeof dashboardSummary?.totalGrades === "number"
+    ? dashboardSummary.totalGrades
+    : (gradesList.length > 0
+        ? gradesList.length
+        : (dashboardSummary?.gradeDistribution && dashboardSummary.gradeDistribution.length > 0
+            ? dashboardSummary.gradeDistribution.length
+            : sortedGrades.length))
+
   // Chart data: Grade Enrollment (pre-aggregated server-side or fallback)
   const gradeChartData = useMemo(() => {
     if (dashboardSummary?.gradeDistribution && dashboardSummary.gradeDistribution.length > 0) {
@@ -719,7 +735,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           {
             label: "Total Students",
             value: totalStudents ?? (isLoading ? undefined : "-"),
-            sub: `${sortedGrades.length} Grades`,
+            sub: `${totalGradesCount} Grades`,
             icon: GraduationCap,
             iconBg: "bg-slate-100 dark:bg-slate-800",
             iconColor: "text-slate-600 dark:text-slate-400",
@@ -1134,7 +1150,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Active term in session with {sortedGrades.length} registered grade levels and live attendance monitoring.
+                  Active term in session with {totalGradesCount} registered grade levels and live attendance monitoring.
                 </p>
               </CardContent>
             </Card>

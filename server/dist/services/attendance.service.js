@@ -899,6 +899,7 @@ const getDashboardSummary = async (filters) => {
         }).catch(() => []),
         db_1.default.grade.findMany({ select: { id: true, name: true } }).catch(() => []),
     ]);
+    const totalGrades = grades ? grades.length : 0;
     const gradeMap = new Map((grades || []).map((g) => [g.id, g.name]));
     const gradeDistribution = (gradeGroups || [])
         .map((g) => ({
@@ -1027,6 +1028,7 @@ const getDashboardSummary = async (filters) => {
     return {
         totalStudents,
         totalTeachers,
+        totalGrades,
         gradeDistribution,
         today: {
             date: todayStr,

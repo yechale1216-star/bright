@@ -1018,6 +1018,7 @@ export const getDashboardSummary = async (filters: { date?: string; session?: st
     }).catch(() => []),
     prisma.grade.findMany({ select: { id: true, name: true } }).catch(() => []),
   ]);
+  const totalGrades = grades ? grades.length : 0;
   const gradeMap = new Map((grades || []).map((g: any) => [g.id, g.name]));
   const gradeDistribution = (gradeGroups || [])
     .map((g: any) => ({
@@ -1141,6 +1142,7 @@ export const getDashboardSummary = async (filters: { date?: string; session?: st
   return {
     totalStudents,
     totalTeachers,
+    totalGrades,
     gradeDistribution,
     today: {
       date: todayStr,
