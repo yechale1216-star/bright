@@ -150,9 +150,19 @@ export interface DisciplineAnalytics {
 function getAuthHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('attendance_token') : null;
   const schoolId = typeof window !== 'undefined' ? localStorage.getItem('x-school-id') : null;
+  let userRole: string | null = null;
+  try {
+    const userStr = typeof window !== 'undefined' ? localStorage.getItem('attendance_current_user') : null;
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      userRole = u?.role || null;
+    }
+  } catch {}
+
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (schoolId) headers['x-school-id'] = schoolId;
+  if (userRole) headers['x-requested-role'] = userRole;
   return headers;
 }
 
@@ -187,6 +197,31 @@ function notifyDisciplineDataChanged() {
 }
 
 export const DisciplineApi = {
+  /**
+   * Synchronously get cached incidents for instant (0ms) render.
+   */
+  getCachedIncidents(params: Record<string, any> = {}): {
+    items: StudentDiscipline[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  } | null {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        query.append(k, String(v));
+      }
+    });
+    const cacheKey = `discipline_incidents_${query.toString() || 'default'}`;
+    return queryCache.get<{
+      items: StudentDiscipline[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(cacheKey);
+  },
   async getCategories(): Promise<DisciplineCategory[]> {
     const data = await apiFetch<{ success: boolean; data?: DisciplineCategory[] }>(
       `${API_URL}/api/discipline/categories`,
@@ -276,10 +311,14 @@ export const DisciplineApi = {
           totalPages: number;
         }>(
           `${API_URL}/api/discipline?${query.toString()}`,
-          { headers: getAuthHeaders() }
+          { 
+            headers: getAuthHeaders(),
+            timeoutMs: 8000,
+            retries: 1
+          }
         );
       },
-      { staleTime: 30_000, persist: false }
+      { staleTime: 60_000, persist: true }
     );
   },
 

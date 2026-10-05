@@ -151,8 +151,6 @@ class QueryCache {
         window.dispatchEvent(new CustomEvent("userDataChanged"))
       } else if (key.startsWith("parent_notifications_")) {
         window.dispatchEvent(new CustomEvent("parentNotificationsChanged"))
-      } else if (key.startsWith("discipline_")) {
-        window.dispatchEvent(new CustomEvent("disciplineDataChanged"))
       }
     }
   }

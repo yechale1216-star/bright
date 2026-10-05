@@ -22,12 +22,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const handleSetLanguage = (lang: Language) => {
+  const handleSetLanguage = React.useCallback((lang: Language) => {
     setLanguage(lang);
     localStorage.setItem('app_language', lang);
-  };
+  }, []);
 
-  const t = (key: TranslationKey, variables?: Record<string, string | number>): string => {
+  const t = React.useCallback((key: TranslationKey, variables?: Record<string, string | number>): string => {
     let text = translations[language][key] || translations['en'][key] || key;
     
     if (variables) {
@@ -37,10 +37,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
     
     return text;
-  };
+  }, [language]);
+
+  const contextValue = React.useMemo(() => ({
+    language,
+    setLanguage: handleSetLanguage,
+    t
+  }), [language, handleSetLanguage, t]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: handleSetLanguage, t }}>
+    <LanguageContext.Provider value={contextValue}>
       {children}
     </LanguageContext.Provider>
   );

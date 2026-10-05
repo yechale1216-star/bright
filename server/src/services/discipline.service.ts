@@ -517,13 +517,14 @@ export class DisciplineService {
 
     const where: any = {};
 
-    if (!(query as any).academicYearId) {
+    if ((query as any).academicYearId && (query as any).academicYearId !== 'all') {
+      where.academicYearId = (query as any).academicYearId;
+    } else if (!(query as any).academicYearId && user.role !== 'parent') {
+      // Default to active academic year only for school staff / discipline officers to prevent overloading
       const activeAY = await academicYearService.getCurrentAcademicYear();
       if (activeAY) {
         where.academicYearId = activeAY.id;
       }
-    } else {
-      where.academicYearId = (query as any).academicYearId;
     }
 
     if (user.role === 'teacher') {
@@ -538,18 +539,30 @@ export class DisciplineService {
       }));
       where.OR = OR;
     } else if (user.role === 'parent') {
-      const links = await prisma.parentStudentLink.findMany({
-        where: { parentId: user.id },
-        select: { studentId: true }
-      });
-      const studentIds = links.map(l => l.studentId);
-      if (studentIds.length === 0) {
-        return { items: [], total: 0, page, limit, totalPages: 0 };
+      if (query.studentId) {
+        // Fast-path: Check indexed single link for this parent and requested student
+        const link = await prisma.parentStudentLink.findFirst({
+          where: { parentId: user.id, studentId: query.studentId },
+          select: { id: true }
+        });
+        if (!link) {
+          return { items: [], total: 0, page, limit, totalPages: 0 };
+        }
+        where.studentId = query.studentId;
+      } else {
+        const links = await prisma.parentStudentLink.findMany({
+          where: { parentId: user.id },
+          select: { studentId: true }
+        });
+        const studentIds = links.map(l => l.studentId);
+        if (studentIds.length === 0) {
+          return { items: [], total: 0, page, limit, totalPages: 0 };
+        }
+        where.studentId = { in: studentIds };
       }
-      where.studentId = { in: studentIds };
+    } else if (query.studentId) {
+      where.studentId = query.studentId;
     }
-
-    if (query.studentId) where.studentId = query.studentId;
     if (query.gradeId) where.gradeId = query.gradeId;
     if (query.sectionId) where.sectionId = query.sectionId;
     if (query.streamId) where.streamId = query.streamId;

@@ -54,10 +54,21 @@ export class AcademicYearService {
     return academicYears;
   }
 
+  private cachedActiveAY: { data: any; expiry: number } | null = null;
+
+  public invalidateCurrentCache() {
+    this.cachedActiveAY = null;
+  }
+
   /**
-   * Get the current active academic year
+   * Get the current active academic year (cached in-memory for 5 minutes)
    */
   async getCurrentAcademicYear(_schoolId?: string) {
+    const now = Date.now();
+    if (this.cachedActiveAY && this.cachedActiveAY.expiry > now) {
+      return this.cachedActiveAY.data;
+    }
+
     let current = await prisma.academicYear.findFirst({
       where: { isCurrent: true },
     });
@@ -67,6 +78,7 @@ export class AcademicYearService {
       current = allYears.find(y => y.isCurrent) || allYears[0] || null;
     }
 
+    this.cachedActiveAY = { data: current, expiry: now + 5 * 60 * 1000 };
     return current;
   }
 
@@ -120,6 +132,7 @@ export class AcademicYearService {
         });
       }
 
+      this.invalidateCurrentCache();
       return newYear;
     });
   }
@@ -165,6 +178,7 @@ export class AcademicYearService {
         });
       }
 
+      this.invalidateCurrentCache();
       return updated;
     });
   }
@@ -194,6 +208,7 @@ export class AcademicYearService {
         update: { academic_year: activeYear.name },
       });
 
+      this.invalidateCurrentCache();
       return activeYear;
     });
   }
