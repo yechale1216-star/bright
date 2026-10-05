@@ -876,24 +876,123 @@ const getDashboardSummary = async (filters) => {
     // 14-day window for trend chart
     const trend14Start = new Date(todayStart);
     trend14Start.setDate(trend14Start.getDate() - 13);
-    // 1. Active student count (replaces fetching full student objects)
-    const totalStudents = await db_1.default.student.count({
-        where: { status: 'ACTIVE' }
-    });
-    // 2. Today's attendance grouped by (date, status) — one DB query
-    const todayGroups = await db_1.default.attendance.groupBy({
-        by: ['status'],
+    // 1. Active student count & Teacher count in parallel
+    const [totalStudents, teacherCount, userTeacherCount] = await Promise.all([
+        db_1.default.student.count({
+            where: { status: 'ACTIVE' }
+        }),
+        db_1.default.teacher.count({ where: { is_active: true } }).catch(() => 0),
+        db_1.default.user.count({
+            where: {
+                role: { equals: 'teacher', mode: 'insensitive' },
+                is_active: true,
+            },
+        }).catch(() => 0),
+    ]);
+    const totalTeachers = Math.max(teacherCount, userTeacherCount);
+    // 2. Grade distribution (pre-aggregated)
+    const [gradeGroups, grades] = await Promise.all([
+        db_1.default.student.groupBy({
+            by: ['gradeId'],
+            where: { status: 'ACTIVE' },
+            _count: { _all: true }
+        }).catch(() => []),
+        db_1.default.grade.findMany({ select: { id: true, name: true } }).catch(() => []),
+    ]);
+    const gradeMap = new Map((grades || []).map((g) => [g.id, g.name]));
+    const gradeDistribution = (gradeGroups || [])
+        .map((g) => ({
+        grade: (g.gradeId && gradeMap.get(g.gradeId)) || 'Unassigned',
+        students: g._count?._all || 0,
+    }))
+        .sort((a, b) => b.students - a.students);
+    // 3. Today's attendance records
+    const todayRecords = await db_1.default.attendance.findMany({
         where: {
             date: { gte: todayStart, lte: todayEnd },
             ...(filters.session && filters.session !== 'all' ? { session: filters.session } : {})
         },
-        _count: { _all: true }
+        select: {
+            studentId: true,
+            status: true,
+            session: true,
+        }
     });
-    const todaySummary = {};
-    for (const g of todayGroups) {
-        todaySummary[g.status] = (todaySummary[g.status] || 0) + g._count._all;
+    const normStatus = (raw) => {
+        const s = String(raw || '').toLowerCase().trim();
+        if (s === 'present')
+            return 'present';
+        if (s === 'late')
+            return 'late';
+        if (s === 'absent')
+            return 'absent';
+        if (s === 'excused' || s === 'early_departure' || s === 'earlydeparture' || s === 'on_leave')
+            return 'excused';
+        return 'present';
+    };
+    const morningSummary = { present: 0, late: 0, absent: 0, earlyDeparture: 0, excused: 0, total: 0 };
+    const afternoonSummary = { present: 0, late: 0, absent: 0, earlyDeparture: 0, excused: 0, total: 0 };
+    const studentDayMap = new Map();
+    for (const r of todayRecords) {
+        const st = normStatus(r.status);
+        const sess = String(r.session || '').toLowerCase().trim();
+        if (!studentDayMap.has(r.studentId)) {
+            studentDayMap.set(r.studentId, {});
+        }
+        const studentEntry = studentDayMap.get(r.studentId);
+        if (sess === 'morning') {
+            studentEntry.morning = st;
+            morningSummary[st === 'excused' ? 'earlyDeparture' : st]++;
+            morningSummary.total++;
+        }
+        else if (sess === 'afternoon') {
+            studentEntry.afternoon = st;
+            afternoonSummary[st === 'excused' ? 'earlyDeparture' : st]++;
+            afternoonSummary.total++;
+        }
+        else {
+            studentEntry.daily = st;
+        }
     }
-    // 3. 14-day trend — group by date+status in one query
+    morningSummary.excused = morningSummary.earlyDeparture;
+    afternoonSummary.excused = afternoonSummary.earlyDeparture;
+    // Consolidate full-day status per student
+    const todaySummary = { present: 0, late: 0, absent: 0, earlyDeparture: 0, excused: 0, total: 0 };
+    for (const entry of studentDayMap.values()) {
+        let resolved = null;
+        if (entry.morning && entry.afternoon) {
+            if (entry.morning === entry.afternoon) {
+                resolved = entry.morning;
+            }
+            else if (entry.morning === 'present' || entry.afternoon === 'present') {
+                resolved = (entry.morning === 'late' || entry.afternoon === 'late') ? 'late' : 'present';
+            }
+            else if (entry.morning === 'late' || entry.afternoon === 'late') {
+                resolved = 'late';
+            }
+            else if (entry.morning === 'excused' || entry.afternoon === 'excused') {
+                resolved = 'excused';
+            }
+            else {
+                resolved = 'absent';
+            }
+        }
+        else if (entry.morning) {
+            resolved = entry.morning;
+        }
+        else if (entry.afternoon) {
+            resolved = entry.afternoon;
+        }
+        else if (entry.daily) {
+            resolved = entry.daily;
+        }
+        if (resolved) {
+            todaySummary[resolved === 'excused' ? 'earlyDeparture' : resolved]++;
+            todaySummary.total++;
+        }
+    }
+    todaySummary.excused = todaySummary.earlyDeparture;
+    // 4. 14-day trend — group by date+status in one query
     const trendGroups = await db_1.default.attendance.groupBy({
         by: ['date', 'status'],
         where: {
@@ -914,26 +1013,28 @@ const getDashboardSummary = async (filters) => {
         }
         const count = g._count._all;
         trendMap[d].total += count;
-        const st = String(g.status || '').toUpperCase();
-        if (st === 'PRESENT')
+        const st = normStatus(g.status);
+        if (st === 'present')
             trendMap[d].present += count;
-        else if (st === 'ABSENT')
+        else if (st === 'absent')
             trendMap[d].absent += count;
-        else if (st === 'LATE')
+        else if (st === 'late')
             trendMap[d].late += count;
-        else if (st === 'EARLY_DEPARTURE')
+        else if (st === 'excused')
             trendMap[d].earlyDeparture += count;
     }
     const trend = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date));
     return {
         totalStudents,
+        totalTeachers,
+        gradeDistribution,
         today: {
             date: todayStr,
-            present: todaySummary['PRESENT'] || 0,
-            absent: todaySummary['ABSENT'] || 0,
-            late: todaySummary['LATE'] || 0,
-            earlyDeparture: todaySummary['EARLY_DEPARTURE'] || 0,
-            total: Object.values(todaySummary).reduce((s, c) => s + c, 0),
+            ...todaySummary,
+        },
+        sessionBreakdown: {
+            morning: morningSummary,
+            afternoon: afternoonSummary,
         },
         trend,
     };

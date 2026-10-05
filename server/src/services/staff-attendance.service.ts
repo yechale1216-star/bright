@@ -792,14 +792,11 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
     throw new Error(`Staff is already checked out for ${dateStr}${sessLabel} at ${existing.checkOutTime.toISOString()}`);
   }
 
-  let status = existing.status;
-  if (workingDayInfo.isWorkingDay) {
-    if (isTimeBefore(currentTimeHHMM, earlyDepartureCutoffTime)) {
-      if (status === 'PRESENT' || status === 'LATE') {
-        status = 'EARLY_DEPARTURE';
-      }
-    }
-  }
+  // Preserve the original check-in status (PRESENT or LATE).
+  // Early departure is a checkout-dimension flag that must NOT overwrite
+  // the check-in status. The summary stats compute earlyDeparture independently
+  // by comparing checkOutTime against the earlyDepartureCutoffTime.
+  const status = existing.status;
 
   return await prisma.staffAttendance.update({
     where: { id: existing.id },
@@ -1165,13 +1162,44 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
   let geoVerifiedCount = 0;
   let checkedInCount = 0;
 
+  // Resolve early departure cutoff for dynamic computation
+  const statsSchedule = computeWorkingScheduleThresholds(settings);
+  let statsEarlyCutoff = statsSchedule.earlyDepartureCutoffTime;
+  if (attendanceMode === 'session_based' && session && session !== 'all' && session !== 'ALL') {
+    const statsSessions = getConfiguredSessions(settings);
+    const statsTargetSession = findSession(statsSessions, session);
+    if (statsTargetSession) {
+      const stSess = computeSessionThresholds(statsTargetSession);
+      statsEarlyCutoff = stSess.earlyDepartureCutoffTime;
+    }
+  }
+
   for (const r of records) {
-    if (r.status === 'PRESENT') present++;
+    // EARLY_DEPARTURE is a legacy status from older checkout logic.
+    // Treat it as PRESENT + earlyDeparture so counts are never lost.
+    const isLegacyEarlyDeparture = r.status === 'EARLY_DEPARTURE';
+
+    if (r.status === 'PRESENT' || isLegacyEarlyDeparture) present++;
     else if (r.status === 'LATE') late++;
     else if (r.status === 'ABSENT') absent++;
-    else if (r.status === 'EARLY_DEPARTURE') earlyDeparture++;
     else if (r.status === 'LEAVE') onLeave++;
     else if (r.status === 'PERMISSION') permission++;
+
+    // Count early departure independently:
+    // - Legacy EARLY_DEPARTURE records (backward compat)
+    // - OR: checked out before the early departure cutoff
+    if (isLegacyEarlyDeparture) {
+      earlyDeparture++;
+    } else if (
+      r.checkOutTime &&
+      (r.status === 'PRESENT' || r.status === 'LATE') &&
+      isTimeBefore(
+        r.checkOutTime.toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: '2-digit', minute: '2-digit' }),
+        statsEarlyCutoff
+      )
+    ) {
+      earlyDeparture++;
+    }
 
     if (r.checkInTime) checkedInCount++;
     if (r.faceVerified) faceVerifiedCount++;
@@ -1220,6 +1248,14 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
   let sessionBreakdown: Record<string, any> | undefined;
   if (attendanceMode === 'session_based') {
     const bySession: Record<string, any> = {};
+    // Build per-session early cutoff map for dynamic early departure calculation
+    const sessionCutoffMap: Record<string, string> = {};
+    const allSessions = getConfiguredSessions(settings);
+    for (const sess of allSessions) {
+      const t = computeSessionThresholds(sess);
+      sessionCutoffMap[sess.id.toLowerCase()] = t.earlyDepartureCutoffTime;
+    }
+
     for (const r of records) {
       const sk = (r as any).session || 'unknown';
       if (!bySession[sk]) {
@@ -1227,11 +1263,26 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
       }
       bySession[sk].total++;
       if ((r as any).checkInTime) bySession[sk].checkedIn++;
-      if (r.status === 'PRESENT') bySession[sk].present++;
+
+      const isLegacyED = r.status === 'EARLY_DEPARTURE';
+      if (r.status === 'PRESENT' || isLegacyED) bySession[sk].present++;
       else if (r.status === 'LATE') bySession[sk].late++;
       else if (r.status === 'ABSENT') bySession[sk].absent++;
-      else if (r.status === 'EARLY_DEPARTURE') bySession[sk].earlyDeparture++;
       else if (r.status === 'LEAVE' || r.status === 'PERMISSION') bySession[sk].onLeave++;
+
+      const sessCutoff = sessionCutoffMap[sk] || statsEarlyCutoff;
+      if (isLegacyED) {
+        bySession[sk].earlyDeparture++;
+      } else if (
+        r.checkOutTime &&
+        (r.status === 'PRESENT' || r.status === 'LATE') &&
+        isTimeBefore(
+          r.checkOutTime.toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: '2-digit', minute: '2-digit' }),
+          sessCutoff
+        )
+      ) {
+        bySession[sk].earlyDeparture++;
+      }
     }
     sessionBreakdown = bySession;
   }
@@ -1263,7 +1314,7 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
     isCutoffPassed: !isToday || isTimeAfter(currentTimeHHMM, activeAbsenceCutoff),
     faceVerifiedCount,
     geoVerifiedCount,
-    attendanceRate: totalStaffCount > 0 ? Math.round(((present + late + earlyDeparture) / totalStaffCount) * 100) : 0,
+    attendanceRate: totalStaffCount > 0 ? Math.round(((present + late) / totalStaffCount) * 100) : 0,
     sessionBreakdown,
   };
 }
@@ -1420,12 +1471,9 @@ export async function bulkSyncStaffAttendance(records: Array<{
         }
       } else if (item.type === 'checkout') {
         if (existing) {
-          let status = existing.status;
-          if (workingDayInfo.isWorkingDay) {
-            if (isTimeBefore(timeHHMM, schedule.earlyDepartureCutoffTime)) {
-              if (status === 'PRESENT') status = 'EARLY_DEPARTURE';
-            }
-          }
+          // Preserve the original check-in status (PRESENT or LATE).
+          // Early departure is determined at stats-query time from checkOutTime.
+          const status = existing.status;
 
           if (!existing.checkOutTime) {
             const updated = await prisma.staffAttendance.update({
@@ -1772,6 +1820,10 @@ export async function getStaffAttendanceReport(
     orderBy: { date: 'asc' }
   });
 
+  // Compute report-level early departure cutoff once (outside per-record loop)
+  const reportSchedule = computeWorkingScheduleThresholds(settings);
+  const reportEarlyCutoff = reportSchedule.earlyDepartureCutoffTime;
+
   const staffMap = new Map<string, any>();
 
   for (const r of records) {
@@ -1793,15 +1845,30 @@ export async function getStaffAttendanceReport(
 
     const item = staffMap.get(r.userId);
     item.totalRecords++;
-    if (r.status === 'PRESENT') item.present++;
+
+    const isLegacyED_staff = r.status === 'EARLY_DEPARTURE';
+    if (r.status === 'PRESENT' || isLegacyED_staff) item.present++;
     else if (r.status === 'LATE') item.late++;
     else if (r.status === 'ABSENT') item.absent++;
-    else if (r.status === 'EARLY_DEPARTURE') item.earlyDeparture++;
     else if (r.status === 'PERMISSION') {
       item.permission++;
       item.onLeave++;
     } else if (r.status === 'LEAVE') {
       item.onLeave++;
+    }
+
+    // Count early departure: legacy status OR dynamic checkout-time check
+    if (isLegacyED_staff) {
+      item.earlyDeparture++;
+    } else if (
+      r.checkOutTime &&
+      (r.status === 'PRESENT' || r.status === 'LATE') &&
+      isTimeBefore(
+        r.checkOutTime.toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: '2-digit', minute: '2-digit' }),
+        reportEarlyCutoff
+      )
+    ) {
+      item.earlyDeparture++;
     }
 
     if (r.geofenceVerified) item.geoVerified++;
@@ -1817,15 +1884,29 @@ export async function getStaffAttendanceReport(
     }
     const d = dayMap.get(dStr)!;
     d.total++;
-    if (r.status === 'PRESENT') d.present++;
+
+    const isLegacyED_day = r.status === 'EARLY_DEPARTURE';
+    if (r.status === 'PRESENT' || isLegacyED_day) d.present++;
     else if (r.status === 'LATE') d.late++;
     else if (r.status === 'ABSENT') d.absent++;
-    else if (r.status === 'EARLY_DEPARTURE') d.earlyDeparture++;
     else if (r.status === 'PERMISSION') {
       d.permission++;
       d.onLeave++;
     } else if (r.status === 'LEAVE') {
       d.onLeave++;
+    }
+
+    if (isLegacyED_day) {
+      d.earlyDeparture++;
+    } else if (
+      r.checkOutTime &&
+      (r.status === 'PRESENT' || r.status === 'LATE') &&
+      isTimeBefore(
+        r.checkOutTime.toLocaleTimeString('en-US', { timeZone: 'Africa/Addis_Ababa', hour12: false, hour: '2-digit', minute: '2-digit' }),
+        reportEarlyCutoff
+      )
+    ) {
+      d.earlyDeparture++;
     }
   }
 

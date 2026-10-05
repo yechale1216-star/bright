@@ -478,6 +478,55 @@ describe("Staff Attendance & Biometric Geofencing Unit Tests", () => {
       expect(display.checkOut.titleLabel).toBe("Checked Out")
     })
 
+    test("Staff Attendance Stats: 1 checked in on time and checked out early + 17 absent -> ON TIME: 1, EARLY OUT: 1, ABSENT: 17", () => {
+      // Simulate the backend stats calculation logic
+      const totalStaffCount = 18
+      const records = [
+        // 1 staff checked in on time, and checked out early (e.g. 15:20 before 16:45 cutoff)
+        {
+          id: "rec_1",
+          userId: "staff_1",
+          status: "PRESENT", // check-in status preserved!
+          checkInTime: new Date("2026-08-19T05:05:00.000Z"), // 08:05 in Addis (on time)
+          checkOutTime: new Date("2026-08-19T12:20:00.000Z"), // 15:20 in Addis (< 16:45 cutoff)
+        }
+      ]
+
+      let present = 0
+      let late = 0
+      let absent = 0
+      let earlyDeparture = 0
+      const earlyCutoff = "16:45"
+
+      for (const r of records) {
+        if (r.status === "PRESENT") present++
+        else if (r.status === "LATE") late++
+        else if (r.status === "ABSENT") absent++
+
+        // Dynamic early departure check on checkout time (independent dimension)
+        if (r.checkOutTime) {
+          const checkOutTimeHHMM = r.checkOutTime.toLocaleTimeString("en-US", {
+            timeZone: "Africa/Addis_Ababa",
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+          if (checkOutTimeHHMM < earlyCutoff) {
+            earlyDeparture++
+          }
+        }
+      }
+
+      // Remaining staff are absent
+      absent = totalStaffCount - (present + late)
+
+      expect(totalStaffCount).toBe(18)
+      expect(present).toBe(1)
+      expect(late).toBe(0)
+      expect(absent).toBe(17)
+      expect(earlyDeparture).toBe(1)
+    })
+
     test("Staff has checked in but NOT checked out yet: Check-Out displays 'NOT CHECKED OUT'", () => {
       const record = {
         id: "rec_03",

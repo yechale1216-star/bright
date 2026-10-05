@@ -44,9 +44,17 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const todayStr = useMemo(() => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" }), [])
 
-  // Instant 0ms SWR hydration from query cache if already cached in session
+  // Instant 0ms SWR hydration from query cache if already cached in session.
+  // Also try localStorage backup for offline/error recovery.
   const [dashboardSummary, setDashboardSummary] = useState<any>(() => {
-    return queryCache.get<any>(`dashboard_summary_single-school_${todayStr}_all`) ?? null
+    const cached = queryCache.get<any>(`dashboard_summary_single-school_${todayStr}_all`)
+    if (cached) return cached
+    // Restore from localStorage backup on cold-start / offline
+    try {
+      const backup = typeof window !== 'undefined' ? localStorage.getItem('_dashboard_summary_backup') : null
+      if (backup) return JSON.parse(backup)
+    } catch { /* ignore */ }
+    return null
   })
   const [staffStats, setStaffStats] = useState<any>(() => {
     return queryCache.get<any>(`staff_attendance_stats_${todayStr}_daily`) ?? null
@@ -62,6 +70,21 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [isLoading, setIsLoading] = useState(!dashboardSummary && !staffStats)
   const [initialLoadDone, setInitialLoadDone] = useState(!!dashboardSummary?.totalTeachers || !!staffStats?.totalStaff)
   const [error, setError] = useState<string | null>(null)
+
+  /**
+   * dataLoadError: true when the most recent API fetch FAILED (network, timeout, offline).
+   * Distinct from `error` (which shows the retry banner).
+   * System alerts MUST NOT fire when dataLoadError === true — missing data != 0 data.
+   */
+  const [dataLoadError, setDataLoadError] = useState(false)
+
+  /**
+   * dataConfirmedByApi: true only after at least one successful API response has populated
+   * dashboardSummary. Prevents empty-state alerts from firing on initial load races.
+   */
+  const [dataConfirmedByApi, setDataConfirmedByApi] = useState(
+    !!(dashboardSummary?.totalTeachers !== undefined || dashboardSummary?.totalStudents !== undefined)
+  )
 
   // Secondary/fallback states
   const [students, setStudents] = useState<Student[]>([])
@@ -96,12 +119,22 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     window.addEventListener("disciplineDataChanged", handleDataChanged)
     window.addEventListener("staffAttendanceDataChanged", handleDataChanged)
 
+    // Network recovery: auto-refresh when the device comes back online.
+    // This also clears the dataLoadError so alerts don't erroneously appear.
+    const handleOnline = () => {
+      setDataLoadError(false)
+      setError(null)
+      loadDashboardData(true)
+    }
+    window.addEventListener("online", handleOnline)
+
     return () => {
       window.removeEventListener("studentDataChanged", handleDataChanged)
       window.removeEventListener("teacherDataChanged", handleDataChanged)
       window.removeEventListener("attendanceDataChanged", handleDataChanged)
       window.removeEventListener("disciplineDataChanged", handleDataChanged)
       window.removeEventListener("staffAttendanceDataChanged", handleDataChanged)
+      window.removeEventListener("online", handleOnline)
     }
   }, [])
 
@@ -122,10 +155,16 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         db.getStaffAttendanceStats(todayStr).catch(() => null),
       ])
 
-      if (summary) {
+      // Track whether the primary API delivered a confirmed response
+      const summaryOk = summary !== null && summary !== undefined
+      const statsOk = staffAttendanceStats !== null && staffAttendanceStats !== undefined
+
+      if (summaryOk) {
         setDashboardSummary(summary)
+        // Persist to localStorage so offline/error loads can restore last known data
+        try { localStorage.setItem('_dashboard_summary_backup', JSON.stringify(summary)) } catch { /* quota */ }
       }
-      if (staffAttendanceStats) {
+      if (statsOk) {
         setStaffStats(staffAttendanceStats)
         setMorningStaffStats(staffAttendanceStats?.sessionBreakdown?.morning ?? staffAttendanceStats)
         setAfternoonStaffStats(staffAttendanceStats?.sessionBreakdown?.afternoon ?? staffAttendanceStats)
@@ -133,18 +172,22 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
       // If backend didn't supply gradeDistribution or totalTeachers, await secondary fallback
       let fallbackPromise: Promise<any> = Promise.resolve()
+      let teachersFetched = false
+      let studentsFetched = false
+
       if (!summary?.gradeDistribution || summary?.totalTeachers === undefined) {
         fallbackPromise = Promise.all([
-          db.getStudents().catch(() => []),
+          db.getStudents().catch(() => null),
           db.getAttendanceByDate(todayStr).catch(() => []),
-          db.getTeachers().catch(() => []),
+          db.getTeachers().catch(() => null),
           db.getAttendanceEditRequests().catch(() => []),
           DisciplineApi.getIncidents({ limit: 10 }).catch(() => ({ items: [] })),
         ]).then(([st, att, tchs, reqs, disc]) => {
-          setStudents(st || [])
-          setTodayAttendance(att || [])
-          setTeachers(tchs || [])
-          setEditRequests(reqs || [])
+          // Only update state if the fetch actually returned data (not null = error)
+          if (st !== null) { setStudents(st || []); studentsFetched = true }
+          if (att) setTodayAttendance(att)
+          if (tchs !== null) { setTeachers(tchs || []); teachersFetched = true }
+          if (reqs) setEditRequests(reqs || [])
           if (disc && Array.isArray(disc.items)) {
             setIncidents(disc.items)
           } else if (disc && Array.isArray((disc as any).data)) {
@@ -169,11 +212,25 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       }
 
       await fallbackPromise
+
+      // Data is confirmed by API only if the primary endpoint or fallback teacher/student
+      // fetch returned a real response (not null from a catch)
+      const primaryConfirmed = summaryOk && summary?.totalTeachers !== undefined
+      const fallbackConfirmed = teachersFetched && studentsFetched
+      if (primaryConfirmed || fallbackConfirmed) {
+        setDataConfirmedByApi(true)
+        setDataLoadError(false)
+      }
+
       setInitialLoadDone(true)
       setIsLoading(false)
     } catch (err: any) {
       console.error("Error loading admin dashboard data:", err)
+      // On catastrophic failure: show retry banner but do NOT set dataLoadError if we
+      // already have cached data — preserve whatever last-known state we have.
       setError("Failed to load dashboard data. Click retry to refresh.")
+      setDataLoadError(true)
+      // Do NOT call setDataConfirmedByApi(false) — preserve prior confirmed state
       setInitialLoadDone(true)
       setIsLoading(false)
     }
@@ -189,9 +246,17 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }
 
   // Calculated Metrics
-  const totalStudents = dashboardSummary?.totalStudents ?? students.length
-  const totalTeachers = dashboardSummary?.totalTeachers ?? (teachers.length > 0 ? teachers.length : (typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : 0))
-  const totalStaff = typeof staffStats?.totalStaff === "number" ? staffStats.totalStaff : totalTeachers
+  // IMPORTANT: We use `undefined` (not 0) as the sentinel for "data not yet confirmed"
+  // so we can distinguish: loading | error | empty | has-data.
+  const totalStudents: number | undefined = dataConfirmedByApi || dashboardSummary?.totalStudents !== undefined
+    ? (dashboardSummary?.totalStudents ?? (dataConfirmedByApi ? students.length : undefined))
+    : undefined
+  const totalTeachers: number | undefined = dataConfirmedByApi || dashboardSummary?.totalTeachers !== undefined
+    ? (dashboardSummary?.totalTeachers ?? (dataConfirmedByApi ? teachers.length : undefined))
+    : undefined
+  const totalStaff: number | undefined = typeof staffStats?.totalStaff === "number"
+    ? staffStats.totalStaff
+    : totalTeachers
   const pendingRequestsCount = dashboardSummary?.pendingEditRequestsCount ?? editRequests.filter(r => r.status === "PENDING").length
   const openDisciplineCasesCount = dashboardSummary?.discipline?.openCases ?? incidents.filter(i => i.status === "OPEN" || i.status === "UNDER_REVIEW" || i.status === "INVESTIGATION" || i.status === "ACTION_REQUIRED").length
   const casesRequiringAttentionCount = dashboardSummary?.discipline?.criticalCases ?? incidents.filter(i => (i.severity === "HIGH" || i.severity === "CRITICAL") && (i.status === "OPEN" || i.status === "UNDER_REVIEW" || i.status === "INVESTIGATION" || i.status === "ACTION_REQUIRED")).length
@@ -251,6 +316,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   // School-wide attendance metrics filtered by session (Full Day / Morning / Afternoon)
   // Scope: ALL active students in the current academic year (totalStudents)
   const attendanceMetrics = useMemo(() => {
+    const safeTotalStudents = totalStudents ?? 0
+
     // Fast path: use pre-aggregated dashboardSummary directly if available
     if (dashboardSummary?.today) {
       if (sessionFilter === "morning" && dashboardSummary.sessionBreakdown?.morning) {
@@ -260,9 +327,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         const absent = m.absent || 0
         const excused = m.earlyDeparture ?? m.excused ?? 0
         const total = m.total ?? (present + late + absent + excused)
-        const notRecorded = Math.max(0, totalStudents - total)
-        const rate = totalStudents > 0 && total > 0
-          ? Math.round(((present + late) / totalStudents) * 100)
+        const notRecorded = Math.max(0, safeTotalStudents - total)
+        const rate = safeTotalStudents > 0 && total > 0
+          ? Math.round(((present + late) / safeTotalStudents) * 100)
           : 0
         return {
           presentCount: present,
@@ -281,9 +348,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         const absent = a.absent || 0
         const excused = a.earlyDeparture ?? a.excused ?? 0
         const total = a.total ?? (present + late + absent + excused)
-        const notRecorded = Math.max(0, totalStudents - total)
-        const rate = totalStudents > 0 && total > 0
-          ? Math.round(((present + late) / totalStudents) * 100)
+        const notRecorded = Math.max(0, safeTotalStudents - total)
+        const rate = safeTotalStudents > 0 && total > 0
+          ? Math.round(((present + late) / safeTotalStudents) * 100)
           : 0
         return {
           presentCount: present,
@@ -305,9 +372,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
       // Use pre-aggregated summary if it has records or if fallback attendance hasn't loaded
       if (total > 0 || todayAttendance.length === 0) {
-        const notRecorded = Math.max(0, totalStudents - total)
-        const rate = totalStudents > 0 && total > 0
-          ? Math.round(((present + late) / totalStudents) * 100)
+        const notRecorded = Math.max(0, safeTotalStudents - total)
+        const rate = safeTotalStudents > 0 && total > 0
+          ? Math.round(((present + late) / safeTotalStudents) * 100)
           : 0
         return {
           presentCount: present,
@@ -331,9 +398,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       const absent = records.filter(a => a.status?.toLowerCase() === "absent").length
       const excused = records.filter(a => a.status?.toLowerCase() === "excused" || a.status?.toLowerCase() === "early_departure").length
       const submitted = records.length
-      const notRecorded = Math.max(0, totalStudents - submitted)
-      const rate = totalStudents > 0 && submitted > 0
-        ? Math.round(((present + late) / totalStudents) * 100)
+      const notRecorded = Math.max(0, safeTotalStudents - submitted)
+      const rate = safeTotalStudents > 0 && submitted > 0
+        ? Math.round(((present + late) / safeTotalStudents) * 100)
         : 0
 
       return {
@@ -373,9 +440,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     })
 
     const submitted = present + late + absent + excused
-    const notRecorded = Math.max(0, totalStudents - submitted)
-    const rate = totalStudents > 0 && todayAttendance.length > 0
-      ? Math.round(((present + late) / totalStudents) * 100)
+    const notRecorded = Math.max(0, safeTotalStudents - submitted)
+    const rate = safeTotalStudents > 0 && todayAttendance.length > 0
+      ? Math.round(((present + late) / safeTotalStudents) * 100)
       : 0
 
     return {
@@ -492,8 +559,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const casesRequiringAttention = openDisciplineCases.filter(i => i.severity === "HIGH" || i.severity === "CRITICAL")
 
   // System Alerts logic
-  const systemAlerts = []
-  if (initialLoadDone && !isLoading && totalTeachers === 0) {
+  // CRITICAL: Only show "Incomplete Setup" alerts when ALL three conditions are true:
+  //   1. Load is fully complete (not mid-fetch)
+  //   2. Data was CONFIRMED by a successful API response (dataConfirmedByApi)
+  //   3. The last fetch did NOT produce a network/API error (dataLoadError === false)
+  // This prevents misleading warnings during slow networks, offline states, or API errors.
+  const systemAlerts: any[] = []
+  const canShowEmptyStateAlert = initialLoadDone && !isLoading && dataConfirmedByApi && !dataLoadError
+
+  if (canShowEmptyStateAlert && totalTeachers === 0) {
     systemAlerts.push({
       id: "no-teachers",
       title: "Incomplete Setup: No Teachers Registered",
@@ -503,7 +577,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       actionText: "Add Teachers",
     })
   }
-  if (initialLoadDone && !isLoading && totalStudents === 0) {
+  if (canShowEmptyStateAlert && totalStudents === 0) {
     systemAlerts.push({
       id: "no-students",
       title: "Incomplete Setup: No Students Enrolled",
@@ -644,7 +718,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         {[
           {
             label: "Total Students",
-            value: totalStudents,
+            value: totalStudents ?? (isLoading ? undefined : "-"),
             sub: `${sortedGrades.length} Grades`,
             icon: GraduationCap,
             iconBg: "bg-slate-100 dark:bg-slate-800",
@@ -654,7 +728,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           },
           {
             label: "Total Staff",
-            value: totalStaff,
+            value: totalStaff ?? (isLoading ? undefined : "-"),
             sub: "Registered",
             icon: Users,
             iconBg: "bg-slate-100 dark:bg-slate-800",
@@ -665,7 +739,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           {
             label: "Attendance Rate",
             value: `${attendanceRate}%`,
-            sub: `${presentCount + lateCount} of ${totalStudents} Present${sessionFilter !== "total" ? ` (${sessionFilter === "morning" ? "Morning" : "Afternoon"})` : ""}`,
+            sub: `${presentCount + lateCount} of ${totalStudents ?? "-"} Present${sessionFilter !== "total" ? ` (${sessionFilter === "morning" ? "Morning" : "Afternoon"})` : ""}`,
             icon: TrendingUp,
             iconBg: "bg-slate-100 dark:bg-slate-800",
             iconColor: "text-slate-600 dark:text-slate-400",
@@ -685,15 +759,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     ? afternoonActiveStaff
                     : (dailyActiveStaff || activeStaffCount)}
                 </span>
-                <span className="text-sm font-semibold text-muted-foreground">/{totalStaff}</span>
+                <span className="text-sm font-semibold text-muted-foreground">/{totalStaff ?? "-"}</span>
               </div>
             ),
             sub: !isStaffSessionMode
-              ? `${dailyActiveStaff} of ${totalStaff} clocked in`
+              ? `${dailyActiveStaff} of ${totalStaff ?? "-"} clocked in`
               : sessionFilter === "morning"
-              ? `Morning: ${morningActiveStaff} of ${totalStaff}`
+              ? `Morning: ${morningActiveStaff} of ${totalStaff ?? "-"}`
               : sessionFilter === "afternoon"
-              ? `Afternoon: ${afternoonActiveStaff} of ${totalStaff}`
+              ? `Afternoon: ${afternoonActiveStaff} of ${totalStaff ?? "-"}`
               : `Morn. ${morningActiveStaff} · Aft. ${afternoonActiveStaff}`,
             icon: UserCheck,
             iconBg: "bg-slate-100 dark:bg-slate-800",
@@ -861,7 +935,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               )}
             </div>
             {/* School-wide coverage pill */}
-            {!isLoading && totalStudents > 0 && (
+            {!isLoading && (totalStudents ?? 0) > 0 && (
               <p className="text-[11px] font-semibold text-muted-foreground mt-0.5">
                 <span className={cn(
                   "font-bold",
@@ -879,7 +953,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           <CardContent>
             {isLoading ? (
               <div className="h-[220px] w-full mt-4 bg-slate-100 dark:bg-slate-800/20 animate-pulse rounded-2xl" />
-            ) : totalStudents > 0 ? (
+            ) : (totalStudents ?? 0) > 0 ? (
               <div className="h-[250px] w-full mt-3 p-2 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-700">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -901,12 +975,19 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       itemStyle={{ color: "var(--foreground)", fontWeight: "bold" }}
                       labelStyle={{ color: "var(--muted-foreground)" }}
                       formatter={(value: number, name: string) => [
-                        `${value} student${value !== 1 ? "s" : ""} (${totalStudents > 0 ? Math.round((value / totalStudents) * 100) : 0}%)`,
+                        `${value} student${value !== 1 ? "s" : ""} (${(totalStudents ?? 0) > 0 ? Math.round((value / totalStudents!) * 100) : 0}%)`,
                         name
                       ]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+            ) : dataLoadError ? (
+              <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground gap-3">
+                <div className="p-4 bg-muted rounded-full">
+                  <AlertTriangle className="w-8 h-8 opacity-40 text-amber-500" />
+                </div>
+                <p className="typography-label">Unable to load attendance data</p>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground gap-3">
