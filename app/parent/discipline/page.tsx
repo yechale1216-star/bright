@@ -338,7 +338,13 @@ export default function ParentDisciplinePage() {
 
   // Derived counts
   const totalReports = incidents.length;
-  const needsAckReports = useMemo(() => incidents.filter(i => !i.parentAcknowledged).length, [incidents]);
+  // Needs-acknowledgment: only active incidents the parent hasn't confirmed yet.
+  // Closed/Resolved cases are excluded — a parent doesn't need to acknowledge history.
+  const ACTIVE_STATUSES = ['OPEN', 'UNDER_REVIEW', 'ACTION_REQUIRED', 'INVESTIGATION'];
+  const needsAckReports = useMemo(
+    () => incidents.filter(i => !i.parentAcknowledged && ACTIVE_STATUSES.includes(i.status)).length,
+    [incidents]
+  );
   const openReports = useMemo(() => incidents.filter(i => i.status === 'OPEN' || i.status === 'UNDER_REVIEW' || i.status === 'ACTION_REQUIRED' || i.status === 'INVESTIGATION').length, [incidents]);
   const resolvedReports = useMemo(() => incidents.filter(i => i.status === 'RESOLVED' || i.status === 'CLOSED').length, [incidents]);
 
@@ -346,7 +352,7 @@ export default function ParentDisciplinePage() {
   const filteredIncidents = useMemo(() => {
     return incidents.filter((inc) => {
       // Tab filter
-      if (activeTab === 'NEEDS_ACK' && inc.parentAcknowledged) return false;
+      if (activeTab === 'NEEDS_ACK' && (inc.parentAcknowledged || !ACTIVE_STATUSES.includes(inc.status))) return false;
       if (activeTab === 'ACTIVE' && !(inc.status === 'OPEN' || inc.status === 'UNDER_REVIEW' || inc.status === 'ACTION_REQUIRED' || inc.status === 'INVESTIGATION')) return false;
       if (activeTab === 'RESOLVED' && !(inc.status === 'RESOLVED' || inc.status === 'CLOSED')) return false;
 
@@ -477,37 +483,6 @@ export default function ParentDisciplinePage() {
         ))}
       </div>
 
-      {/* ── High-Priority Android Action Card: Needs Acknowledgment Banner ── */}
-      {needsAckReports > 0 && (
-        <div
-          role="button"
-          onClick={() => setActiveTab('NEEDS_ACK')}
-          className={cn(
-            'rounded-2xl border p-3 sm:p-3.5 flex items-center justify-between gap-3 cursor-pointer active:scale-[0.98] transition-all shadow-xs',
-            activeTab === 'NEEDS_ACK'
-              ? 'bg-amber-500/15 border-amber-500/40 ring-1 ring-amber-500/30'
-              : 'bg-amber-500/10 dark:bg-amber-500/[0.08] border-amber-500/25 hover:border-amber-500/40'
-          )}
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-semibold text-amber-900 dark:text-amber-200 truncate">
-                {needsAckReports === 1 ? '1 Report Requires Acknowledgment' : `${needsAckReports} Reports Require Acknowledgment`}
-              </p>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 font-medium truncate">
-                {t('acknowledge_modal_desc')}
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-lg bg-amber-500/20">
-            {t('view_details')}
-            <ChevronRight className="w-3.5 h-3.5" />
-          </span>
-        </div>
-      )}
 
       {/* ── Search & Clean Filter Pills ── */}
       <div className="space-y-2.5 w-full max-w-full min-w-0">
@@ -630,7 +605,7 @@ export default function ParentDisciplinePage() {
               {filteredIncidents.map((inc, idx) => {
                 const sevCfg = getSeverityConfig(inc.severity);
                 const staCfg = getStatusConfig(inc.status);
-                const needsAck = !inc.parentAcknowledged;
+                const needsAck = !inc.parentAcknowledged && ACTIVE_STATUSES.includes(inc.status);
 
                 return (
                   <div
@@ -906,7 +881,7 @@ export default function ParentDisciplinePage() {
                   <span>{t('message_homeroom_teacher')}</span>
                 </Button>
 
-                {!selectedIncident.parentAcknowledged && (
+                {!selectedIncident.parentAcknowledged && ACTIVE_STATUSES.includes(selectedIncident.status) && (
                   <Button
                     onClick={() => {
                       setIsDetailOpen(false);
