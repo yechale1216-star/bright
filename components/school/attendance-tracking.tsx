@@ -1337,42 +1337,6 @@ export function AttendanceTracking() {
 
         {isTeacher && settings?.allowAttendanceEditing === false && (
           <>
-            {/* 1. Request is PENDING: Waiting Response */}
-            {currentRequest?.status === "PENDING" && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 gap-3 shadow-sm animate-in fade-in duration-300">
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
-                    <Clock className="h-5 w-5 animate-spin text-amber-600" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold">Waiting Response</p>
-                      <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border-amber-300 text-[10px] font-bold uppercase animate-pulse">
-                        Admin Approval Pending
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-amber-800/90 dark:text-amber-300/90">
-                      Your attendance edit request for <strong>{selectedDate}</strong> {settings?.attendanceMode === "session_based" ? `(${selectedSession === "morning" ? "Morning Session" : "Afternoon Session"})` : "(Daily Mode)"} has been submitted. Waiting for School Admin response...
-                    </p>
-                    {currentRequest.reason && (
-                      <p className="text-xs italic bg-white/60 dark:bg-black/30 p-2 rounded-lg border border-amber-500/20 text-slate-700 dark:text-slate-300 mt-1">
-                        <span className="font-semibold not-italic">Submitted Reason:</span> "{currentRequest.reason}"
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => fetchEditRequests()}
-                    className="bg-white/80 dark:bg-slate-900/80 border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 rounded-xl font-bold uppercase text-[10px] tracking-wider px-3 h-8"
-                  >
-                    Check Status
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* 2. Request is APPROVED (and not yet used) */}
             {currentRequest?.status === "APPROVED" && !currentRequest.isUsed && (
@@ -2285,12 +2249,6 @@ export function AttendanceTracking() {
                         )}
                       </p>
                       {req.reason && <p className="text-xs text-slate-700 dark:text-slate-300 italic">Submitted reason: "{req.reason}"</p>}
-                      {req.status === "PENDING" && (
-                        <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium pt-0.5">
-                          <Clock className="w-3.5 h-3.5 animate-spin" />
-                          <span>Waiting response from School Admin...</span>
-                        </div>
-                      )}
                       {req.adminNote && (
                         <div className={cn(
                           "mt-2 text-xs p-2.5 rounded-xl border flex flex-col gap-0.5",

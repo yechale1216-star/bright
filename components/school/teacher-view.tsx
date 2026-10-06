@@ -6,17 +6,16 @@ import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { 
   BookOpen, Users, ChevronRight, Hash, Phone, Mail, User as UserIcon,
-  Calendar, MapPin, Contact, AlertTriangle, Activity
+  Calendar, MapPin, Contact, AlertTriangle
 } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { db, type Student, type AttendanceRecord } from "@/lib/db/database"
+import { db, type Student } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { cn } from "@/lib/utils/utils"
 import { DisciplineApi, type StudentDiscipline } from "@/lib/discipline-service"
 import { useCalendar } from "@/lib/context/calendar-context"
-import { useGreeting } from "@/lib/utils/greeting-utils"
 
 interface TeacherAssignment {
   id: string
@@ -36,7 +35,6 @@ export function TeacherView() {
   const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedStudentProfile, setSelectedStudentProfile] = useState<Student | null>(null)
-  const [studentAttendanceHistory, setStudentAttendanceHistory] = useState<AttendanceRecord[]>([])
   const [studentIncidents, setStudentIncidents] = useState<StudentDiscipline[]>([])
   const [isLoadingProfileDetails, setIsLoadingProfileDetails] = useState(false)
   const { toast } = useToast()
@@ -48,34 +46,20 @@ export function TeacherView() {
   useEffect(() => {
     if (selectedStudentProfile?.id) {
       setIsLoadingProfileDetails(true)
-      Promise.all([
-        db.getAttendanceByStudent(selectedStudentProfile.id),
-        DisciplineApi.getIncidents({ studentId: selectedStudentProfile.id, limit: 10 }).catch(() => ({ items: [] }))
-      ]).then(([records, incidentRes]) => {
-        setStudentAttendanceHistory(records || [])
-        setStudentIncidents(incidentRes?.items || [])
-      }).catch((err) => {
-        console.error("Error loading student profile details:", err)
-      }).finally(() => {
-        setIsLoadingProfileDetails(false)
-      })
+      DisciplineApi.getIncidents({ studentId: selectedStudentProfile.id, limit: 10 })
+        .then((incidentRes) => {
+          setStudentIncidents(incidentRes?.items || [])
+        })
+        .catch((err) => {
+          console.error("Error loading student profile details:", err)
+        })
+        .finally(() => {
+          setIsLoadingProfileDetails(false)
+        })
     } else {
-      setStudentAttendanceHistory([])
       setStudentIncidents([])
     }
   }, [selectedStudentProfile?.id])
-
-  const profileAttendanceStats = useMemo(() => {
-    if (!studentAttendanceHistory.length) {
-      return { total: 0, present: 0, absent: 0, late: 0, rate: 0 }
-    }
-    const total = studentAttendanceHistory.length
-    const present = studentAttendanceHistory.filter(r => r.status?.toLowerCase() === 'present').length
-    const late = studentAttendanceHistory.filter(r => r.status?.toLowerCase() === 'late').length
-    const absent = studentAttendanceHistory.filter(r => r.status?.toLowerCase() === 'absent').length
-    const rate = Math.round(((present + late) / total) * 100)
-    return { total, present, absent, late, rate }
-  }, [studentAttendanceHistory])
 
   const loadAssignmentsAndStudents = async () => {
     setIsLoading(true)
@@ -183,10 +167,6 @@ export function TeacherView() {
     }
   }
 
-  const greeting = useGreeting('teacher')
-
-  const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem("attendance_current_user") || "{}") : {}
-  const firstName = currentUser?.name?.split(' ')[0] || currentUser?.full_name?.split(' ')[0] || "Teacher"
 
   const displayedStudents = useMemo(() => {
     if (!selectedAssignment) return []
@@ -242,11 +222,10 @@ export function TeacherView() {
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="px-1 md:px-0 pt-safe">
-        <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">{greeting}</p>
-        <h2 className="text-xl md:text-4xl font-black text-foreground uppercase tracking-tight leading-none whitespace-nowrap overflow-hidden text-ellipsis">
-          Hello, <span className="text-primary">{firstName}</span>
+        <h2 className="text-xl md:text-3xl font-black text-foreground uppercase tracking-tight leading-none">
+          My Classes
         </h2>
-        <p className="text-sm font-bold text-muted-foreground/60 mt-2">Manage your classes & attendance</p>
+        <p className="text-sm font-bold text-muted-foreground/60 mt-2">Manage your classes & students</p>
       </div>
 
       {assignments.length === 0 ? (
@@ -516,8 +495,7 @@ export function TeacherView() {
                     {selectedStudentProfile.parent_phone && (
                       <Button
                         asChild
-                        variant="default"
-                        className="rounded-2xl gap-2 font-bold shadow-md hover:shadow-lg transition-all"
+                        className="rounded-2xl gap-2 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all"
                       >
                         <a href={`tel:${selectedStudentProfile.parent_phone}`}>
                           <Phone className="w-4 h-4" /> Call Parent ({selectedStudentProfile.parent_phone})
@@ -537,35 +515,6 @@ export function TeacherView() {
                     )}
                   </div>
                 )}
-
-                {/* Attendance Performance */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-primary" /> Attendance Summary
-                    </h4>
-                    <span className="text-xs font-black text-primary">{profileAttendanceStats.rate}% Present Rate</span>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-center border border-slate-100 dark:border-slate-800">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Days</p>
-                      <p className="text-lg font-black text-foreground">{profileAttendanceStats.total}</p>
-                    </div>
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl text-center border border-emerald-100 dark:border-emerald-900/30">
-                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Present</p>
-                      <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{profileAttendanceStats.present}</p>
-                    </div>
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-2xl text-center border border-amber-100 dark:border-amber-900/30">
-                      <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">Late</p>
-                      <p className="text-lg font-black text-amber-600 dark:text-amber-400">{profileAttendanceStats.late}</p>
-                    </div>
-                    <div className="p-3 bg-rose-50 dark:bg-rose-950/20 rounded-2xl text-center border border-rose-100 dark:border-rose-900/30">
-                      <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase">Absent</p>
-                      <p className="text-lg font-black text-rose-600 dark:text-rose-400">{profileAttendanceStats.absent}</p>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Info Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

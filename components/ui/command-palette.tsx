@@ -210,13 +210,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         { title: "My Assigned Classes", subtitle: "Class rosters, sections, and students", href: "/school/teacher/classes", icon: BookOpen, keywords: ["courses", "students", "sections"] },
         { title: "Attendance Reports", subtitle: "Monthly class attendance statistics", href: "/school/teacher/reports", icon: BarChart2, keywords: ["analytics", "export", "stats"] },
         { title: "Communication", subtitle: "Chat with parents, administration, and colleagues", href: "/school/teacher/communication", icon: MessageSquare, keywords: ["chat", "messages"] },
-        { title: "Discipline Incidents", subtitle: "Report and track student disciplinary cases", href: "/school/teacher/discipline", icon: ShieldAlert, keywords: ["conduct", "report case", "incident"] },
         { title: "Teacher Profile", subtitle: "View your faculty profile and credentials", href: "/school/teacher/profile", icon: User, keywords: ["account", "personal"] },
       ],
       quickActions: [
         { title: "Record Class Attendance", subtitle: "Mark student attendance today", href: "/school/teacher/attendance", icon: CheckSquare },
         { title: "Clock In (Staff Attendance)", subtitle: "Check in your attendance for today", href: "/school/teacher/staff-attendance", icon: UserCheck },
-        { title: "Report Discipline Case", subtitle: "Log a student disciplinary issue", href: "/school/teacher/discipline", icon: ShieldAlert },
         { title: "Send Message to Parents", subtitle: "Communicate with class families", href: "/school/teacher/communication", icon: MessageSquare },
       ]
     },
@@ -403,9 +401,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                           )}
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono font-medium text-slate-400/80 dark:text-slate-600 shrink-0">
-                        {item.href.replace('/school', '')}
-                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </Command.Item>
                   )
                 })}
