@@ -71,10 +71,8 @@ function SchoolLoginContent() {
       if (result.success && result.user) {
         const role = (result.user.role || "").toLowerCase();
         // SECURITY: Block non-staff from School Portal
-        if (!SCHOOL_STAFF_ROLES.includes(role)) {
-          setLoginError(
-            "Access denied. This portal is for school staff only. Please use the Student & Parent Portal instead."
-          );
+        if (!SCHOOL_STAFF_ROLES.includes(role as any)) {
+          setLoginError("Invalid credentials.");
           authStorage.clearSession().catch(() => {});
           return;
         }
