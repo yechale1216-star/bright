@@ -183,7 +183,7 @@ export function sanitizeStaffSessions(rawSessions: any): FixedStaffSession[] {
 }
 
 const DEFAULT_SETTINGS = {
-  school_name: 'Addis Hiwot School',
+  school_name: 'Bright Path',
   school_phone: '',
   school_address: '',
   academic_year: '2017/2018 E.C.',
@@ -207,6 +207,7 @@ const DEFAULT_SETTINGS = {
   email_from_domain: 'smartattenadacetracker.app',
   // Staff Attendance Mode & Session Configuration
   staff_attendance_mode: 'daily',
+  attendanceModeSetting: 'DAILY',
   staff_sessions: DEFAULT_FIXED_STAFF_SESSIONS as any,
   // Staff Working Hours & Calendar Defaults
   staff_working_days: 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY',
@@ -247,6 +248,7 @@ const ALLOWED_SETTINGS_FIELDS = new Set([
   'email_api_key',
   'email_from_domain',
   'staff_attendance_mode',
+  'attendanceModeSetting',
   'staff_sessions',
   'staff_working_days',
   'staff_work_start_time',
@@ -306,6 +308,18 @@ export const getSettings = async (_schoolId?: string) => {
     settings.academic_year = activeAY.name;
   }
 
+  // Ensure attendanceModeSetting is set and synced
+  if (!settings.attendanceModeSetting) {
+    const raw = String(settings.staff_attendance_mode || 'daily').toLowerCase();
+    if (raw === 'session_based' || raw === 'session') {
+      settings.attendanceModeSetting = 'SESSION';
+    } else if (raw === 'both') {
+      settings.attendanceModeSetting = 'BOTH';
+    } else {
+      settings.attendanceModeSetting = 'DAILY';
+    }
+  }
+
   return settings;
 };
 
@@ -336,7 +350,22 @@ export const updateSettings = async (_schoolId?: string, data?: any) => {
   if (rawData.emailFromDomain !== undefined && rawData.email_from_domain === undefined) rawData.email_from_domain = rawData.emailFromDomain;
   if (rawData.calendarType !== undefined && rawData.calendar_type === undefined) rawData.calendar_type = rawData.calendarType;
   if (rawData.calendarPreference !== undefined && rawData.calendar_type === undefined) rawData.calendar_type = rawData.calendarPreference;
-  if (rawData.staffAttendanceMode !== undefined && rawData.staff_attendance_mode === undefined) rawData.staff_attendance_mode = rawData.staffAttendanceMode;
+
+  // Synchronize attendanceModeSetting and staff_attendance_mode
+  const rawStaffMode = rawData.attendanceModeSetting ?? rawData.attendance_mode_setting ?? rawData.staffAttendanceMode ?? rawData.staff_attendance_mode;
+  if (rawStaffMode !== undefined) {
+    const upper = String(rawStaffMode).trim().toUpperCase();
+    if (upper === 'SESSION' || upper === 'SESSION_BASED') {
+      rawData.attendanceModeSetting = 'SESSION';
+      rawData.staff_attendance_mode = 'session_based';
+    } else if (upper === 'BOTH') {
+      rawData.attendanceModeSetting = 'BOTH';
+      rawData.staff_attendance_mode = 'both';
+    } else {
+      rawData.attendanceModeSetting = 'DAILY';
+      rawData.staff_attendance_mode = 'daily';
+    }
+  }
   if (rawData.staffSessions !== undefined && rawData.staff_sessions === undefined) rawData.staff_sessions = rawData.staffSessions;
   if (rawData.staffWorkingDays !== undefined && rawData.staff_working_days === undefined) rawData.staff_working_days = rawData.staffWorkingDays;
   if (rawData.staffWorkStartTime !== undefined && rawData.staff_work_start_time === undefined) rawData.staff_work_start_time = rawData.staffWorkStartTime;

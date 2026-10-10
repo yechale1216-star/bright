@@ -23,6 +23,7 @@ const getUserByEmail = async (email) => {
             phone: true,
             teacher_id: true,
             pushToken: true,
+            attendanceMode: true,
         }
     });
 };
@@ -52,6 +53,7 @@ const getUserById = async (id, _schoolId) => {
             address: true,
             lastActive: true,
             pushToken: true,
+            attendanceMode: true,
         }
     });
 };
@@ -69,6 +71,7 @@ const getUsers = async (_schoolId) => {
             phone: true,
             is_active: true,
             teacher_id: true,
+            attendanceMode: true,
             createdAt: true,
             updatedAt: true,
             experience_years: true,
@@ -189,6 +192,7 @@ const createUser = async (data) => {
             phone: data.phone || null,
             is_active: data.is_active !== false,
             teacher_id: teacherId,
+            attendanceMode: (data.attendanceMode || data.attendance_mode || 'DAILY').toString().trim().toUpperCase() === 'SESSION' ? 'SESSION' : 'DAILY',
             subject: data.subject || null,
             qualification: data.qualification || null,
             experience_years: data.experience_years !== undefined && data.experience_years !== null ? Number(data.experience_years) : null,
@@ -261,6 +265,10 @@ const updateUser = async (id, data, _schoolId) => {
         updateData.experience_years = data.experience_years !== null ? Number(data.experience_years) : null;
     if (data.profile_photo !== undefined)
         updateData.profile_photo = data.profile_photo;
+    if (data.attendanceMode !== undefined || data.attendance_mode !== undefined) {
+        const rawMode = String(data.attendanceMode ?? data.attendance_mode).trim().toUpperCase();
+        updateData.attendanceMode = rawMode === 'SESSION' ? 'SESSION' : 'DAILY';
+    }
     const user = await db_1.default.user.update({
         where: { id: targetUserId },
         data: updateData

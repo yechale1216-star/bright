@@ -15,7 +15,15 @@ async function start() {
   // 1. Connect Redis (gracefully falls back if unavailable — socket still works on single instance)
   await connectRedis();
 
-  // 2. Initialize Socket.IO (with Redis adapter already attached inside initSocket)
+  // 2. Seed default system roles if needed
+  try {
+    const { seedDefaultRoles } = await import('./services/roles.service');
+    await seedDefaultRoles();
+  } catch (err) {
+    console.warn('[Startup] Warning seeding default roles:', err);
+  }
+
+  // 3. Initialize Socket.IO (with Redis adapter already attached inside initSocket)
   initSocket(httpServer);
 
   // 3. Start HTTP server

@@ -266,6 +266,7 @@ class Database extends BaseDatabase {
       email_api_key: settingsData.emailApiKey ?? settingsData.email_api_key,
       email_from_domain: settingsData.emailFromDomain ?? settingsData.email_from_domain,
       staff_attendance_mode: settingsData.staffAttendanceMode ?? settingsData.staff_attendance_mode,
+      attendanceModeSetting: settingsData.attendanceModeSetting ?? settingsData.attendance_mode_setting,
       staff_sessions: settingsData.staffSessions !== undefined ? settingsData.staffSessions : settingsData.staff_sessions,
       staff_working_days: settingsData.staffWorkingDays ?? settingsData.staff_working_days,
       staff_work_start_time: settingsData.staffWorkStartTime ?? settingsData.staff_work_start_time,
@@ -300,7 +301,7 @@ class Database extends BaseDatabase {
     const calendarPreference = calendarTypeUpper.includes("GREGORIAN") ? "gregorian" : "ethiopian"
 
     const updatedMapped = {
-      schoolName: s.school_name || settingsData.schoolName || "Addis Hiwot School",
+      schoolName: s.school_name || settingsData.schoolName || "Bright Path",
       schoolPhone: s.school_phone || settingsData.schoolPhone || "",
       schoolAddress: s.school_address || settingsData.schoolAddress || "",
       academicYear: s.academic_year || settingsData.academicYear || "2017/2018 E.C.",
@@ -327,7 +328,13 @@ class Database extends BaseDatabase {
       email_api_key: s.email_api_key ?? settingsData.emailApiKey ?? "",
       emailFromDomain: s.email_from_domain || settingsData.emailFromDomain || "smartattenadacetracker.app",
       email_from_domain: s.email_from_domain || settingsData.emailFromDomain || "smartattenadacetracker.app",
-      staffAttendanceMode: (s.staff_attendance_mode || settingsData.staffAttendanceMode || "daily") as "daily" | "session_based",
+      staffAttendanceMode: (s.staff_attendance_mode || settingsData.staffAttendanceMode || "daily") as "daily" | "session_based" | "both",
+      attendanceModeSetting: s.attendanceModeSetting || settingsData.attendanceModeSetting || ((): string => {
+        const raw = String(s.staff_attendance_mode || settingsData.staffAttendanceMode || "daily").toUpperCase();
+        if (raw === "SESSION_BASED" || raw === "SESSION") return "SESSION";
+        if (raw === "BOTH") return "BOTH";
+        return "DAILY";
+      })(),
       staffSessions: (s.staff_sessions !== undefined ? s.staff_sessions : settingsData.staffSessions) ?? null,
       staffWorkingDays: s.staff_working_days || settingsData.staffWorkingDays || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
       staffWorkStartTime: s.staff_work_start_time || settingsData.staffWorkStartTime || "08:00",
@@ -510,8 +517,8 @@ class Database extends BaseDatabase {
   async assignTeacherToClass(
     teacherId: string, classId: string, subject?: string,
     grade?: string, section?: string, stream?: string,
+    role?: string, subjectId?: string, academicYearId?: string,
   ): Promise<TeacherAssignment | null> {
-    const schoolId = this.getSchoolId() || "single-school"
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/assignments`,
       {
@@ -521,8 +528,11 @@ class Database extends BaseDatabase {
           teacher_id: teacherId, 
           gradeId: grade, 
           sectionId: section, 
-          streamId: stream,
-          subject 
+          streamId: stream || null,
+          subject: subject || null,
+          subjectId: subjectId || null,
+          academicYearId: academicYearId || null,
+          role: role || 'SUBJECT_TEACHER',
         }),
       }
     )
@@ -534,7 +544,6 @@ class Database extends BaseDatabase {
   }
 
   async removeTeacherAssignment(assignmentId: string): Promise<void> {
-    const schoolId = this.getSchoolId()
     await apiFetch(
       `${API_URL}/api/assignments/${assignmentId}`,
       {
@@ -549,7 +558,6 @@ class Database extends BaseDatabase {
   }
 
   async updateTeacherAssignment(assignmentId: string, data: any): Promise<void> {
-    const schoolId = this.getSchoolId()
     await apiFetch(
       `${API_URL}/api/assignments/${assignmentId}`,
       {
@@ -560,7 +568,10 @@ class Database extends BaseDatabase {
           gradeId: data.gradeId, 
           sectionId: data.sectionId, 
           streamId: data.streamId || null,
-          subject: data.subject || null 
+          subject: data.subject || null,
+          subjectId: data.subjectId || null,
+          academicYearId: data.academicYearId || null,
+          role: data.role || 'SUBJECT_TEACHER',
         }),
       }
     )
@@ -568,6 +579,27 @@ class Database extends BaseDatabase {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('teacherDataChanged'))
     }
+  }
+
+  async getTeacherPortalClasses(): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/assignments/teacher-portal/classes`,
+      { headers: this.getApiHeaders(), cache: 'no-store' }
+    )
+    return result.data
+  }
+
+  async getTeacherPortalClassDetails(params: { gradeId: string; sectionId: string; subjectId?: string; academicYearId?: string }): Promise<any> {
+    const query = new URLSearchParams()
+    query.append('gradeId', params.gradeId)
+    query.append('sectionId', params.sectionId)
+    if (params.subjectId) query.append('subjectId', params.subjectId)
+    if (params.academicYearId) query.append('academicYearId', params.academicYearId)
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/assignments/teacher-portal/class-details?${query.toString()}`,
+      { headers: this.getApiHeaders(), cache: 'no-store' }
+    )
+    return result.data
   }
 
   // ─── ACADEMIC ENTITIES ────────────────────────────────────────────────────
@@ -586,6 +618,43 @@ class Database extends BaseDatabase {
     )
   }
 
+  async createGrade(data: { name: string; level?: number; color?: string }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/grades`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^grades_/)
+    return result.data
+  }
+
+  async updateGrade(id: string, data: { name?: string; level?: number; color?: string }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/grades/${id}`,
+      {
+        method: "PUT",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^grades_/)
+    return result.data
+  }
+
+  async deleteGrade(id: string): Promise<void> {
+    await apiFetch(
+      `${API_URL}/api/schools/me/grades/${id}`,
+      {
+        method: "DELETE",
+        headers: this.getApiHeaders(),
+      }
+    )
+    queryCache.invalidate(/^grades_/)
+  }
+
   async getSections(): Promise<any[]> {
     const schoolId = this.getSchoolId() || "default"
     return queryCache.fetch(
@@ -601,6 +670,43 @@ class Database extends BaseDatabase {
     )
   }
 
+  async createSection(data: { name: string }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/sections`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^sections_/)
+    return result.data
+  }
+
+  async updateSection(id: string, data: { name?: string }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/sections/${id}`,
+      {
+        method: "PUT",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^sections_/)
+    return result.data
+  }
+
+  async deleteSection(id: string): Promise<void> {
+    await apiFetch(
+      `${API_URL}/api/schools/me/sections/${id}`,
+      {
+        method: "DELETE",
+        headers: this.getApiHeaders(),
+      }
+    )
+    queryCache.invalidate(/^sections_/)
+  }
+
   async getStreams(): Promise<any[]> {
     const schoolId = this.getSchoolId() || "default"
     return queryCache.fetch(
@@ -613,6 +719,155 @@ class Database extends BaseDatabase {
         return result.data
       },
       { staleTime: 300_000, persist: true }
+    )
+  }
+
+  async createStream(data: { name: string }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/streams`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^streams_/)
+    return result.data
+  }
+
+  async updateStream(id: string, data: { name?: string }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/streams/${id}`,
+      {
+        method: "PUT",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^streams_/)
+    return result.data
+  }
+
+  async deleteStream(id: string): Promise<void> {
+    await apiFetch(
+      `${API_URL}/api/schools/me/streams/${id}`,
+      {
+        method: "DELETE",
+        headers: this.getApiHeaders(),
+      }
+    )
+    queryCache.invalidate(/^streams_/)
+  }
+
+  async getSubjects(): Promise<any[]> {
+    const schoolId = this.getSchoolId() || "default"
+    return queryCache.fetch(
+      `subjects_${schoolId}`,
+      async () => {
+        const result = await apiFetch<{ success: boolean; data: any[] }>(
+          `${API_URL}/api/schools/me/subjects`,
+          { headers: this.getApiHeaders() }
+        )
+        return result.data
+      },
+      { staleTime: 300_000, persist: true }
+    )
+  }
+
+  async createSubject(data: {
+    name: string;
+    code: string;
+    department?: string;
+    color?: string;
+    description?: string;
+    isActive?: boolean;
+  }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/subjects`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^subjects_/)
+    return result.data
+  }
+
+  async updateSubject(
+    id: string,
+    data: {
+      name?: string;
+      code?: string;
+      department?: string;
+      color?: string;
+      description?: string;
+      isActive?: boolean;
+    }
+  ): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/subjects/${id}`,
+      {
+        method: "PUT",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^subjects_/)
+    return result.data
+  }
+
+  async deleteSubject(id: string): Promise<void> {
+    await apiFetch(
+      `${API_URL}/api/schools/me/subjects/${id}`,
+      {
+        method: "DELETE",
+        headers: this.getApiHeaders(),
+      }
+    )
+    queryCache.invalidate(/^subjects_/)
+  }
+
+  // ─── Academic Terms ───
+  async getTerms(yearId: string): Promise<any[]> {
+    const result = await apiFetch<{ success: boolean; data: any[] }>(
+      `${API_URL}/api/academic-years/${yearId}/terms`,
+      { headers: this.getApiHeaders(), cache: 'no-store' }
+    )
+    return result.data || []
+  }
+
+  async createTerm(yearId: string, data: { name: string; startDate: string; endDate: string; isCurrent?: boolean }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/academic-years/${yearId}/terms`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    return result.data
+  }
+
+  async updateTerm(id: string, data: { name?: string; startDate?: string; endDate?: string; isCurrent?: boolean }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/academic-years/terms/${id}`,
+      {
+        method: "PUT",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    return result.data
+  }
+
+  async deleteTerm(id: string): Promise<void> {
+    await apiFetch(
+      `${API_URL}/api/academic-years/terms/${id}`,
+      {
+        method: "DELETE",
+        headers: this.getApiHeaders(),
+      }
     )
   }
 
@@ -1096,8 +1351,8 @@ class Database extends BaseDatabase {
     ).catch(() => ({ success: true, data: [] }))
     return result.data || []
   }
+
 }
 
 export const db = new Database()
 export const database = db
-

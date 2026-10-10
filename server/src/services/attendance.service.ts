@@ -598,7 +598,7 @@ export const sendAttendanceParentNotification = async (
 
     const { sendCategoryNotification } = require('./notification.service');
     const settings = await prisma.schoolSettings.findFirst();
-    const schoolName = settings?.school_name || 'Addis Hiwot School';
+    const schoolName = settings?.school_name || 'Bright Path';
     const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
 
     for (const link of parentLinks) {
@@ -934,7 +934,7 @@ export const sendAdminAttendanceNotification = async (params: {
 
     if (!adminUsers || adminUsers.length === 0) return;
 
-    const schoolName  = settings?.school_name || 'Addis Hiwot School';
+    const schoolName  = settings?.school_name || 'Bright Path';
     const teacherName = teacher?.name || 'A teacher';
     const sessionLabel = session ? ` (${session})` : '';
 

@@ -39,7 +39,7 @@ export default function ResetPasswordPageContent() {
         <ResetPasswordForm token={token} onResetSuccess={() => router.push("/login")} />
         <div className="mt-8 text-center flex flex-col items-center gap-2.5">
           <div className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-[0.2em]">
-            &copy; {new Date().getFullYear()} Addis Hiwot &bull; Management Suite
+            &copy; {new Date().getFullYear()} Bright Path &bull; Management Suite
           </div>
           <DeveloperBrand type="developed" />
         </div>

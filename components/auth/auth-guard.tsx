@@ -24,7 +24,12 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
   const getDashboardForRole = (role: string): string => {
     if (role === "teacher") return "/school/teacher"
     if (role === "parent") return "/parent/dashboard"
+    if (role === "student") return "/student"
     if (role === "admin" || role === "school_admin" || role === "super_admin") return "/school/admin"
+    if (role === "academic_head") return "/school/academic-head"
+    if (role === "librarian") return "/school/library"
+    if (role === "transport_manager") return "/school/transport"
+    if (role === "staff_attendance_officer" || role === "hr_officer") return "/school/staff-hr"
     if (role === "registrar") return "/school/registrar"
     if (role === "discipline_officer") return "/school/discipline-officer"
     if (role) return "/school/staff"
@@ -37,6 +42,11 @@ export function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
     if (!sessionReady) return
 
     if (!user) {
+      if (pathname.startsWith("/student")) {
+        console.log(`[AuthGuard] No student user — redirecting to /student/login from ${pathname}`)
+        router.replace("/student/login")
+        return
+      }
       console.log(`[AuthGuard] No user — redirecting to /login from ${pathname}`)
       router.replace("/login")
       return

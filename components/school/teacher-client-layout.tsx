@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, LogOut, User, CheckSquare, BarChart2, BookOpen, 
-  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck
+  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, BookMarked
 } from 'lucide-react'
 import { useAuth } from '@/lib/context/auth-context'
 import { useSchool } from '@/lib/context/school-context'
@@ -70,6 +70,9 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
 
   const navItems = [
     { href: "/school/teacher", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },
+    { href: "/school/teacher/gradebook", icon: <GraduationCap className="w-5 h-5" />, label: "Gradebook" },
+    { href: "/school/teacher/homework", icon: <BookOpen className="w-5 h-5" />, label: "Homework" },
+    { href: "/school/teacher/materials", icon: <BookMarked className="w-5 h-5" />, label: "Materials" },
     { href: "/school/teacher/communication", icon: <MessageSquare className="w-5 h-5" />, label: "Messages", badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
     { href: "/school/teacher/attendance", icon: <CheckSquare className="w-5 h-5" />, label: "Student Attendance" },
     { href: "/school/teacher/staff-attendance", icon: <UserCheck className="w-5 h-5" />, label: "My Attendance" },

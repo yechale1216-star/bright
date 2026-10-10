@@ -3,6 +3,7 @@
 import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { Spinner } from '@/components/ui/spinner'
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 const TeacherManagement = dynamic(
   () => import('@/components/school/teacher-management').then(mod => mod.TeacherManagement),
@@ -18,6 +19,7 @@ const TeacherManagement = dynamic(
 
 export default function TeachersPage() {
   return (
+    <AuthGuard allowedRoles={['admin', 'school_admin', 'super_admin', 'academic_head', 'staff_attendance_officer', 'hr_officer']}>
     <div className="p-4 md:p-8">
       <Suspense fallback={
         <div className="flex items-center justify-center min-h-[400px]">
@@ -27,5 +29,6 @@ export default function TeachersPage() {
         <TeacherManagement />
       </Suspense>
     </div>
+    </AuthGuard>
   )
 }

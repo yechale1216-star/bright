@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Users, FileText, BarChart2, User,
-  LogOut, X, ChevronRight, BookOpen, ClipboardList, MessageSquare, UserCheck
+  LogOut, X, ChevronRight, BookOpen, ClipboardList, MessageSquare, UserCheck, TrendingUp
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { useAuth } from '@/lib/context/auth-context'
@@ -18,6 +18,7 @@ import { DeveloperBrand } from '@/components/developer-brand'
 const navItems = [
   { href: '/school/registrar', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { href: '/school/registrar/students', icon: Users, label: 'Student Directory & Registration' },
+  { href: '/school/registrar/promotion', icon: TrendingUp, label: 'Promotion & Progression' },
   { href: '/school/registrar/staff-attendance', icon: UserCheck, label: 'My Attendance' },
   { href: '/school/registrar/communication', icon: MessageSquare, label: 'Communication' },
   { href: '/school/registrar/profile', icon: User, label: 'My Profile' },

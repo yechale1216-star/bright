@@ -67,7 +67,7 @@ const getParentSchools = async (_userId) => {
     const singleSchool = await schoolService.getSingleSchool();
     return [{
             id: singleSchool.id,
-            name: singleSchool.name || 'Addis Hiwot School',
+            name: singleSchool.name || 'Bright Path',
             logo: singleSchool.settings?.school_logo || '',
             customSchoolId: singleSchool.schoolId || 'SCH-0001',
             role: 'parent'
@@ -144,12 +144,12 @@ const loginParent = async (phone, password, _schoolId) => {
         relationshipType: l.relationshipType || 'Guardian',
     }));
     const singleSchool = await schoolService.getSingleSchool();
-    const schoolName = singleSchool.name || 'Addis Hiwot School';
+    const schoolName = singleSchool.name || 'Bright Path';
     const schoolLogo = singleSchool.settings?.school_logo || '';
     const customSchoolId = singleSchool.schoolId || 'SCH-0001';
     const token = (0, jwt_1.generateToken)({
         id: user.id,
-        email: user.email || `parent-${cleanPhone}@addishiwot.edu.et`,
+        email: user.email || `parent-${cleanPhone}@brightpath.edu.et`,
         role: 'parent',
         schoolId: singleSchool.id,
         customSchoolId,
@@ -309,7 +309,7 @@ const postAnnouncement = async (_schoolId, data) => {
         const { getIO } = require('../socket');
         const io = getIO ? getIO() : null;
         const singleSchool = await schoolService.getSingleSchool();
-        const schoolName = singleSchool.name || 'Addis Hiwot School';
+        const schoolName = singleSchool.name || 'Bright Path';
         // Determine FCM type: emergency announcements use account_security for high-priority channel
         const fcmType = data.type === 'emergency' ? 'account_security' : 'new_announcement';
         const categoryLabel = data.type === 'emergency' ? 'Emergency Alert' : data.type === 'info' ? 'School Info' : 'Announcement';

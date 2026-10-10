@@ -2,7 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
-const SOURCE = path.join(__dirname, '..', 'public', 'icon-512.png');
+const SOURCE = path.join(__dirname, '..', 'public', 'bright-path-icon.png');
 const RES_DIR = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res');
 
 // Android mipmap sizes for launcher icons
@@ -37,7 +37,7 @@ async function generateIcons() {
     // ic_launcher.png - solid purple background with emblem
     const launcherPath = path.join(outDir, 'ic_launcher.png');
     await sharp(SOURCE)
-      .resize(size, size, { fit: 'cover', background: { r: 163, g: 73, b: 163, alpha: 1 } })
+      .resize(size, size, { fit: 'cover' })
       .png()
       .toFile(launcherPath);
     console.log(`Created ${folder}/ic_launcher.png (${size}x${size})`);
@@ -45,7 +45,7 @@ async function generateIcons() {
     // ic_launcher_round.png - solid purple background with emblem
     const roundPath = path.join(outDir, 'ic_launcher_round.png');
     await sharp(SOURCE)
-      .resize(size, size, { fit: 'cover', background: { r: 163, g: 73, b: 163, alpha: 1 } })
+      .resize(size, size, { fit: 'cover' })
       .png()
       .toFile(roundPath);
     console.log(`Created ${folder}/ic_launcher_round.png (${size}x${size})`);
@@ -62,7 +62,7 @@ async function generateIcons() {
     
     // Create the icon at the safe-zone size with transparent background
     const iconBuffer = await sharp(SOURCE)
-      .resize(iconSize, iconSize, { fit: 'contain', background: { r: 163, g: 73, b: 163, alpha: 0 } })
+      .resize(iconSize, iconSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
 
@@ -72,7 +72,7 @@ async function generateIcons() {
         width: size,
         height: size,
         channels: 4,
-        background: { r: 163, g: 73, b: 163, alpha: 0 }
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
       }
     })
       .composite([{
@@ -104,7 +104,7 @@ async function generateIcons() {
   const colorsPath = path.join(valuesDir, 'ic_launcher_background.xml');
   const colorsXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#A349A3</color>
+    <color name="ic_launcher_background">#ffffff</color>
 </resources>
 `;
   fs.writeFileSync(colorsPath, colorsXml);

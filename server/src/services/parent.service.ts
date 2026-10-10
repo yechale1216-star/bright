@@ -33,7 +33,7 @@ export const getParentSchools = async (_userId?: string) => {
   const singleSchool = await schoolService.getSingleSchool();
   return [{
     id: singleSchool.id,
-    name: singleSchool.name || 'Addis Hiwot School',
+    name: singleSchool.name || 'Bright Path',
     logo: (singleSchool as any).settings?.school_logo || '',
     customSchoolId: singleSchool.schoolId || 'SCH-0001',
     role: 'parent'
@@ -120,13 +120,13 @@ export const loginParent = async (phone: string, password: string, _schoolId?: s
     }));
 
   const singleSchool = await schoolService.getSingleSchool();
-  const schoolName = singleSchool.name || 'Addis Hiwot School';
+  const schoolName = singleSchool.name || 'Bright Path';
   const schoolLogo = (singleSchool as any).settings?.school_logo || '';
   const customSchoolId = singleSchool.schoolId || 'SCH-0001';
 
   const token = generateToken({
     id: user.id,
-    email: user.email || `parent-${cleanPhone}@addishiwot.edu.et`,
+    email: user.email || `parent-${cleanPhone}@brightpath.edu.et`,
     role: 'parent',
     schoolId: singleSchool.id,
     customSchoolId,
@@ -297,7 +297,7 @@ export const postAnnouncement = async (_schoolId: string | undefined, data: any)
     const io = getIO ? getIO() : null;
 
     const singleSchool = await schoolService.getSingleSchool();
-    const schoolName = singleSchool.name || 'Addis Hiwot School';
+    const schoolName = singleSchool.name || 'Bright Path';
 
     // Determine FCM type: emergency announcements use account_security for high-priority channel
     const fcmType = data.type === 'emergency' ? 'account_security' : 'new_announcement';

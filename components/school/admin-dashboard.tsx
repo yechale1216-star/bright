@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ErrorBanner } from "@/components/ui/data-state-view"
@@ -10,7 +10,8 @@ import {
   Users, UserCheck, ShieldAlert, GraduationCap, Calendar,
   ChevronRight, TrendingUp, ShieldCheck,
   Activity, AlertTriangle, RefreshCw, BarChart3, FileCheck,
-  CheckCircle2, XCircle, Lock, MessageSquare, Check, X
+  CheckCircle2, XCircle, Lock, MessageSquare, Check, X,
+  BookOpen, Bus, Award, ArrowUpRight
 } from "lucide-react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
@@ -93,6 +94,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([])
   const [incidents, setIncidents] = useState<StudentDiscipline[]>([])
   const [editRequests, setEditRequests] = useState<any[]>([])
+  const [libraryStats, setLibraryStats] = useState<any>(null)
+  const [transportStats, setTransportStats] = useState<any>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [selectedRequestForAction, setSelectedRequestForAction] = useState<any | null>(null)
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null)
@@ -151,11 +154,16 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       // db.getDashboardSummary returns active student count, attendance counts, grade distribution,
       // teacher count, pending requests count, discipline stats, recent student in ONE indexed query set.
       // db.getStaffAttendanceStats returns staff clock-in stats & session breakdown.
-      const [summary, staffAttendanceStats, fetchedGrades] = await Promise.all([
+      const [summary, staffAttendanceStats, fetchedGrades, libStats, transStats] = await Promise.all([
         db.getDashboardSummary(todayStr, undefined, isBackground).catch(() => null),
         db.getStaffAttendanceStats(todayStr).catch(() => null),
         db.getGrades().catch(() => []),
+        fetch('/api/library/stats').then(r => r.ok ? r.json() : null).then(j => j?.data || null).catch(() => null),
+        fetch('/api/transport/stats').then(r => r.ok ? r.json() : null).then(j => j?.data || null).catch(() => null),
       ])
+
+      if (libStats) setLibraryStats(libStats)
+      if (transStats) setTransportStats(transStats)
 
       if (Array.isArray(fetchedGrades) && fetchedGrades.length > 0) {
         setGradesList(fetchedGrades)
@@ -281,14 +289,20 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     return 0
   }
 
+  const globalStaffModeSetting = (settings?.attendanceModeSetting || (settings as any)?.attendance_mode_setting || "").toUpperCase()
+  const isStaffBothMode = globalStaffModeSetting === "BOTH" || staffStats?.attendanceMode === "both" || staffStats?.attendanceModeSetting === "BOTH"
   const isStaffSessionMode =
-    staffStats?.attendanceMode === "session_based" ||
-    (settings?.staffAttendanceMode || (settings as any)?.staff_attendance_mode) === "session_based"
+    !isStaffBothMode && (
+      staffStats?.attendanceMode === "session_based" ||
+      (settings?.staffAttendanceMode || (settings as any)?.staff_attendance_mode) === "session_based"
+    )
 
   const dailyActiveStaff = getStaffActive(staffStats)
   const morningActiveStaff = getStaffActive(morningStaffStats)
   const afternoonActiveStaff = getStaffActive(afternoonStaffStats)
-  const activeStaffCount = isStaffSessionMode
+  const activeStaffCount = isStaffBothMode
+    ? dailyActiveStaff
+    : isStaffSessionMode
     ? (morningActiveStaff + afternoonActiveStaff)
     : dailyActiveStaff
 
@@ -767,7 +781,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             value: (
               <div className="flex items-center justify-center gap-1">
                 <span>
-                  {!isStaffSessionMode
+                  {isStaffBothMode
+                    ? dailyActiveStaff
+                    : !isStaffSessionMode
                     ? dailyActiveStaff
                     : sessionFilter === "morning"
                     ? morningActiveStaff
@@ -778,7 +794,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <span className="text-sm font-semibold text-muted-foreground">/{totalStaff ?? "-"}</span>
               </div>
             ),
-            sub: !isStaffSessionMode
+            sub: isStaffBothMode
+              ? `${dailyActiveStaff} of ${totalStaff ?? "-"} clocked in (Daily & Session)`
+              : !isStaffSessionMode
               ? `${dailyActiveStaff} of ${totalStaff ?? "-"} clocked in`
               : sessionFilter === "morning"
               ? `Morning: ${morningActiveStaff} of ${totalStaff ?? "-"}`
@@ -844,63 +862,61 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         ))}
       </div>
 
-      {/* Edit Requests Quick Action Banner */}
+      {/* Executive Approvals Quick Action Banner */}
       <div
         className={cn(
-          "flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border shadow-sm transition-all",
-          pendingRequestsCount > 0
+          "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3.5 rounded-2xl border shadow-sm transition-all",
+          pendingRequestsCount > 0 || openDisciplineCasesCount > 0
             ? "bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50"
             : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
         )}
       >
         <div className="flex items-center gap-2.5">
           <div className={cn(
-            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
-            pendingRequestsCount > 0
-              ? "bg-amber-100 dark:bg-amber-900/40"
-              : "bg-slate-100 dark:bg-slate-800"
+            "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+            pendingRequestsCount > 0 || openDisciplineCasesCount > 0
+              ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
+              : "bg-slate-100 dark:bg-slate-800 text-slate-400"
           )}>
-            <FileCheck className={cn(
-              "w-4 h-4",
-              pendingRequestsCount > 0
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-slate-400"
-            )} />
+            <FileCheck className="w-5 h-5" />
           </div>
           <div>
             <p className="text-xs font-black text-foreground uppercase tracking-wider">
-              Attendance Edit Requests
+              Executive Approvals &amp; Sign-off Center
             </p>
             <p className={cn(
               "text-[11px] font-medium",
-              pendingRequestsCount > 0
+              pendingRequestsCount > 0 || openDisciplineCasesCount > 0
                 ? "text-amber-700 dark:text-amber-400"
                 : "text-muted-foreground"
             )}>
               {pendingRequestsCount > 0
-                ? `${pendingRequests.length} request${pendingRequests.length > 1 ? "s" : ""} awaiting your review`
-                : "All clear — no pending requests"}
+                ? `${pendingRequestsCount} attendance edit request${pendingRequestsCount > 1 ? "s" : ""} awaiting review`
+                : "All clear — zero outstanding operational sign-offs"}
+              {casesRequiringAttentionCount > 0 && ` • ${casesRequiringAttentionCount} critical welfare escalations`}
             </p>
           </div>
         </div>
-        <Button
-          size="sm"
-          onClick={() => router.push("/school/admin/attendance/requests")}
-          className={cn(
-            "h-8 px-3 text-xs font-bold rounded-xl gap-1.5 shrink-0",
-            pendingRequestsCount > 0
-              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-              : "variant-outline border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-foreground hover:bg-slate-100 dark:hover:bg-slate-800"
-          )}
-        >
-          {pendingRequestsCount > 0 && (
-            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-white/20 text-white text-[10px] font-black">
-              {pendingRequestsCount}
-            </span>
-          )}
-          View Requests
-          <ChevronRight className="w-3.5 h-3.5 opacity-70" />
-        </Button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button
+            size="sm"
+            onClick={() => router.push("/school/admin/approvals")}
+            className={cn(
+              "h-8 px-3.5 text-xs font-bold rounded-xl gap-1.5 shrink-0 w-full sm:w-auto",
+              pendingRequestsCount > 0
+                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                : "variant-outline border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-foreground hover:bg-slate-100 dark:hover:bg-slate-800"
+            )}
+          >
+            {pendingRequestsCount > 0 && (
+              <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-white/20 text-white text-[10px] font-black">
+                {pendingRequestsCount}
+              </span>
+            )}
+            Open Approvals Inbox
+            <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+          </Button>
+        </div>
       </div>
 
       {/* 4. ANALYTICS & VISUALIZATIONS SECTION (2:1 Grid) */}
@@ -1013,6 +1029,91 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <p className="typography-label">No students enrolled yet</p>
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 5. SCHOOL OPERATIONS & SERVICES (LIBRARY & TRANSPORT FLEET) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Library Desk Snapshot */}
+        <Card className="rounded-2xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-foreground">Library &amp; Media Services</CardTitle>
+                <CardDescription className="text-[11px]">Book catalog, circulation, and lending records</CardDescription>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => router.push('/school/admin/library')}
+              className="text-xs font-bold text-primary gap-1 h-8 px-2"
+            >
+              Open Library
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Button>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Titles</p>
+                <p className="text-lg font-black text-foreground mt-0.5">{libraryStats?.totalBooks ?? '—'}</p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">On Loan</p>
+                <p className="text-lg font-black text-blue-600 dark:text-blue-400 mt-0.5">{libraryStats?.borrowedBooks ?? '—'}</p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Overdue</p>
+                <p className={cn("text-lg font-black mt-0.5", (libraryStats?.overdueBooks || 0) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                  {libraryStats?.overdueBooks ?? 0}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Transport Fleet Snapshot */}
+        <Card className="rounded-2xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                <Bus className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-foreground">Transport &amp; Bus Logistics</CardTitle>
+                <CardDescription className="text-[11px]">Vehicles, active route lines, and student riders</CardDescription>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => router.push('/school/admin/transport')}
+              className="text-xs font-bold text-primary gap-1 h-8 px-2"
+            >
+              Open Transport
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Button>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Fleet Buses</p>
+                <p className="text-lg font-black text-foreground mt-0.5">{transportStats?.totalVehicles ?? '—'}</p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Routes</p>
+                <p className="text-lg font-black text-amber-600 dark:text-amber-400 mt-0.5">{transportStats?.totalRoutes ?? '—'}</p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Riders</p>
+                <p className="text-lg font-black text-foreground mt-0.5">{transportStats?.assignedStudents ?? '—'}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

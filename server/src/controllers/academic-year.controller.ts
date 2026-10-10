@@ -59,3 +59,45 @@ export const deleteAcademicYear = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
+// ─── Terms Controller ───────────────────────────────────────────────────────
+
+export const getTerms = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { yearId } = req.params;
+    const terms = await academicYearService.getTerms(yearId);
+    res.status(200).json({ success: true, data: terms });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createTerm = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { yearId } = req.params;
+    const term = await academicYearService.createTerm(yearId, req.body);
+    res.status(201).json({ success: true, data: term });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateTerm = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const term = await academicYearService.updateTerm(id, req.body);
+    res.status(200).json({ success: true, data: term });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTerm = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    await academicYearService.deleteTerm(id);
+    res.status(200).json({ success: true, message: 'Term deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+

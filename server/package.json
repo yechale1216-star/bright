@@ -1,7 +1,7 @@
 {
-  "name": "addis-hiwot-server",
+  "name": "bright-path-server",
   "version": "1.0.0",
-  "description": "Backend for Addis Hiwot School Attendance System",
+  "description": "Backend for Bright Path School Attendance System",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",

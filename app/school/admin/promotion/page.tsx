@@ -58,6 +58,7 @@ import { notifications } from '@/lib/utils/notifications'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils/utils'
 import { useCalendar } from '@/lib/context/calendar-context'
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 import { apiUrl, getApiUrl } from '@/lib/api-config'
 const API_URL = apiUrl;
@@ -612,7 +613,8 @@ export default function StudentPromotionPage() {
   }, [currentStep, fromAcademicYear, toAcademicYear, promotionMode, selectedCohortIds, totalSelectedInSelective, isConfigurationComplete])
 
   return (
-    <div className="space-y-6 pt-4 md:pt-6 pb-24 md:pb-12 max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+    <AuthGuard allowedRoles={['admin', 'school_admin', 'super_admin', 'registrar']}>
+      <div className="space-y-6 pt-4 md:pt-6 pb-24 md:pb-12 max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
         <div>
@@ -1526,6 +1528,7 @@ export default function StudentPromotionPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AuthGuard>
   )
 }
 

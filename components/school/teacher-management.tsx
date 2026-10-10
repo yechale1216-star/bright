@@ -43,6 +43,8 @@ import { notifications } from "@/lib/utils/notifications"
 import { db } from "@/lib/db/database"
 import { TeacherAssignmentManagement } from "@/components/school/teacher-assignment-management"
 import { useSearchParams } from "next/navigation"
+import { useSchoolSettings } from "@/hooks/use-school-settings"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Teacher {
   id: string
@@ -56,6 +58,7 @@ interface Teacher {
   teacher_id?: string
   is_active?: boolean
   profile_photo?: string
+  attendanceMode?: string
 }
 
 interface TeacherManagementProps {
@@ -78,6 +81,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
     subject: "",
     qualification: "",
     experience_years: "",
+    attendanceMode: "DAILY",
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -86,6 +90,16 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
   const [isFormVisible, setIsFormVisible] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null)
+
+  // Global attendance mode setting
+  const { settings: schoolSettings } = useSchoolSettings()
+  const globalAttendanceMode: "DAILY" | "SESSION" | "BOTH" = (() => {
+    const raw = schoolSettings?.attendanceModeSetting ?? schoolSettings?.attendance_mode_setting ?? schoolSettings?.staffAttendanceMode ?? schoolSettings?.staff_attendance_mode ?? "daily"
+    const upper = String(raw ?? "DAILY").trim().toUpperCase()
+    if (upper === "SESSION" || upper === "SESSION_BASED") return "SESSION"
+    if (upper === "BOTH") return "BOTH"
+    return "DAILY"
+  })()
   
   // Modal & assignment loading states
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null)
@@ -265,6 +279,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
         experience_years: formData.experience_years ? Number.parseInt(formData.experience_years) : undefined,
         ...(formData.password && { password_hash: formData.password }),
         ...(profilePhoto && { profile_photo: profilePhoto }),
+        attendanceMode: formData.attendanceMode || "DAILY",
       }
 
       if (editingTeacher) {
@@ -302,6 +317,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
         subject: "",
         qualification: "",
         experience_years: "",
+        attendanceMode: "DAILY",
       })
     } catch (error: any) {
       console.error("Error saving teacher:", error)
@@ -323,6 +339,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
       subject: teacher.subject || "",
       qualification: teacher.qualification || "",
       experience_years: teacher.experience_years ? teacher.experience_years.toString() : "",
+      attendanceMode: String(teacher.attendanceMode || "DAILY").trim().toUpperCase() === "SESSION" ? "SESSION" : "DAILY",
     })
   }
 
@@ -541,7 +558,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
               <Button
                 onClick={() => {
                   setEditingTeacher(null)
-                  setFormData({ full_name: "", email: "", password: "", phone: "+251", subject: "", qualification: "", experience_years: "" })
+                  setFormData({ full_name: "", email: "", password: "", phone: "+251", subject: "", qualification: "", experience_years: "", attendanceMode: "DAILY" })
                   setShowSuccess(false)
                   setIsFormVisible(true)
                 }}
@@ -557,7 +574,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
       <Button
         onClick={() => {
           setEditingTeacher(null)
-          setFormData({ full_name: "", email: "", password: "", phone: "+251", subject: "", qualification: "", experience_years: "" })
+          setFormData({ full_name: "", email: "", password: "", phone: "+251", subject: "", qualification: "", experience_years: "", attendanceMode: "DAILY" })
           setShowSuccess(false)
           setIsFormVisible(true)
         }}
@@ -817,6 +834,18 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                         </button>
                       </div>
 
+                      {/* Attendance Mode Pill (when global is BOTH) */}
+                      {globalAttendanceMode === "BOTH" && (
+                        <span className={cn(
+                          "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border",
+                          (teacher.attendanceMode || "DAILY").toUpperCase() === "SESSION"
+                            ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900"
+                            : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900"
+                        )}>
+                          {(teacher.attendanceMode || "DAILY").toUpperCase() === "SESSION" ? "Session" : "Daily"}
+                        </span>
+                      )}
+
                       {/* Status Pill */}
                       <span className={cn(
                         "text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border",
@@ -1033,6 +1062,30 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                       />
                     </div>
                   </div>
+
+                  {/* Attendance Mode — only shown when global setting is BOTH */}
+                  {globalAttendanceMode === "BOTH" && (
+                    <div className="space-y-2 p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/40">
+                      <Label htmlFor="attendanceMode" className="text-xs font-bold uppercase text-indigo-700 dark:text-indigo-300">
+                        Attendance Mode
+                      </Label>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Assign the attendance tracking mode for this staff member (global setting is <strong>Both</strong>).
+                      </p>
+                      <Select
+                        value={formData.attendanceMode}
+                        onValueChange={(val) => setFormData((prev) => ({ ...prev, attendanceMode: val }))}
+                      >
+                        <SelectTrigger id="attendanceMode" className="rounded-xl border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20">
+                          <SelectValue placeholder="Select mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DAILY">Daily — Single Check-In / Check-Out</SelectItem>
+                          <SelectItem value="SESSION">Session-Based — Morning &amp; Afternoon</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div className="flex justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/50">
                     <Button

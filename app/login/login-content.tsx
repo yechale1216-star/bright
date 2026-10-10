@@ -36,6 +36,8 @@ function LoginContent() {
         router.replace('/school/discipline-officer')
       } else if (role === 'parent') {
         router.replace('/parent/dashboard')
+      } else if (role === 'student') {
+        router.replace('/student')
       } else {
         router.replace('/school/staff')
       }

@@ -245,6 +245,8 @@ export function StaffScheduleSettingsTab({
     morning: true,
     afternoon: true,
   })
+  // Sub-tab view selection when global attendance mode is BOTH: "both" | "daily" | "session"
+  const [scheduleSubTab, setScheduleSubTab] = useState<"both" | "daily" | "session">("both")
 
   const toggleSessionExpand = (id: "morning" | "afternoon") => {
     setExpandedSessions((prev) => ({
@@ -506,7 +508,24 @@ export function StaffScheduleSettingsTab({
     }
   }
 
-  const isSessionBased = (settings.staffAttendanceMode || "daily") === "session_based"
+  // Resolve global attendance mode setting: DAILY | SESSION | BOTH
+  const globalModeSetting: "DAILY" | "SESSION" | "BOTH" = (() => {
+    const raw = settings.attendanceModeSetting ?? settings.attendance_mode_setting ?? settings.staffAttendanceMode ?? settings.staff_attendance_mode ?? "daily"
+    const upper = String(raw).trim().toUpperCase()
+    if (upper === "SESSION" || upper === "SESSION_BASED") return "SESSION"
+    if (upper === "BOTH") return "BOTH"
+    return "DAILY"
+  })()
+
+  // Determine which schedule configuration tables are visible:
+  // - DAILY mode: Daily schedule only
+  // - SESSION mode: Morning & Afternoon sessions only
+  // - BOTH mode: either or both according to scheduleSubTab (default: both)
+  const showDaily = globalModeSetting === "DAILY" || (globalModeSetting === "BOTH" && (scheduleSubTab === "daily" || scheduleSubTab === "both"))
+  const showSession = globalModeSetting === "SESSION" || (globalModeSetting === "BOTH" && (scheduleSubTab === "session" || scheduleSubTab === "both"))
+
+  // For the schedule preview section: SESSION and BOTH both need the session config
+  const isSessionBased = globalModeSetting === "SESSION" || globalModeSetting === "BOTH"
   const morningSession = sessions[0] || DEFAULT_FIXED_SESSIONS[0]
   const afternoonSession = sessions[1] || DEFAULT_FIXED_SESSIONS[1]
 
@@ -557,73 +576,128 @@ export function StaffScheduleSettingsTab({
               <Layers className="w-4 h-4" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold">Staff Attendance Mode</CardTitle>
+              <CardTitle className="text-base font-bold">Global Staff Attendance Mode</CardTitle>
               <CardDescription className="text-xs">
-                Select between a single full-day schedule or dual morning & afternoon shifts.
+                Select the attendance mode for all staff. "Both" allows per-staff assignment.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Daily Mode Card */}
             <div
-              onClick={() => setSettings({ ...settings, staffAttendanceMode: "daily" })}
+              onClick={() => setSettings({
+                ...settings,
+                attendanceModeSetting: "DAILY",
+                staffAttendanceMode: "daily",
+                staff_attendance_mode: "daily",
+              })}
               className={cn(
                 "p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3",
-                !isSessionBased
+                globalModeSetting === "DAILY"
                   ? "border-primary bg-primary/5 shadow-xs"
                   : "border-border hover:border-border/80 bg-card/40 opacity-70 hover:opacity-100"
               )}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", !isSessionBased ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", globalModeSetting === "DAILY" ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
                     <Clock className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-foreground">Daily Mode</h4>
-                    <p className="text-[11px] text-muted-foreground">Single Check-In & Check-Out per day</p>
+                    <h4 className="font-bold text-sm text-foreground">Daily</h4>
+                    <p className="text-[11px] text-muted-foreground">Single Check-In / Check-Out</p>
                   </div>
                 </div>
-                {!isSessionBased && (
+                {globalModeSetting === "DAILY" && (
                   <Badge className="bg-primary text-white text-[10px] font-bold">Active</Badge>
                 )}
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Staff check in once in the morning and out in the evening. Status is evaluated against one unified schedule.
+                All staff check in once in the morning and out in the evening.
               </p>
             </div>
 
             {/* Session-Based Mode Card */}
             <div
-              onClick={() => setSettings({ ...settings, staffAttendanceMode: "session_based" })}
+              onClick={() => setSettings({
+                ...settings,
+                attendanceModeSetting: "SESSION",
+                staffAttendanceMode: "session_based",
+                staff_attendance_mode: "session_based",
+              })}
               className={cn(
                 "p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3",
-                isSessionBased
+                globalModeSetting === "SESSION"
                   ? "border-primary bg-primary/5 shadow-xs"
                   : "border-border hover:border-border/80 bg-card/40 opacity-70 hover:opacity-100"
               )}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", isSessionBased ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", globalModeSetting === "SESSION" ? "bg-primary text-white" : "bg-muted text-muted-foreground")}>
                     <LayoutList className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-foreground">Session-Based Mode</h4>
+                    <h4 className="font-bold text-sm text-foreground">Session-Based</h4>
                     <p className="text-[11px] text-muted-foreground">Morning & Afternoon Shifts</p>
                   </div>
                 </div>
-                {isSessionBased && (
+                {globalModeSetting === "SESSION" && (
                   <Badge className="bg-primary text-white text-[10px] font-bold">Active</Badge>
                 )}
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Independent tracking for Morning and Afternoon sessions with separate check-in windows, cutoffs, and metrics.
+                All staff tracked independently for Morning and Afternoon sessions.
+              </p>
+            </div>
+
+            {/* Both Mode Card */}
+            <div
+              onClick={() => setSettings({
+                ...settings,
+                attendanceModeSetting: "BOTH",
+                staffAttendanceMode: "both",
+                staff_attendance_mode: "both",
+              })}
+              className={cn(
+                "p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3",
+                globalModeSetting === "BOTH"
+                  ? "border-indigo-500 bg-indigo-500/5 shadow-xs"
+                  : "border-border hover:border-border/80 bg-card/40 opacity-70 hover:opacity-100"
+              )}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", globalModeSetting === "BOTH" ? "bg-indigo-500 text-white" : "bg-muted text-muted-foreground")}>
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">Both (Per-Staff)</h4>
+                    <p className="text-[11px] text-muted-foreground">Assign mode per staff member</p>
+                  </div>
+                </div>
+                {globalModeSetting === "BOTH" && (
+                  <Badge className="bg-indigo-500 text-white text-[10px] font-bold">Active</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Each staff member is assigned either Daily or Session mode individually in their profile.
               </p>
             </div>
           </div>
+
+          {/* Info banner for BOTH mode */}
+          {globalModeSetting === "BOTH" && (
+            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-800 dark:text-indigo-200">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-indigo-500" />
+              <div className="text-xs">
+                <span className="font-bold">Per-Staff Mode Active: </span>
+                Go to <strong>Teacher Management</strong> and edit each staff member to assign their individual attendance mode (Daily or Session-Based).
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -637,10 +711,16 @@ export function StaffScheduleSettingsTab({
               </div>
               <div>
                 <CardTitle className="text-base font-bold">
-                  {isSessionBased ? "Morning & Afternoon Session Schedules" : "Daily Working Schedule & Thresholds"}
+                  {globalModeSetting === "BOTH"
+                    ? "Staff Working Schedules (Daily & Session-Based)"
+                    : globalModeSetting === "SESSION"
+                    ? "Morning & Afternoon Session Schedules"
+                    : "Daily Working Schedule & Thresholds"}
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {isSessionBased
+                  {globalModeSetting === "BOTH"
+                    ? "Configure shift hours, arrival windows, and cutoffs for both Daily-mode staff and Session-based staff."
+                    : globalModeSetting === "SESSION"
                     ? "Configure official arrival, departure, late grace, and absence cutoffs for Morning and Afternoon."
                     : "Configure official arrival, departure, late grace, and absence cutoffs for standard full-day shifts."}
                 </CardDescription>
@@ -653,9 +733,75 @@ export function StaffScheduleSettingsTab({
         </CardHeader>
 
         <CardContent className="p-6 space-y-6">
-          {isSessionBased ? (
-            /* ══════ SESSION-BASED MODE: MORNING & AFTERNOON CARDS ══════ */
+          {/* Sub-tab view selector when in BOTH mode */}
+          {globalModeSetting === "BOTH" && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/40">
+              <div className="flex items-center gap-2.5 text-xs text-indigo-900 dark:text-indigo-200">
+                <SlidersHorizontal className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>
+                  <strong>Both Mode Active:</strong> Configure both schedules below. Staff assigned to Daily will follow Daily hours, while staff assigned to Session will follow Morning/Afternoon sessions.
+                </span>
+              </div>
+              <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 rounded-xl border border-indigo-200/50 dark:border-indigo-800/50 shrink-0 shadow-2xs">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scheduleSubTab === "both" ? "default" : "ghost"}
+                  onClick={() => setScheduleSubTab("both")}
+                  className={cn(
+                    "h-7 px-3 text-xs font-bold rounded-lg transition-all",
+                    scheduleSubTab === "both" ? "bg-indigo-600 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Show Both
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scheduleSubTab === "daily" ? "default" : "ghost"}
+                  onClick={() => setScheduleSubTab("daily")}
+                  className={cn(
+                    "h-7 px-3 text-xs font-bold rounded-lg transition-all",
+                    scheduleSubTab === "daily" ? "bg-indigo-600 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  ☀️ Daily Schedule
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scheduleSubTab === "session" ? "default" : "ghost"}
+                  onClick={() => setScheduleSubTab("session")}
+                  className={cn(
+                    "h-7 px-3 text-xs font-bold rounded-lg transition-all",
+                    scheduleSubTab === "session" ? "bg-indigo-600 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  🌗 Session Schedules
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ══════ SESSION-BASED MODE: MORNING & AFTERNOON CARDS ══════ */}
+          {showSession && (
             <div className="space-y-6">
+              {globalModeSetting === "BOTH" && (
+                <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                      <Sun className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-foreground">Session-Based Schedules (Morning &amp; Afternoon)</h4>
+                      <p className="text-[11px] text-muted-foreground">Applies to staff members assigned to <strong>Session-Based</strong> attendance.</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 text-[10px] font-bold">
+                    For Session Staff
+                  </Badge>
+                </div>
+              )}
               {/* Cross-session Error Banner */}
               {(errors["sessions.order"] || errors["sessions.overlap"]) && (
                 <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300 flex items-start gap-2.5">
@@ -1149,9 +1295,42 @@ export function StaffScheduleSettingsTab({
                 )}
               </div>
             </div>
-          ) : (
-            /* ══════ DAILY ATTENDANCE MODE: SINGLE DAY SCHEDULE ══════ */
+          )}
+
+          {/* Divider between Session and Daily when both are shown */}
+          {showDaily && showSession && (
+            <div className="relative py-3">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t-2 border-dashed border-border/60" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase font-black text-muted-foreground">
+                <span className="bg-card px-3 py-1 rounded-full border border-border/60 shadow-2xs flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-primary" />
+                  <span>Daily Schedule Configuration</span>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ══════ DAILY ATTENDANCE MODE: SINGLE DAY SCHEDULE ══════ */}
+          {showDaily && (
             <div className="space-y-6">
+              {globalModeSetting === "BOTH" && (
+                <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-foreground">Daily Staff Working Schedule &amp; Thresholds</h4>
+                      <p className="text-[11px] text-muted-foreground">Applies to staff members assigned to <strong>Daily</strong> attendance.</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold">
+                    For Daily Staff
+                  </Badge>
+                </div>
+              )}
               {/* Time pickers grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>

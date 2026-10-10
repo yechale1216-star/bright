@@ -70,7 +70,7 @@ if (typeof window !== "undefined" && !(window as any).__zt_fetch_intercepted) {
       const controller = new AbortController()
       config.signal = controller.signal
       timeoutTimer = setTimeout(() => {
-        controller.abort()
+        controller.abort("Request timed out after 25s")
       }, 25000)
     }
 

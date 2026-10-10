@@ -96,7 +96,7 @@ async function notifyParentForDiscipline(params: {
     const settings = await prisma.schoolSettings.findFirst({
       select: { school_name: true }
     });
-    const schoolName = settings?.school_name || 'Addis Hiwot School';
+    const schoolName = settings?.school_name || 'Bright Path';
 
     for (const link of links) {
       if (link.parent) {

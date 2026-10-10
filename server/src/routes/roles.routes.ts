@@ -27,7 +27,7 @@ router.get('/:key', async (req: AuthenticatedRequest, res: Response, next: NextF
 });
 
 // POST /api/roles — create a new custom role
-router.post('/', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.post('/', authorize(['admin', 'school_admin', 'super_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { key, name, description, color, permissions } = req.body;
     const role = await rolesService.createRole(undefined, { key, name, description, color, permissions });
@@ -38,7 +38,7 @@ router.post('/', authorize(['admin', 'school_admin']), async (req: Authenticated
 });
 
 // PUT /api/roles/:id — update custom or system role
-router.put('/:id', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.put('/:id', authorize(['admin', 'school_admin', 'super_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { name, description, color, permissions, isActive } = req.body;
     const role = await rolesService.updateRole(req.params.id, undefined, { name, description, color, permissions, isActive });
@@ -49,7 +49,7 @@ router.put('/:id', authorize(['admin', 'school_admin']), async (req: Authenticat
 });
 
 // DELETE /api/roles/:id — delete custom role
-router.delete('/:id', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authorize(['admin', 'school_admin', 'super_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     await rolesService.deleteRole(req.params.id);
     res.status(200).json({ success: true, message: 'Role deleted successfully' });

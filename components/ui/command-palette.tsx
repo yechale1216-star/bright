@@ -26,6 +26,7 @@ import {
   Bell,
   Tag,
   Sliders,
+  SlidersHorizontal,
   ClipboardList,
   Building2,
   LogOut,
@@ -34,7 +35,11 @@ import {
   Lock,
   ArrowRight,
   Sparkles,
-  FileCheck
+  FileCheck,
+  Bus,
+  BookMarked,
+  Layers,
+  FileText
 } from "lucide-react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/context/auth-context"
@@ -98,11 +103,16 @@ function resolveAuthorizedPortal(role?: string, pathname: string = ""): PortalTy
     return "discipline_officer"
   }
 
-  // 6. Administrator roles: can access admin console, or view portal context if currently navigating it
+  // 6. Administrator & Operational Lead roles: can access admin console, or view portal context if currently navigating it
   if (
     normalizedRole === "admin" || 
     normalizedRole === "school_admin" || 
-    normalizedRole === "super_admin"
+    normalizedRole === "super_admin" ||
+    normalizedRole === "academic_head" ||
+    normalizedRole === "librarian" ||
+    normalizedRole === "transport_manager" ||
+    normalizedRole === "staff_attendance_officer" ||
+    normalizedRole === "hr_officer"
   ) {
     if (pathname.startsWith("/school/teacher")) return "teacher"
     if (pathname.startsWith("/school/staff")) return "staff"
@@ -178,9 +188,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       id: "parent",
       name: "Parent Portal",
       badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
-      searchPlaceholder: "Search parent portal, children, attendance, notices...",
+      searchPlaceholder: "Search parent portal, children, attendance, homework, transport, notices...",
       navigation: [
         { title: "Parent Dashboard", subtitle: "Student status and quick metrics", href: "/parent/dashboard", icon: LayoutDashboard, keywords: ["home", "children"] },
+        { title: "Academics & Grades", subtitle: "Child's academic report cards and evaluations", href: "/parent/academics", icon: GraduationCap, keywords: ["grades", "marks", "report cards", "academic", "exams"] },
+        { title: "Homework", subtitle: "Track assignments, due dates, and submissions", href: "/parent/homework", icon: BookOpen, keywords: ["homework", "assignments", "tasks", "home work"] },
+        { title: "Learning Materials", subtitle: "Digital textbooks and shared class resources", href: "/parent/materials", icon: BookMarked, keywords: ["materials", "notes", "slides", "downloads"] },
+        { title: "School Transport", subtitle: "Bus routes, assigned vehicles, and drivers", href: "/parent/transport", icon: Bus, keywords: ["transport", "bus", "route", "pickup", "transporet"] },
         { title: "Child Attendance", subtitle: "Daily and monthly attendance records", href: "/parent/attendance", icon: Calendar, keywords: ["present", "absent", "records"] },
         { title: "Communication & Chat", subtitle: "Message child's teachers and school", href: "/parent/communication", icon: MessageSquare, keywords: ["messages", "chat", "teacher"] },
         { title: "School Announcements", subtitle: "Official bulletins and notices", href: "/parent/announcements", icon: Megaphone, keywords: ["news", "alerts", "circulars"] },
@@ -190,6 +204,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         { title: "Switch School", subtitle: "Switch between registered schools", href: "/parent/school-select", icon: Building2, keywords: ["institution", "change"] },
       ],
       quickActions: [
+        { title: "View Child Homework", subtitle: "Check current assignments and due dates", href: "/parent/homework", icon: BookOpen },
+        { title: "Check Academic Grades", subtitle: "View report cards and term evaluations", href: "/parent/academics", icon: GraduationCap },
+        { title: "Track Bus Transport", subtitle: "Check school vehicle and route details", href: "/parent/transport", icon: Bus },
         { title: "View Today's Attendance", subtitle: "Check if your child arrived at school", href: "/parent/attendance", icon: CheckSquare },
         { title: "Message Child's Teacher", subtitle: "Start a conversation with teachers", href: "/parent/communication", icon: MessageSquare },
         { title: "Check Discipline Incidents", subtitle: "View any reported school incidents", href: "/parent/discipline", icon: ShieldAlert },
@@ -202,17 +219,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       id: "teacher",
       name: "Teacher Portal",
       badgeClass: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-800",
-      searchPlaceholder: "Search teacher portal, classes, attendance...",
+      searchPlaceholder: "Search teacher portal, gradebook, homework, materials, attendance...",
       navigation: [
         { title: "Teacher Dashboard", subtitle: "Daily schedule and summaries", href: "/school/teacher", icon: LayoutDashboard, keywords: ["home", "overview"] },
+        { title: "Teacher Gradebook", subtitle: "Enter and manage student test marks & scores", href: "/school/teacher/gradebook", icon: GraduationCap, keywords: ["grades", "marks", "gradebook", "scores", "grade book", "assessments", "exams"] },
+        { title: "Homework Management", subtitle: "Assign, review, and evaluate student homework", href: "/school/teacher/homework", icon: BookOpen, keywords: ["homework", "assignments", "home work", "tasks"] },
+        { title: "Learning Materials", subtitle: "Upload notes, slide decks, and class resources", href: "/school/teacher/materials", icon: BookMarked, keywords: ["materials", "files", "documents", "resources", "pdf"] },
         { title: "Take Student Attendance", subtitle: "Record presence for assigned classes", href: "/school/teacher/attendance", icon: CheckSquare, keywords: ["roll call", "mark attendance", "present", "absent"] },
         { title: "My Staff Attendance", subtitle: "Clock in and view your attendance", href: "/school/teacher/staff-attendance", icon: UserCheck, keywords: ["biometric", "check in", "hours"] },
-        { title: "My Assigned Classes", subtitle: "Class rosters, sections, and students", href: "/school/teacher/classes", icon: BookOpen, keywords: ["courses", "students", "sections"] },
+        { title: "My Assigned Classes", subtitle: "Class rosters, sections, and students", href: "/school/teacher/classes", icon: Layers, keywords: ["courses", "students", "sections", "roster"] },
         { title: "Attendance Reports", subtitle: "Monthly class attendance statistics", href: "/school/teacher/reports", icon: BarChart2, keywords: ["analytics", "export", "stats"] },
         { title: "Communication", subtitle: "Chat with parents, administration, and colleagues", href: "/school/teacher/communication", icon: MessageSquare, keywords: ["chat", "messages"] },
         { title: "Teacher Profile", subtitle: "View your faculty profile and credentials", href: "/school/teacher/profile", icon: User, keywords: ["account", "personal"] },
       ],
       quickActions: [
+        { title: "Open Teacher Gradebook", subtitle: "Input student scores and test marks", href: "/school/teacher/gradebook", icon: GraduationCap },
+        { title: "Create New Homework", subtitle: "Publish a homework assignment to your classes", href: "/school/teacher/homework", icon: BookOpen },
+        { title: "Upload Learning Material", subtitle: "Share lecture notes and files", href: "/school/teacher/materials", icon: BookMarked },
         { title: "Record Class Attendance", subtitle: "Mark student attendance today", href: "/school/teacher/attendance", icon: CheckSquare },
         { title: "Clock In (Staff Attendance)", subtitle: "Check in your attendance for today", href: "/school/teacher/staff-attendance", icon: UserCheck },
         { title: "Send Message to Parents", subtitle: "Communicate with class families", href: "/school/teacher/communication", icon: MessageSquare },
@@ -271,29 +294,40 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       id: "admin",
       name: "Admin Console",
       badgeClass: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
-      searchPlaceholder: "Search admin console, settings, staff, users...",
+      searchPlaceholder: "Search admin console, structure, exams, library, transport, settings...",
       navigation: [
         { title: "Admin Dashboard", subtitle: "Institution overview and analytics", href: "/school/admin", icon: LayoutDashboard, keywords: ["home", "main"] },
-        { title: "Students Management", subtitle: "Student roster, enrollment, and profiles", href: "/school/admin/students", icon: Users, keywords: ["enrolled", "learners"] },
-        { title: "Teachers Management", subtitle: "Faculty profiles, credentials, and schedules", href: "/school/admin/teachers", icon: GraduationCap, keywords: ["faculty", "instructors"] },
-        { title: "Users & Roles", subtitle: "System access control and permissions", href: "/school/admin/users-and-roles", icon: ShieldCheck, keywords: ["security", "accounts", "passwords", "roles"] },
-        { title: "Student Attendance", subtitle: "Daily student attendance tracking and logs", href: "/school/admin/attendance", icon: CheckSquare, keywords: ["roll call", "present", "absent"] },
+        { title: "Students Management", subtitle: "Student roster, enrollment, and profiles", href: "/school/admin/students", icon: Users, keywords: ["enrolled", "learners", "students"] },
+        { title: "Teachers Management", subtitle: "Faculty profiles, credentials, and schedules", href: "/school/admin/teachers", icon: GraduationCap, keywords: ["faculty", "instructors", "teachers"] },
+        { title: "Academic Structure", subtitle: "Grades, sections, streams, and class structures", href: "/school/admin/academic-structure", icon: Layers, keywords: ["academic structure", "acadamic structure", "curriculum", "grades", "sections", "streams", "classes"] },
+        { title: "Assessment Policy Management", subtitle: "Assessment weights (100% total), categories, and types", href: "/school/admin/assessments/policy", icon: SlidersHorizontal, keywords: ["assessment policy", "weights", "categories", "schemes", "grading policy"] },
+        { title: "Bulk Assign Assessment Template", subtitle: "Assign assessment schemes across classes in bulk", href: "/school/admin/assessments/bulk-assignment", icon: Layers, keywords: ["bulk assign", "assessment assignment", "template assign"] },
+        { title: "Exams & Grading Management", subtitle: "Exam periods and institutional grading scales", href: "/school/admin/exams", icon: GraduationCap, keywords: ["exams", "exam and grades", "grades", "grading scales", "gpa", "midterm", "final exam"] },
+        { title: "Student Report Cards", subtitle: "Generate, preview, and print official report cards", href: "/school/admin/report-cards", icon: FileText, keywords: ["report cards", "report card", "terminal report", "transcripts"] },
+        { title: "School Library Management", subtitle: "Book catalog, loans, inventory, and returns", href: "/school/admin/library", icon: BookOpen, keywords: ["library", "books", "catalog", "borrow", "loan"] },
+        { title: "School Transport Management", subtitle: "Vehicles, bus routes, stops, and student passenger rosters", href: "/school/admin/transport", icon: Bus, keywords: ["transport", "transporet", "bus", "routes", "vehicles", "fleet"] },
+        { title: "Users & Roles", subtitle: "System access control and permissions", href: "/school/admin/users-and-roles", icon: ShieldCheck, keywords: ["security", "accounts", "passwords", "roles", "users"] },
+        { title: "Student Attendance", subtitle: "Daily student attendance tracking and logs", href: "/school/admin/attendance", icon: CheckSquare, keywords: ["roll call", "present", "absent", "attendance"] },
         { title: "Attendance Edit Requests", subtitle: "Review and approve teacher attendance unlock requests", href: "/school/admin/attendance/requests", icon: FileCheck, keywords: ["edit request", "unlock", "approval", "pending"] },
         { title: "Attendance by Grade", subtitle: "Grade-level breakdown and comparisons", href: "/school/admin/attendance-by-grade", icon: BarChart2, keywords: ["analytics", "grades"] },
-        { title: "Staff Attendance Management", subtitle: "Biometric and staff check-in records", href: "/school/admin/staff-attendance", icon: UserCheck, keywords: ["employees", "timesheet", "clock in"] },
-        { title: "Discipline Management", subtitle: "Incident tracking and disciplinary actions", href: "/school/admin/discipline", icon: ShieldAlert, keywords: ["conduct", "behavior", "cases"] },
-        { title: "Teacher Assignments", subtitle: "Assign classes, subjects, and sections", href: "/school/admin/teacher-assignments", icon: BookOpen, keywords: ["curriculum", "classes"] },
-        { title: "Student Promotion", subtitle: "End-of-year academic class progression", href: "/school/admin/promotion", icon: TrendingUp, keywords: ["academic progression", "next year"] },
-        { title: "Academic Years", subtitle: "Manage academic terms and calendars", href: "/school/admin/academic-years", icon: CalendarDays, keywords: ["terms", "calendar", "ethiopian"] },
-        { title: "Announcements", subtitle: "Publish school-wide announcements and notices", href: "/school/admin/announcements", icon: Megaphone, keywords: ["news", "broadcast", "circular"] },
-        { title: "Communication", subtitle: "School messaging hub and direct chat", href: "/school/admin/communication", icon: MessageSquare, keywords: ["chat", "inbox"] },
-        { title: "Reports & Analytics", subtitle: "Exportable institutional intelligence reports", href: "/school/admin/reports", icon: BarChart2, keywords: ["export", "csv", "audit"] },
-        { title: "School Settings", subtitle: "Institution profile, branding, and policies", href: "/school/admin/settings", icon: Settings, keywords: ["logo", "identity", "config"] },
-        { title: "Admin Profile", subtitle: "Administrator account settings", href: "/school/admin/profile", icon: User, keywords: ["account", "password"] },
+        { title: "Staff Attendance Management", subtitle: "Biometric and staff check-in records", href: "/school/admin/staff-attendance", icon: UserCheck, keywords: ["employees", "timesheet", "clock in", "staff attendance"] },
+        { title: "Discipline Management", subtitle: "Incident tracking and disciplinary actions", href: "/school/admin/discipline", icon: ShieldAlert, keywords: ["conduct", "behavior", "cases", "discipline"] },
+        { title: "Teacher Assignments", subtitle: "Assign classes, subjects, and sections", href: "/school/admin/teacher-assignments", icon: BookOpen, keywords: ["curriculum", "classes", "teacher assignments"] },
+        { title: "Student Promotion", subtitle: "End-of-year academic class progression", href: "/school/admin/promotion", icon: TrendingUp, keywords: ["academic progression", "next year", "promotion"] },
+        { title: "Academic Years", subtitle: "Manage academic terms and calendars", href: "/school/admin/academic-years", icon: CalendarDays, keywords: ["terms", "calendar", "ethiopian", "academic years"] },
+        { title: "Announcements", subtitle: "Publish school-wide announcements and notices", href: "/school/admin/announcements", icon: Megaphone, keywords: ["news", "broadcast", "circular", "announcements"] },
+        { title: "Communication", subtitle: "School messaging hub and direct chat", href: "/school/admin/communication", icon: MessageSquare, keywords: ["chat", "inbox", "messaging"] },
+        { title: "Reports & Analytics", subtitle: "Exportable institutional intelligence reports", href: "/school/admin/reports", icon: BarChart2, keywords: ["export", "csv", "audit", "reports"] },
+        { title: "School Settings", subtitle: "Institution profile, branding, and policies", href: "/school/admin/settings", icon: Settings, keywords: ["logo", "identity", "config", "settings"] },
+        { title: "Admin Profile", subtitle: "Administrator account settings", href: "/school/admin/profile", icon: User, keywords: ["account", "password", "profile"] },
       ],
       quickActions: [
         { title: "Add New Student", subtitle: "Enroll a new learner into the school", href: "/school/admin/students", icon: Users },
         { title: "Add New Teacher", subtitle: "Create a faculty account and assign classes", href: "/school/admin/teachers", icon: GraduationCap },
+        { title: "Schedule Examination", subtitle: "Configure upcoming exam period", href: "/school/admin/exams", icon: GraduationCap },
+        { title: "Manage Academic Structure", subtitle: "Set up grade levels and class sections", href: "/school/admin/academic-structure", icon: Layers },
+        { title: "Manage Library Catalog", subtitle: "Add or lend school library books", href: "/school/admin/library", icon: BookOpen },
+        { title: "Manage Bus Transport", subtitle: "Configure routes and assign student buses", href: "/school/admin/transport", icon: Bus },
         { title: "Post School Announcement", subtitle: "Broadcast notice to parents and staff", href: "/school/admin/announcements", icon: Megaphone },
         { title: "Manage User Permissions", subtitle: "Edit role privileges and account statuses", href: "/school/admin/users-and-roles", icon: ShieldCheck },
         { title: "Review Staff Biometric Attendance", subtitle: "Monitor employee clock-ins", href: "/school/admin/staff-attendance", icon: UserCheck },

@@ -146,7 +146,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         const singleSchool = await schoolService.getSingleSchool();
         let schoolId = singleSchool.id;
         let customSchoolId = singleSchool.schoolId || 'SCH-0001';
-        let schoolName = singleSchool.name || 'Addis Hiwot School';
+        let schoolName = singleSchool.name || 'Bright Path';
         let schoolLogo = singleSchool.settings?.school_logo || '';
         const token = (0, jwt_1.generateToken)({
             id: user.id,
@@ -179,6 +179,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
                     role: user.role,
                     schoolId: schoolId,
                     customSchoolId: customSchoolId,
+                    attendanceMode: user.attendanceMode || 'DAILY',
                 },
                 schoolName,
                 schoolLogo,
@@ -234,6 +235,7 @@ router.post('/refresh', async (req, res, next) => {
                 profile_photo: true,
                 phone: true,
                 teacher_id: true,
+                attendanceMode: true,
             }
         });
         if (!user || user.is_active === false) {
@@ -242,7 +244,7 @@ router.post('/refresh', async (req, res, next) => {
         const singleSchool = await schoolService.getSingleSchool();
         const schoolId = singleSchool.id;
         const customSchoolId = singleSchool.schoolId || 'SCH-0001';
-        const schoolName = singleSchool.name || 'Addis Hiwot School';
+        const schoolName = singleSchool.name || 'Bright Path';
         const schoolLogo = singleSchool.settings?.school_logo || '';
         const effectiveRole = decoded.role || user.role;
         const newToken = (0, jwt_1.generateToken)({
@@ -272,6 +274,7 @@ router.post('/refresh', async (req, res, next) => {
                     profile_photo: user.profile_photo || '',
                     phone: user.phone || '',
                     teacherId: user.teacher_id || '',
+                    attendanceMode: user.attendanceMode || 'DAILY',
                 },
                 schoolName,
                 schoolLogo,

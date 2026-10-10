@@ -7,7 +7,7 @@ import { ResetPasswordForm } from "./reset-password-form";
 import { ParentForgotPasswordForm } from "./parent-forgot-password-form";
 
 
-import { Download } from 'lucide-react'
+import { Download, Shield, User } from 'lucide-react'
 
 import { useLanguage } from "@/lib/context/language-context"
 
@@ -115,34 +115,71 @@ export function AuthWrapper({ onAuthSuccess, defaultView = "login" }: AuthWrappe
   }
 
   return (
-    <div className="auth-page min-h-screen relative overflow-y-auto overflow-x-hidden flex flex-col items-center justify-center p-4 sm:p-8">
-      {/* Auth Form */}
-      <div className="max-w-md w-full animate-in fade-in zoom-in-95 duration-1000 z-10 relative flex flex-col justify-center py-6 sm:py-10">
+    <div className="auth-page-wrapper">
+      {/* Full-screen Background Image */}
+      <div className="auth-bg-image" />
+
+      {/* Dark overlay for readability */}
+      <div className="auth-bg-overlay" />
+
+      {/* Main Content — vertically centered */}
+      <div className="auth-content-area">
+        {/* Logo + Brand above the card */}
+        <div className="auth-logo-section">
+          <div className="auth-logo-icon">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/bright-path-logo.png"
+              alt="Bright Path Logo"
+              width={88}
+              height={88}
+              className="auth-logo-img"
+            />
+          </div>
+          <h1 className="auth-brand-title">BRIGHT PATH</h1>
+          <p className="auth-brand-tagline">Learn &nbsp;·&nbsp; Grow &nbsp;·&nbsp; Achieve</p>
+        </div>
 
         {/* Mobile Install Button */}
         {isInstallable && isMobile && (
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-4">
             <button
               onClick={handleInstallClick}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 shadow-lg text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/90 backdrop-blur-sm border border-white/30 shadow-lg text-[11px] font-black uppercase tracking-[0.2em] text-[#1a3a5c]"
             >
               <Download className="w-4 h-4" />
-              Install Addis Hiwot App
+              Install Bright Path App
             </button>
           </div>
         )}
 
-        <div className="w-full relative px-1 sm:px-0">
+        {/* Form Card */}
+        <div className="auth-card-wrapper">
           {renderAuthForm()}
         </div>
-
-        <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500 flex flex-col items-center gap-2.5">
-          <div className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold uppercase tracking-[0.2em]">
-            &copy; {new Date().getFullYear()} Addis Hiwot &bull; Management Suite
-          </div>
-          <DeveloperBrand type="developed" />
-        </div>
       </div>
+
+      {/* Bottom Footer Bar */}
+      <footer className="auth-footer">
+        <div className="auth-footer-left">
+          <div className="auth-footer-shield">
+            <Shield className="w-4 h-4 text-blue-300" />
+          </div>
+          <div>
+            <div className="auth-footer-brand">Bright Path School Portal</div>
+            <div className="auth-footer-sub">Empowering schools for a brighter future</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className="text-[10px] sm:text-xs text-slate-400">Developed by</span>
+          <div className="flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-white">
+            <div className="w-4 h-4 rounded-full bg-slate-700/80 flex items-center justify-center">
+              <User className="w-2.5 h-2.5 text-slate-200" />
+            </div>
+            <span>Ethio Nova</span>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

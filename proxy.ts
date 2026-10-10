@@ -6,7 +6,7 @@ const PUBLIC_ROOT_FILES = new Set([
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
-  "/addis-hiwot-logo.png",
+  "/bright-path-logo.png",
   "/offline.html",
   "/browserconfig.xml",
   "/icon.svg",
@@ -18,6 +18,7 @@ const PUBLIC_ROOT_FILES = new Set([
 
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+  const host = request.headers.get("host") || ""
 
   if (PUBLIC_ROOT_FILES.has(pathname)) {
     return NextResponse.next()
@@ -33,17 +34,52 @@ export function proxy(request: NextRequest) {
     return response
   }
 
+  // Subdomain / Domain Portal Routing:
+  // school.<domain> -> School Portal
+  // portal.<domain> -> Student & Parent Portal
+  const isSchoolDomain = host.startsWith("school.") || host.startsWith("admin.")
+  const isPortalDomain = host.startsWith("portal.") || host.startsWith("parent.") || host.startsWith("student.")
+
+  if (isSchoolDomain) {
+    // If student/parent route accessed on school domain -> block
+    if (pathname.startsWith("/student") || pathname.startsWith("/parent")) {
+      return new NextResponse("Access Denied: This portal is for school staff only. Please use the Student & Parent Portal.", { status: 403 })
+    }
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/school/login", request.url))
+    }
+  }
+
+  if (isPortalDomain) {
+    // If school route accessed on portal domain -> block
+    if (pathname.startsWith("/school")) {
+      return new NextResponse("Access Denied: This portal is for students and parents only. Please use the School Portal.", { status: 403 })
+    }
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/portal/login", request.url))
+    }
+  }
+
   // Public paths that don't require authentication
-  const publicPaths = ["/", "/login", "/forgot-password", "/reset-password"]
+  const publicPaths = [
+    "/",
+    "/login",
+    "/school/login",
+    "/portal/login",
+    "/student/login",
+    "/forgot-password",
+    "/reset-password"
+  ]
   const isPublicPath = publicPaths.includes(pathname)
 
   const isProtectedPath = !isPublicPath
 
-  const sessionToken = request.cookies.get("session")?.value
+  const sessionToken = request.cookies.get("session")?.value || request.cookies.get("attendance_token")?.value
 
   if (isProtectedPath && !sessionToken && 
       !pathname.startsWith('/school/') && 
       !pathname.startsWith('/parent/') &&
+      !pathname.startsWith('/student/') &&
       !pathname.startsWith('/auth/')) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("redirect", pathname)

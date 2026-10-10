@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const settingsService = __importStar(require("../services/settings.service"));
+const schoolService = __importStar(require("../services/school.service"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const holidayService = __importStar(require("../services/holiday.service"));
 const router = (0, express_1.Router)();
@@ -65,11 +66,21 @@ router.put('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), asy
         next(error);
     }
 });
-// Reset settings to defaults
+// GET /api/settings/reset
 router.post('/reset', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (_req, res, next) => {
     try {
         const settings = await settingsService.resetSettings();
         res.status(200).json({ success: true, data: settings, message: 'Settings reset to default values successfully.' });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// GET /api/settings/subjects — alias for /api/schools/subjects (frontend compatibility)
+router.get('/subjects', async (_req, res, next) => {
+    try {
+        const subjects = await schoolService.getSubjects();
+        res.status(200).json({ success: true, data: subjects });
     }
     catch (error) {
         next(error);

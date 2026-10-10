@@ -18,6 +18,7 @@ export const getUserByEmail = async (email: string) => {
       phone: true,
       teacher_id: true,
       pushToken: true,
+      attendanceMode: true,
     }
   });
 };
@@ -47,6 +48,7 @@ export const getUserById = async (id: string, _schoolId?: string) => {
       address: true,
       lastActive: true,
       pushToken: true,
+      attendanceMode: true,
     }
   });
 };
@@ -64,6 +66,7 @@ export const getUsers = async (_schoolId?: string) => {
       phone: true,
       is_active: true,
       teacher_id: true,
+      attendanceMode: true,
       createdAt: true,
       updatedAt: true,
       experience_years: true,
@@ -193,6 +196,7 @@ export const createUser = async (data: any) => {
       phone: data.phone || null,
       is_active: data.is_active !== false,
       teacher_id: teacherId,
+      attendanceMode: (data.attendanceMode || data.attendance_mode || 'DAILY').toString().trim().toUpperCase() === 'SESSION' ? 'SESSION' : 'DAILY',
       subject: data.subject || null,
       qualification: data.qualification || null,
       experience_years: data.experience_years !== undefined && data.experience_years !== null ? Number(data.experience_years) : null,
@@ -263,6 +267,10 @@ export const updateUser = async (id: string, data: any, _schoolId?: string) => {
   if (data.qualification !== undefined) updateData.qualification = data.qualification;
   if (data.experience_years !== undefined) updateData.experience_years = data.experience_years !== null ? Number(data.experience_years) : null;
   if (data.profile_photo !== undefined) updateData.profile_photo = data.profile_photo;
+  if (data.attendanceMode !== undefined || data.attendance_mode !== undefined) {
+    const rawMode = String(data.attendanceMode ?? data.attendance_mode).trim().toUpperCase();
+    updateData.attendanceMode = rawMode === 'SESSION' ? 'SESSION' : 'DAILY';
+  }
 
   const user = await prisma.user.update({ 
     where: { id: targetUserId }, 

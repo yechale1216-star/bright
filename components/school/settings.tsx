@@ -23,6 +23,7 @@ import { useCalendar } from "@/lib/context/calendar-context"
 import dynamic from "next/dynamic"
 
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
+import { AcademicStructureTab } from "@/components/school/academic-structure-tab"
 import { StaffScheduleSettingsTab } from "@/components/school/staff-schedule-settings-tab"
 import { validateAllScheduleSettings } from "@/lib/utils/schedule-validation"
 
@@ -257,6 +258,7 @@ export function Settings() {
         <TabsList className="flex w-full bg-slate-100/50 dark:bg-slate-900/50 p-1 rounded-[20px] overflow-x-auto scrollbar-hide border border-slate-200/50 dark:border-slate-800/50 h-12">
           <TabsTrigger value="general" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">General</TabsTrigger>
           <TabsTrigger value="academic_year" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Academic Year</TabsTrigger>
+          <TabsTrigger value="academic_structure" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Academic Structure</TabsTrigger>
           <TabsTrigger value="staff_schedule" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Staff Schedule & Holidays</TabsTrigger>
           <TabsTrigger value="attendance" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Student Rules</TabsTrigger>
           <TabsTrigger value="system" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">System</TabsTrigger>
@@ -264,6 +266,10 @@ export function Settings() {
 
         <TabsContent value="academic_year" className="space-y-4">
           <AcademicYearManagementTab />
+        </TabsContent>
+
+        <TabsContent value="academic_structure" className="space-y-4">
+          <AcademicStructureTab />
         </TabsContent>
 
         <TabsContent value="staff_schedule" className="space-y-4">

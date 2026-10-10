@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as studentController from '../controllers/student.controller';
 import { validateStudent } from '../middleware/validate';
+import { authorize } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -8,12 +9,12 @@ const router = Router();
 router.get('/', studentController.getStudents);
 router.get('/auto/next-id', studentController.getNextStudentId);
 router.get('/parent/:phone', studentController.getStudentsByParentPhone);
-router.post('/', validateStudent, studentController.createStudent);
-router.post('/bulk', studentController.bulkCreateStudents);
+router.post('/', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), validateStudent, studentController.createStudent);
+router.post('/bulk', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.bulkCreateStudents);
 
 // Dynamic routes last
 router.get('/:id', studentController.getStudentById);
-router.put('/:id', studentController.updateStudent);
-router.delete('/:id', studentController.deleteStudent);
+router.put('/:id', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.updateStudent);
+router.delete('/:id', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.deleteStudent);
 
 export default router;

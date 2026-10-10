@@ -91,7 +91,7 @@ export default function Page() {
           <div className="flex items-center gap-3">
             <Image
               src={DEFAULT_OG_IMAGE}
-              alt="Addis Hiwot School Official Crest and Logo"
+              alt="Bright Path Official Logo"
               width={44}
               height={44}
               className="rounded-xl shadow-md border border-slate-700/50"
@@ -123,13 +123,13 @@ export default function Page() {
             Enterprise Educational Management Suite
           </div>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-            Addis Hiwot Digital School Management & Communication Platform
+            Bright Path Digital School Management & Communication Platform
           </h1>
           <p className="text-base sm:text-lg text-slate-300 font-normal leading-relaxed">
-            Addis Hiwot is a comprehensive, purpose-built educational administration platform developed by{" "}
+            Bright Path is a comprehensive, purpose-built educational administration platform developed by{" "}
             <strong className="text-white font-bold">{DEVELOPER_NAME}</strong>. It eliminates paper friction and unifies
             student attendance tracking, AI face biometric staff attendance, student discipline workflows, parent-teacher
-            communication, and academic record management into a secure, centralized digital hub for modern schools in Addis Ababa, Ethiopia.
+            communication, and academic record management into a secure, centralized digital hub for modern schools.
           </p>
         </section>
 
@@ -221,15 +221,15 @@ export default function Page() {
           </h2>
           <div className="space-y-4 text-xs sm:text-sm">
             <details className="p-4 rounded-xl bg-[#0d172e] border border-slate-800/70 open:bg-[#101c38]">
-              <summary className="font-bold text-slate-100 cursor-pointer">What is the Addis Hiwot platform?</summary>
+              <summary className="font-bold text-slate-100 cursor-pointer">What is the Bright Path platform?</summary>
               <p className="mt-2 text-slate-300 leading-relaxed">
-                Addis Hiwot is a modern digital school management and communication platform developed by {DEVELOPER_NAME}. It serves as the all-in-one administrative hub for Addis Hiwot School, managing student attendance, staff biometric verification, disciplinary incidents, parent communication, and academic promotions.
+                Bright Path is a modern digital school management and communication platform developed by {DEVELOPER_NAME}. It serves as the all-in-one administrative hub, managing student attendance, staff biometric verification, disciplinary incidents, parent communication, and academic promotions.
               </p>
             </details>
             <details className="p-4 rounded-xl bg-[#0d172e] border border-slate-800/70 open:bg-[#101c38]">
-              <summary className="font-bold text-slate-100 cursor-pointer">Who is the developer of Addis Hiwot?</summary>
+              <summary className="font-bold text-slate-100 cursor-pointer">Who is the developer of Bright Path?</summary>
               <p className="mt-2 text-slate-300 leading-relaxed">
-                Addis Hiwot was designed, engineered, and developed by {DEVELOPER_NAME} ({DEVELOPER_ATTRIBUTION}).
+                Bright Path was designed, engineered, and developed by {DEVELOPER_NAME} ({DEVELOPER_ATTRIBUTION}).
               </p>
             </details>
             <details className="p-4 rounded-xl bg-[#0d172e] border border-slate-800/70 open:bg-[#101c38]">

@@ -41,6 +41,13 @@ import disciplineRoutes from './routes/discipline.routes';
 import rolesRoutes from './routes/roles.routes';
 import academicYearRoutes from './routes/academic-year.routes';
 import staffAttendanceRoutes from './routes/staff-attendance.routes';
+import gradebookRoutes from './routes/gradebook.routes';
+import homeworkRoutes from './routes/homework.routes';
+import learningMaterialsRoutes from './routes/learning-materials.routes';
+import libraryRoutes from './routes/library.routes';
+import transportRoutes from './routes/transport.routes';
+import studentPortalRoutes, { publicStudentRouter } from './routes/student-portal.routes';
+import assessmentPolicyRoutes from './routes/assessment-policy.routes';
 
 import { authMiddleware } from './middleware/auth.middleware';
 import { maintenanceMiddleware } from './middleware/maintenance.middleware';
@@ -120,6 +127,9 @@ const publicParentRouter = express.Router();
 publicParentRouter.get('/schools', parentController.listParentSchools);
 publicParentRouter.post('/login', parentController.loginParent);
 app.use('/api/parent', publicParentRouter);
+
+// Student Login & Password Reset are public
+app.use('/api/student', publicStudentRouter);
 
 app.post('/api/calls/public-reject', async (req, res) => {
   const { callId, message } = req.body;
@@ -244,6 +254,13 @@ app.use('/api/saved-messages', savedMessagesRoutes);
 app.use('/api/discipline', disciplineRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/staff-attendance', staffAttendanceRoutes);
+app.use('/api/gradebook', gradebookRoutes);
+app.use('/api/homework', homeworkRoutes);
+app.use('/api/learning-materials', learningMaterialsRoutes);
+app.use('/api/library', libraryRoutes);
+app.use('/api/transport', transportRoutes);
+app.use('/api/student', studentPortalRoutes);
+app.use('/api/assessment-policy', assessmentPolicyRoutes);
 
 
 // Error handling middleware

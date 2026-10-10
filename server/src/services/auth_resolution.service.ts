@@ -14,7 +14,7 @@ export const getMemberships = async (userId: string): Promise<Membership[]> => {
   });
 
   const settings = await prisma.schoolSettings.findFirst();
-  const schoolName = settings?.school_name || 'Addis Hiwot School';
+  const schoolName = settings?.school_name || 'Bright Path';
   const logo = settings?.school_logo || '';
 
   if (!user) return [];
@@ -58,7 +58,17 @@ export const resolveRoleInSchool = async (userId: string, _schoolId?: string, re
       if (user) return user.role;
     }
 
-    const staffRoles = ['staff', 'staff_member', 'registrar', 'discipline_officer'];
+    const staffRoles = [
+      'staff',
+      'staff_member',
+      'registrar',
+      'discipline_officer',
+      'academic_head',
+      'librarian',
+      'transport_manager',
+      'staff_attendance_officer',
+      'hr_officer'
+    ];
     if (staffRoles.includes(requestedRole)) {
       const user = await prisma.user.findFirst({
         where: { id: userId, role: { in: requestedRole === 'staff' ? ['staff', 'staff_member'] : [requestedRole] } }

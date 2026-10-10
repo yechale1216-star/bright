@@ -39,8 +39,8 @@ export const Logo: React.FC<LogoProps> = ({
         ) : (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src="/addis-hiwot-logo.png"
-            alt="Addis Hiwot School Logo"
+            src="/bright-path-logo.png"
+            alt="Bright Path Logo"
             width={dimensions[size].px}
             height={dimensions[size].px}
             className="object-cover w-full h-full relative z-10 dark:drop-shadow-[0_0_10px_rgba(147,197,253,0.5)] rounded-full"
@@ -54,13 +54,13 @@ export const Logo: React.FC<LogoProps> = ({
             "font-black tracking-tight text-slate-900 dark:text-white leading-snug",
             size === 'sm' ? 'text-xs' : size === 'md' ? 'text-base font-extrabold' : size === 'lg' ? 'text-xl font-black' : 'text-2xl md:text-3xl font-black'
           )}>
-            አዲስ ህይወት ት/ቤት
+            ብራይት ፓዝ
           </span>
           <span className={cn(
             "font-black tracking-tight text-slate-900 dark:text-white leading-snug",
             size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm md:text-base font-bold' : size === 'lg' ? 'text-lg font-bold' : 'text-xl md:text-2xl font-black'
           )}>
-            Addis Hiwot School
+            Bright Path
           </span>
         </div>
       )}

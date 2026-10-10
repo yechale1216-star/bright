@@ -1,15 +1,31 @@
 {
-  "name": "addis-hiwot",
-  "version": "0.1.0",
+  "name": "bright-path",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=20.0.0"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "build": "next build --webpack",
-    "build:android": "node scripts/capacitor-build.js && npx cap sync android",
     "dev": "next dev --turbo",
     "dev:stable": "next dev --webpack",
+    "dev:school": "next dev apps/school-portal -p 3000 --webpack",
+    "dev:school:turbo": "next dev apps/school-portal -p 3000 --turbo",
+    "dev:portal": "next dev apps/student-parent-portal -p 3001 --webpack",
+    "dev:portal:turbo": "next dev apps/student-parent-portal -p 3001 --turbo",
+    "build": "next build --webpack",
+    "build:school": "next build apps/school-portal --webpack",
+    "build:portal": "next build apps/student-parent-portal --webpack",
+    "start:school": "next start apps/school-portal -p 3000",
+    "start:portal": "next start apps/student-parent-portal -p 3001",
+    "build:android": "node scripts/capacitor-build.js && npx cap sync android",
+    "build:apk:school": "node scripts/build-apk.js --target=school",
+    "build:apk:portal": "node scripts/build-apk.js --target=portal",
+    "build:apk:all": "node scripts/build-apk.js --all",
+    "dev:server": "npm --prefix server run dev",
     "fix": "powershell ./scripts/fix-turbo.ps1",
     "clean-dev": "powershell ./scripts/fix-turbo.ps1 && npm run dev",
     "mobile": "powershell -ExecutionPolicy Bypass -File ./scripts/mobile-dev.ps1",

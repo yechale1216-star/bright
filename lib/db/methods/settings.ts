@@ -5,7 +5,7 @@ import { apiFetch, RequestError } from "@/lib/utils/fetch-with-timeout"
 
 export function defaultSettings() {
   return {
-    schoolName: "Addis Hiwot School",
+    schoolName: "Bright Path",
     schoolPhone: "",
     schoolAddress: "",
     academicYear: "2017/2018 E.C.",
@@ -33,7 +33,8 @@ export function defaultSettings() {
     emailFromDomain: "smartattenadacetracker.app",
     email_from_domain: "smartattenadacetracker.app",
     // Staff working schedule
-    staffAttendanceMode: "daily" as "daily" | "session_based",
+    staffAttendanceMode: "daily" as "daily" | "session_based" | "both",
+    attendanceModeSetting: "DAILY" as "DAILY" | "SESSION" | "BOTH",
     staffSessions: null as any,
     staffWorkingDays: "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
     staffWorkStartTime: "08:00",
@@ -64,7 +65,7 @@ export async function getSettings(headers: any, schoolId?: string): Promise<any>
     const calendarPreference = calendarTypeUpper.includes("GREGORIAN") ? "gregorian" : "ethiopian"
 
     const settingsData = {
-      schoolName: s.school_name || "Addis Hiwot School",
+      schoolName: s.school_name || "Bright Path",
       schoolPhone: s.school_phone || "",
       schoolAddress: s.school_address || "",
       academicYear: s.academic_year || "2017/2018 E.C.",
@@ -91,7 +92,13 @@ export async function getSettings(headers: any, schoolId?: string): Promise<any>
       email_api_key: s.email_api_key || "",
       emailFromDomain: s.email_from_domain || "smartattenadacetracker.app",
       email_from_domain: s.email_from_domain || "smartattenadacetracker.app",
-      staffAttendanceMode: (s.staff_attendance_mode || "daily") as "daily" | "session_based",
+      staffAttendanceMode: (s.staff_attendance_mode || "daily") as "daily" | "session_based" | "both",
+      attendanceModeSetting: s.attendanceModeSetting || (() => {
+        const raw = String(s.staff_attendance_mode || "daily").toUpperCase();
+        if (raw === "SESSION_BASED" || raw === "SESSION") return "SESSION";
+        if (raw === "BOTH") return "BOTH";
+        return "DAILY";
+      })(),
       staffSessions: s.staff_sessions ?? null,
       staffWorkingDays: s.staff_working_days || "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY",
       staffWorkStartTime: s.staff_work_start_time || "08:00",

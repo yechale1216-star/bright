@@ -36,6 +36,7 @@ export interface User {
   profile_photo?: string
   onboardingCompleted?: boolean
   isVerified?: boolean
+  attendanceMode?: string
 }
 
 export interface AuthResponse {
@@ -104,6 +105,7 @@ class AuthService {
         teacherId: dbUser.teacher_id || "",
         profile_photo: dbUser.profile_photo || "",
         onboardingCompleted: data.data.onboardingCompleted ?? true,
+        attendanceMode: dbUser.attendanceMode || "DAILY",
       }
 
       if (this.isClient()) {
@@ -806,6 +808,7 @@ class AuthService {
             email: dbUser.email,
             phone: dbUser.phone || "",
             profile_photo: dbUser.profile_photo || "",
+            ...(dbUser.attendanceMode !== undefined && { attendanceMode: dbUser.attendanceMode }),
           }
           if (this.isClient()) {
             localStorage.setItem(this.CURRENT_USER_KEY, JSON.stringify(updatedUser))

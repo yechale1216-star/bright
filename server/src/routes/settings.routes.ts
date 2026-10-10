@@ -1,5 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import * as settingsService from '../services/settings.service';
+import * as schoolService from '../services/school.service';
 import { AuthenticatedRequest, authorize } from '../middleware/auth.middleware';
 import * as holidayService from '../services/holiday.service';
 
@@ -30,11 +31,19 @@ router.put('/', authorize(['admin', 'school_admin']), async (req: AuthenticatedR
   }
 });
 
-// Reset settings to defaults
+// GET /api/settings/reset
 router.post('/reset', authorize(['admin', 'school_admin']), async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const settings = await settingsService.resetSettings();
     res.status(200).json({ success: true, data: settings, message: 'Settings reset to default values successfully.' });
+  } catch (error) { next(error); }
+});
+
+// GET /api/settings/subjects — alias for /api/schools/subjects (frontend compatibility)
+router.get('/subjects', async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const subjects = await schoolService.getSubjects();
+    res.status(200).json({ success: true, data: subjects });
   } catch (error) { next(error); }
 });
 

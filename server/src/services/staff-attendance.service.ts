@@ -258,6 +258,55 @@ export function getConfiguredSessions(settings?: any): StaffSessionConfig[] {
   return DEFAULT_STAFF_SESSIONS;
 }
 
+/**
+ * Resolves the global attendance mode setting configured by Admin: DAILY | SESSION | BOTH
+ */
+export function getGlobalAttendanceModeSetting(settings?: any): 'DAILY' | 'SESSION' | 'BOTH' {
+  const raw = settings?.attendanceModeSetting ?? settings?.attendance_mode_setting ?? settings?.staff_attendance_mode ?? 'daily';
+  const upper = String(raw).trim().toUpperCase();
+  if (upper === 'SESSION' || upper === 'SESSION_BASED') return 'SESSION';
+  if (upper === 'BOTH') return 'BOTH';
+  return 'DAILY';
+}
+
+/**
+ * Resolves the effective attendance mode for a specific staff member (DAILY | SESSION).
+ * 1. If global setting is DAILY -> DAILY
+ * 2. If global setting is SESSION -> SESSION
+ * 3. If global setting is BOTH -> staff member's assigned attendanceMode (default DAILY)
+ */
+export async function getEffectiveStaffAttendanceMode(
+  userId: string,
+  settings?: any
+): Promise<{ effectiveMode: 'DAILY' | 'SESSION'; globalSetting: 'DAILY' | 'SESSION' | 'BOTH'; assignedMode: 'DAILY' | 'SESSION' }> {
+  const effectiveSettings = settings || (await prisma.schoolSettings.findFirst());
+  const globalSetting = getGlobalAttendanceModeSetting(effectiveSettings);
+
+  let assignedMode: 'DAILY' | 'SESSION' = 'DAILY';
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { attendanceMode: true }
+  });
+  if (user?.attendanceMode) {
+    const uUpper = String(user.attendanceMode).trim().toUpperCase();
+    if (uUpper === 'SESSION' || uUpper === 'SESSION_BASED') {
+      assignedMode = 'SESSION';
+    }
+  }
+
+  let effectiveMode: 'DAILY' | 'SESSION' = 'DAILY';
+  if (globalSetting === 'DAILY') {
+    effectiveMode = 'DAILY';
+  } else if (globalSetting === 'SESSION') {
+    effectiveMode = 'SESSION';
+  } else {
+    // globalSetting === 'BOTH'
+    effectiveMode = assignedMode;
+  }
+
+  return { effectiveMode, globalSetting, assignedMode };
+}
+
 export function computeSessionThresholds(session: StaffSessionConfig & {
   absenceCutoffTime?: string;
   earliestCheckinTime?: string;
@@ -469,7 +518,8 @@ export async function checkIn(userId: string, _schoolId?: string, data: {
   }
 
   const settings = await prisma.schoolSettings.findFirst();
-  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+  const { effectiveMode } = await getEffectiveStaffAttendanceMode(user.id, settings);
+  const attendanceMode = effectiveMode === 'SESSION' ? 'session_based' : 'daily';
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
 
   let sessionKey: string;
@@ -672,7 +722,8 @@ export async function checkOut(userId: string, _schoolId?: string, data: {
   remarks?: string;
 } = {}) {
   const settings = await prisma.schoolSettings.findFirst();
-  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+  const { effectiveMode } = await getEffectiveStaffAttendanceMode(userId, settings);
+  const attendanceMode = effectiveMode === 'SESSION' ? 'session_based' : 'daily';
   const { dateStr, startDate, endDate } = normalizeStaffDate(data.date);
 
   let sessionKey: string;
@@ -991,7 +1042,8 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
   page?: number;
 } = {}): Promise<{ records: any[]; total: number; page: number; limit: number }> {
   const settings = await prisma.schoolSettings.findFirst();
-  const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
+  const globalModeSetting = getGlobalAttendanceModeSetting(settings);
+  const attendanceMode = filters.mode || (globalModeSetting === 'BOTH' ? 'both' : globalModeSetting === 'SESSION' ? 'session_based' : 'daily');
 
   if (filters.date) {
     try {
@@ -1053,7 +1105,8 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
 
   if (attendanceMode === 'daily') {
     where.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
-  } else {
+  } else if (attendanceMode !== 'both' && attendanceMode !== 'BOTH') {
+    // session-based mode: filter to session records only
     if (filters.session && filters.session !== 'all' && filters.session !== 'ALL') {
       where.session = normaliseSessionKey(filters.session);
     } else {
@@ -1064,6 +1117,8 @@ export async function getStaffAttendance(_schoolId?: string, filters: {
       ];
     }
   }
+  // mode=both → no session filter, return all records
+
 
   // Enforce server-side pagination: default 50, max 100 per page
   const pageNum = Math.max(1, Number(filters.page) || 1);
@@ -1115,6 +1170,7 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
 
   const settings = await prisma.schoolSettings.findFirst();
   const workingDayInfo = await isDateWorkingDay(undefined, dateStr, settings);
+  const globalModeSetting = getGlobalAttendanceModeSetting(settings);
   const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
 
   const totalStaffCount = await prisma.user.count({
@@ -1133,9 +1189,9 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
   
   if (session && session !== 'all' && session !== 'ALL') {
     recordWhere.session = normaliseSessionKey(session);
-  } else if (attendanceMode === 'daily') {
+  } else if (globalModeSetting === 'DAILY') {
     recordWhere.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
-  } else {
+  } else if (globalModeSetting === 'SESSION') {
     recordWhere.AND = [
       { session: { not: null } },
       { session: { not: '' } },
@@ -1246,7 +1302,7 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
   }
 
   let sessionBreakdown: Record<string, any> | undefined;
-  if (attendanceMode === 'session_based') {
+  if (attendanceMode === 'session_based' || globalModeSetting === 'BOTH') {
     const bySession: Record<string, any> = {};
     // Build per-session early cutoff map for dynamic early departure calculation
     const sessionCutoffMap: Record<string, string> = {};
@@ -1289,7 +1345,8 @@ export async function getStaffAttendanceStats(_schoolId?: string, date?: string,
 
   return {
     date: dateStr,
-    attendanceMode,
+    attendanceMode: globalModeSetting === 'BOTH' ? 'both' : attendanceMode,
+    attendanceModeSetting: globalModeSetting,
     isWorkingDay: workingDayInfo.isWorkingDay,
     isHoliday: workingDayInfo.isHoliday,
     isWeekend: workingDayInfo.isWeekend,
@@ -1331,7 +1388,11 @@ export async function getMyAttendance(userId: string, _schoolId?: string, filter
   limit?: number;
 } = {}) {
   const settings = await prisma.schoolSettings.findFirst();
-  const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
+  let attendanceMode = filters.mode;
+  if (!attendanceMode) {
+    const { effectiveMode } = await getEffectiveStaffAttendanceMode(userId, settings);
+    attendanceMode = effectiveMode === 'SESSION' ? 'session_based' : 'daily';
+  }
 
   const where: any = { userId };
 
@@ -1346,7 +1407,7 @@ export async function getMyAttendance(userId: string, _schoolId?: string, filter
 
   if (attendanceMode === 'daily') {
     where.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
-  } else {
+  } else if (attendanceMode !== 'both' && attendanceMode !== 'BOTH') {
     if (filters.session && filters.session !== 'all' && filters.session !== 'ALL') {
       where.session = normaliseSessionKey(filters.session);
     } else {
@@ -1763,7 +1824,8 @@ export async function getStaffAttendanceReport(
   }
 ) {
   const settings = await prisma.schoolSettings.findFirst();
-  const attendanceMode = filters.mode || (settings as any)?.staff_attendance_mode || 'daily';
+  const globalModeSetting = getGlobalAttendanceModeSetting(settings);
+  const attendanceMode = filters.mode || (globalModeSetting === 'BOTH' ? 'both' : globalModeSetting === 'SESSION' ? 'session_based' : 'daily');
 
   const { startDate } = normalizeStaffDate(filters.startDate);
   const { endDate } = normalizeStaffDate(filters.endDate);
@@ -1792,7 +1854,7 @@ export async function getStaffAttendanceReport(
 
   if (attendanceMode === 'daily') {
     where.OR = [{ session: 'daily' }, { session: null }, { session: '' }];
-  } else {
+  } else if (attendanceMode !== 'both' && attendanceMode !== 'BOTH') {
     if (filters.session && filters.session !== 'all' && filters.session !== 'ALL') {
       where.session = normaliseSessionKey(filters.session);
     } else {
@@ -1986,20 +2048,20 @@ export async function processAutomaticStaffAbsences(options?: {
     return summary;
   }
 
-  const attendanceMode = (settings as any)?.staff_attendance_mode ?? 'daily';
+  const globalModeSetting = getGlobalAttendanceModeSetting(settings);
   const eligibleStaff = await prisma.user.findMany({
     where: {
       is_active: true,
       role: { notIn: ['parent', 'student', 'admin', 'school_admin'] }
     },
-    select: { id: true, full_name: true, role: true, email: true }
+    select: { id: true, full_name: true, role: true, email: true, attendanceMode: true }
   });
 
   summary.totalEligibleStaff += eligibleStaff.length;
   if (eligibleStaff.length === 0) return summary;
 
-  let sessionsToProcess: Array<{ id: string; name: string; absenceCutoffTime: string; expectedStartTime: string }>;
-  if (attendanceMode === 'session_based') {
+  let sessionsToProcess: Array<{ id: string; name: string; absenceCutoffTime: string; expectedStartTime: string; targetMode?: 'DAILY' | 'SESSION' }>;
+  if (globalModeSetting === 'SESSION') {
     const allSessions = getConfiguredSessions(settings);
     const filtered = options?.session && options.session !== 'all' && options.session !== 'ALL'
       ? allSessions.filter(s => s.id.toLowerCase() === options.session!.toLowerCase())
@@ -2014,6 +2076,33 @@ export async function processAutomaticStaffAbsences(options?: {
         expectedStartTime: thresholds.expectedStartTime,
       };
     });
+  } else if (globalModeSetting === 'BOTH') {
+    const allSessions = getConfiguredSessions(settings);
+    const filtered = options?.session && options.session !== 'all' && options.session !== 'ALL' && options.session.toLowerCase() !== 'daily'
+      ? allSessions.filter(s => s.id.toLowerCase() === options.session!.toLowerCase())
+      : allSessions;
+
+    sessionsToProcess = filtered.map(s => {
+      const thresholds = computeSessionThresholds(s);
+      return {
+        id: s.id.toLowerCase(),
+        name: s.name,
+        absenceCutoffTime: thresholds.absenceCutoffTime,
+        expectedStartTime: thresholds.expectedStartTime,
+        targetMode: 'SESSION' as const,
+      };
+    });
+
+    if (!options?.session || options.session === 'all' || options.session === 'ALL' || options.session.toLowerCase() === 'daily') {
+      const schedule = computeWorkingScheduleThresholds(settings);
+      sessionsToProcess.push({
+        id: 'daily',
+        name: 'Daily',
+        absenceCutoffTime: schedule.absenceCutoffTime,
+        expectedStartTime: schedule.expectedStartTime,
+        targetMode: 'DAILY' as const,
+      });
+    }
   } else {
     const schedule = computeWorkingScheduleThresholds(settings);
     sessionsToProcess = [{
@@ -2054,6 +2143,13 @@ export async function processAutomaticStaffAbsences(options?: {
     let schoolSessionMarked = 0;
 
     for (const staff of eligibleStaff) {
+      if (globalModeSetting === 'BOTH' && sessionConfig.targetMode) {
+        const staffMode = (staff as any).attendanceMode?.toUpperCase() === 'SESSION' ? 'SESSION' : 'DAILY';
+        if (staffMode !== sessionConfig.targetMode) {
+          continue;
+        }
+      }
+
       const existing = existingRecordMap.get(staff.id);
 
       if (existing) {

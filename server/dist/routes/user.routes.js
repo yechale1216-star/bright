@@ -67,7 +67,7 @@ router.get('/profile', async (req, res, next) => {
             isVerified: user.is_verified ?? false,
             schoolId: 'single-school',
             customSchoolId: 'SCH-0001',
-            schoolName: settings?.school_name || 'Addis Hiwot School',
+            schoolName: settings?.school_name || 'Bright Path',
             schoolLogo: settings?.school_logo || '',
             onboardingCompleted: true
         };
@@ -141,6 +141,8 @@ router.put('/:id', async (req, res, next) => {
             delete updateData.role;
             delete updateData.is_active;
             delete updateData.teacher_id;
+            delete updateData.attendanceMode;
+            delete updateData.attendance_mode;
         }
         const user = await userService.updateUser(targetUserId, updateData);
         res.status(200).json({ success: true, data: user });
@@ -218,7 +220,7 @@ router.post('/me/active-school', async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { getMemberships } = require('../services/auth_resolution.service');
         const memberships = await getMemberships(req.user.id);
-        const school = memberships[0] || { id: 'single-school', name: 'Addis Hiwot School' };
+        const school = memberships[0] || { id: 'single-school', name: 'Bright Path' };
         const { generateToken } = require('../utils/jwt');
         const token = generateToken({
             id: req.user.id,

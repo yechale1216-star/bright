@@ -26,7 +26,12 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.zetime.app"
+        def appTarget = project.hasProperty('appTarget') ? project.property('appTarget') : (System.getenv('APP_TARGET') ?: 'school')
+        if (appTarget == 'portal') {
+            applicationId "com.brightpath.portal"
+        } else {
+            applicationId "com.brightpath.school"
+        }
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 5

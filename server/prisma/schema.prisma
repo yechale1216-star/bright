@@ -46,10 +46,13 @@ model User {
   savedBookmarks             SavedBookmark[]
   blockedUsers               UserBlock[]          @relation("Blocker")
   blockedBy                  UserBlock[]          @relation("Blocked")
+  attendanceMode             String?              @default("DAILY")
   staffAttendance            StaffAttendance[]
   faceEnrollment             StaffFaceEnrollment? @relation("FaceEnrollmentUser")
   enrolledFaces              StaffFaceEnrollment[] @relation("FaceEnrollmentAdmin")
   faceAttempts               StaffFaceAttempt[]
+  student                    Student?
+  borrowedBooks              BookBorrowRecord[]
 
   @@index([email])
 }
@@ -72,31 +75,43 @@ model Teacher {
   timetableSlots   TimetableSlot[]     @relation("AssignedTeacher")
   substituteSlots  TimetableSlot[]     @relation("SubstituteTeacher")
   attendanceEditRequests AttendanceEditRequest[]
+  homeworksCreated       Assignment[]
+  assessmentsCreated     Assessment[]
+  assessmentSubmissions  AssessmentSubmissionRecord[]
 }
 
 model TeacherAssignment {
-  id         String   @id @default(uuid())
-  teacher_id String
-  gradeId    String
-  sectionId  String
-  subject    String?
-  streamId   String?
-  createdAt  DateTime @default(now())
-  grade      Grade    @relation(fields: [gradeId], references: [id])
-  section    Section  @relation(fields: [sectionId], references: [id])
-  stream     Stream?  @relation(fields: [streamId], references: [id])
-  teacher    Teacher  @relation(fields: [teacher_id], references: [id])
+  id             String        @id @default(uuid())
+  teacher_id     String
+  academicYearId String?
+  gradeId        String
+  sectionId      String
+  subjectId      String?
+  subject        String?
+  streamId       String?
+  role           String        @default("SUBJECT_TEACHER") // "SUBJECT_TEACHER" | "HOMEROOM_TEACHER"
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
 
-  @@unique([gradeId, sectionId, streamId])
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  grade          Grade         @relation(fields: [gradeId], references: [id])
+  section        Section       @relation(fields: [sectionId], references: [id])
+  stream         Stream?       @relation(fields: [streamId], references: [id])
+  subjectRef     Subject?      @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  teacher        Teacher       @relation(fields: [teacher_id], references: [id])
+
   @@index([teacher_id])
   @@index([gradeId])
   @@index([sectionId])
   @@index([streamId])
+  @@index([academicYearId])
+  @@index([subjectId])
+  @@index([role])
 }
 
 model SchoolSettings {
   id                                    String   @id @default("singleton")
-  school_name                           String?  @default("Addis Hiwot School")
+  school_name                           String?  @default("Bright Path")
   school_phone                          String?
   school_address                        String?
   academic_year                         String?
@@ -115,6 +130,7 @@ model SchoolSettings {
   allow_outside_attendance             Boolean  @default(true)
   calendar_type                         String   @default("ETHIOPIAN")
   staff_attendance_mode                 String   @default("daily")
+  attendanceModeSetting                 String?  @default("DAILY")
   staff_sessions                        Json?
   staff_working_days                    String   @default("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY")
   staff_work_start_time                 String?  @default("08:00")
@@ -166,6 +182,12 @@ model Grade {
   disciplines                StudentDiscipline[]
   timetables                 Timetable[]
   timetableSlots             TimetableSlot[]
+  assessments                Assessment[]
+  reportCards                ReportCard[]
+  homeworkTasks              Assignment[]
+  learningMaterials          LearningMaterial[]
+  assessmentSchemeAssignments AssessmentSchemeAssignment[]
+  assessmentSubmissions      AssessmentSubmissionRecord[]
 }
 
 model Section {
@@ -179,6 +201,10 @@ model Section {
   disciplines                StudentDiscipline[]
   timetables                 Timetable[]
   timetableSlots             TimetableSlot[]
+  assessments                Assessment[]
+  reportCards                ReportCard[]
+  homeworkTasks              Assignment[]
+  assessmentSubmissions      AssessmentSubmissionRecord[]
 }
 
 model Stream {
@@ -192,6 +218,8 @@ model Stream {
   disciplines                StudentDiscipline[]
   timetables                 Timetable[]
   timetableSlots             TimetableSlot[]
+  assessments                Assessment[]
+  assessmentSchemeAssignments AssessmentSchemeAssignment[]
 }
 
 model Student {
@@ -220,6 +248,14 @@ model Student {
   promotions             StudentPromotion[]
   academicRecords        StudentAcademicYearRecord[]
   attendanceEditRequests AttendanceEditRequest[]
+  marks                  StudentMark[]
+  reportCards            ReportCard[]
+  user_id                String?                     @unique
+  user                   User?                       @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  submissions            AssignmentSubmission[]
+  borrowedBooks          BookBorrowRecord[]
+  transportAssignments   StudentTransportAssignment[]
+  markAuditLogs          MarkAuditLog[]
 
   @@index([gradeId])
   @@index([sectionId])
@@ -836,6 +872,13 @@ model AcademicYear {
   studentRecords StudentAcademicYearRecord[]
   attendance     Attendance[]
   disciplines    StudentDiscipline[]
+  exams          Exam[]
+  assessments        Assessment[]
+  reportCards        ReportCard[]
+  teacherAssignments TeacherAssignment[]
+  assessmentSchemes  AssessmentWeightScheme[]
+  assessmentSchemeAssignments AssessmentSchemeAssignment[]
+  assessmentSubmissions AssessmentSubmissionRecord[]
 
   @@map("academic_years")
 }
@@ -851,6 +894,11 @@ model AcademicTerm {
   updatedAt      DateTime     @updatedAt
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   timetables     Timetable[]
+  exams          Exam[]
+  assessments    Assessment[]
+  reportCards    ReportCard[]
+  assessmentSchemeAssignments AssessmentSchemeAssignment[]
+  assessmentSubmissions AssessmentSubmissionRecord[]
 
   @@unique([academicYearId, name])
   @@index([academicYearId])
@@ -867,7 +915,14 @@ model Subject {
   isActive    Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  slots       TimetableSlot[]
+  slots                   TimetableSlot[]
+  assessments             Assessment[]
+  reportCardSubjectScores ReportCardSubjectScore[]
+  homeworkTasks           Assignment[]
+  learningMaterials       LearningMaterial[]
+  teacherAssignments      TeacherAssignment[]
+  assessmentSchemeAssignments AssessmentSchemeAssignment[]
+  assessmentSubmissions   AssessmentSubmissionRecord[]
 
   @@map("subjects")
 }
@@ -1036,4 +1091,481 @@ model StaffFaceAttempt {
   @@unique([userId, date, session])
   @@index([userId, date, session])
   @@map("staff_face_attempts")
+}
+
+model GradingScale {
+  id          String   @id @default(uuid())
+  grade       String   @unique
+  minScore    Float
+  maxScore    Float
+  gpaPoint    Float?
+  description String?
+  color       String?  @default("#10b981")
+  isPassing   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("grading_scales")
+}
+
+model Exam {
+  id             String          @id @default(uuid())
+  name           String
+  academicYearId String
+  academicTermId String?
+  startDate      DateTime?
+  endDate        DateTime?
+  status         String          @default("SCHEDULED")
+  isPublished    Boolean         @default(false)
+  description    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  academicYear   AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicTerm   AcademicTerm?   @relation(fields: [academicTermId], references: [id], onDelete: SetNull)
+  assessments    Assessment[]
+
+  @@index([academicYearId])
+  @@index([academicTermId])
+  @@map("exams")
+}
+
+model AssessmentType {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  orderIndex  Int      @default(0)
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assessments Assessment[]
+  categories  AssessmentCategory[]
+
+  @@map("assessment_types")
+}
+
+model AssessmentWeightScheme {
+  id             String                       @id @default(uuid())
+  name           String
+  description    String?
+  academicYearId String?
+  isTemplate     Boolean                      @default(false)
+  isDefault      Boolean                      @default(false)
+  isLocked       Boolean                      @default(false)
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  academicYear   AcademicYear?                @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  categories     AssessmentCategory[]
+  assignments    AssessmentSchemeAssignment[]
+  assessments    Assessment[]
+
+  @@map("assessment_weight_schemes")
+}
+
+model AssessmentCategory {
+  id                String                 @id @default(uuid())
+  schemeId          String
+  name              String
+  weight            Float
+  typeId            String?
+  aggregationMethod String                 @default("COMBINED_MARKS")
+  orderIndex        Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  scheme            AssessmentWeightScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  type              AssessmentType?        @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  assessments       Assessment[]
+
+  @@index([schemeId])
+  @@map("assessment_categories")
+}
+
+model AssessmentSchemeAssignment {
+  id             String                 @id @default(uuid())
+  schemeId       String
+  academicYearId String
+  academicTermId String?
+  gradeId        String?
+  streamId       String?
+  subjectId      String?
+  createdAt      DateTime               @default(now())
+
+  scheme         AssessmentWeightScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  academicYear   AcademicYear           @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicTerm   AcademicTerm?          @relation(fields: [academicTermId], references: [id], onDelete: Cascade)
+  grade          Grade?                 @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  stream         Stream?                @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  subject        Subject?               @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([schemeId])
+  @@index([academicYearId, academicTermId, gradeId, subjectId])
+  @@map("assessment_scheme_assignments")
+}
+
+model Assessment {
+  id             String                  @id @default(uuid())
+  examId         String?
+  academicYearId String
+  academicTermId String?
+  gradeId        String
+  sectionId      String?
+  subjectId      String
+  streamId       String?
+  teacherId      String?
+  categoryId     String?
+  typeId         String?
+  schemeId       String?
+  title          String
+  type           String                  @default("EXAM")
+  maxScore       Float                   @default(100)
+  weightage      Float                   @default(100)
+  passingScore   Float?
+  date           DateTime?
+  description    String?
+  status         String                  @default("OPEN")
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  approvedById   String?
+  publishedAt    DateTime?
+  reopenedAt     DateTime?
+  reopenReason   String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  exam           Exam?                   @relation(fields: [examId], references: [id], onDelete: SetNull)
+  academicYear   AcademicYear            @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicTerm   AcademicTerm?           @relation(fields: [academicTermId], references: [id], onDelete: SetNull)
+  grade          Grade                   @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  section        Section?                @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  subject        Subject                 @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  stream         Stream?                 @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  teacher        Teacher?                @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  category       AssessmentCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assessmentType AssessmentType?         @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  scheme         AssessmentWeightScheme? @relation(fields: [schemeId], references: [id], onDelete: SetNull)
+  marks          StudentMark[]
+  auditLogs      MarkAuditLog[]
+
+  @@index([academicYearId])
+  @@index([academicTermId])
+  @@index([gradeId])
+  @@index([sectionId])
+  @@index([subjectId])
+  @@index([categoryId])
+  @@index([teacherId])
+  @@index([examId])
+  @@map("assessments")
+}
+
+model StudentMark {
+  id           String     @id @default(uuid())
+  assessmentId String
+  studentId    String
+  score        Float?
+  status       String     @default("PRESENT")
+  isAbsent     Boolean    @default(false)
+  excuseReason String?
+  remarks      String?
+  gradedById   String?
+  version      Int        @default(1)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, studentId])
+  @@index([assessmentId])
+  @@index([studentId])
+  @@map("student_marks")
+}
+
+model MarkAuditLog {
+  id             String      @id @default(uuid())
+  assessmentId   String
+  studentId      String
+  markId         String?
+  previousScore  Float?
+  newScore       Float?
+  previousStatus String?
+  newStatus      String?
+  reason         String?
+  changedById    String?
+  createdAt      DateTime    @default(now())
+
+  assessment     Assessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student        Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([studentId])
+  @@map("mark_audit_logs")
+}
+
+model AssessmentSubmissionRecord {
+  id              String       @id @default(uuid())
+  academicYearId  String
+  academicTermId  String
+  gradeId         String
+  sectionId       String
+  subjectId       String
+  teacherId       String
+  status          String       @default("SUBMITTED")
+  submittedAt     DateTime     @default(now())
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  publishedAt     DateTime?
+  reopenedAt      DateTime?
+  reopenReason    String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicTerm    AcademicTerm @relation(fields: [academicTermId], references: [id], onDelete: Cascade)
+  grade           Grade        @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  section         Section      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject         Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher         Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([academicYearId, academicTermId, gradeId, sectionId, subjectId])
+  @@index([gradeId, sectionId, subjectId])
+  @@map("assessment_submission_records")
+}
+
+model ReportCard {
+  id                     String                   @id @default(uuid())
+  studentId              String
+  academicYearId         String
+  academicTermId         String
+  gradeId                String
+  sectionId              String
+  totalScore             Float                    @default(0)
+  maxPossibleScore       Float                    @default(0)
+  averageScore           Float                    @default(0)
+  gpa                    Float?
+  rank                   Int?
+  totalStudentsInClass   Int?
+  attendancePresentDays  Int                      @default(0)
+  attendanceTotalDays    Int                      @default(0)
+  conduct                String?                  @default("Excellent")
+  homeroomTeacherComment String?
+  principalComment       String?
+  status                 String                   @default("DRAFT")
+  publishedAt            DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  student                Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear           AcademicYear             @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicTerm           AcademicTerm             @relation(fields: [academicTermId], references: [id], onDelete: Cascade)
+  grade                  Grade                    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  section                Section                  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subjectScores          ReportCardSubjectScore[]
+
+  @@unique([studentId, academicYearId, academicTermId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([academicTermId])
+  @@index([gradeId, sectionId])
+  @@map("report_cards")
+}
+
+model ReportCardSubjectScore {
+  id             String     @id @default(uuid())
+  reportCardId   String
+  subjectId      String
+  score          Float      @default(0)
+  maxScore       Float      @default(100)
+  gradeLetter    String?
+  gpaPoint       Float?
+  rank           Int?
+  teacherRemarks String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  reportCard     ReportCard @relation(fields: [reportCardId], references: [id], onDelete: Cascade)
+  subject        Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([reportCardId, subjectId])
+  @@index([reportCardId])
+  @@index([subjectId])
+  @@map("report_card_subject_scores")
+}
+
+model Assignment {
+  id             String                 @id @default(uuid())
+  title          String
+  description    String?
+  subjectId      String
+  teacherId      String?
+  gradeId        String
+  sectionId      String?
+  dueDate        DateTime
+  maxScore       Float                  @default(100)
+  attachments    Json?
+  status         String                 @default("PUBLISHED") // DRAFT, PUBLISHED, CLOSED
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  subject        Subject                @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher        Teacher?               @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  grade          Grade                  @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  section        Section?               @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  submissions    AssignmentSubmission[]
+
+  @@index([subjectId])
+  @@index([gradeId])
+  @@index([sectionId])
+  @@index([teacherId])
+  @@index([dueDate])
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id             String     @id @default(uuid())
+  assignmentId   String
+  studentId      String
+  submissionText String?
+  attachments    Json?
+  submittedAt    DateTime   @default(now())
+  status         String     @default("SUBMITTED") // SUBMITTED, GRADED, LATE, RETURNED
+  score          Float?
+  feedback       String?
+  gradedById     String?
+  gradedAt       DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  assignment     Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student        Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@map("assignment_submissions")
+}
+
+model LearningMaterial {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  subjectId    String
+  gradeId      String
+  fileUrl      String
+  fileType     String?
+  fileSize     Int?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subject      Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  grade        Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+
+  @@index([subjectId])
+  @@index([gradeId])
+  @@map("learning_materials")
+}
+
+model Book {
+  id              String             @id @default(uuid())
+  title           String
+  author          String
+  isbn            String?
+  category        String             @default("General")
+  publisher       String?
+  publicationYear Int?
+  totalCopies     Int                @default(1)
+  availableCopies Int                @default(1)
+  shelfLocation   String?
+  description     String?
+  coverUrl        String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  borrowRecords   BookBorrowRecord[]
+
+  @@index([category])
+  @@index([title])
+  @@index([author])
+  @@map("books")
+}
+
+model BookBorrowRecord {
+  id         String    @id @default(uuid())
+  bookId     String
+  studentId  String?
+  userId     String?
+  borrowDate DateTime  @default(now())
+  dueDate    DateTime
+  returnDate DateTime?
+  status     String    @default("BORROWED") // BORROWED, RETURNED, OVERDUE, LOST
+  notes      String?
+  issuedById String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  book    Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([bookId])
+  @@index([studentId])
+  @@index([userId])
+  @@index([status])
+  @@map("book_borrow_records")
+}
+
+model TransportVehicle {
+  id          String           @id @default(uuid())
+  plateNumber String           @unique
+  model       String
+  capacity    Int              @default(30)
+  driverName  String
+  driverPhone String
+  status      String           @default("ACTIVE") // ACTIVE, MAINTENANCE, INACTIVE
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  routes      TransportRoute[]
+
+  @@map("transport_vehicles")
+}
+
+model TransportRoute {
+  id          String                       @id @default(uuid())
+  name        String
+  startPoint  String
+  endPoint    String
+  stops       Json? // Array of { name: string, time: string, order: number }
+  vehicleId   String?
+  status      String                       @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt   DateTime                     @default(now())
+  updatedAt   DateTime                     @updatedAt
+  vehicle     TransportVehicle?            @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  assignments StudentTransportAssignment[]
+
+  @@index([vehicleId])
+  @@map("transport_routes")
+}
+
+model StudentTransportAssignment {
+  id          String         @id @default(uuid())
+  studentId   String
+  routeId     String
+  pickupStop  String?
+  dropoffStop String?
+  status      String         @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  student     Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  route       TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, routeId])
+  @@index([studentId])
+  @@index([routeId])
+  @@map("student_transport_assignments")
 }

@@ -240,6 +240,92 @@ export class AcademicYearService {
       where: { id },
     });
   }
+
+  // ─── Academic Term Management ─────────────────────────────────────────────
+
+  async getTerms(academicYearId: string) {
+    return await prisma.academicTerm.findMany({
+      where: { academicYearId },
+      orderBy: { startDate: 'asc' },
+    });
+  }
+
+  async createTerm(academicYearId: string, data: { name: string; startDate: string | Date; endDate: string | Date; isCurrent?: boolean }) {
+    const { name, startDate, endDate, isCurrent } = data;
+    if (!name || !name.trim()) throw new Error('Term name is required');
+    if (!startDate || !endDate) throw new Error('Start date and End date are required');
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start >= end) throw new Error('Start date must be before End date');
+
+    const trimmedName = name.trim();
+    const existing = await prisma.academicTerm.findFirst({
+      where: { academicYearId, name: trimmedName },
+    });
+    if (existing) {
+      throw new Error(`A term named "${trimmedName}" already exists in this academic year`);
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      if (isCurrent) {
+        await tx.academicTerm.updateMany({
+          where: { academicYearId },
+          data: { isCurrent: false },
+        });
+      }
+
+      return await tx.academicTerm.create({
+        data: {
+          academicYearId,
+          name: trimmedName,
+          startDate: start,
+          endDate: end,
+          isCurrent: isCurrent ?? false,
+        },
+      });
+    });
+  }
+
+  async updateTerm(id: string, data: { name?: string; startDate?: string | Date; endDate?: string | Date; isCurrent?: boolean }) {
+    const term = await prisma.academicTerm.findUnique({ where: { id } });
+    if (!term) throw new Error('Academic term not found');
+
+    const updatePayload: any = {};
+    if (data.name) updatePayload.name = data.name.trim();
+    if (data.startDate) updatePayload.startDate = new Date(data.startDate);
+    if (data.endDate) updatePayload.endDate = new Date(data.endDate);
+
+    if (updatePayload.startDate && updatePayload.endDate && updatePayload.startDate >= updatePayload.endDate) {
+      throw new Error('Start date must be before End date');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      if (data.isCurrent === true) {
+        await tx.academicTerm.updateMany({
+          where: { academicYearId: term.academicYearId },
+          data: { isCurrent: false },
+        });
+        updatePayload.isCurrent = true;
+      } else if (data.isCurrent === false) {
+        updatePayload.isCurrent = false;
+      }
+
+      return await tx.academicTerm.update({
+        where: { id },
+        data: updatePayload,
+      });
+    });
+  }
+
+  async deleteTerm(id: string) {
+    const term = await prisma.academicTerm.findUnique({ where: { id } });
+    if (!term) throw new Error('Academic term not found');
+
+    return await prisma.academicTerm.delete({
+      where: { id },
+    });
+  }
 }
 
 export const academicYearService = new AcademicYearService();

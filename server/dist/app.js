@@ -74,6 +74,13 @@ const discipline_routes_1 = __importDefault(require("./routes/discipline.routes"
 const roles_routes_1 = __importDefault(require("./routes/roles.routes"));
 const academic_year_routes_1 = __importDefault(require("./routes/academic-year.routes"));
 const staff_attendance_routes_1 = __importDefault(require("./routes/staff-attendance.routes"));
+const gradebook_routes_1 = __importDefault(require("./routes/gradebook.routes"));
+const homework_routes_1 = __importDefault(require("./routes/homework.routes"));
+const learning_materials_routes_1 = __importDefault(require("./routes/learning-materials.routes"));
+const library_routes_1 = __importDefault(require("./routes/library.routes"));
+const transport_routes_1 = __importDefault(require("./routes/transport.routes"));
+const student_portal_routes_1 = __importStar(require("./routes/student-portal.routes"));
+const assessment_policy_routes_1 = __importDefault(require("./routes/assessment-policy.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const maintenance_middleware_1 = require("./middleware/maintenance.middleware");
 const parentController = __importStar(require("./controllers/parent.controller"));
@@ -143,6 +150,8 @@ const publicParentRouter = express_1.default.Router();
 publicParentRouter.get('/schools', parentController.listParentSchools);
 publicParentRouter.post('/login', parentController.loginParent);
 app.use('/api/parent', publicParentRouter);
+// Student Login & Password Reset are public
+app.use('/api/student', student_portal_routes_1.publicStudentRouter);
 app.post('/api/calls/public-reject', async (req, res) => {
     const { callId, message } = req.body;
     if (!callId) {
@@ -254,6 +263,13 @@ app.use('/api/saved-messages', saved_messages_routes_1.default);
 app.use('/api/discipline', discipline_routes_1.default);
 app.use('/api/roles', roles_routes_1.default);
 app.use('/api/staff-attendance', staff_attendance_routes_1.default);
+app.use('/api/gradebook', gradebook_routes_1.default);
+app.use('/api/homework', homework_routes_1.default);
+app.use('/api/learning-materials', learning_materials_routes_1.default);
+app.use('/api/library', library_routes_1.default);
+app.use('/api/transport', transport_routes_1.default);
+app.use('/api/student', student_portal_routes_1.default);
+app.use('/api/assessment-policy', assessment_policy_routes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

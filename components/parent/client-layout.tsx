@@ -21,6 +21,9 @@ import {
   Sparkles,
   ShieldAlert,
   Users,
+  BookOpen,
+  BookMarked,
+  Bus,
 } from "lucide-react"
 import { parentDb } from "@/lib/db/parent-db"
 import { Button } from "@/components/ui/button"
@@ -225,6 +228,10 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const navLinks = [
     { href: "/parent/dashboard", label: t("dashboard"), icon: <LayoutDashboard /> },
+    { href: "/parent/academics", label: "Academics & Grades", icon: <GraduationCap /> },
+    { href: "/parent/homework", label: "Homework", icon: <BookOpen /> },
+    { href: "/parent/materials", label: "Learning Materials", icon: <BookMarked /> },
+    { href: "/parent/transport", label: "School Transport", icon: <Bus /> },
     { href: "/parent/communication", label: t("communication"), icon: <MessageSquare />, badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
     { href: "/parent/announcements", label: t("notifications"), icon: <Megaphone /> },
     { href: "/parent/attendance", label: t("attendance"), icon: <Calendar /> },

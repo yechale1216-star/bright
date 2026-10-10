@@ -114,8 +114,28 @@ export function StaffAttendance() {
     workingDaysList: string[]
   } | null>(_staffAttendanceCache.calendarStatus)
 
-  // Session-based mode config
-  const isSessionMode = (settings?.staffAttendanceMode || settings?.staff_attendance_mode) === "session_based"
+  // Resolve effective attendance mode for this staff member:
+  // - Global DAILY  → always daily
+  // - Global SESSION → always session
+  // - Global BOTH   → use the per-staff attendanceMode field (default DAILY)
+  const globalAttendanceModeSetting: "DAILY" | "SESSION" | "BOTH" = useMemo(() => {
+    const globalRaw = settings?.attendanceModeSetting ?? settings?.attendance_mode_setting ?? settings?.staffAttendanceMode ?? settings?.staff_attendance_mode ?? "daily"
+    const upper = String(globalRaw).trim().toUpperCase()
+    if (upper === "SESSION" || upper === "SESSION_BASED") return "SESSION"
+    if (upper === "BOTH") return "BOTH"
+    return "DAILY"
+  }, [settings?.attendanceModeSetting, settings?.attendance_mode_setting, settings?.staffAttendanceMode, settings?.staff_attendance_mode])
+
+  const isSessionMode = useMemo(() => {
+    if (globalAttendanceModeSetting === "SESSION") return true
+    if (globalAttendanceModeSetting === "BOTH") {
+      // Use the staff member's own assigned mode
+      const staffRaw = currentUser?.attendanceMode ?? authUser?.attendanceMode ?? "DAILY"
+      return String(staffRaw).trim().toUpperCase() === "SESSION"
+    }
+    return false
+  }, [globalAttendanceModeSetting, currentUser?.attendanceMode, authUser?.attendanceMode])
+
   const staffSessions = useMemo(() => {
     const defaults = [
       { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "09:30", earliestCheckinTime: "06:00", latestCheckoutTime: "13:30", isActive: true },
@@ -314,7 +334,7 @@ export function StaffAttendance() {
         try {
           const { data, total } = await db.getStaffAttendance({
             date: selectedDate,
-            mode: isSessionMode ? "session_based" : "daily",
+            mode: globalAttendanceModeSetting === "BOTH" ? "both" : isSessionMode ? "session_based" : "daily",
             page: 1,
             limit: ADMIN_PAGE_LIMIT,
           })
@@ -681,7 +701,7 @@ export function StaffAttendance() {
     try {
       const { data, total } = await db.getStaffAttendance({
         date: opts.date ?? selectedDate,
-        mode: isSessionMode ? "session_based" : "daily",
+        mode: globalAttendanceModeSetting === "BOTH" ? "both" : isSessionMode ? "session_based" : "daily",
         search: opts.search ?? (searchTerm || undefined),
         status: (opts.status ?? statusFilter) === "ALL" ? undefined : (opts.status ?? statusFilter),
         page: targetPage,
@@ -849,10 +869,6 @@ export function StaffAttendance() {
                   <div className="grid grid-cols-2 gap-1.5 p-1 bg-muted/60 rounded-xl border border-border/40">
                     {staffSessions.map((sess: any) => {
                       const isSelected = selectedSession.toLowerCase() === sess.id.toLowerCase()
-                      const sessRec = myHistory.find(
-                        (r) => r.date?.split("T")[0] === selectedDate && r.session?.toLowerCase() === sess.id.toLowerCase()
-                      )
-                      const sessDisplay = getStaffAttendanceDisplay(sessRec, settings, sess, calendarStatus)
                       return (
                         <button
                           key={sess.id}
@@ -868,23 +884,6 @@ export function StaffAttendance() {
                           <span className="text-[10px] opacity-80 font-mono font-normal">
                             {formatEthiopianTime(sess.startTime)} - {formatEthiopianTime(sess.endTime)}
                           </span>
-                          {calendarStatus?.isWorkingDay !== false && (
-                            <span className={`text-[9px] font-bold uppercase mt-0.5 px-1.5 py-0.5 rounded ${
-                              sessDisplay.checkIn.status === 'NOT_STARTED'
-                                ? 'bg-black/20 text-white/80'
-                                : sessDisplay.checkIn.status === 'PENDING'
-                                ? 'bg-sky-500/30 text-sky-100 border border-sky-400/40'
-                                : sessDisplay.checkIn.status === 'ON_TIME' || sessDisplay.checkIn.status === 'PRESENT'
-                                ? 'bg-emerald-500/30 text-emerald-100 border border-emerald-400/40'
-                                : sessDisplay.checkIn.status === 'LATE'
-                                ? 'bg-amber-500/30 text-amber-100 border border-amber-400/40'
-                                : sessDisplay.checkIn.status === 'ABSENT'
-                                ? 'bg-rose-500/30 text-rose-100 border border-rose-400/40'
-                                : 'bg-black/20 text-white'
-                            }`}>
-                              {sessDisplay.checkIn.titleLabel}
-                            </span>
-                          )}
                         </button>
                       )
                     })}

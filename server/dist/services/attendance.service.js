@@ -541,7 +541,7 @@ const sendAttendanceParentNotification = async (student, status, dateStr, _schoo
         });
         const { sendCategoryNotification } = require('./notification.service');
         const settings = await db_1.default.schoolSettings.findFirst();
-        const schoolName = settings?.school_name || 'Addis Hiwot School';
+        const schoolName = settings?.school_name || 'Bright Path';
         const categoryLabel = isAbsent ? 'Absent Alert' : isLate ? 'Late Arrival' : 'Excused Absence';
         for (const link of parentLinks) {
             if (link.parent && link.parent.pushToken) {
@@ -817,7 +817,7 @@ const sendAdminAttendanceNotification = async (params) => {
         ]);
         if (!adminUsers || adminUsers.length === 0)
             return;
-        const schoolName = settings?.school_name || 'Addis Hiwot School';
+        const schoolName = settings?.school_name || 'Bright Path';
         const teacherName = teacher?.name || 'A teacher';
         const sessionLabel = session ? ` (${session})` : '';
         const parts = [];

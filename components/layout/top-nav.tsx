@@ -75,10 +75,10 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
     }).catch(() => {})
   }, [activeSchool?.id, user?.schoolId])
 
-  const rawSchoolName = settings?.schoolName || settings?.school_name || activeSchool?.name || user?.schoolName || "Addis Hiwot School"
-  const schoolName = !rawSchoolName || rawSchoolName.trim().toLowerCase() === "addis hiwot" ? "Addis Hiwot School" : rawSchoolName
+  const rawSchoolName = settings?.schoolName || settings?.school_name || activeSchool?.name || user?.schoolName || "Bright Path"
+  const schoolName = !rawSchoolName || rawSchoolName.trim().toLowerCase() === "addis hiwot" || rawSchoolName.trim().toLowerCase() === "bright path" ? "Bright Path" : rawSchoolName
   const schoolLogo = activeSchool ? (activeSchool.logo || "") : (user?.schoolLogo || "")
-  const logoUrl = schoolLogo || cachedLogo || "/addis-hiwot-logo.png"
+  const logoUrl = schoolLogo || cachedLogo || "/bright-path-logo.png"
 
   const handleLogout = async () => {
     await logout()

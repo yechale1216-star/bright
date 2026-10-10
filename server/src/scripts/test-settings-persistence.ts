@@ -27,7 +27,7 @@ async function runTests() {
     // 2. Save Full Settings Payload
     console.log('\n--- Test 2: Update All Settings via Service (Simulating UI Save) ---');
     const testPayload = {
-      school_name: 'Addis Hiwot Academy Test',
+      school_name: 'Bright Path Academy Test',
       school_phone: '+251911002233',
       school_address: 'Bole Subcity, Woreda 03, Addis Ababa',
       calendar_type: 'GREGORIAN',
@@ -46,7 +46,7 @@ async function runTests() {
       allow_outside_attendance: false,
       grade_system: 'custom',
       email_api_key: 're_test_123456789',
-      email_from_domain: 'mail.addishiwot.edu.et',
+      email_from_domain: 'mail.brightpath.edu.et',
       staff_attendance_mode: 'daily',
       staff_working_days: 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY',
       staff_work_start_time: '08:30',
@@ -63,12 +63,12 @@ async function runTests() {
     };
 
     const saved = await settingsService.updateSettings(undefined, testPayload);
-    assert(saved.school_name === 'Addis Hiwot Academy Test', 'Saved school_name confirmed in return');
+    assert(saved.school_name === 'Bright Path Academy Test', 'Saved school_name confirmed in return');
     assert(saved.calendar_type === 'GREGORIAN', 'Saved calendar_type confirmed as GREGORIAN');
     assert(saved.attendance_threshold === 85, 'Saved attendance_threshold confirmed as 85');
     assert(saved.grade_system === 'custom', 'Saved grade_system confirmed as custom');
     assert(saved.email_api_key === 're_test_123456789', 'Saved email_api_key confirmed');
-    assert(saved.email_from_domain === 'mail.addishiwot.edu.et', 'Saved email_from_domain confirmed');
+    assert(saved.email_from_domain === 'mail.brightpath.edu.et', 'Saved email_from_domain confirmed');
     assert(saved.allowed_radius_meters === 350, 'Saved allowed_radius_meters confirmed as 350');
     assert(saved.allow_staff_checkin_after_cutoff === true, 'Saved allow_staff_checkin_after_cutoff confirmed as true');
 
@@ -76,7 +76,7 @@ async function runTests() {
     console.log('\n--- Test 3: Confirm Persistence in PostgreSQL Database Directly ---');
     const dbRecord = await prisma.schoolSettings.findFirst();
     assert(!!dbRecord, 'Database record exists in PostgreSQL');
-    assert(dbRecord?.school_name === 'Addis Hiwot Academy Test', 'DB record has updated school_name');
+    assert(dbRecord?.school_name === 'Bright Path Academy Test', 'DB record has updated school_name');
     assert(dbRecord?.school_phone === '+251911002233', 'DB record has updated school_phone');
     assert(dbRecord?.school_address === 'Bole Subcity, Woreda 03, Addis Ababa', 'DB record has updated school_address');
     assert(dbRecord?.calendar_type === 'GREGORIAN', 'DB record has updated calendar_type');
@@ -96,7 +96,7 @@ async function runTests() {
     // 4. Reload Test (Simulating Page Refresh / Re-login)
     console.log('\n--- Test 4: Simulate Page Refresh / Re-login Fresh GET ---');
     const reloaded = await settingsService.getSettings();
-    assert(reloaded.school_name === 'Addis Hiwot Academy Test', 'Reloaded school_name matches DB');
+    assert(reloaded.school_name === 'Bright Path Academy Test', 'Reloaded school_name matches DB');
     assert(reloaded.calendar_type === 'GREGORIAN', 'Reloaded calendar_type matches DB');
     assert(reloaded.attendance_threshold === 85, 'Reloaded threshold matches DB');
     assert(reloaded.grade_system === 'custom', 'Reloaded grade_system matches DB');
@@ -106,7 +106,7 @@ async function runTests() {
     // 5. Test CamelCase Payload Normalization (Frontend form format)
     console.log('\n--- Test 5: Update with Frontend CamelCase Payload ---');
     const frontendPayload = {
-      schoolName: 'Addis Hiwot Primary & Secondary School',
+      schoolName: 'Bright Path Primary & Secondary School',
       calendarPreference: 'ethiopian',
       gradeSystem: 'standard',
       emailApiKey: 're_live_987654321',
@@ -117,7 +117,7 @@ async function runTests() {
       allowStaffCheckinAfterCutoff: false,
     };
     const camelSaved = await settingsService.updateSettings(undefined, frontendPayload);
-    assert(camelSaved.school_name === 'Addis Hiwot Primary & Secondary School', 'CamelCase schoolName normalized and persisted');
+    assert(camelSaved.school_name === 'Bright Path Primary & Secondary School', 'CamelCase schoolName normalized and persisted');
     assert(camelSaved.calendar_type === 'ETHIOPIAN', 'CamelCase calendarPreference normalized to ETHIOPIAN');
     assert(camelSaved.grade_system === 'standard', 'CamelCase gradeSystem normalized and persisted');
     assert(camelSaved.email_api_key === 're_live_987654321', 'CamelCase emailApiKey normalized and persisted');

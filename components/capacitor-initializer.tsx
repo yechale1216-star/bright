@@ -148,7 +148,7 @@ export function CapacitorInitializer() {
           window.dispatchEvent(new CustomEvent('zetime:in_app_notification', {
             detail: {
               type: data.type,
-              title: data.title || 'Addis Hiwot Notification',
+              title: data.title || 'Bright Path Notification',
               body: data.body || 'You have a new update',
               route: data.route,
               conversationId: data.conversationId,

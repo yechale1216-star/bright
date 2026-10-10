@@ -18,22 +18,22 @@ function resolveSiteUrl(): string {
   return rawUrl.replace(/\/+$/, "")
 }
 
-export const SITE_NAME = "Addis Hiwot"
-export const SCHOOL_FULL_NAME = "Addis Hiwot School"
-export const SCHOOL_AMHARIC_NAME = "አዲስ ህይወት ት/ቤት"
+export const SITE_NAME = "Bright Path"
+export const SCHOOL_FULL_NAME = "Bright Path"
+export const SCHOOL_AMHARIC_NAME = "ብራይት ፓዝ"
 export const SITE_URL = resolveSiteUrl()
-export const DEFAULT_OG_IMAGE = "/addis-hiwot-logo.png"
-export const TWITTER_HANDLE = "@AddisHiwot"
+export const DEFAULT_OG_IMAGE = "/bright-path-logo.png"
+export const TWITTER_HANDLE = "@BrightPath"
 export const DEVELOPER_NAME = "Yechale"
 export const DEVELOPER_ATTRIBUTION = "Developed by Yechale"
 
 export const DEFAULT_DESCRIPTION =
-  "Addis Hiwot is a comprehensive digital school management and communication platform developed by Yechale. Features student and staff attendance management with biometric face verification, student discipline tracking, parent-teacher communication, multi-role school dashboards, and full English & Amharic language support in Addis Ababa, Ethiopia."
+  "Bright Path is a comprehensive digital school management and communication platform developed by Yechale. Features student and staff attendance management with biometric face verification, student discipline tracking, parent-teacher communication, multi-role school dashboards, and full English & Amharic language support."
 
 export const DEFAULT_KEYWORDS = [
-  "Addis Hiwot",
-  "Addis Hiwot School",
-  "አዲስ ህይወት ት/ቤት",
+  "Bright Path",
+  "Bright Path School",
+  "ብራይት ፓዝ",
   "ahs.pro.et",
   "Developed by Yechale",
   "digital school management platform",
@@ -57,7 +57,7 @@ export const DEFAULT_KEYWORDS = [
 
 // ── Helper: build a fully-formed Metadata object ────────────────────────────────
 interface PageMetadataOptions {
-  /** Page-specific title (will be templated as "title | Addis Hiwot") */
+  /** Page-specific title (will be templated as "title | Bright Path") */
   title: string
   /** Page-specific description (≤ 160 chars recommended) */
   description: string

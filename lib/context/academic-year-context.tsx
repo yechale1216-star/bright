@@ -68,12 +68,16 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
     setViewingAcademicYear(null)
   }, [])
 
-  const refreshAcademicYears = useCallback(async () => {
+  const refreshAcademicYears = useCallback(async (signal?: AbortSignal) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : null
+    if (!token) return
+
     setIsLoadingAcademicYear(true)
     try {
       const res = await fetch(`${API_URL}/api/school/academic-years`, {
         headers: getAuthHeaders(),
         cache: "no-store",
+        signal,
       })
       if (!res.ok) return
       const result = await res.json()
@@ -89,8 +93,10 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
       setAllAcademicYears(years)
       // Persist to localStorage for instant hydration on next mount
       localStorage.setItem("academic_years_cache", JSON.stringify(years))
-    } catch (err) {
-      console.error("[AcademicYearContext] Failed to load academic years:", err)
+    } catch (err: any) {
+      // Silently ignore aborted requests (component unmount / navigation)
+      if (err?.name === "AbortError" || err?.message?.includes("aborted")) return
+      console.warn("[AcademicYearContext] Failed to load academic years:", err?.message || err)
     } finally {
       setIsLoadingAcademicYear(false)
     }
@@ -107,19 +113,27 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
     }
   }, [])
 
-  // Fetch from server once on mount
+  // Fetch from server on mount if authenticated
   useEffect(() => {
-    if (!hasFetched.current) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : null
+    if (token && !hasFetched.current) {
       hasFetched.current = true
       refreshAcademicYears()
     }
   }, [refreshAcademicYears])
 
-  // Listen for academic year change events (e.g. after admin activates a year)
+  // Listen for academic year or user session changes
   useEffect(() => {
-    const handleChange = () => refreshAcademicYears()
+    const handleChange = () => {
+      hasFetched.current = false
+      refreshAcademicYears()
+    }
     window.addEventListener("academicYearChanged", handleChange)
-    return () => window.removeEventListener("academicYearChanged", handleChange)
+    window.addEventListener("userSessionChanged", handleChange)
+    return () => {
+      window.removeEventListener("academicYearChanged", handleChange)
+      window.removeEventListener("userSessionChanged", handleChange)
+    }
   }, [refreshAcademicYears])
 
   const effectiveViewingYear = viewingAcademicYear ?? activeAcademicYear

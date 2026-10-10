@@ -10,7 +10,7 @@ const getMemberships = async (userId) => {
         where: { id: userId },
     });
     const settings = await db_1.default.schoolSettings.findFirst();
-    const schoolName = settings?.school_name || 'Addis Hiwot School';
+    const schoolName = settings?.school_name || 'Bright Path';
     const logo = settings?.school_logo || '';
     if (!user)
         return [];
@@ -53,7 +53,17 @@ const resolveRoleInSchool = async (userId, _schoolId, requestedRole) => {
             if (user)
                 return user.role;
         }
-        const staffRoles = ['staff', 'staff_member', 'registrar', 'discipline_officer'];
+        const staffRoles = [
+            'staff',
+            'staff_member',
+            'registrar',
+            'discipline_officer',
+            'academic_head',
+            'librarian',
+            'transport_manager',
+            'staff_attendance_officer',
+            'hr_officer'
+        ];
         if (staffRoles.includes(requestedRole)) {
             const user = await db_1.default.user.findFirst({
                 where: { id: userId, role: { in: requestedRole === 'staff' ? ['staff', 'staff_member'] : [requestedRole] } }

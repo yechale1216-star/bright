@@ -33,7 +33,7 @@ router.get('/profile', async (req: AuthenticatedRequest, res: Response, next: Ne
       isVerified: (user as any).is_verified ?? false,
       schoolId: 'single-school',
       customSchoolId: 'SCH-0001',
-      schoolName: settings?.school_name || 'Addis Hiwot School',
+      schoolName: settings?.school_name || 'Bright Path',
       schoolLogo: settings?.school_logo || '',
       onboardingCompleted: true
     };
@@ -69,7 +69,7 @@ router.get('/contacts', async (req: AuthenticatedRequest, res: Response, next: N
 });
 
 // Create user (Admin only)
-router.post('/', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.post('/', authorize(['admin', 'school_admin', 'super_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const data = { ...req.body };
     const user = await userService.createUser(data);
@@ -88,7 +88,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin';
+    const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin' || requestingUserRole === 'super_admin';
 
     // Non-admins can only update themselves
     if (!isAdmin && requestingUserId !== targetUserId) {
@@ -102,6 +102,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
       delete updateData.role;
       delete updateData.is_active;
       delete updateData.teacher_id;
+      delete updateData.attendanceMode;
+      delete updateData.attendance_mode;
     }
 
     const user = await userService.updateUser(targetUserId, updateData);
@@ -135,7 +137,7 @@ router.post(['/change-password', '/update-password'], async (req: AuthenticatedR
 });
 
 // Delete user (Admin only)
-router.delete('/:id', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.delete('/:id', authorize(['admin', 'school_admin', 'super_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     await userService.deleteUser(req.params.id);
     res.status(200).json({ success: true, message: 'User deleted' });
@@ -172,7 +174,7 @@ router.post('/me/active-school', async (req: AuthenticatedRequest, res: Response
     if (!req.user?.id) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const { getMemberships } = require('../services/auth_resolution.service');
     const memberships = await getMemberships(req.user.id);
-    const school = memberships[0] || { id: 'single-school', name: 'Addis Hiwot School' };
+    const school = memberships[0] || { id: 'single-school', name: 'Bright Path' };
     
     const { generateToken } = require('../utils/jwt');
     const token = generateToken({

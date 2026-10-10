@@ -236,11 +236,11 @@ export function StaffProfile() {
               </Badge>
             </div>
             <p className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">
-              {user?.email || "staff@addishiwot.edu.et"}
+              {user?.email || "staff@brightpath.edu.et"}
             </p>
             <div className="flex items-center justify-center sm:justify-start gap-2 pt-1">
               <Badge variant="outline" className="text-xs font-semibold border-white/40 dark:border-white/10 bg-white/40 dark:bg-slate-800/40">
-                {user?.schoolName || "Addis Hiwot School"}
+                {user?.schoolName || "Bright Path"}
               </Badge>
             </div>
           </div>

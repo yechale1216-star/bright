@@ -22,7 +22,7 @@ async function main() {
   const settings = await prisma.schoolSettings.upsert({
     where: { id: 'singleton' },
     update: {
-      school_name: 'Addis Hiwot School',
+      school_name: 'Bright Path',
       school_address: 'Dire Dawa, Ethiopia',
       school_phone: '+251924919853',
       academic_year: '2018 E.C.',
@@ -70,7 +70,7 @@ async function main() {
     },
     create: {
       id: 'singleton',
-      school_name: 'Addis Hiwot School',
+      school_name: 'Bright Path',
       school_address: 'Dire Dawa, Ethiopia',
       school_phone: '+251924919853',
       academic_year: '2018 E.C.',
@@ -153,13 +153,17 @@ async function main() {
 
   // 3. Ensure Default System Roles
   const defaultRoles = [
-    { key: 'admin', name: 'System Admin', color: '#f43f5e', isSystem: true, sortOrder: 1 },
+    { key: 'admin', name: 'School Admin', color: '#f43f5e', isSystem: true, sortOrder: 1 },
     { key: 'school_admin', name: 'School Admin', color: '#e11d48', isSystem: true, sortOrder: 2 },
-    { key: 'teacher', name: 'Teacher', color: '#3b82f6', isSystem: true, sortOrder: 3 },
-    { key: 'registrar', name: 'Registrar', color: '#6366f1', isSystem: true, sortOrder: 4 },
-    { key: 'discipline_officer', name: 'Discipline Officer', color: '#f59e0b', isSystem: true, sortOrder: 5 },
-    { key: 'staff', name: 'General Staff', color: '#10b981', isSystem: true, sortOrder: 6 },
-    { key: 'parent', name: 'Parent / Guardian', color: '#8b5cf6', isSystem: true, sortOrder: 7 },
+    { key: 'academic_head', name: 'Academic Head / Coordinator', color: '#8b5cf6', isSystem: true, sortOrder: 3 },
+    { key: 'teacher', name: 'Teacher', color: '#3b82f6', isSystem: true, sortOrder: 4 },
+    { key: 'registrar', name: 'Registrar', color: '#6366f1', isSystem: true, sortOrder: 5 },
+    { key: 'discipline_officer', name: 'Discipline Officer', color: '#f59e0b', isSystem: true, sortOrder: 6 },
+    { key: 'librarian', name: 'Librarian', color: '#06b6d4', isSystem: true, sortOrder: 7 },
+    { key: 'transport_manager', name: 'Transport Manager', color: '#f97316', isSystem: true, sortOrder: 8 },
+    { key: 'staff_attendance_officer', name: 'Staff Attendance & HR Officer', color: '#14b8a6', isSystem: true, sortOrder: 9 },
+    { key: 'staff', name: 'General Staff', color: '#10b981', isSystem: true, sortOrder: 10 },
+    { key: 'parent', name: 'Parent / Guardian', color: '#8b5cf6', isSystem: true, sortOrder: 11 },
   ];
 
   for (const role of defaultRoles) {

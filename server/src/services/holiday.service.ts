@@ -209,7 +209,7 @@ export function buildNonWorkingDayReason(info: {
 }
 
 /**
- * Determines whether a given date is a working day for Addis Hiwot according to:
+ * Determines whether a given date is a working day for Bright Path according to:
  * 1. Configured staff working days in SchoolSettings (e.g. MONDAY-FRIDAY).
  * 2. Active SchoolHoliday / Non-working days in the database.
  */

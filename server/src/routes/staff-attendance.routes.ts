@@ -32,17 +32,17 @@ router.get('/attempt-status', blockNonStaff, staffAttendanceController.getAttemp
 router.post('/record-failed-attempt', blockNonStaff, staffAttendanceController.recordFailedAttempt);
 router.post('/sync', blockNonStaff, staffAttendanceController.bulkSync);
 
-// Face enrollment (admin only)
-router.post('/face-enroll', authorize(['admin', 'school_admin']), staffAttendanceController.enrollFace);
+// Face enrollment (admin and HR staff attendance officer)
+router.post('/face-enroll', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.enrollFace);
 
-// Admin-only management
-router.get('/stats', authorize(['admin', 'school_admin']), staffAttendanceController.getStats);
-router.get('/report', authorize(['admin', 'school_admin']), staffAttendanceController.getReport);
-router.get('/', authorize(['admin', 'school_admin']), staffAttendanceController.getStaffAttendance);
-router.post('/mark-absent', authorize(['admin', 'school_admin']), staffAttendanceController.markAbsent);
-router.post('/process-absences', authorize(['admin', 'school_admin']), staffAttendanceController.processAbsences);
-router.post('/leave', authorize(['admin', 'school_admin']), staffAttendanceController.setLeave);
-router.patch('/:id', authorize(['admin', 'school_admin']), staffAttendanceController.correctRecord);
+// Management routes
+router.get('/stats', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.getStats);
+router.get('/report', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.getReport);
+router.get('/', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.getStaffAttendance);
+router.post('/mark-absent', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.markAbsent);
+router.post('/process-absences', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.processAbsences);
+router.post('/leave', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.setLeave);
+router.patch('/:id', authorize(['admin', 'school_admin', 'staff_attendance_officer', 'hr_officer']), staffAttendanceController.correctRecord);
 
 export default router;
 

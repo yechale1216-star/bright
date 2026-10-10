@@ -225,7 +225,7 @@ export const translations = {
     grade: "Grade",
     section: "Section",
     switch_school: "School Portal",
-    zetime_portal: "Addis Hiwot Portal",
+    zetime_portal: "Bright Path Portal",
     mixed: "Mixed",
     attendance_rate_desc: "Cumulative presence ratio",
     days_in_class: "Days in class",

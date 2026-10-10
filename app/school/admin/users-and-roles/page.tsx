@@ -17,6 +17,9 @@ import { queryCache } from '@/lib/utils/query-cache'
 import { validatePassword, PASSWORD_REQUIREMENTS } from '@/lib/utils/password-validator'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
+import { useSchoolSettings } from '@/hooks/use-school-settings'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 // Lazily load the face enroll modal (heavy — loads face-api.js models)
 const StaffFaceEnrollModal = dynamic(
@@ -34,12 +37,35 @@ function notifyUserDataChanged() {
   }
 }
 
+// Default system roles to ensure dropdowns always have complete options
+const DEFAULT_SYSTEM_ROLES = [
+  { key: 'school_admin', name: 'School Administrator', description: 'Full administrative access to manage school operations, staff, students, and settings.', color: '#e11d48', isSystem: true, sortOrder: 1 },
+  { key: 'academic_head', name: 'Academic Head / Coordinator', description: 'Oversees curriculum structure, teacher assignments, assessment policies, exams, and report cards.', color: '#8b5cf6', isSystem: true, sortOrder: 2 },
+  { key: 'registrar', name: 'Student Registration Officer (Registrar)', description: 'Responsible for student intake, enrollment processing, and maintaining official student records.', color: '#6366f1', isSystem: true, sortOrder: 3 },
+  { key: 'discipline_officer', name: 'Student Discipline & Conduct Officer', description: 'Manages student behavioral incidents, discipline cases, follow-ups, and conduct records.', color: '#f59e0b', isSystem: true, sortOrder: 4 },
+  { key: 'librarian', name: 'Librarian', description: 'Manages school library catalogue, book borrow/returns, reservations, and inventory.', color: '#06b6d4', isSystem: true, sortOrder: 5 },
+  { key: 'transport_manager', name: 'Transport Manager', description: 'Manages vehicle fleet, transit routes, bus stops, and student transportation assignments.', color: '#f97316', isSystem: true, sortOrder: 6 },
+  { key: 'staff_attendance_officer', name: 'Staff Attendance & HR Officer', description: 'Monitors staff daily check-ins, biometric facial attempts, leave applications, and time tracking.', color: '#14b8a6', isSystem: true, sortOrder: 7 },
+  { key: 'teacher', name: 'Teacher', description: 'Classroom and subject instructor with access to student attendance and teaching tools.', color: '#3b82f6', isSystem: true, sortOrder: 8 },
+  { key: 'staff', name: 'General Staff', description: 'School operational and administrative staff member with self-service portal access.', color: '#10b981', isSystem: true, sortOrder: 9 },
+]
+
 export default function UsersAndRolesPage() {
   const [users, setUsers] = useState<any[]>([])
   const [roles, setRoles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+
+  // Global attendance mode setting
+  const { settings: schoolSettings } = useSchoolSettings()
+  const globalAttendanceMode: "DAILY" | "SESSION" | "BOTH" = (() => {
+    const raw = schoolSettings?.attendanceModeSetting ?? schoolSettings?.attendance_mode_setting ?? schoolSettings?.staffAttendanceMode ?? schoolSettings?.staff_attendance_mode ?? "daily"
+    const upper = String(raw ?? "DAILY").trim().toUpperCase()
+    if (upper === "SESSION" || upper === "SESSION_BASED") return "SESSION"
+    if (upper === "BOTH") return "BOTH"
+    return "DAILY"
+  })()
 
   // Create User Modal State
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -50,6 +76,7 @@ export default function UsersAndRolesPage() {
     phone: '',
     password: '',
     role: 'staff',
+    attendanceMode: 'DAILY',
   })
 
   // Edit User Modal State
@@ -62,6 +89,7 @@ export default function UsersAndRolesPage() {
     role: '',
     password: '',
     is_active: true,
+    attendanceMode: 'DAILY',
   })
 
   // Centralized Role Types Management Modals
@@ -125,14 +153,26 @@ export default function UsersAndRolesPage() {
     return () => window.removeEventListener("userDataChanged", handleUserChanged)
   }, [])
 
-  // Active roles available for registration dropdown (excluding non-staff roles)
-  const activeStaffRoles = useMemo(() => {
-    return roles.filter(r => r.isActive !== false && !['teacher', 'admin', 'school_admin', 'parent', 'student'].includes(r.key))
+  // Merge server roles with default system roles ensuring complete options
+  const allRoles = useMemo(() => {
+    const roleMap = new Map<string, any>()
+    DEFAULT_SYSTEM_ROLES.forEach(r => {
+      roleMap.set(r.key, { ...r, isActive: true })
+    })
+    roles.forEach(r => {
+      roleMap.set(r.key, { ...roleMap.get(r.key), ...r })
+    })
+    return Array.from(roleMap.values())
   }, [roles])
+
+  // Active roles available for registration & assignment dropdowns (excluding student and parent)
+  const activeStaffRoles = useMemo(() => {
+    return allRoles.filter(r => r.isActive !== false && !['parent', 'student'].includes(r.key))
+  }, [allRoles])
 
   // Get dynamic role badge info
   const getRoleBadge = (roleKey: string) => {
-    const found = roles.find(r => r.key === roleKey)
+    const found = allRoles.find(r => r.key === roleKey)
     if (found) {
       return {
         label: found.name,
@@ -142,12 +182,17 @@ export default function UsersAndRolesPage() {
       }
     }
     const defaultLabels: Record<string, string> = {
-      admin: 'School Admin',
-      school_admin: 'School Admin',
+      admin: 'School Administrator',
+      school_admin: 'School Administrator',
+      academic_head: 'Academic Head / Coordinator',
       teacher: 'Teacher',
       registrar: 'Registrar',
       discipline_officer: 'Discipline Officer',
-      staff: 'Staff',
+      librarian: 'Librarian',
+      transport_manager: 'Transport Manager',
+      staff_attendance_officer: 'Staff Attendance & HR Officer',
+      hr_officer: 'Staff Attendance & HR Officer',
+      staff: 'General Staff',
     }
     return {
       label: defaultLabels[roleKey] || roleKey.replace(/_/g, ' '),
@@ -179,6 +224,7 @@ export default function UsersAndRolesPage() {
         body: JSON.stringify({
           ...createForm,
           password_hash: createForm.password,
+          attendanceMode: createForm.attendanceMode || 'DAILY',
         }),
       })
 
@@ -186,7 +232,7 @@ export default function UsersAndRolesPage() {
       const badge = getRoleBadge(createForm.role)
       notifications.success('User Created', `Added ${createForm.full_name} as ${badge.label}`)
       setShowCreateModal(false)
-      setCreateForm({ full_name: '', email: '', phone: '', password: '', role: activeStaffRoles[0]?.key || 'staff' })
+      setCreateForm({ full_name: '', email: '', phone: '', password: '', role: activeStaffRoles[0]?.key || 'staff', attendanceMode: 'DAILY' })
       notifyUserDataChanged()
       await fetchData()
 
@@ -211,6 +257,7 @@ export default function UsersAndRolesPage() {
       role: u.role || 'staff',
       password: '',
       is_active: u.is_active !== false,
+      attendanceMode: String(u.attendanceMode || 'DAILY').trim().toUpperCase() === 'SESSION' ? 'SESSION' : 'DAILY',
     })
   }
 
@@ -226,6 +273,7 @@ export default function UsersAndRolesPage() {
         phone: editForm.phone || null,
         role: editForm.role,
         is_active: editForm.is_active,
+        attendanceMode: editForm.attendanceMode || 'DAILY',
       }
       if (editForm.password.trim()) {
         const pv = validatePassword(editForm.password.trim())
@@ -422,11 +470,11 @@ export default function UsersAndRolesPage() {
   }
 
   const visibleRoles = useMemo(() => {
-    return roles.filter(r => !['admin', 'school_admin', 'parent', 'student'].includes(r.key))
-  }, [roles])
+    return allRoles.filter(r => !['parent', 'student'].includes(r.key))
+  }, [allRoles])
 
   const staffUsers = useMemo(() => {
-    return users.filter(u => !['parent', 'student', 'admin', 'school_admin'].includes(u.role))
+    return users.filter(u => !['parent', 'student'].includes(u.role))
   }, [users])
 
   const filteredUsers = useMemo(() => {
@@ -444,7 +492,8 @@ export default function UsersAndRolesPage() {
   const enrolledCount = staffUsers.filter(u => !!u.faceEnrollment?.id).length
 
   return (
-    <div className="relative min-h-full p-4 md:p-8 pb-24 space-y-8 max-w-7xl mx-auto w-full">
+    <AuthGuard allowedRoles={['admin', 'school_admin', 'super_admin']}>
+      <div className="relative min-h-full p-4 md:p-8 pb-24 space-y-8 max-w-7xl mx-auto w-full">
       {/* ── Ambient Glassmorphic Background Blur Spheres ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-500/15 rounded-full blur-[120px]" />
@@ -495,7 +544,7 @@ export default function UsersAndRolesPage() {
           <Button
             onClick={() => {
               if (activeStaffRoles.length > 0 && !createForm.role) {
-                setCreateForm(prev => ({ ...prev, role: activeStaffRoles[0].key }))
+                setCreateForm(prev => ({ ...prev, role: activeStaffRoles[0].key, attendanceMode: 'DAILY' }))
               }
               setShowCreateModal(true)
             }}
@@ -671,6 +720,9 @@ export default function UsersAndRolesPage() {
                 <tr className="border-b border-white/40 dark:border-white/10 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
                   <th className="px-6 py-4">Staff Member</th>
                   <th className="px-6 py-4">Assigned Role</th>
+                  {globalAttendanceMode === 'BOTH' && (
+                    <th className="px-6 py-4">Attendance Mode</th>
+                  )}
                   <th className="px-6 py-4 hidden sm:table-cell">Contact Phone</th>
                   <th className="px-6 py-4">Biometric Status</th>
                   <th className="px-6 py-4">Account Status</th>
@@ -708,6 +760,18 @@ export default function UsersAndRolesPage() {
                           {badge.label}
                         </span>
                       </td>
+                      {globalAttendanceMode === 'BOTH' && (
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            'inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold border backdrop-blur-md',
+                            (u.attendanceMode || 'DAILY').toUpperCase() === 'SESSION'
+                              ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900'
+                              : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900'
+                          )}>
+                            {(u.attendanceMode || 'DAILY').toUpperCase() === 'SESSION' ? 'Session-Based' : 'Daily'}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-6 py-4 hidden sm:table-cell text-xs font-medium text-slate-600 dark:text-slate-400">
                         {u.phone ? (
                           <span className="font-mono text-[13px]">{u.phone}</span>
@@ -945,6 +1009,30 @@ export default function UsersAndRolesPage() {
                   })()}
                 </div>
 
+                {/* Attendance Mode — only shown when global setting is BOTH */}
+                {globalAttendanceMode === 'BOTH' && (
+                  <div className="space-y-1.5 p-3.5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/40">
+                    <label htmlFor="create_attendance_mode" className="text-xs font-bold uppercase text-indigo-700 dark:text-indigo-300">
+                      Attendance Mode
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Assign the attendance tracking mode for this staff member (global setting is <strong>Both</strong>).
+                    </p>
+                    <Select
+                      value={createForm.attendanceMode}
+                      onValueChange={val => setCreateForm(prev => ({ ...prev, attendanceMode: val }))}
+                    >
+                      <SelectTrigger id="create_attendance_mode" className="rounded-xl border-indigo-200 dark:border-indigo-700 bg-white/80 dark:bg-slate-900/80 focus:ring-2 focus:ring-indigo-500/20 text-xs font-semibold h-11 w-full">
+                        <SelectValue placeholder="Select mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DAILY">Daily — Single Check-In / Check-Out</SelectItem>
+                        <SelectItem value="SESSION">Session-Based — Morning &amp; Afternoon</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* Biometric note */}
                 <div className="flex items-start gap-2.5 rounded-xl bg-cyan-500/8 border border-cyan-500/20 p-3">
                   <ScanFace className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
@@ -1051,6 +1139,30 @@ export default function UsersAndRolesPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Attendance Mode — only shown when global setting is BOTH */}
+                {globalAttendanceMode === 'BOTH' && (
+                  <div className="space-y-1.5 p-3.5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/40">
+                    <label htmlFor="edit_attendance_mode" className="text-xs font-bold uppercase text-indigo-700 dark:text-indigo-300">
+                      Attendance Mode
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Assign the attendance tracking mode for this staff member (global setting is <strong>Both</strong>).
+                    </p>
+                    <Select
+                      value={editForm.attendanceMode}
+                      onValueChange={val => setEditForm(prev => ({ ...prev, attendanceMode: val }))}
+                    >
+                      <SelectTrigger id="edit_attendance_mode" className="rounded-xl border-indigo-200 dark:border-indigo-700 bg-white/80 dark:bg-slate-900/80 focus:ring-2 focus:ring-indigo-500/20 text-xs font-semibold h-11 w-full">
+                        <SelectValue placeholder="Select mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DAILY">Daily — Single Check-In / Check-Out</SelectItem>
+                        <SelectItem value="SESSION">Session-Based — Morning &amp; Afternoon</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Reset Password (Optional)</label>
@@ -1511,5 +1623,6 @@ export default function UsersAndRolesPage() {
         />
       )}
     </div>
+    </AuthGuard>
   )
 }

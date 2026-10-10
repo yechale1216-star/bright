@@ -117,6 +117,6 @@ export const sendSMS = async (phone: string, text: string): Promise<SMSSendResul
  * Send parent password reset OTP code
  */
 export const sendParentPasswordResetOTP = async (phone: string, otpCode: string): Promise<SMSSendResult> => {
-  const text = `Addis Hiwot School: Your password reset verification code is ${otpCode}. Valid for 15 minutes. Please do not share this code.`;
+  const text = `Bright Path: Your password reset verification code is ${otpCode}. Valid for 15 minutes. Please do not share this code.`;
   return sendSMS(phone, text);
 };

@@ -58,6 +58,7 @@ import {
 } from "@/lib/utils/staff-attendance-offline-store"
 import { getStaffAttendanceDisplay } from "@/lib/utils/staff-attendance-status"
 import { formatEthiopianTime, formatEthiopianFullDateTime } from "@/lib/utils/ethiopian-time"
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 
 const DEFAULT_ROLE_BADGES: Record<string, { label: string; color: string; dotColor: string }> = {
@@ -839,6 +840,7 @@ export default function AdminStaffAttendanceDashboard() {
   }
 
   return (
+    <AuthGuard allowedRoles={['admin', 'school_admin', 'super_admin', 'staff_attendance_officer', 'hr_officer']}>
     <div className="relative min-h-full p-4 md:p-8 pb-24 space-y-8 max-w-7xl mx-auto w-full">
       {/* ── Ambient Background Blur Spheres ── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
@@ -2460,5 +2462,6 @@ export default function AdminStaffAttendanceDashboard() {
       </AnimatePresence>
 
     </div>
+    </AuthGuard>
   )
 }

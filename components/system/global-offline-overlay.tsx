@@ -140,7 +140,7 @@ export function GlobalOfflineOverlay() {
 
         {/* Footer */}
         <div className="text-center py-4 text-[11px] text-slate-400 dark:text-slate-700 font-medium z-10">
-          © 2026 Addis Hiwot · Your data is stored securely
+          © 2026 Bright Path · Your data is stored securely
         </div>
       </div>
     )

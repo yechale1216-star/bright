@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { LayoutDashboard, BarChart2, FileText, FileCheck } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { PageSkeleton } from '@/components/ui/page-skeleton'
+import { AuthGuard } from '@/components/auth/auth-guard'
 
 function AttendancePageContent() {
   const router = useRouter()
@@ -119,8 +120,10 @@ function AttendancePageContent() {
 
 export default function AttendancePage() {
   return (
+    <AuthGuard allowedRoles={['admin', 'school_admin', 'super_admin', 'academic_head', 'discipline_officer']}>
     <Suspense fallback={<PageSkeleton variant="dashboard" />}>
       <AttendancePageContent />
     </Suspense>
+    </AuthGuard>
   )
 }
