@@ -51,7 +51,7 @@ export async function fetchWithTimeout(
 ): Promise<Response> {
   const isGet = !options.method || options.method.toUpperCase() === "GET"
   const {
-    timeoutMs = 20_000,
+    timeoutMs = 45_000,
     retries = isGet ? 2 : 0,
     retryDelayMs = 400,
     ...fetchOptions

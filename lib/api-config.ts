@@ -9,18 +9,25 @@ export const getApiUrl = () => {
       (window as any)?.Capacitor?.isNativePlatform?.() ||
       (window as any)?.Capacitor?.platform === "android" ||
       (window as any)?.Capacitor?.platform === "ios";
+    const hostname = window.location.hostname;
     const isLocal =
-      window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.") ||
+      hostname.endsWith(".local");
 
     if (isLocal && !isCapacitor) {
       if (
         process.env.NEXT_PUBLIC_API_URL &&
         (process.env.NEXT_PUBLIC_API_URL.includes("localhost") ||
-          process.env.NEXT_PUBLIC_API_URL.includes("127.0.0.1"))
+          process.env.NEXT_PUBLIC_API_URL.includes("127.0.0.1") ||
+          process.env.NEXT_PUBLIC_API_URL.includes(hostname))
       ) {
         return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
       }
-      return "http://localhost:5000";
+      return `http://${hostname}:5000`;
     }
   }
 
