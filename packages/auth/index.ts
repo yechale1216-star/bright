@@ -18,7 +18,12 @@ export function isSchoolStaffRole(role?: string | null): boolean {
     normalized === "school_admin" ||
     normalized === "school-admin" ||
     normalized === "super_admin" ||
+    normalized === "academic_head" ||
     normalized === "teacher" ||
+    normalized === "librarian" ||
+    normalized === "transport_manager" ||
+    normalized === "staff_attendance_officer" ||
+    normalized === "hr_officer" ||
     normalized === "registrar" ||
     normalized === "discipline_officer" ||
     normalized === "staff"

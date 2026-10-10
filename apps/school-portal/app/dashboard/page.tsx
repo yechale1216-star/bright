@@ -22,8 +22,16 @@ export default function SchoolDashboardDispatcher() {
 
       if (role === "admin" || role === "school_admin" || role === "super_admin") {
         router.replace("/school/admin");
+      } else if (role === "academic_head") {
+        router.replace("/school/academic-head");
       } else if (role === "teacher") {
         router.replace("/school/teacher");
+      } else if (role === "librarian") {
+        router.replace("/school/library");
+      } else if (role === "transport_manager") {
+        router.replace("/school/transport");
+      } else if (role === "staff_attendance_officer" || role === "hr_officer") {
+        router.replace("/school/staff-hr");
       } else if (role === "registrar") {
         router.replace("/school/registrar");
       } else if (role === "discipline_officer") {

@@ -42,8 +42,24 @@ export default function SchoolPortalHomePage() {
           router.replace("/school/admin")
           return
         }
+        if (role === "academic_head") {
+          router.replace("/school/academic-head")
+          return
+        }
         if (role === "teacher") {
           router.replace("/school/teacher")
+          return
+        }
+        if (role === "librarian") {
+          router.replace("/school/library")
+          return
+        }
+        if (role === "transport_manager") {
+          router.replace("/school/transport")
+          return
+        }
+        if (role === "staff_attendance_officer" || role === "hr_officer") {
+          router.replace("/school/staff-hr")
           return
         }
         if (role === "registrar") {

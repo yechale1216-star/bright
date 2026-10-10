@@ -83,7 +83,11 @@ function SchoolLoginContent() {
         localStorage.setItem("_zt_login_role", role);
         await validateSession();
         if (role === "admin" || role === "school_admin" || role === "super_admin") router.push("/school/admin");
+        else if (role === "academic_head") router.push("/school/academic-head");
         else if (role === "teacher") router.push("/school/teacher");
+        else if (role === "librarian") router.push("/school/library");
+        else if (role === "transport_manager") router.push("/school/transport");
+        else if (role === "staff_attendance_officer" || role === "hr_officer") router.push("/school/staff-hr");
         else if (role === "registrar") router.push("/school/registrar");
         else if (role === "discipline_officer") router.push("/school/discipline-officer");
         else router.push("/school/staff");

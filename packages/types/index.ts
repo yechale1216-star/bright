@@ -7,7 +7,12 @@ export type UserRole =
   | "admin"
   | "school_admin"
   | "super_admin"
+  | "academic_head"
   | "teacher"
+  | "librarian"
+  | "transport_manager"
+  | "staff_attendance_officer"
+  | "hr_officer"
   | "registrar"
   | "discipline_officer"
   | "staff"
@@ -18,7 +23,12 @@ export const SCHOOL_STAFF_ROLES: readonly UserRole[] = [
   "admin",
   "school_admin",
   "super_admin",
+  "academic_head",
   "teacher",
+  "librarian",
+  "transport_manager",
+  "staff_attendance_officer",
+  "hr_officer",
   "registrar",
   "discipline_officer",
   "staff",

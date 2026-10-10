@@ -43,7 +43,11 @@ function SchoolLoginContent() {
       const role = (user.role || "").toLowerCase();
       if (isSchoolStaffRole(role)) {
         if (role === "admin" || role === "school_admin" || role === "super_admin") router.replace("/school/admin");
+        else if (role === "academic_head") router.replace("/school/academic-head");
         else if (role === "teacher") router.replace("/school/teacher");
+        else if (role === "librarian") router.replace("/school/library");
+        else if (role === "transport_manager") router.replace("/school/transport");
+        else if (role === "staff_attendance_officer" || role === "hr_officer") router.replace("/school/staff-hr");
         else if (role === "registrar") router.replace("/school/registrar");
         else if (role === "discipline_officer") router.replace("/school/discipline-officer");
         else router.replace("/school/staff");
@@ -95,8 +99,16 @@ function SchoolLoginContent() {
 
         if (role === "admin" || role === "school_admin" || role === "super_admin") {
           router.push("/school/admin");
+        } else if (role === "academic_head") {
+          router.push("/school/academic-head");
         } else if (role === "teacher") {
           router.push("/school/teacher");
+        } else if (role === "librarian") {
+          router.push("/school/library");
+        } else if (role === "transport_manager") {
+          router.push("/school/transport");
+        } else if (role === "staff_attendance_officer" || role === "hr_officer") {
+          router.push("/school/staff-hr");
         } else if (role === "registrar") {
           router.push("/school/registrar");
         } else if (role === "discipline_officer") {
