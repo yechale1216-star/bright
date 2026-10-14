@@ -33,8 +33,11 @@ import {
   FileText,
   SlidersHorizontal,
   Layers,
-  HelpCircle,
   CheckCircle,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  HelpCircle,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -55,6 +58,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -158,6 +163,16 @@ interface EditableCell {
   remarks: string;
 }
 
+export type ComputedStudentRow = ClassGradebookStudentRow & {
+  computed: {
+    isComplete: boolean;
+    missingCount: number;
+    absentCount: number;
+    provisionalWeightedTotal: number;
+    finalWeightedTotal: number | null;
+  };
+};
+
 export default function TeacherGradebookPage() {
   // Selector options
   const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -166,6 +181,8 @@ export default function TeacherGradebookPage() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [teacherAssignments, setTeacherAssignments] = useState<any[]>([]);
   const [teacherName, setTeacherName] = useState<string>('Assigned Teacher');
+  const [allGrades, setAllGrades] = useState<any[]>([]);
+  const [allSubjects, setAllSubjects] = useState<any[]>([]);
 
   // Selected filter states
   const [selectedYearId, setSelectedYearId] = useState<string>('');
@@ -179,7 +196,7 @@ export default function TeacherGradebookPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'assessments' | 'markEntry'>('markEntry');
+  const [activeTab, setActiveTab] = useState<'grid' | 'assessments'>('grid');
 
   // Local Editable Marks State: [studentId][assessmentId] => cell
   const [localMarks, setLocalMarks] = useState<Record<string, Record<string, EditableCell>>>({});
@@ -195,7 +212,7 @@ export default function TeacherGradebookPage() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [selectedStudentForBreakdown, setSelectedStudentForBreakdown] = useState<ClassGradebookStudentRow | null>(null);
+  const [selectedStudentForBreakdown, setSelectedStudentForBreakdown] = useState<ComputedStudentRow | null>(null);
 
   // New assessment form state
   const [newTitle, setNewTitle] = useState('');
@@ -205,6 +222,21 @@ export default function TeacherGradebookPage() {
   const [newWeightage, setNewWeightage] = useState(10);
   const [newDate, setNewDate] = useState('');
   const [newDescription, setNewDescription] = useState('');
+
+  // Edit & Delete assessment state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedAssessmentForEdit, setSelectedAssessmentForEdit] = useState<ClassGradebookAssessment | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editType, setEditType] = useState('TEST');
+  const [editMaxScore, setEditMaxScore] = useState(20);
+  const [editWeightage, setEditWeightage] = useState(10);
+  const [editDate, setEditDate] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedAssessmentForDelete, setSelectedAssessmentForDelete] = useState<ClassGradebookAssessment | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Single remarks edit modal
   const [remarkModalStudent, setRemarkModalStudent] = useState<{
@@ -235,6 +267,14 @@ export default function TeacherGradebookPage() {
         fetch(`${API_URL}/api/schools/grades`, { headers }).then((r) => r.json()).catch(() => ({ success: false })),
         fetch(`${API_URL}/api/settings/subjects`, { headers }).then((r) => r.json()).catch(() => ({ success: false })),
       ]);
+
+      // Cache all grades and subjects from API
+      if (gradesRes?.success && Array.isArray(gradesRes.data)) {
+        setAllGrades(gradesRes.data);
+      }
+      if (subjectsRes?.success && Array.isArray(subjectsRes.data)) {
+        setAllSubjects(subjectsRes.data);
+      }
 
       // 1. Academic Years
       if (ayRes?.success && Array.isArray(ayRes.data) && ayRes.data.length > 0) {
@@ -309,13 +349,19 @@ export default function TeacherGradebookPage() {
           if (a.subjectRef) {
             subjectMap.set(a.subjectRef.id, a.subjectRef);
           } else if (a.subject) {
-            subjectMap.set(a.subject, { id: a.subject, name: a.subject, code: a.subject });
+            const matchInAll = allSubjects.find((s: any) => s.name?.toLowerCase() === a.subject?.toLowerCase() || s.code?.toLowerCase() === a.subject?.toLowerCase());
+            if (matchInAll) {
+              subjectMap.set(matchInAll.id, matchInAll);
+            } else {
+              subjectMap.set(a.subject, { id: a.subject, name: a.subject, code: a.subject });
+            }
           }
         }
       }
       const uniqueSubjects = Array.from(subjectMap.values());
-      setSubjects(uniqueSubjects);
-      setSelectedSubjectId(uniqueSubjects.length > 0 ? uniqueSubjects[0].id : '');
+      const finalSubjects = uniqueSubjects.length > 0 ? uniqueSubjects : allSubjects;
+      setSubjects(finalSubjects);
+      setSelectedSubjectId(finalSubjects.length > 0 ? finalSubjects[0].id : '');
     } else {
       // Fallback: Fetch sections for grade
       const fetchSections = async () => {
@@ -329,11 +375,15 @@ export default function TeacherGradebookPage() {
             setSections(res.data);
             if (res.data.length > 0) setSelectedSectionId(res.data[0].id);
           }
-        } catch {}
+        } catch { }
       };
       fetchSections();
+      if (allSubjects.length > 0) {
+        setSubjects(allSubjects);
+        setSelectedSubjectId(allSubjects[0].id);
+      }
     }
-  }, [selectedGradeId, teacherAssignments]);
+  }, [selectedGradeId, teacherAssignments, allSubjects]);
 
   // Load the full Class Gradebook Matrix whenever context selectors change
   useEffect(() => {
@@ -355,6 +405,20 @@ export default function TeacherGradebookPage() {
       });
 
       setGradebookData(data);
+
+      // Update teacherName dynamically from API response or assignments
+      if (data.assignedTeacher?.name) {
+        setTeacherName(data.assignedTeacher.name);
+      } else {
+        const match = teacherAssignments.find(
+          (a) => a.gradeId === selectedGradeId && (a.sectionId === selectedSectionId || !a.sectionId) && (a.subjectId === selectedSubjectId || a.subjectRef?.id === selectedSubjectId || a.subject?.toLowerCase() === currentSubjectObj?.name?.toLowerCase())
+        );
+        if (match?.teacher?.name) {
+          setTeacherName(match.teacher.name);
+        } else {
+          setTeacherName('Not Assigned');
+        }
+      }
 
       // Initialize local editable marks state
       const initialMarks: Record<string, Record<string, EditableCell>> = {};
@@ -758,6 +822,81 @@ export default function TeacherGradebookPage() {
     }
   };
 
+  // Open Edit Assessment Modal
+  const handleOpenEditAssessment = (assessment: ClassGradebookAssessment) => {
+    setSelectedAssessmentForEdit(assessment);
+    setEditTitle(assessment.title || '');
+    setEditCategoryId(assessment.categoryId || (categories[0]?.id || ''));
+    setEditType(assessment.type || 'TEST');
+    setEditMaxScore(assessment.maxScore || 20);
+    setEditWeightage(assessment.weightage || 10);
+    setEditDate(assessment.date ? assessment.date.split('T')[0] : '');
+    setEditDescription(assessment.description || '');
+    setEditModalOpen(true);
+  };
+
+  // Submit Update Assessment
+  const handleUpdateAssessment = async () => {
+    if (!selectedAssessmentForEdit) return;
+    if (!editTitle.trim()) {
+      notifications.error('Validation', 'Assessment title is required');
+      return;
+    }
+    if (!editCategoryId) {
+      notifications.error('Validation', 'Please select an assessment category');
+      return;
+    }
+    if (editMaxScore <= 0) {
+      notifications.error('Validation', 'Max marks must be greater than 0');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await gradebookService.updateAssessment(selectedAssessmentForEdit.id, {
+        title: editTitle.trim(),
+        type: editType,
+        categoryId: editCategoryId,
+        maxScore: Number(editMaxScore),
+        weightage: Number(editWeightage),
+        date: editDate ? new Date(editDate).toISOString() : undefined,
+        description: editDescription || undefined,
+      });
+
+      notifications.success('Assessment Updated', `"${editTitle}" updated successfully.`);
+      setEditModalOpen(false);
+      setSelectedAssessmentForEdit(null);
+      await loadClassGradebook();
+    } catch (err: any) {
+      notifications.error('Update Failed', err?.message || 'Error updating assessment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Open Delete Assessment Confirmation Modal
+  const handleOpenDeleteAssessment = (assessment: ClassGradebookAssessment) => {
+    setSelectedAssessmentForDelete(assessment);
+    setDeleteModalOpen(true);
+  };
+
+  // Confirm Delete Assessment
+  const handleConfirmDeleteAssessment = async () => {
+    if (!selectedAssessmentForDelete) return;
+    try {
+      setDeleting(true);
+      await gradebookService.deleteAssessment(selectedAssessmentForDelete.id);
+      notifications.success('Assessment Deleted', `"${selectedAssessmentForDelete.title}" removed from gradebook.`);
+      setDeleteModalOpen(false);
+      setSelectedAssessmentForDelete(null);
+      await loadClassGradebook();
+    } catch (err: any) {
+      notifications.error('Deletion Failed', err?.message || 'Error deleting assessment');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Export to Excel (CSV)
   const handleExportCSV = () => {
     if (!gradebookData || computedStudents.length === 0) {
@@ -831,48 +970,28 @@ export default function TeacherGradebookPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-[1600px] mx-auto print:p-0 print:m-0">
-      {/* ── BREADCRUMB & HEADER ─────────────────────────────────────────────────── */}
-      <div className="space-y-1.5 print:hidden">
+      {/* ── BREADCRUMB & HEADER (Admin Dashboard Style) ─────────────────────────── */}
+      <div className="space-y-3 print:hidden">
         <Link
           href="/school/teacher"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline transition-colors mb-1"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Dashboard
+          Back to Teacher Dashboard
         </Link>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-              Teacher Gradebook
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Enter and manage marks for your assigned classes. The system will calculate category and final subject marks based on the configured weights.
-            </p>
-          </div>
-
-          {/* Quick status pill if submitted/approved */}
-          <div className="flex items-center gap-2">
-            {submissionStatus === 'SUBMITTED' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                <Lock className="w-3.5 h-3.5" />
-                Submitted for Review
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
+            <span>Teacher Gradebook</span>
+            {currentSubjectObj?.name && (
+              <span className="text-primary text-xl sm:text-2xl font-bold">
+                · {currentSubjectObj.name}
               </span>
             )}
-            {submissionStatus === 'RETURNED' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30">
-                <AlertCircle className="w-3.5 h-3.5" />
-                Returned for Correction
-              </span>
-            )}
-            {(submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED') && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Approved & Published
-              </span>
-            )}
-          </div>
+          </h1>
         </div>
       </div>
+
+
 
       {/* ── RETURNED FEEDBACK BANNER ────────────────────────────────────────────── */}
       {isReturned && (
@@ -889,11 +1008,11 @@ export default function TeacherGradebookPage() {
         </div>
       )}
 
-      {/* ── CONTEXT SELECTORS ROW ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 p-4 rounded-2xl bg-card border border-border shadow-xs print:hidden items-end">
+      {/* ── CONTEXT SELECTORS ROW (Glassmorphic Admin Style) ─────────────────────────── */}
+      <div className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-4 md:p-5 shadow-xl shadow-black/5 dark:shadow-black/25 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3.5 print:hidden items-end">
         {/* Academic Year */}
         <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-primary" />
             Academic Year
           </label>
@@ -904,10 +1023,10 @@ export default function TeacherGradebookPage() {
               const y = academicYears.find((ay) => ay.id === e.target.value);
               if (y?.terms?.length > 0) setSelectedTermId(y.terms[0].id);
             }}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-800/60 backdrop-blur-md text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/40 focus:outline-none shadow-xs transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer"
           >
             {academicYears.map((ay) => (
-              <option key={ay.id} value={ay.id}>
+              <option key={ay.id} value={ay.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
                 {ay.name} {ay.isCurrent ? '(Current)' : ''}
               </option>
             ))}
@@ -916,16 +1035,16 @@ export default function TeacherGradebookPage() {
 
         {/* Term */}
         <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 block">
             Term
           </label>
           <select
             value={selectedTermId}
             onChange={(e) => setSelectedTermId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-800/60 backdrop-blur-md text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/40 focus:outline-none shadow-xs transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer"
           >
             {currentTerms.map((t: any) => (
-              <option key={t.id} value={t.id}>
+              <option key={t.id} value={t.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
                 {t.name}
               </option>
             ))}
@@ -934,16 +1053,16 @@ export default function TeacherGradebookPage() {
 
         {/* Grade */}
         <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 block">
             Grade
           </label>
           <select
             value={selectedGradeId}
             onChange={(e) => setSelectedGradeId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-800/60 backdrop-blur-md text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/40 focus:outline-none shadow-xs transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer"
           >
             {grades.map((g) => (
-              <option key={g.id} value={g.id}>
+              <option key={g.id} value={g.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
                 {g.name}
               </option>
             ))}
@@ -952,16 +1071,16 @@ export default function TeacherGradebookPage() {
 
         {/* Section */}
         <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 block">
             Section
           </label>
           <select
             value={selectedSectionId}
             onChange={(e) => setSelectedSectionId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-800/60 backdrop-blur-md text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/40 focus:outline-none shadow-xs transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer"
           >
             {sections.map((s) => (
-              <option key={s.id} value={s.id}>
+              <option key={s.id} value={s.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
                 {s.name}
               </option>
             ))}
@@ -970,16 +1089,16 @@ export default function TeacherGradebookPage() {
 
         {/* Subject */}
         <div>
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 block">
             Subject
           </label>
           <select
             value={selectedSubjectId}
             onChange={(e) => setSelectedSubjectId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-800/60 backdrop-blur-md text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/40 focus:outline-none shadow-xs transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer"
           >
             {subjects.map((sub) => (
-              <option key={sub.id} value={sub.id}>
+              <option key={sub.id} value={sub.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
                 {sub.name}
               </option>
             ))}
@@ -991,10 +1110,10 @@ export default function TeacherGradebookPage() {
           <Button
             variant="outline"
             onClick={() => setDetailsModalOpen(true)}
-            className="w-full h-10 rounded-xl text-xs font-semibold gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
+            className="w-full h-10 rounded-xl text-xs font-semibold gap-1.5 text-primary border-primary/30 bg-primary/5 hover:bg-primary/10 backdrop-blur-md transition-all shadow-xs"
           >
             <Info className="w-4 h-4 text-primary" />
-            View Assessment Details
+            Assessment Details
           </Button>
         </div>
       </div>
@@ -1019,45 +1138,27 @@ export default function TeacherGradebookPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            {categories.map((cat, idx) => {
-              const theme = getCategoryTheme(cat.name, idx);
-              const IconComp = theme.icon;
-              return (
-                <div
-                  key={cat.id}
-                  className={`p-3.5 rounded-2xl border transition-all ${theme.bg} ${theme.border} flex items-center gap-3 shadow-xs`}
-                >
-                  <div className={`p-2.5 rounded-xl border ${theme.iconBg} shrink-0`}>
-                    <IconComp className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-muted-foreground truncate">{cat.name}</p>
-                    <p className={`text-lg font-extrabold ${theme.text}`}>{cat.weight}%</p>
-                  </div>
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                className="p-3.5 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all flex flex-col min-h-[96px] text-center"
+              >
+                <p className="text-sm font-semibold text-foreground/90 truncate w-full">{cat.name}</p>
+                <div className="flex-1 flex items-center justify-center py-1">
+                  <span className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">{cat.weight}%</span>
                 </div>
-              );
-            })}
-
-            {/* Aggregation Method Card (Right side of categories) */}
-            <div className="p-3.5 rounded-2xl border border-border bg-card shadow-xs flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase">
-                  Aggregation Method
-                </span>
-                <HelpCircle className="w-3.5 h-3.5 text-muted-foreground/60" />
               </div>
-              <div>
-                <p className="text-xs font-bold text-foreground">
-                  {gradebookData?.scheme?.aggregationMethod === 'AVERAGE_OF_ASSESSMENTS'
-                    ? 'Assessment Averages'
-                    : 'Combined Marks (Default)'}
-                </p>
-                <div className="flex items-center justify-between mt-1 text-xs">
-                  <span className="text-muted-foreground">Total Weight</span>
-                  <span className={`font-bold ${totalSchemeWeight === 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}`}>
-                    {totalSchemeWeight}%
-                  </span>
-                </div>
+            ))}
+
+            {/* Total Weight Card (Right side of categories) */}
+            <div className="p-3.5 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all flex flex-col min-h-[96px] text-center">
+              <p className="text-sm font-semibold text-foreground/90 truncate w-full">
+                Total Weight
+              </p>
+              <div className="flex-1 flex items-center justify-center py-1">
+                <span className={`text-xl sm:text-2xl font-bold tracking-tight ${totalSchemeWeight === 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}`}>
+                  {totalSchemeWeight}%
+                </span>
               </div>
             </div>
           </div>
@@ -1066,27 +1167,46 @@ export default function TeacherGradebookPage() {
 
       {/* ── ASSESSMENTS HEADER & ACTION BAR ────────────────────────────────────── */}
       <div className="space-y-4 print:hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground">
-              Assessments for {currentSubjectObj?.name || 'Selected Subject'} ({currentGradeObj?.name || ''} {currentSectionObj?.name || ''})
-            </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Create and manage assessments, then enter marks for your students.
-            </p>
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+          {/* View Switcher: Marks Grid vs Assessments */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-900/40 backdrop-blur-md border border-slate-200 dark:border-white/10 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('grid')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'grid'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-foreground shadow-xs font-bold'
+                  : 'text-slate-500 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Marks Grid</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('assessments')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'assessments'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-foreground shadow-xs font-bold'
+                  : 'text-slate-500 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Assessments ({assessments.length})</span>
+            </button>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="default"
               size="sm"
               disabled={isLocked}
               onClick={() => setCreateModalOpen(true)}
-              className="gap-1.5 bg-primary text-primary-foreground shadow-xs font-semibold"
+              className="h-8.5 px-3.5 rounded-xl gap-1.5 bg-primary text-primary-foreground font-bold shadow-xs hover:shadow transition-all"
             >
               <Plus className="w-4 h-4" />
-              Create Assessment
+              <span>Create Assessment</span>
             </Button>
 
             <Button
@@ -1094,25 +1214,25 @@ export default function TeacherGradebookPage() {
               size="sm"
               disabled={saving || isLocked || dirtyCells.size === 0}
               onClick={handleSaveMarks}
-              className="gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              className="h-8.5 px-3.5 rounded-xl gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 backdrop-blur-md shadow-2xs"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : dirtyCells.size > 0 ? `Save Draft (${dirtyCells.size})` : 'Save Draft'}
+              <span>{saving ? 'Saving...' : dirtyCells.size > 0 ? `Save Draft (${dirtyCells.size})` : 'Save Draft'}</span>
             </Button>
 
             {/* More Actions Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5 font-semibold">
+                <Button variant="outline" size="sm" className="h-8.5 px-3 rounded-xl gap-1.5 font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800/40 backdrop-blur-md border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800/70 shadow-xs">
                   <span>More Actions</span>
                   <ChevronDown className="w-3.5 h-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuContent align="end" className="w-52 bg-white dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-xl">
                 <DropdownMenuItem
                   onClick={handleSaveMarks}
                   disabled={saving || isLocked}
-                  className="gap-2 cursor-pointer font-medium"
+                  className="gap-2 cursor-pointer font-medium text-slate-700 dark:text-slate-200"
                 >
                   <Save className="w-4 h-4 text-emerald-600" />
                   <span>Save All Marks</span>
@@ -1121,7 +1241,7 @@ export default function TeacherGradebookPage() {
                 <DropdownMenuItem
                   onClick={() => setSubmitModalOpen(true)}
                   disabled={saving || isLocked}
-                  className="gap-2 cursor-pointer font-medium text-primary"
+                  className="gap-2 cursor-pointer font-medium text-primary dark:text-primary"
                 >
                   <Send className="w-4 h-4 text-primary" />
                   <span>Submit for Approval</span>
@@ -1129,17 +1249,17 @@ export default function TeacherGradebookPage() {
 
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem onClick={loadClassGradebook} className="gap-2 cursor-pointer">
+                <DropdownMenuItem onClick={loadClassGradebook} className="gap-2 cursor-pointer text-slate-700 dark:text-slate-200">
                   <RefreshCw className="w-4 h-4" />
                   <span>Refresh Marks</span>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer text-slate-700 dark:text-slate-200">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                   <span>Export to Excel (CSV)</span>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
+                <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer text-slate-700 dark:text-slate-200">
                   <Printer className="w-4 h-4" />
                   <span>Print Gradebook</span>
                 </DropdownMenuItem>
@@ -1148,75 +1268,44 @@ export default function TeacherGradebookPage() {
           </div>
         </div>
 
-        {/* View Tabs & Category Summary Pills */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-          <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-xl w-fit">
-            <button
-              onClick={() => setActiveTab('assessments')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'assessments'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Assessments ({assessments.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('markEntry')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'markEntry'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Mark Entry Grid
-            </button>
+        {dirtyCells.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              {dirtyCells.size} Unsaved Draft Changes
+            </span>
           </div>
-
-          <div className="text-xs text-muted-foreground flex items-center gap-2">
-            {dirtyCells.size > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                {dirtyCells.size} Unsaved Changes
-              </span>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Category Pill Cards with count & average percentage */}
         {gradebookData?.scheme?.categorySummaries && gradebookData.scheme.categorySummaries.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {gradebookData.scheme.categorySummaries.map((catSummary, idx) => {
-              const theme = getCategoryTheme(catSummary.name, idx);
-              const IconComp = theme.icon;
+            {gradebookData.scheme.categorySummaries.map((catSummary) => {
               return (
                 <div
                   key={catSummary.id}
-                  className={`p-3 rounded-2xl border transition-all ${theme.bg} ${theme.border} flex items-center justify-between shadow-xs`}
+                  className="p-3.5 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl transition-all flex items-center justify-between shadow-md shadow-black/5 dark:shadow-black/20 hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`p-2 rounded-xl ${theme.iconBg} shrink-0`}>
-                      <IconComp className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">{catSummary.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {catSummary.assessmentCount} {catSummary.assessmentCount === 1 ? 'assessment' : 'assessments'}
-                      </p>
-                      <p className={`text-xs font-extrabold mt-0.5 ${theme.text}`}>
-                        Avg. {catSummary.averagePercentage}%
-                      </p>
-                    </div>
+                  <div className="min-w-0 pr-2">
+                    <p className="text-xs font-bold text-foreground truncate" title={catSummary.name}>
+                      {catSummary.name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {catSummary.assessmentCount} {catSummary.assessmentCount === 1 ? 'assessment' : 'assessments'}
+                    </p>
+                    <p className="text-xs font-extrabold mt-0.5 text-foreground">
+                      Avg. {catSummary.averagePercentage}%
+                    </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0" />
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Mark Entry Progress Notification Bar (Matching mockup) */}
-        <div className="p-3.5 rounded-2xl bg-primary/5 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        {/* Mark Entry Progress Notification Bar (Glassmorphic) */}
+        <div className="p-3.5 rounded-2xl bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-white/40 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md shadow-black/5 dark:shadow-black/20">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
               <Info className="w-4 h-4" />
@@ -1230,7 +1319,7 @@ export default function TeacherGradebookPage() {
           </div>
 
           <div className="flex items-center gap-3 sm:w-64">
-            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+            <div className="flex-1 h-2 rounded-full bg-slate-200/60 dark:bg-slate-800/80 overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all duration-500"
                 style={{ width: `${liveStats.completionRate}%` }}
@@ -1243,300 +1332,448 @@ export default function TeacherGradebookPage() {
 
       {/* ── MAIN WORKSPACE AREA: 2-COLUMN LAYOUT (TABLE + SIDEBAR) ───────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* ── LEFT COLUMN: SPREADSHEET GRID TABLE (Span 3) ───────────────────────── */}
+        {/* ── LEFT COLUMN: WORKSPACE (ASSESSMENTS VIEW OR SPREADSHEET GRID) (Span 3) ── */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-            {/* Table Toolbar */}
-            <div className="p-3 sm:p-4 border-b border-border flex flex-col sm:flex-row items-center justify-between gap-3 bg-muted/20 print:hidden">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search student by name or ID..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="pl-9 h-9 rounded-xl text-xs bg-background"
-                />
+          {activeTab === 'assessments' ? (
+            /* Assessments List / Cards Management View */
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
+                <div>
+                  <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    Subject Assessments ({assessments.length})
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Manage, edit, or delete assessment components configured for {currentSubjectObj?.name || 'this subject'}.
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span>
-                  <strong>Tip:</strong> Press <strong>Arrows</strong> to navigate cells. Type <strong>ABS</strong> for absent, <strong>EXC</strong> for excused.
-                </span>
-              </div>
-            </div>
+              {assessments.length === 0 ? (
+                <div className="p-12 text-center rounded-2xl border border-dashed border-white/40 dark:border-white/10 bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                    <Layers className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">No Assessments Created Yet</h4>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Create quizzes, tests, assignments, or projects to begin recording student marks for this term.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={isLocked}
+                    onClick={() => setCreateModalOpen(true)}
+                    className="rounded-xl text-xs font-semibold gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Create First Assessment
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {assessments.map((ass, aIdx) => {
+                    const theme = getCategoryTheme(ass.categoryName || '', aIdx);
+                    return (
+                      <div
+                        key={ass.id}
+                        className="p-4 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 flex flex-col justify-between gap-3 hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all"
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${theme.badge}`}>
+                                {ass.categoryName || 'General'}
+                              </span>
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                {ass.type}
+                              </span>
+                            </div>
+                            <span className="text-xs font-black text-foreground shrink-0">
+                              {ass.maxScore} Max Pts
+                            </span>
+                          </div>
 
-            {/* Multi-Assessment Grid Table */}
-            <div className="overflow-x-auto max-w-full">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead className="bg-muted/40 font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="py-3 px-3 w-10 text-center">#</th>
-                    <th className="py-3 px-3 w-24">Student ID</th>
-                    <th className="py-3 px-4 min-w-[150px]">Student Name</th>
-
-                    {/* Dynamic Columns for each Assessment */}
-                    {assessments.length === 0 ? (
-                      <th className="py-3 px-4 text-muted-foreground italic text-center">
-                        No assessments created yet
-                      </th>
-                    ) : (
-                      assessments.map((ass, aIdx) => {
-                        const theme = getCategoryTheme(ass.categoryName || '', aIdx);
-                        return (
-                          <th
-                            key={ass.id}
-                            className={`py-2 px-3 text-center min-w-[95px] max-w-[120px] border-l border-border/50 ${theme.headerBg}`}
-                          >
-                            <div className="font-bold text-foreground truncate" title={ass.title}>
+                          <div>
+                            <h4 className="font-bold text-sm text-foreground truncate" title={ass.title}>
                               {ass.title}
-                            </div>
-                            <div className={`text-[10px] font-bold ${theme.text}`}>
-                              ({ass.maxScore})
-                            </div>
-                          </th>
-                        );
-                      })
-                    )}
+                            </h4>
+                            {ass.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                {ass.description}
+                              </p>
+                            )}
+                          </div>
 
-                    {/* Total (100) Column */}
-                    <th className="py-3 px-4 w-24 text-center border-l border-border bg-primary/5 font-extrabold text-foreground">
-                      Total (100)
-                    </th>
-
-                    {/* Status Column */}
-                    <th className="py-3 px-3 w-28 text-center border-l border-border">
-                      Status
-                    </th>
-
-                    {/* Actions Menu */}
-                    <th className="py-3 px-2 w-10 text-center print:hidden"></th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-border/60">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground">
-                        <div className="inline-flex items-center gap-2">
-                          <RefreshCw className="w-4 h-4 animate-spin text-primary" />
-                          <span>Loading gradebook and calculating weighted marks...</span>
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-1 border-t border-white/20 dark:border-white/10">
+                            {ass.date && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(ass.date).toLocaleDateString()}
+                              </span>
+                            )}
+                            {ass.weightage ? (
+                              <span>Weight: <strong>{ass.weightage}%</strong></span>
+                            ) : null}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ) : filteredStudents.length === 0 ? (
-                    <tr>
-                      <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground">
-                        No students enrolled in this class and section.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedStudents.map((row, rIdx) => {
-                      const student = row.student;
-                      const globalRowIdx = (currentPage - 1) * pageSize + rIdx;
-                      const isComplete = row.computed.isComplete;
-                      const finalTotal = row.computed.finalWeightedTotal;
 
-                      return (
-                        <tr
-                          key={student.id}
-                          className="hover:bg-muted/30 transition-colors group"
-                        >
-                          {/* Row Number */}
-                          <td className="py-2 px-3 text-center text-muted-foreground text-[11px]">
-                            {globalRowIdx + 1}
-                          </td>
-
-                          {/* Student ID */}
-                          <td className="py-2 px-3 font-mono text-[11px] font-semibold text-muted-foreground">
-                            {student.student_id}
-                          </td>
-
-                          {/* Student Name */}
-                          <td className="py-2 px-4 font-semibold text-foreground truncate max-w-[180px]">
-                            {student.fullName}
-                          </td>
-
-                          {/* Assessment Inputs */}
-                          {assessments.map((ass, cIdx) => {
-                            const cell = localMarks[student.id]?.[ass.id] || {
-                              score: null,
-                              isAbsent: false,
-                              isExcused: false,
-                              remarks: '',
-                            };
-                            const isDirty = dirtyCells.has(`${student.id}:${ass.id}`);
-                            const displayValue = cell.isAbsent
-                              ? 'ABS'
-                              : cell.isExcused
-                              ? 'EXC'
-                              : cell.score !== null
-                              ? cell.score.toString()
-                              : '';
-
-                            return (
-                              <td
-                                key={ass.id}
-                                className={`py-1 px-1.5 text-center border-l border-border/40 ${
-                                  isDirty ? 'bg-amber-500/10' : ''
-                                }`}
-                              >
-                                <input
-                                  id={`cell-${rIdx}-${cIdx}`}
-                                  type="text"
-                                  disabled={isLocked}
-                                  value={displayValue}
-                                  onChange={(e) =>
-                                    handleCellChange(student.id, ass.id, e.target.value, ass.maxScore)
-                                  }
-                                  onKeyDown={(e) =>
-                                    handleKeyDown(e, rIdx, cIdx, paginatedStudents.length, assessments.length)
-                                  }
-                                  placeholder="-"
-                                  className={`w-full h-8 px-1 text-center font-bold text-xs rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary ${
-                                    isLocked
-                                      ? 'bg-transparent text-foreground cursor-not-allowed'
-                                      : cell.isAbsent
-                                      ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 font-extrabold'
-                                      : cell.isExcused
-                                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-extrabold'
-                                      : cell.score !== null
-                                      ? 'bg-background text-foreground hover:bg-muted/50 border border-input/60'
-                                      : 'bg-muted/40 text-muted-foreground border border-dashed border-input/50'
-                                  }`}
-                                />
-                              </td>
-                            );
-                          })}
-
-                          {/* Total (100) Weighted Score Column */}
-                          <td className="py-2 px-4 text-center border-l border-border font-extrabold bg-primary/5">
-                            {finalTotal !== null ? (
-                              <span className="text-foreground text-xs">{finalTotal}</span>
-                            ) : (
-                              <span
-                                className="text-muted-foreground text-[11px] italic"
-                                title={`Provisional: ${row.computed.provisionalWeightedTotal} (in progress)`}
-                              >
-                                -
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Status Badge */}
-                          <td className="py-2 px-3 text-center border-l border-border">
-                            {isComplete ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                                <Check className="w-3 h-3" />
-                                Complete
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400">
-                                ↓ Missing Marks
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Actions Column (⋮) */}
-                          <td className="py-2 px-2 text-center print:hidden">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 rounded-lg hover:bg-muted"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem
-                                  onClick={() => setSelectedStudentForBreakdown(row)}
-                                  className="gap-2 cursor-pointer text-xs font-semibold"
-                                >
-                                  <BarChart3 className="w-3.5 h-3.5 text-primary" />
-                                  <span>View Breakdown</span>
-                                </DropdownMenuItem>
-
-                                {assessments.length > 0 && (
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      setRemarkModalStudent({
-                                        student: { id: student.id, fullName: student.fullName },
-                                        assessment: assessments[0],
-                                        currentRemarks:
-                                          localMarks[student.id]?.[assessments[0].id]?.remarks || '',
-                                      })
-                                    }
-                                    className="gap-2 cursor-pointer text-xs font-semibold"
-                                  >
-                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-                                    <span>Add Remarks</span>
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Table Pagination Footer */}
-            <div className="p-3 sm:p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground print:hidden">
-              <div>
-                Showing{' '}
-                <strong>{filteredStudents.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> to{' '}
-                <strong>{Math.min(currentPage * pageSize, filteredStudents.length)}</strong> of{' '}
-                <strong>{filteredStudents.length}</strong> students
-              </div>
-
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className="h-8 px-2.5 rounded-lg text-xs"
-                  >
-                    ‹
-                  </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={page === currentPage ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setCurrentPage(page)}
-                      className="h-8 w-8 p-0 rounded-lg text-xs font-bold"
-                    >
-                      {page}
-                    </Button>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className="h-8 px-2.5 rounded-lg text-xs"
-                  >
-                    ›
-                  </Button>
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/20 dark:border-white/10">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isLocked}
+                            onClick={() => handleOpenEditAssessment(ass)}
+                            className="h-8 px-3 rounded-xl text-xs font-semibold gap-1.5 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800/40 backdrop-blur-md border-slate-200 dark:border-white/10 hover:bg-primary/10 hover:text-primary hover:border-primary/30 shadow-xs"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <span>Edit</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isLocked}
+                            onClick={() => handleOpenDeleteAssessment(ass)}
+                            className="h-8 px-3 rounded-xl text-xs font-semibold gap-1.5 bg-white dark:bg-slate-800/40 backdrop-blur-md border-slate-200 dark:border-white/10 text-red-600 dark:text-destructive hover:bg-red-50 dark:hover:bg-destructive/10 hover:border-red-300 dark:hover:border-destructive/30 shadow-xs"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
-          </div>
+          ) : (
+            /* Spreadsheet Grid Table */
+            <div className="rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-xl shadow-black/5 dark:shadow-black/25 overflow-hidden">
+              {/* Table Toolbar */}
+              <div className="p-3 sm:p-4 border-b border-white/30 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/30 dark:bg-slate-900/20 backdrop-blur-md print:hidden">
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search student by name or ID..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="pl-9 h-9 rounded-xl text-xs bg-white/70 dark:bg-slate-800/50 backdrop-blur-md border border-slate-200/60 dark:border-white/10"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span>
+                    <strong>Tip:</strong> Press <strong>Arrows</strong> to navigate cells. Type <strong>ABS</strong> for absent, <strong>EXC</strong> for excused.
+                  </span>
+                </div>
+              </div>
+
+              {/* Multi-Assessment Grid Table */}
+              <div className="overflow-x-auto max-w-full">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-muted/40 font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+                    <tr>
+                      <th className="py-3 px-3 w-10 text-center">#</th>
+                      <th className="py-3 px-3 w-24">Student ID</th>
+                      <th className="py-3 px-4 min-w-[150px]">Student Name</th>
+
+                      {/* Dynamic Columns for each Assessment */}
+                      {assessments.length === 0 ? (
+                        <th className="py-3 px-4 text-muted-foreground italic text-center">
+                          No assessments created yet
+                        </th>
+                      ) : (
+                        assessments.map((ass, aIdx) => {
+                          const theme = getCategoryTheme(ass.categoryName || '', aIdx);
+                          return (
+                            <th
+                              key={ass.id}
+                              className={`py-2 px-2.5 text-center min-w-[110px] max-w-[140px] border-l border-border/50 relative group/th ${theme.headerBg}`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex-1 min-w-0 text-center">
+                                  <div className="font-bold text-foreground truncate text-xs" title={ass.title}>
+                                    {ass.title}
+                                  </div>
+                                  <div className={`text-[10px] font-bold ${theme.text}`}>
+                                    ({ass.maxScore} pts)
+                                  </div>
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={isLocked}
+                                      className="h-6 w-6 p-0 rounded-md hover:bg-black/10 dark:hover:bg-white/10 opacity-70 group-hover/th:opacity-100 transition-opacity shrink-0"
+                                      title="Assessment Options"
+                                    >
+                                      <MoreVertical className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-44 text-xs font-medium bg-white dark:bg-slate-900/95 border-slate-200 dark:border-white/10">
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenEditAssessment(ass)}
+                                      className="gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-200"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                      <span>Edit Assessment</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenDeleteAssessment(ass)}
+                                      className="gap-2 cursor-pointer text-xs text-red-600 dark:text-destructive focus:text-red-700 dark:focus:text-destructive"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Delete Assessment</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </th>
+                          );
+                        })
+                      )}
+
+                      {/* Total (100) Column */}
+                      <th className="py-3 px-4 w-24 text-center border-l border-border bg-primary/5 font-extrabold text-foreground">
+                        Total (100)
+                      </th>
+
+                      {/* Status Column */}
+                      <th className="py-3 px-3 w-28 text-center border-l border-border">
+                        Status
+                      </th>
+
+                      {/* Actions Menu */}
+                      <th className="py-3 px-2 w-10 text-center print:hidden"></th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-border/60">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground">
+                          <div className="inline-flex items-center gap-2">
+                            <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+                            <span>Loading gradebook and calculating weighted marks...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground">
+                          No students enrolled in this class and section.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedStudents.map((row, rIdx) => {
+                        const student = row.student;
+                        const globalRowIdx = (currentPage - 1) * pageSize + rIdx;
+                        const isComplete = row.computed.isComplete;
+                        const finalTotal = row.computed.finalWeightedTotal;
+
+                        return (
+                          <tr
+                            key={student.id}
+                            className="hover:bg-muted/30 transition-colors group"
+                          >
+                            {/* Row Number */}
+                            <td className="py-2 px-3 text-center text-muted-foreground text-[11px]">
+                              {globalRowIdx + 1}
+                            </td>
+
+                            {/* Student ID */}
+                            <td className="py-2 px-3 font-mono text-[11px] font-semibold text-muted-foreground">
+                              {student.student_id}
+                            </td>
+
+                            {/* Student Name */}
+                            <td className="py-2 px-4 font-semibold text-foreground truncate max-w-[180px]">
+                              {student.fullName}
+                            </td>
+
+                            {/* Assessment Inputs */}
+                            {assessments.map((ass, cIdx) => {
+                              const cell = localMarks[student.id]?.[ass.id] || {
+                                score: null,
+                                isAbsent: false,
+                                isExcused: false,
+                                remarks: '',
+                              };
+                              const isDirty = dirtyCells.has(`${student.id}:${ass.id}`);
+                              const displayValue = cell.isAbsent
+                                ? 'ABS'
+                                : cell.isExcused
+                                  ? 'EXC'
+                                  : cell.score !== null
+                                    ? cell.score.toString()
+                                    : '';
+
+                              return (
+                                <td
+                                  key={ass.id}
+                                  className={`py-1 px-1.5 text-center border-l border-border/40 ${isDirty ? 'bg-amber-500/10' : ''
+                                    }`}
+                                >
+                                  <input
+                                    id={`cell-${rIdx}-${cIdx}`}
+                                    type="text"
+                                    disabled={isLocked}
+                                    value={displayValue}
+                                    onChange={(e) =>
+                                      handleCellChange(student.id, ass.id, e.target.value, ass.maxScore)
+                                    }
+                                    onKeyDown={(e) =>
+                                      handleKeyDown(e, rIdx, cIdx, paginatedStudents.length, assessments.length)
+                                    }
+                                    placeholder="-"
+                                    className={`w-full h-8 px-1 text-center font-bold text-xs rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary ${isLocked
+                                        ? 'bg-transparent text-foreground cursor-not-allowed'
+                                        : cell.isAbsent
+                                          ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 font-extrabold'
+                                          : cell.isExcused
+                                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-extrabold'
+                                            : cell.score !== null
+                                              ? 'bg-background text-foreground hover:bg-muted/50 border border-input/60'
+                                              : 'bg-muted/40 text-muted-foreground border border-dashed border-input/50'
+                                      }`}
+                                  />
+                                </td>
+                              );
+                            })}
+
+                            {/* Total (100) Weighted Score Column */}
+                            <td className="py-2 px-4 text-center border-l border-border font-extrabold bg-primary/5">
+                              {finalTotal !== null ? (
+                                <span className="text-foreground text-xs">{finalTotal}</span>
+                              ) : (
+                                <span
+                                  className="text-muted-foreground text-[11px] italic"
+                                  title={`Provisional: ${row.computed.provisionalWeightedTotal} (in progress)`}
+                                >
+                                  -
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Status Badge */}
+                            <td className="py-2 px-3 text-center border-l border-border">
+                              {isComplete ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                                  <Check className="w-3 h-3" />
+                                  Complete
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400">
+                                  ↓ Missing Marks
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Actions Column (⋮) */}
+                            <td className="py-2 px-2 text-center print:hidden">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 rounded-lg hover:bg-muted"
+                                  >
+                                    <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-slate-900/95 border-slate-200 dark:border-white/10">
+                                  <DropdownMenuItem
+                                    onClick={() => setSelectedStudentForBreakdown(row)}
+                                    className="gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200"
+                                  >
+                                    <BarChart3 className="w-3.5 h-3.5 text-primary" />
+                                    <span>View Breakdown</span>
+                                  </DropdownMenuItem>
+
+                                  {assessments.length > 0 && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        setRemarkModalStudent({
+                                          student: { id: student.id, fullName: student.fullName },
+                                          assessment: assessments[0],
+                                          currentRemarks:
+                                            localMarks[student.id]?.[assessments[0].id]?.remarks || '',
+                                        })
+                                      }
+                                      className="gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-200"
+                                    >
+                                      <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                                      <span>Add Remarks</span>
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Pagination Footer */}
+              <div className="p-3 sm:p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground print:hidden">
+                <div>
+                  Showing{' '}
+                  <strong>{filteredStudents.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> to{' '}
+                  <strong>{Math.min(currentPage * pageSize, filteredStudents.length)}</strong> of{' '}
+                  <strong>{filteredStudents.length}</strong> students
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className="h-8 px-2.5 rounded-lg text-xs"
+                    >
+                      ‹
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <Button
+                        key={page}
+                        variant={page === currentPage ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className="h-8 w-8 p-0 rounded-lg text-xs font-bold"
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      className="h-8 px-2.5 rounded-lg text-xs"
+                    >
+                      ›
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── RIGHT COLUMN: SIDEBAR (SUMMARY, STATS & QUICK ACTIONS) ─────────────── */}
         <div className="space-y-4 print:hidden">
           {/* Card 1: Subject Summary & Statistics */}
-          <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card shadow-xs space-y-4">
+          <div className="p-4 sm:p-5 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-xl shadow-black/5 dark:shadow-black/25 space-y-4">
             <div className="flex items-center gap-2 text-primary font-bold text-sm border-b border-border/60 pb-3">
               <FileSpreadsheet className="w-4 h-4" />
               <span>Subject Summary</span>
@@ -1557,7 +1794,7 @@ export default function TeacherGradebookPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground block text-[11px]">Teacher</span>
-                  <span className="font-bold text-foreground truncate block">{teacherName}</span>
+                  <span className={cn("font-bold truncate block", teacherName === 'Not Assigned' ? "text-amber-500 font-semibold" : "text-foreground")}>{teacherName}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground block text-[11px]">Academic Year</span>
@@ -1633,7 +1870,7 @@ export default function TeacherGradebookPage() {
           </div>
 
           {/* Card 2: Quick Actions */}
-          <div className="p-4 sm:p-5 rounded-2xl border border-border bg-card shadow-xs space-y-3">
+          <div className="p-4 sm:p-5 rounded-2xl border border-white/40 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-xl shadow-black/5 dark:shadow-black/25 space-y-3">
             <div className="flex items-center gap-2 text-primary font-bold text-sm border-b border-border/60 pb-2.5">
               <Sparkles className="w-4 h-4" />
               <span>Quick Actions</span>
@@ -1713,7 +1950,7 @@ export default function TeacherGradebookPage() {
               <select
                 value={newCategoryId}
                 onChange={(e) => setNewCategoryId(e.target.value)}
-                className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-primary"
+                className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-slate-900 dark:text-slate-100 text-xs font-medium focus:ring-2 focus:ring-primary"
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -1729,7 +1966,7 @@ export default function TeacherGradebookPage() {
                 <select
                   value={newType}
                   onChange={(e) => setNewType(e.target.value)}
-                  className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-xs font-medium"
+                  className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-slate-900 dark:text-slate-100 text-xs font-medium"
                 >
                   <option value="QUIZ">Quiz</option>
                   <option value="ASSIGNMENT">Assignment</option>
@@ -1790,6 +2027,181 @@ export default function TeacherGradebookPage() {
               className="rounded-xl text-xs font-semibold bg-primary text-primary-foreground"
             >
               {saving ? 'Creating...' : 'Create Assessment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT ASSESSMENT MODAL ──────────────────────────────────────────────── */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Pencil className="w-4 h-4 text-blue-600" />
+              Edit Assessment
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Update the assessment details. Changes will be reflected immediately in the gradebook.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2">
+            <div>
+              <Label className="text-xs font-bold">Assessment Title *</Label>
+              <Input
+                placeholder="e.g. Quiz 3, Chapter Test 2, Group Project"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Category (Weight Scheme) *</Label>
+              <select
+                value={editCategoryId}
+                onChange={(e) => setEditCategoryId(e.target.value)}
+                className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-slate-900 dark:text-slate-100 text-xs font-medium focus:ring-2 focus:ring-primary"
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.weight}% weight)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold">Assessment Type</Label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value)}
+                  className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-slate-900 dark:text-slate-100 text-xs font-medium"
+                >
+                  <option value="QUIZ">Quiz</option>
+                  <option value="ASSIGNMENT">Assignment</option>
+                  <option value="TEST">Class Test</option>
+                  <option value="PROJECT">Project</option>
+                  <option value="MIDTERM">Midterm</option>
+                  <option value="FINAL">Final Exam</option>
+                </select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">Max Marks (Points) *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={editMaxScore}
+                  onChange={(e) => setEditMaxScore(Number(e.target.value))}
+                  className="mt-1 h-9 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Assessment Date (Optional)</Label>
+              <Input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Description / Instructions</Label>
+              <Input
+                placeholder="Optional instructions for students or homeroom record"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditModalOpen(false)}
+              className="rounded-xl text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={saving}
+              onClick={handleUpdateAssessment}
+              className="rounded-xl text-xs font-semibold bg-primary text-primary-foreground"
+            >
+              {saving ? 'Updating...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── DELETE ASSESSMENT CONFIRMATION MODAL ───────────────────────────────── */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="sm:max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-destructive">
+              <AlertTriangle className="w-4 h-4" />
+              Delete Assessment
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action cannot be undone. All student marks recorded for this assessment will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAssessmentForDelete && (
+            <div className="py-3 space-y-3">
+              <div className="p-3.5 rounded-xl bg-destructive/5 border border-destructive/20 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Assessment:</span>
+                  <span className="font-bold text-foreground">{selectedAssessmentForDelete.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Type:</span>
+                  <span className="font-semibold text-foreground">{selectedAssessmentForDelete.type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Max Score:</span>
+                  <span className="font-semibold text-foreground">{selectedAssessmentForDelete.maxScore} pts</span>
+                </div>
+                {selectedAssessmentForDelete.categoryName && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Category:</span>
+                    <span className="font-semibold text-foreground">{selectedAssessmentForDelete.categoryName}</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-destructive font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                All marks entered for this assessment will be deleted permanently.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteModalOpen(false)}
+              className="rounded-xl text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={deleting}
+              onClick={handleConfirmDeleteAssessment}
+              className="rounded-xl text-xs font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete Assessment'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1943,9 +2355,9 @@ export default function TeacherGradebookPage() {
                       Final Subject Mark (100%)
                     </td>
                     <td className="py-2.5 px-3 text-right text-sm text-foreground">
-                      {selectedStudentForBreakdown?.computed.finalWeightedTotal !== null
-                        ? `${selectedStudentForBreakdown?.computed.finalWeightedTotal} / 100`
-                        : `${selectedStudentForBreakdown?.computed.provisionalWeightedTotal} (Provisional)`}
+                      {selectedStudentForBreakdown?.computed?.finalWeightedTotal != null
+                        ? `${selectedStudentForBreakdown.computed.finalWeightedTotal} / 100`
+                        : `${selectedStudentForBreakdown?.computed?.provisionalWeightedTotal ?? 0} (Provisional)`}
                     </td>
                   </tr>
                 </tfoot>

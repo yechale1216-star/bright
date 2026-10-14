@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, LogOut, User, CheckSquare, BarChart2, BookOpen, 
-  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, BookMarked
+  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, Layers
 } from 'lucide-react'
 import { useAuth } from '@/lib/context/auth-context'
 import { useSchool } from '@/lib/context/school-context'
@@ -20,6 +20,7 @@ import { LanguageProvider } from '@/lib/context/language-context'
 import { Button } from '@/components/ui/button'
 import { useUnread } from '@/lib/context/unread-context'
 import { DeveloperBrand } from '@/components/developer-brand'
+import { useTeacherRole } from '@/hooks/use-teacher-role'
 
 export default function TeacherClientLayout({
   children,
@@ -41,6 +42,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
   const [showBottomNav, setShowBottomNav] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const { totalUnreadCount } = useUnread()
+  const { isHomeroomTeacher, isDualRole } = useTeacherRole()
 
   useEffect(() => {
     setMounted(true)
@@ -70,14 +72,16 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
 
   const navItems = [
     { href: "/school/teacher", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },
+    { href: "/school/teacher/classes", icon: <Layers className="w-5 h-5" />, label: "Classes" },
     { href: "/school/teacher/gradebook", icon: <GraduationCap className="w-5 h-5" />, label: "Gradebook" },
-    { href: "/school/teacher/homework", icon: <BookOpen className="w-5 h-5" />, label: "Homework" },
-    { href: "/school/teacher/materials", icon: <BookMarked className="w-5 h-5" />, label: "Materials" },
+    ...(isHomeroomTeacher
+      ? [{ href: "/school/teacher/attendance", icon: <CheckSquare className="w-5 h-5" />, label: "Student Attendance" }]
+      : []),
     { href: "/school/teacher/communication", icon: <MessageSquare className="w-5 h-5" />, label: "Messages", badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
-    { href: "/school/teacher/attendance", icon: <CheckSquare className="w-5 h-5" />, label: "Student Attendance" },
     { href: "/school/teacher/staff-attendance", icon: <UserCheck className="w-5 h-5" />, label: "My Attendance" },
-    { href: "/school/teacher/classes", icon: <BookOpen className="w-5 h-5" />, label: "Classes" },
-    { href: "/school/teacher/reports", icon: <BarChart2 className="w-5 h-5" />, label: "Reports" },
+    ...(isHomeroomTeacher
+      ? [{ href: "/school/teacher/reports", icon: <BarChart2 className="w-5 h-5" />, label: "Attendance Reports" }]
+      : []),
     { href: "/school/teacher/profile", icon: <User className="w-5 h-5" />, label: "Profile" },
   ]
 
@@ -97,7 +101,19 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                         <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
                       </div>
-                      <p className="text-[11px] font-medium text-muted-foreground truncate">{user?.name || 'Teacher'}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[85px]">{user?.name || 'Teacher'}</p>
+                        <span className={cn(
+                          "text-[9px] font-bold px-1.5 py-0.2 rounded-md uppercase tracking-wider shrink-0",
+                          isDualRole
+                            ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                            : isHomeroomTeacher
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                        )}>
+                          {isDualRole ? 'Dual Role' : isHomeroomTeacher ? 'Homeroom' : 'Subject'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -148,7 +164,19 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                         <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
                       </div>
-                      <p className="text-[11px] font-medium text-muted-foreground truncate">{user?.name || 'Teacher'}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[90px]">{user?.name || 'Teacher'}</p>
+                        <span className={cn(
+                          "text-[9px] font-bold px-1.5 py-0.2 rounded-md uppercase tracking-wider shrink-0",
+                          isDualRole
+                            ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                            : isHomeroomTeacher
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                            : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                        )}>
+                          {isDualRole ? 'Dual Role' : isHomeroomTeacher ? 'Homeroom' : 'Subject'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground ml-auto">
@@ -209,8 +237,12 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                     <div className="flex items-stretch justify-around h-16 px-2">
                       <MobileTabLink href="/school/teacher" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" active={isActive('/school/teacher')} />
                       <MobileTabLink href="/school/teacher/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive('/school/teacher/communication')} />
-                      <MobileTabLink href="/school/teacher/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Check" active={isActive('/school/teacher/attendance')} />
-                      <MobileTabLink href="/school/teacher/classes" icon={<BookOpen className="w-5 h-5" />} label="Classes" active={isActive('/school/teacher/classes')} />
+                      {isHomeroomTeacher ? (
+                        <MobileTabLink href="/school/teacher/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Check" active={isActive('/school/teacher/attendance')} />
+                      ) : (
+                        <MobileTabLink href="/school/teacher/gradebook" icon={<GraduationCap className="w-5 h-5" />} label="Grades" active={isActive('/school/teacher/gradebook')} />
+                      )}
+                      <MobileTabLink href="/school/teacher/classes" icon={<Layers className="w-5 h-5" />} label="Classes" active={isActive('/school/teacher/classes')} />
                       <MobileTabLink href="/school/teacher/profile" icon={<User className="w-5 h-5" />} label="Profile" active={isActive('/school/teacher/profile')} />
                     </div>
                   </nav>

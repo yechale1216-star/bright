@@ -290,6 +290,14 @@ export class LearningMaterialService {
     return prisma.learningMaterial.delete({ where: { id } });
   }
 
+  async incrementViewCount(id: string) {
+    return prisma.learningMaterial.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } },
+      select: { id: true, viewCount: true },
+    });
+  }
+
   async getStudentMaterials(studentId: string, filters?: { subjectId?: string }) {
     const student = await prisma.student.findUnique({
       where: { id: studentId },

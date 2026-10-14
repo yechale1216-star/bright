@@ -256,6 +256,7 @@ app.use('/api/messages', message_routes_1.default);
 app.use('/api/groups', group_routes_1.default);
 app.use('/api/promotions', promotion_routes_1.default);
 app.use('/api/academic-years', academic_year_routes_1.default);
+app.use('/api/school/academic-years', academic_year_routes_1.default);
 app.use('/api/announcements', announcement_routes_1.default);
 app.use('/api/calls', call_routes_1.default);
 app.use('/api/notifications', notification_routes_1.default);

@@ -179,6 +179,13 @@ export interface ClassGradebookStudentRow {
     unenteredMarksCount: number;
   };
   isComplete: boolean;
+  computed?: {
+    isComplete: boolean;
+    missingCount: number;
+    absentCount: number;
+    provisionalWeightedTotal: number;
+    finalWeightedTotal: number | null;
+  };
 }
 
 export interface ClassGradebookData {
@@ -207,6 +214,8 @@ export interface ClassGradebookData {
     highestScore: number;
     lowestScore: number;
   };
+  assignedTeacher?: { id: string; name: string; email: string } | null;
+  subject?: { id: string; name: string; code?: string } | null;
 }
 
 export interface ReportCardSubjectScore {

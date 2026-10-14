@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { 
@@ -6,7 +6,7 @@ import {
   Clock, Award, FolderOpen, Send, Download, ExternalLink, Search, 
   Filter, Sparkles, AlertCircle, RefreshCw, ChevronRight, Edit3, 
   Trash2, Check, X, Shield, Star, GraduationCap, Eye, UserCheck, 
-  AlertTriangle, Home, BookMarked, Layers, BarChart3, HelpCircle
+  AlertTriangle, Home, BookMarked, Layers, BarChart3, HelpCircle, Upload
 } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -26,9 +26,10 @@ import { authService } from "@/lib/auth/auth"
 import { homeworkClientService, type Homework, type HomeworkSubmission } from "@/lib/homework-service"
 import { learningMaterialClientService, type LearningMaterial } from "@/lib/homework-service"
 import { gradebookService, type Assessment, type StudentMarksRow } from "@/lib/gradebook-service"
+import { TeacherSharedMaterials } from "@/components/school/teacher-shared-materials"
 import { cn } from "@/lib/utils/utils"
 
-// ─── Interfaces ─────────────────────────────────────────────────────────────
+// -”€-”€-”€ Interfaces -”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€-”€
 
 interface PortalAssignment {
   id: string
@@ -65,7 +66,7 @@ interface ClassDetails {
 }
 
 export function TeacherPortal() {
-  // ── State ──
+  // -”€-”€ State -”€-”€
   const [isLoading, setIsLoading] = useState(true)
   const [assignments, setAssignments] = useState<PortalAssignment[]>([])
   const [currentYear, setCurrentYear] = useState<{ id: string; name: string } | null>(null)
@@ -81,7 +82,7 @@ export function TeacherPortal() {
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState<"ALL" | "SUBJECT_TEACHER" | "HOMEROOM_TEACHER">("ALL")
 
-  // ── Dialog States ──
+  // -”€-”€ Dialog States -”€-”€
   // 1. Create Homework Modal
   const [isHomeworkOpen, setIsHomeworkOpen] = useState(false)
   const [isSubmittingHw, setIsSubmittingHw] = useState(false)
@@ -108,6 +109,10 @@ export function TeacherPortal() {
   const [matDescription, setMatDescription] = useState("")
   const [matFileUrl, setMatFileUrl] = useState("")
   const [matFileType, setMatFileType] = useState("PDF")
+  const [materialSource, setMaterialSource] = useState<"file" | "link">("file")
+  const [matFileName, setMatFileName] = useState("")
+  const [matFileSize, setMatFileSize] = useState<number | null>(null)
+  const [isReadingFile, setIsReadingFile] = useState(false)
 
   // 4. Create Assessment Modal
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false)
@@ -125,7 +130,7 @@ export function TeacherPortal() {
   const [marksSheetRows, setMarksSheetRows] = useState<StudentMarksRow[]>([])
   const [isSavingBulkMarks, setIsSavingBulkMarks] = useState(false)
 
-  // ── Load Portal Data ──
+  // -”€-”€ Load Portal Data -”€-”€
   const loadPortalClasses = useCallback(async () => {
     try {
       setIsLoading(true)
@@ -149,7 +154,7 @@ export function TeacherPortal() {
     loadPortalClasses()
   }, [loadPortalClasses])
 
-  // ── Load Selected Class Details ──
+  // -”€-”€ Load Selected Class Details -”€-”€
   const loadClassDetails = useCallback(async (assignment: PortalAssignment) => {
     if (!assignment.gradeId || !assignment.sectionId) return
     try {
@@ -175,7 +180,7 @@ export function TeacherPortal() {
     loadClassDetails(assignment)
   }
 
-  // ── Filtered Classes ──
+  // -”€-”€ Filtered Classes -”€-”€
   const filteredAssignments = useMemo(() => {
     return assignments.filter((a) => {
       if (roleFilter !== "ALL" && a.role !== roleFilter) return false
@@ -188,7 +193,7 @@ export function TeacherPortal() {
     })
   }, [assignments, roleFilter, searchQuery])
 
-  // ── Actions: Create Homework ──
+  // -”€-”€ Actions: Create Homework -”€-”€
   const handleCreateHomework = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedAssignment?.gradeId) return
@@ -226,7 +231,7 @@ export function TeacherPortal() {
     }
   }
 
-  // ── Actions: View & Grade Submissions ──
+  // -”€-”€ Actions: View & Grade Submissions -”€-”€
   const handleOpenSubmissions = async (hw: Homework) => {
     setSelectedHomeworkForSubmissions(hw)
     setIsSubmissionsModalOpen(true)
@@ -282,12 +287,56 @@ export function TeacherPortal() {
     }
   }
 
-  // ── Actions: Share Learning Material ──
+  // -”€-”€ Actions: Share Learning Material -”€-”€
+  const handleMaterialFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 25 * 1024 * 1024) {
+      notifications.error("File Too Large", "Maximum supported file size is 25MB.")
+      return
+    }
+
+    setIsReadingFile(true)
+    setMatFileName(file.name)
+    setMatFileSize(file.size)
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+    let detectedType = 'DOC'
+    if (ext === 'pdf') detectedType = 'PDF'
+    else if (['ppt', 'pptx'].includes(ext)) detectedType = 'SLIDES'
+    else if (['doc', 'docx'].includes(ext)) detectedType = 'DOC'
+    else if (['mp4', 'mov', 'webm'].includes(ext)) detectedType = 'VIDEO'
+    else if (['xls', 'xlsx', 'csv'].includes(ext)) detectedType = 'SHEET'
+    else if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) detectedType = 'IMAGE'
+
+    setMatFileType(detectedType)
+    if (!matTitle.trim()) {
+      const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
+      setMatTitle(nameWithoutExt.replace(/[-_]/g, ' '))
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      setMatFileUrl(reader.result as string)
+      setIsReadingFile(false)
+    }
+    reader.onerror = () => {
+      notifications.error("File Error", "Could not process file.")
+      setIsReadingFile(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleShareMaterial = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedAssignment?.gradeId) return
-    if (!matTitle.trim() || !matFileUrl.trim()) {
-      notifications.error("Validation Error", "Title and File URL / Link are required.")
+    if (!matTitle.trim()) {
+      notifications.error("Validation Error", "Material Title is required.")
+      return
+    }
+    if (!matFileUrl.trim()) {
+      notifications.error("Validation Error", materialSource === "file" ? "Please select a file to upload." : "File URL / Link is required.")
       return
     }
 
@@ -300,6 +349,7 @@ export function TeacherPortal() {
         subjectId: selectedAssignment.subjectId || "",
         fileUrl: matFileUrl.trim(),
         fileType: matFileType,
+        fileSize: matFileSize || undefined,
       })
 
       notifications.success("Shared!", "Learning material published to class.")
@@ -307,7 +357,10 @@ export function TeacherPortal() {
       setMatTitle("")
       setMatDescription("")
       setMatFileUrl("")
+      setMatFileName("")
+      setMatFileSize(null)
       setMatFileType("PDF")
+      setMaterialSource("file")
       if (selectedAssignment) loadClassDetails(selectedAssignment)
     } catch (error: any) {
       notifications.error("Error", error.message || "Failed to share material.")
@@ -327,7 +380,7 @@ export function TeacherPortal() {
     }
   }
 
-  // ── Actions: Create Assessment ──
+  // -”€-”€ Actions: Create Assessment -”€-”€
   const handleCreateAssessment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedAssignment?.gradeId) return
@@ -365,7 +418,7 @@ export function TeacherPortal() {
     }
   }
 
-  // ── Actions: Marks Sheet (Gradebook Entry) ──
+  // -”€-”€ Actions: Marks Sheet (Gradebook Entry) -”€-”€
   const handleOpenMarksSheet = async (assessment: Assessment) => {
     setSelectedAssessmentForMarks(assessment)
     setIsMarksSheetOpen(true)
@@ -408,7 +461,7 @@ export function TeacherPortal() {
     }
   }
 
-  // ── Render Loading ──
+  // -”€-”€ Render Loading -”€-”€
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -417,7 +470,7 @@ export function TeacherPortal() {
     )
   }
 
-  // ── VIEW 1: Directory / All Classes Grid ──
+  // -”€-”€ VIEW 1: Directory / All Classes Grid -”€-”€
   if (!selectedAssignment) {
     const subjectTeacherCount = assignments.filter((a) => a.role === "SUBJECT_TEACHER").length
     const homeroomCount = assignments.filter((a) => a.role === "HOMEROOM_TEACHER").length
@@ -475,7 +528,7 @@ export function TeacherPortal() {
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by grade, section, or subject..."
-              className="pl-10 h-11 bg-card/60 backdrop-blur-sm border-border/80 focus-visible:ring-indigo-500 rounded-xl"
+              className="pl-10 h-11 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border-slate-300/80 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-indigo-500 rounded-xl shadow-xs"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -513,8 +566,8 @@ export function TeacherPortal() {
 
         {/* Classes Grid */}
         {filteredAssignments.length === 0 ? (
-          <Card className="border-dashed p-12 text-center rounded-3xl bg-card/40">
-            <div className="w-16 h-16 rounded-3xl bg-muted mx-auto flex items-center justify-center text-muted-foreground mb-4">
+          <div className="border border-dashed border-slate-300/80 dark:border-white/10 p-12 text-center rounded-3xl bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl shadow-md">
+            <div className="w-16 h-16 rounded-3xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md mx-auto flex items-center justify-center text-muted-foreground mb-4 shadow-xs">
               <BookOpen className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-semibold text-foreground">No assigned classes found</h3>
@@ -523,7 +576,7 @@ export function TeacherPortal() {
                 ? "No classes match your current search query."
                 : "You do not have any teaching assignments assigned for this academic year yet. Please contact your school administrator."}
             </p>
-          </Card>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredAssignments.map((assignment) => {
@@ -531,30 +584,30 @@ export function TeacherPortal() {
               const subjectName = assignment.subjectRef?.name || assignment.subject || (isHomeroom ? "Homeroom Class" : "General Subject")
 
               return (
-                <Card
+                <div
                   key={assignment.id}
                   onClick={() => handleSelectClass(assignment)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-border/70 hover:border-indigo-500/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 bg-card/80 backdrop-blur-md"
+                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-white/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl hover:border-indigo-500/50 dark:hover:border-indigo-500/40 hover:bg-white/90 dark:hover:bg-slate-900/70 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20"
                 >
                   {/* Subtle top role accent bar */}
                   <div
                     className={cn(
-                      "h-2 w-full",
+                      "h-1.5 w-full",
                       isHomeroom
                         ? "bg-gradient-to-r from-violet-500 to-purple-600"
                         : "bg-gradient-to-r from-blue-500 to-indigo-600"
                     )}
                   />
 
-                  <CardHeader className="pb-3">
+                  <div className="p-5 pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "rounded-full px-3 py-1 font-semibold text-xs gap-1.5 border shadow-sm",
+                          "rounded-full px-3 py-1 font-semibold text-xs gap-1.5 border shadow-xs backdrop-blur-sm",
                           isHomeroom
-                            ? "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800"
-                            : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
+                            ? "bg-violet-500/10 text-violet-700 border-violet-300/60 dark:text-violet-300 dark:border-violet-700/40"
+                            : "bg-blue-500/10 text-blue-700 border-blue-300/60 dark:text-blue-300 dark:border-blue-700/40"
                         )}
                       >
                         {isHomeroom ? <Home className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
@@ -562,22 +615,22 @@ export function TeacherPortal() {
                       </Badge>
 
                       {assignment.academicYear && (
-                        <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded bg-muted">
+                        <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-sm">
                           {assignment.academicYear.name}
                         </span>
                       )}
                     </div>
 
-                    <CardTitle className="text-xl font-bold mt-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                      {assignment.grade?.name} — Section {assignment.section?.name}
-                    </CardTitle>
+                    <h3 className="text-xl font-bold mt-3 text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      {assignment.grade?.name} - Section {assignment.section?.name}
+                    </h3>
                     {assignment.stream && (
                       <p className="text-xs text-muted-foreground font-medium">Stream: {assignment.stream.name}</p>
                     )}
-                  </CardHeader>
+                  </div>
 
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-muted/50 border border-border/50">
+                  <div className="px-5 pb-5 space-y-4">
+                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 shadow-2xs">
                       <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                         <BookMarked className="w-4 h-4" />
                       </div>
@@ -587,7 +640,7 @@ export function TeacherPortal() {
                       </div>
                     </div>
 
-                    <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground font-medium border-t border-border/50">
+                    <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground font-medium border-t border-slate-200/60 dark:border-white/10">
                       <span className="inline-flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5 text-indigo-500" />
                         Students Roster
@@ -597,8 +650,8 @@ export function TeacherPortal() {
                         <ChevronRight className="w-4 h-4" />
                       </span>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -607,7 +660,7 @@ export function TeacherPortal() {
     )
   }
 
-  // ── VIEW 2: Selected Class Workspace ──
+  // -”€-”€ VIEW 2: Selected Class Workspace -”€-”€
   const isSelectedHomeroom = selectedAssignment.role === "HOMEROOM_TEACHER"
   const currentSubjectName =
     selectedAssignment.subjectRef?.name ||
@@ -643,10 +696,10 @@ export function TeacherPortal() {
                   if (target) handleSelectClass(target)
                 }}
               >
-                <SelectTrigger className="h-9 text-xs rounded-xl border-border bg-card max-w-[220px]">
+                <SelectTrigger className="h-9 text-xs rounded-xl border border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md max-w-[220px]">
                   <SelectValue placeholder="Switch class" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
+                <SelectContent className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-xl">
                   {assignments.map((a) => (
                     <SelectItem key={a.id} value={a.id} className="text-xs">
                       {a.grade?.name} - {a.section?.name} ({a.subjectRef?.name || a.subject || a.role})
@@ -684,7 +737,7 @@ export function TeacherPortal() {
               </div>
 
               <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                {selectedAssignment.grade?.name} — Section {selectedAssignment.section?.name}
+                {selectedAssignment.grade?.name} - Section {selectedAssignment.section?.name}
               </h1>
 
               <div className="flex items-center gap-3 text-indigo-200 text-sm">
@@ -694,8 +747,7 @@ export function TeacherPortal() {
                 </span>
                 {selectedAssignment.stream && (
                   <>
-                    <span>•</span>
-                    <span>Stream: {selectedAssignment.stream.name}</span>
+                                        <span>Stream: {selectedAssignment.stream.name}</span>
                   </>
                 )}
               </div>
@@ -742,7 +794,7 @@ export function TeacherPortal() {
         </div>
       ) : classDetails ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-muted/70 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1 border border-border/50">
+          <TabsList className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-1.5 rounded-2xl h-auto flex flex-wrap gap-1 border border-white/60 dark:border-white/10 shadow-md shadow-black/5 dark:shadow-black/20">
             <TabsTrigger value="overview" className="rounded-xl text-xs md:text-sm font-medium gap-1.5 py-2">
               <BarChart3 className="w-4 h-4" />
               Overview
@@ -768,7 +820,7 @@ export function TeacherPortal() {
           {/* TAB 1: OVERVIEW */}
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="rounded-2xl border border-border/70 p-5 bg-card/60 backdrop-blur-sm">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-blue-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground font-medium">Class Roster</div>
                   <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
@@ -777,9 +829,9 @@ export function TeacherPortal() {
                 </div>
                 <div className="mt-3 text-3xl font-black text-foreground">{classDetails.students?.length || 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">Active registered students</div>
-              </Card>
+              </div>
 
-              <Card className="rounded-2xl border border-border/70 p-5 bg-card/60 backdrop-blur-sm">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-indigo-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground font-medium">Assignments</div>
                   <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
@@ -788,9 +840,9 @@ export function TeacherPortal() {
                 </div>
                 <div className="mt-3 text-3xl font-black text-foreground">{classDetails.homework?.length || 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">Posted homework tasks</div>
-              </Card>
+              </div>
 
-              <Card className="rounded-2xl border border-border/70 p-5 bg-card/60 backdrop-blur-sm">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-emerald-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground font-medium">Learning Materials</div>
                   <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
@@ -799,9 +851,9 @@ export function TeacherPortal() {
                 </div>
                 <div className="mt-3 text-3xl font-black text-foreground">{classDetails.materials?.length || 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">Shared study resources</div>
-              </Card>
+              </div>
 
-              <Card className="rounded-2xl border border-border/70 p-5 bg-card/60 backdrop-blur-sm">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-amber-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground font-medium">Assessments</div>
                   <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
@@ -810,23 +862,23 @@ export function TeacherPortal() {
                 </div>
                 <div className="mt-3 text-3xl font-black text-foreground">{classDetails.assessments?.length || 0}</div>
                 <div className="text-xs text-muted-foreground mt-1">Recorded gradebook tests</div>
-              </Card>
+              </div>
             </div>
 
             {/* Quick Preview Sections */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Homework */}
-              <Card className="rounded-3xl border border-border/70 bg-card/70 backdrop-blur-sm">
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
+                <div className="flex flex-row items-center justify-between p-5 pb-3">
                   <div>
-                    <CardTitle className="text-base font-bold">Recent Homework & Tasks</CardTitle>
-                    <CardDescription className="text-xs">Latest assignments posted to this class</CardDescription>
+                    <h3 className="text-base font-bold text-foreground">Recent Homework &amp; Tasks</h3>
+                    <p className="text-xs text-muted-foreground">Latest assignments posted to this class</p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setActiveTab("homework")} className="text-xs text-indigo-600">
-                    View All →
+                    View All &rarr;
                   </Button>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </div>
+                <div className="px-5 pb-5 space-y-3">
                   {classDetails.homework?.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">
                       No assignments posted yet. Click "Post Homework" to get started.
@@ -835,15 +887,14 @@ export function TeacherPortal() {
                     classDetails.homework.slice(0, 3).map((hw) => (
                       <div
                         key={hw.id}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/40 hover:bg-muted/70 transition-colors"
+                        className="flex items-center justify-between p-3 rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800/80 transition-all shadow-2xs"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-sm truncate text-foreground">{hw.title}</div>
                           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
                             <Clock className="w-3.5 h-3.5" />
                             Due {new Date(hw.dueDate).toLocaleDateString()}
-                            <span>•</span>
-                            <span>Max {hw.maxScore} pts</span>
+                                                        <span>Max {hw.maxScore} pts</span>
                           </div>
                         </div>
                         <Button
@@ -858,21 +909,20 @@ export function TeacherPortal() {
                       </div>
                     ))
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
-              {/* Recent Materials */}
-              <Card className="rounded-3xl border border-border/70 bg-card/70 backdrop-blur-sm">
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
+                <div className="flex flex-row items-center justify-between p-5 pb-3">
                   <div>
-                    <CardTitle className="text-base font-bold">Shared Learning Materials</CardTitle>
-                    <CardDescription className="text-xs">Class notes, slides, and study links</CardDescription>
+                    <h3 className="text-base font-bold text-foreground">Shared Learning Materials</h3>
+                    <p className="text-xs text-muted-foreground">Class notes, slides, and study links</p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setActiveTab("materials")} className="text-xs text-indigo-600">
-                    View All →
+                    View All &rarr;
                   </Button>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </div>
+                <div className="px-5 pb-5 space-y-3">
                   {classDetails.materials?.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">
                       No materials shared yet. Click "Share Material" to upload notes.
@@ -881,7 +931,7 @@ export function TeacherPortal() {
                     classDetails.materials.slice(0, 3).map((mat) => (
                       <div
                         key={mat.id}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/40 hover:bg-muted/70 transition-colors"
+                        className="flex items-center justify-between p-3 rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800/80 transition-all shadow-2xs"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-sm truncate text-foreground">{mat.title}</div>
@@ -902,27 +952,27 @@ export function TeacherPortal() {
                       </div>
                     ))
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
           {/* TAB 2: STUDENTS */}
           <TabsContent value="students" className="space-y-4">
-            <Card className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-border/50">
+            <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden">
+              <div className="flex flex-row items-center justify-between p-5 pb-4 border-b border-slate-200/60 dark:border-white/10">
                 <div>
-                  <CardTitle className="text-lg font-bold">Students Roster</CardTitle>
-                  <CardDescription className="text-xs">
+                  <h3 className="text-lg font-bold text-foreground">Students Roster</h3>
+                  <p className="text-xs text-muted-foreground">
                     Enrolled students in {selectedAssignment.grade?.name} - Section {selectedAssignment.section?.name}
-                  </CardDescription>
+                  </p>
                 </div>
                 <Badge variant="outline" className="rounded-full px-3 py-1 font-semibold text-xs">
                   {classDetails.students?.length || 0} Students
                 </Badge>
-              </CardHeader>
+              </div>
 
-              <CardContent className="p-0">
+              <div className="overflow-x-auto">
                 {classDetails.students?.length === 0 ? (
                   <div className="p-12 text-center text-muted-foreground text-sm">
                     No active students enrolled in this section.
@@ -952,7 +1002,7 @@ export function TeacherPortal() {
                               </div>
                             </td>
                             <td className="px-6 py-4 font-mono text-xs text-muted-foreground">
-                              {student.student_id || "—"}
+                              {student.student_id || "-"}
                             </td>
                             <td className="px-6 py-4 text-xs">
                               {student.gender ? (
@@ -960,7 +1010,7 @@ export function TeacherPortal() {
                                   {student.gender}
                                 </Badge>
                               ) : (
-                                "—"
+                                "-"
                               )}
                             </td>
                             <td className="px-6 py-4 text-xs text-muted-foreground">
@@ -970,7 +1020,7 @@ export function TeacherPortal() {
                                   <div className="text-[11px]">{student.parent_phone}</div>
                                 </div>
                               ) : (
-                                "—"
+                                "-"
                               )}
                             </td>
                           </tr>
@@ -979,8 +1029,8 @@ export function TeacherPortal() {
                     </table>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           {/* TAB 3: HOMEWORK & ASSIGNMENTS */}
@@ -1001,7 +1051,7 @@ export function TeacherPortal() {
             </div>
 
             {classDetails.homework?.length === 0 ? (
-              <Card className="p-12 text-center rounded-3xl border-dashed bg-card/40">
+              <div className="p-12 text-center rounded-3xl border border-dashed border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
                 <BookOpen className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                 <h4 className="font-semibold text-foreground">No homework tasks yet</h4>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
@@ -1014,15 +1064,15 @@ export function TeacherPortal() {
                 >
                   Post Homework
                 </Button>
-              </Card>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {classDetails.homework.map((hw) => {
                   const submissionCount = hw._count?.submissions ?? hw.submissions?.length ?? 0
                   return (
-                    <Card
+                    <div
                       key={hw.id}
-                      className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-5 space-y-4 hover:shadow-md transition-shadow"
+                      className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 space-y-4 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
@@ -1032,8 +1082,7 @@ export function TeacherPortal() {
                               <Calendar className="w-3.5 h-3.5" />
                               Due {new Date(hw.dueDate).toLocaleDateString()}
                             </span>
-                            <span>•</span>
-                            <span>Max {hw.maxScore} Pts</span>
+                                                        <span>Max {hw.maxScore} Pts</span>
                           </div>
                         </div>
 
@@ -1046,12 +1095,12 @@ export function TeacherPortal() {
                       </div>
 
                       {hw.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed bg-muted/30 p-2.5 rounded-xl border border-border/40">
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed bg-muted/30 p-2.5 rounded-xl border border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-slate-800/40">
                           {hw.description}
                         </p>
                       )}
 
-                      <div className="pt-2 border-t border-border/50 flex items-center justify-between">
+                      <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between">
                         <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-indigo-500" />
                           <span>{submissionCount} Submissions</span>
@@ -1067,7 +1116,7 @@ export function TeacherPortal() {
                           View & Grade Submissions
                         </Button>
                       </div>
-                    </Card>
+                    </div>
                   )
                 })}
               </div>
@@ -1075,84 +1124,22 @@ export function TeacherPortal() {
           </TabsContent>
 
           {/* TAB 4: LEARNING MATERIALS */}
-          <TabsContent value="materials" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-foreground">Learning Materials & Resources</h3>
-                <p className="text-xs text-muted-foreground">Upload and share slides, notes, readings, and study guides</p>
-              </div>
-              <Button
-                onClick={() => setIsMaterialOpen(true)}
-                size="sm"
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5 shadow-md shadow-indigo-600/20"
-              >
-                <Plus className="w-4 h-4" />
-                Share Material
-              </Button>
-            </div>
-
-            {classDetails.materials?.length === 0 ? (
-              <Card className="p-12 text-center rounded-3xl border-dashed bg-card/40">
-                <FolderOpen className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <h4 className="font-semibold text-foreground">No learning materials shared yet</h4>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
-                  Share study notes, document links, or presentation slides for this class and subject.
-                </p>
-                <Button
-                  onClick={() => setIsMaterialOpen(true)}
-                  size="sm"
-                  className="mt-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white"
-                >
-                  Share Material
-                </Button>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {classDetails.materials.map((mat) => (
-                  <Card
-                    key={mat.id}
-                    className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-5 space-y-3 hover:shadow-md transition-shadow relative group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center font-bold text-xs uppercase">
-                        {mat.fileType || "DOC"}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteMaterial(mat.id)}
-                        className="w-8 h-8 rounded-xl text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-
-                    <div>
-                      <h4 className="font-bold text-sm text-foreground truncate">{mat.title}</h4>
-                      {mat.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
-                          {mat.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{new Date(mat.createdAt).toLocaleDateString()}</span>
-                      {mat.fileUrl && (
-                        <a
-                          href={mat.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1"
-                        >
-                          Open Resource <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+          <TabsContent value="materials">
+            <TeacherSharedMaterials
+              materials={classDetails.materials || []}
+              onRefresh={() => {
+                if (selectedAssignment) loadClassDetails(selectedAssignment)
+              }}
+              classContext={{
+                gradeId: selectedAssignment?.gradeId,
+                gradeName: selectedAssignment?.grade?.name,
+                sectionId: selectedAssignment?.sectionId,
+                sectionName: selectedAssignment?.section?.name,
+                subjectId: selectedAssignment?.subjectId,
+                subjectName: selectedAssignment?.subjectRef?.name || selectedAssignment?.subject,
+                academicYearName: selectedAssignment?.academicYear?.name || currentYear?.name,
+              }}
+            />
           </TabsContent>
 
           {/* TAB 5: GRADEBOOK */}
@@ -1173,7 +1160,7 @@ export function TeacherPortal() {
             </div>
 
             {classDetails.assessments?.length === 0 ? (
-              <Card className="p-12 text-center rounded-3xl border-dashed bg-card/40">
+              <div className="p-12 text-center rounded-3xl border border-dashed border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
                 <Award className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                 <h4 className="font-semibold text-foreground">No assessments recorded yet</h4>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
@@ -1186,15 +1173,15 @@ export function TeacherPortal() {
                 >
                   New Assessment
                 </Button>
-              </Card>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {classDetails.assessments.map((as) => {
                   const marksCount = (as as any)._count?.marks ?? (as as any).marks?.length ?? 0
                   return (
-                    <Card
+                    <div
                       key={as.id}
-                      className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-5 space-y-4 hover:shadow-md transition-shadow"
+                      className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 space-y-4 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
@@ -1203,21 +1190,19 @@ export function TeacherPortal() {
                             <Badge variant="secondary" className="rounded-md font-semibold text-[11px]">
                               {as.type}
                             </Badge>
-                            <span>•</span>
-                            <span>Max: {as.maxScore} Pts</span>
-                            <span>•</span>
-                            <span>Weightage: {as.weightage}%</span>
+                                                        <span>Max: {as.maxScore} Pts</span>
+                                                        <span>Weightage: {as.weightage}%</span>
                           </div>
                         </div>
 
                         {as.date && (
-                          <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded bg-muted">
+                          <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/50 dark:border-white/10">
                             {new Date(as.date).toLocaleDateString()}
                           </span>
                         )}
                       </div>
 
-                      <div className="pt-2 border-t border-border/50 flex items-center justify-between">
+                      <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between">
                         <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
                           <span>{marksCount} Students Graded</span>
@@ -1232,7 +1217,7 @@ export function TeacherPortal() {
                           Enter / Edit Marks
                         </Button>
                       </div>
-                    </Card>
+                    </div>
                   )
                 })}
               </div>
@@ -1241,7 +1226,7 @@ export function TeacherPortal() {
         </Tabs>
       ) : null}
 
-      {/* ─── MODAL 1: Create Homework ─── */}
+      {/* -”€-”€-”€ MODAL 1: Create Homework -”€-”€-”€ */}
       <Dialog open={isHomeworkOpen} onOpenChange={setIsHomeworkOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
           <DialogHeader>
@@ -1334,7 +1319,7 @@ export function TeacherPortal() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL 2: View Submissions & Grade ─── */}
+      {/* -”€-”€-”€ MODAL 2: View Submissions & Grade -”€-”€-”€ */}
       <Dialog open={isSubmissionsModalOpen} onOpenChange={setIsSubmissionsModalOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto rounded-3xl p-6">
           <DialogHeader>
@@ -1361,7 +1346,7 @@ export function TeacherPortal() {
               {submissionsList.map((sub) => {
                 const isEditingThis = gradingSubmissionId === sub.id
                 return (
-                  <Card key={sub.id} className="rounded-2xl border border-border/70 p-4 space-y-3 bg-card/60">
+                  <div key={sub.id} className="rounded-2xl border border-slate-200/80 dark:border-white/10 p-4 space-y-3 bg-white/70 dark:bg-slate-900/50 backdrop-blur-md shadow-sm">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-indigo-500/10 text-indigo-600 font-bold text-xs flex items-center justify-center">
@@ -1436,7 +1421,7 @@ export function TeacherPortal() {
                         </Button>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 )
               })}
             </div>
@@ -1455,7 +1440,7 @@ export function TeacherPortal() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL 3: Share Learning Material ─── */}
+      {/* -”€-”€-”€ MODAL 3: Share Learning Material -”€-”€-”€ */}
       <Dialog open={isMaterialOpen} onOpenChange={setIsMaterialOpen}>
         <DialogContent className="sm:max-w-[480px] rounded-3xl p-6">
           <DialogHeader>
@@ -1477,33 +1462,108 @@ export function TeacherPortal() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Type</Label>
-                <Select value={matFileType} onValueChange={setMatFileType}>
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="PDF">PDF Document</SelectItem>
-                    <SelectItem value="SLIDES">Presentation Slides</SelectItem>
-                    <SelectItem value="LINK">Web Link / Article</SelectItem>
-                    <SelectItem value="VIDEO">Video Link</SelectItem>
-                    <SelectItem value="DOC">Word / Doc</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Source switch: File Upload vs Web Link */}
+            <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-xl border border-border/50 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setMaterialSource("file")}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5",
+                  materialSource === "file" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Upload File (PDF / Doc)
+              </button>
+              <button
+                type="button"
+                onClick={() => setMaterialSource("link")}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5",
+                  materialSource === "link" ? "bg-background text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Web / External Link
+              </button>
+            </div>
 
+            {materialSource === "file" ? (
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Choose File (PDF, DOCX, PPTX, etc.) *</Label>
+                {matFileName ? (
+                  <div className="p-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">{matFileName}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {matFileType} {matFileSize ? `(${matFileSize < 1024 * 1024 ? Math.round(matFileSize / 1024) + ' KB' : (matFileSize / (1024 * 1024)).toFixed(1) + ' MB'})` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setMatFileUrl("")
+                        setMatFileName("")
+                        setMatFileSize(null)
+                      }}
+                      className="text-xs text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg px-2 h-7"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-border/80 hover:border-indigo-500/60 hover:bg-indigo-500/5 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors group">
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.mp4"
+                      onChange={handleMaterialFileChange}
+                    />
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                      {isReadingFile ? <Spinner className="w-5 h-5" /> : <Upload className="w-5 h-5" />}
+                    </div>
+                    <span className="text-xs font-bold text-foreground">Click to browse or drop file here</span>
+                    <span className="text-[11px] text-muted-foreground mt-0.5">
+                      Supports PDF, Word (DOC/DOCX), Slides (PPTX), Excel, Images (up to 25MB)
+                    </span>
+                  </label>
+                )}
+              </div>
+            ) : (
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">File URL / Web Link *</Label>
+                <Label className="text-xs font-semibold">Web Link / File URL *</Label>
                 <Input
-                  placeholder="https://..."
+                  placeholder="https://drive.google.com/... or https://..."
                   value={matFileUrl}
                   onChange={(e) => setMatFileUrl(e.target.value)}
-                  required
+                  required={materialSource === "link"}
                   className="rounded-xl"
                 />
               </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Resource Type</Label>
+              <Select value={matFileType} onValueChange={setMatFileType}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="PDF">PDF Document</SelectItem>
+                  <SelectItem value="SLIDES">Presentation Slides</SelectItem>
+                  <SelectItem value="DOC">Word / Doc</SelectItem>
+                  <SelectItem value="SHEET">Spreadsheet / Excel</SelectItem>
+                  <SelectItem value="VIDEO">Video Link</SelectItem>
+                  <SelectItem value="LINK">Web Link / Article</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
@@ -1539,7 +1599,7 @@ export function TeacherPortal() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL 4: Create Assessment ─── */}
+      {/* -”€-”€-”€ MODAL 4: Create Assessment -”€-”€-”€ */}
       <Dialog open={isAssessmentOpen} onOpenChange={setIsAssessmentOpen}>
         <DialogContent className="sm:max-w-[480px] rounded-3xl p-6">
           <DialogHeader>
@@ -1638,7 +1698,7 @@ export function TeacherPortal() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── MODAL 5: Marks Sheet (Enter/Edit Marks) ─── */}
+      {/* -”€-”€-”€ MODAL 5: Marks Sheet (Enter/Edit Marks) -”€-”€-”€ */}
       <Dialog open={isMarksSheetOpen} onOpenChange={setIsMarksSheetOpen}>
         <DialogContent className="sm:max-w-[760px] max-h-[85vh] overflow-y-auto rounded-3xl p-6">
           <DialogHeader>

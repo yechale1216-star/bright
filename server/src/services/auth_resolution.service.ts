@@ -32,6 +32,18 @@ export const resolveRoleInSchool = async (userId: string, _schoolId?: string, re
   if (!userId) return null;
 
   if (requestedRole) {
+    if (requestedRole === 'student') {
+      const student = await prisma.student.findFirst({
+        where: { user_id: userId }
+      });
+      if (student) return 'student';
+
+      const user = await prisma.user.findFirst({
+        where: { id: userId, role: 'student' }
+      });
+      if (user) return 'student';
+    }
+
     if (requestedRole === 'parent') {
       const parent = await prisma.parentStudentLink.findFirst({
         where: { parentId: userId }

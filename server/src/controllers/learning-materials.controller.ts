@@ -59,3 +59,10 @@ export const getStudentMaterials = async (req: AuthenticatedRequest, res: Respon
     res.status(200).json({ success: true, data });
   } catch (error) { next(error); }
 };
+
+export const incrementView = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = await learningMaterialService.incrementViewCount(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) { next(error); }
+};

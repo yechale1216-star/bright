@@ -31,6 +31,8 @@ export default function StudentLoginPage() {
       const res = await studentDb.login(studentId.trim(), password.trim());
       if (res.success) {
         router.push("/student");
+      } else if (res.requiresActivation) {
+        router.push(`/student/activate?id=${encodeURIComponent(studentId.trim())}`);
       } else {
         setError(res.message || "Invalid Student ID or password.");
       }
@@ -145,14 +147,23 @@ export default function StudentLoginPage() {
             </Button>
           </form>
 
-          {/* Forgot password */}
-          <div className="text-center mt-4">
+          {/* Forgot password + Activate */}
+          <div className="text-center mt-4 space-y-2">
             <Link
               href="/student/forgot-password"
-              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors"
+              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors block"
             >
               Forgot password?
             </Link>
+            <div className="border-t border-slate-100 pt-3">
+              <p className="text-[11px] text-slate-400 mb-1.5">First time signing in?</p>
+              <Link
+                href="/student/activate"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition-colors bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200"
+              >
+                <span>🔑</span> Activate Your Account
+              </Link>
+            </div>
           </div>
         </div>
       </div>

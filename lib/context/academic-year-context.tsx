@@ -18,7 +18,8 @@ export interface AcademicYear {
   startDate: string
   endDate: string
   isCurrent: boolean
-  schoolId: string
+  schoolId?: string
+  terms?: any[]
 }
 
 interface AcademicYearContextValue {
@@ -74,7 +75,7 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
 
     setIsLoadingAcademicYear(true)
     try {
-      const res = await fetch(`${API_URL}/api/school/academic-years`, {
+      const res = await fetch(`${API_URL}/api/academic-years`, {
         headers: getAuthHeaders(),
         cache: "no-store",
         signal,

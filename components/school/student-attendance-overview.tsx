@@ -490,7 +490,7 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
       {/* Top Controls: Date indicator & Session filter */}
       <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-2.5 mb-2">
         <div className="flex flex-wrap items-center gap-2.5 ml-auto">
-          <div className="text-xs font-medium bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20 shadow-2xs flex items-center gap-2.5">
+          <div className="text-xs font-medium bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-foreground px-3.5 py-1.5 rounded-full border border-slate-200/80 dark:border-white/10 shadow-sm flex items-center gap-2.5">
             {formatDate(new Date(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
             <button
               onClick={() => loadStudentAttendanceData()}
@@ -501,7 +501,7 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
             </button>
           </div>
           {isSessionBased && (
-            <div className="flex gap-1.5 p-1 bg-white/60 dark:bg-slate-800/60 rounded-full border border-slate-200 dark:border-slate-700/60">
+            <div className="flex gap-1.5 p-1 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full border border-slate-200/80 dark:border-white/10 shadow-sm">
               <Button
                 variant={sessionFilter === "total" ? "default" : "ghost"}
                 onClick={() => setSessionFilter("total")}
@@ -543,7 +543,7 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
         ].map((item, idx) => (
           <div
             key={idx}
-            className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center gap-2 shadow-sm transition-all duration-200 group hover:shadow-md"
+            className="rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-4 md:p-5 flex flex-col items-center justify-center text-center gap-2 shadow-md shadow-black/5 dark:shadow-black/20 transition-all duration-200 group hover:shadow-lg hover:border-indigo-500/30"
           >
             <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110", item.iconBg, item.iconColor)}>
               <item.icon className="h-5 w-5" />
@@ -577,7 +577,7 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
             </h3>
           </div>
         </div>
-        <div className="h-[220px] w-full p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="h-[220px] w-full p-4 rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden">
           {isLoading ? (
             <div className="w-full h-full bg-slate-100/80 dark:bg-slate-800/30 animate-pulse rounded-xl" />
           ) : trendData.length === 0 ? (
@@ -637,14 +637,14 @@ export function StudentAttendanceOverview({ onNavigate }: StudentAttendanceOverv
             ))}
           </div>
         ) : recentActivity.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground bg-white/90 dark:bg-slate-900/90 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+          <div className="text-center py-12 text-muted-foreground rounded-2xl border border-dashed border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
             <Calendar className="h-12 w-12 mx-auto mb-4 opacity-20" />
             <p className="typography-label">No recent attendance activity recorded yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recentActivity.map((activity, index) => (
-              <Card key={index} className="hover:shadow-md transition-all duration-200 border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden group">
+              <Card key={index} className="rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all duration-200 overflow-hidden group">
                 <CardContent className="p-4 space-y-3">
                   {/* Card Header: Grade + Section/Stream/Session + Time */}
                   <div className="flex items-center justify-between gap-2">

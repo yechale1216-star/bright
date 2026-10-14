@@ -48,12 +48,22 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const student = await prisma.student.findUnique({
       where: { student_id: studentId.trim() },
       include: { grade: true, section: true, stream: true },
-    });
+    }) as any;
     if (!student) {
       return res.status(401).json({ success: false, message: 'Invalid Student ID or password.' });
     }
+
+    // Block pending-activation accounts — they must use activation flow first
+    if (student.accountStatus === 'PENDING_ACTIVATION') {
+      return res.status(403).json({
+        success: false,
+        requiresActivation: true,
+        message: 'Your account is not yet activated. Please use the activation code from your school-issued slip.',
+      });
+    }
     let user: any = null;
     const isDefaultCandidate = password === student.student_id || password === 'password123' || password === '12345678';
+
 
     if (student.user_id) {
       user = await prisma.user.findUnique({ where: { id: student.user_id } });
@@ -137,16 +147,100 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
   } catch (err) { next(err); }
 };
 
+// ─── ACTIVATION ────────────────────────────────────────────────────────────────
+
+// Step 1: Verify the one-time activation code printed on the school slip
+export const verifyActivationCode = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { studentId, activationCode } = req.body;
+    if (!studentId || !activationCode) {
+      return res.status(400).json({ success: false, message: 'Student ID and activation code are required.' });
+    }
+    const student = await prisma.student.findUnique({ where: { student_id: studentId.trim() } }) as any;
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student ID not found.' });
+    }
+    if (student.accountStatus !== 'PENDING_ACTIVATION') {
+      return res.status(400).json({ success: false, message: 'This account is already activated. Please sign in normally.' });
+    }
+    if (!student.activation_code || student.activation_code !== activationCode.trim().toUpperCase()) {
+      return res.status(400).json({ success: false, message: 'Invalid activation code. Check your school-issued slip.' });
+    }
+    if (student.activation_code_expires && new Date(student.activation_code_expires) < new Date()) {
+      return res.status(400).json({ success: false, message: 'Activation code has expired. Please ask your school to regenerate it.' });
+    }
+    return res.status(200).json({ success: true, studentName: student.fullName, message: 'Code verified. Please set your password.' });
+  } catch (err) { next(err); }
+};
+
+// Step 2: Set password and activate the account
+export const activateAccount = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { studentId, activationCode, newPassword } = req.body;
+    if (!studentId || !activationCode || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Student ID, activation code, and new password are required.' });
+    }
+    const student = await prisma.student.findUnique({
+      where: { student_id: studentId.trim() },
+      include: { grade: true, section: true, stream: true },
+    }) as any;
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+    if (student.accountStatus !== 'PENDING_ACTIVATION') {
+      return res.status(400).json({ success: false, message: 'Account is already activated.' });
+    }
+    if (!student.activation_code || student.activation_code !== activationCode.trim().toUpperCase()) {
+      return res.status(400).json({ success: false, message: 'Invalid activation code.' });
+    }
+    if (student.activation_code_expires && new Date(student.activation_code_expires) < new Date()) {
+      return res.status(400).json({ success: false, message: 'Activation code expired. Contact your school.' });
+    }
+    const validation = validatePassword(newPassword);
+    if (!validation.isValid) return res.status(400).json({ success: false, message: validation.error });
+    if (newPassword === student.student_id) {
+      return res.status(400).json({ success: false, message: 'Your password cannot be the same as your Student ID.' });
+    }
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const dummyEmail = `student-${student.student_id.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
+    let user = await prisma.user.findUnique({ where: { email: dummyEmail } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { email: dummyEmail, password_hash: hashed, full_name: student.fullName, role: 'student', is_active: true, is_verified: true },
+      });
+    } else {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { password_hash: hashed, role: 'student', is_active: true, is_verified: true },
+      });
+    }
+    await (prisma.student as any).update({
+      where: { id: student.id },
+      data: { user_id: user.id, accountStatus: 'ACTIVE', activation_code: null, activation_code_expires: null },
+    });
+    const school = await prisma.schoolSettings.findFirst();
+    const token = generateToken({ id: user.id, email: user.email, role: 'student', schoolId: 'single-school' });
+    return res.status(200).json({
+      success: true,
+      message: 'Account activated! Welcome to Bright Path.',
+      token,
+      student: { id: student.id, student_id: student.student_id, fullName: student.fullName, grade: student.grade?.name || '', section: student.section?.name || '', stream: student.stream?.name || null, photo: null },
+      school: { id: 'single-school', name: school?.school_name || 'Bright Path', logo: school?.school_logo || '' },
+    });
+  } catch (err) { next(err); }
+};
+
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { studentId } = req.body;
     if (!studentId) {
       return res.status(400).json({ success: false, message: 'Student ID is required.' });
     }
-    const student = await prisma.student.findUnique({ where: { student_id: studentId.trim() } });
+    const student = await prisma.student.findUnique({ where: { student_id: studentId.trim() } }) as any;
     if (!student || !student.user_id) {
       await new Promise((r) => setTimeout(r, 120));
       return res.status(200).json({ success: true, maskedPhone: null, message: 'If this student ID exists, an OTP was sent to the registered phone.' });
+    }
+    if (student.accountStatus === 'PENDING_ACTIVATION') {
+      return res.status(400).json({ success: false, message: 'Your account is not yet activated. Please use your activation code from your school slip.' });
     }
     const user = await prisma.user.findUnique({ where: { id: student.user_id } });
     if (!user) return res.status(200).json({ success: true, maskedPhone: null });
@@ -497,6 +591,21 @@ export const getMaterials = async (req: AuthenticatedRequest, res: Response, nex
     const student = await getStudentByUserId(userId);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
     const { subjectId, type } = req.query as any;
+
+    const assignments = await prisma.teacherAssignment.findMany({
+      where: {
+        gradeId: student.gradeId,
+        ...(student.sectionId ? { sectionId: student.sectionId } : {}),
+      },
+      include: { teacher: true },
+    });
+    const teacherMap = new Map<string, string>();
+    for (const a of assignments) {
+      if (a.subjectId && a.teacher?.name) {
+        teacherMap.set(a.subjectId, a.teacher.name);
+      }
+    }
+
     const materials = await prisma.learningMaterial.findMany({
       where: {
         gradeId: student.gradeId,
@@ -506,9 +615,25 @@ export const getMaterials = async (req: AuthenticatedRequest, res: Response, nex
       orderBy: { createdAt: 'desc' },
       include: { subject: true },
     });
+
+    const publishedMaterials = materials.filter((m) => !m.description?.includes('"status":"DRAFT"'));
+
     return res.status(200).json({
       success: true,
-      data: materials.map((m) => ({ id: m.id, title: m.title, description: m.description, subjectId: m.subjectId, subjectName: m.subject?.name || '', subjectColor: m.subject?.color || '#6366f1', fileUrl: m.fileUrl, fileType: m.fileType, fileSize: m.fileSize, createdAt: m.createdAt })),
+      data: publishedMaterials.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        subjectId: m.subjectId,
+        subjectName: m.subject?.name || '',
+        subjectColor: m.subject?.color || '#6366f1',
+        teacherName: teacherMap.get(m.subjectId) || null,
+        fileUrl: m.fileUrl,
+        fileType: m.fileType,
+        fileSize: m.fileSize,
+        viewCount: m.viewCount ?? 0,
+        createdAt: m.createdAt,
+      })),
     });
   } catch (err) { next(err); }
 };

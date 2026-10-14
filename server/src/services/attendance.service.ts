@@ -147,6 +147,20 @@ export const markAttendance = async (data: any, _schoolId?: string) => {
     throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
   }
 
+  if (userRole === 'teacher') {
+    const isHomeroom = await prisma.teacherAssignment.findFirst({
+      where: {
+        teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) as string[] },
+        role: 'HOMEROOM_TEACHER',
+        gradeId: student.gradeId,
+        sectionId: student.sectionId,
+      },
+    });
+    if (!isHomeroom) {
+      throw new Error(`Access denied: You are not authorized to record attendance for this class. Only the assigned Homeroom Teacher for ${student.fullName}'s grade and section can record attendance.`);
+    }
+  }
+
   const settings = await prisma.schoolSettings.findFirst();
 
   const { locVerified, locDistance } = validateGeofence(data, settings);
@@ -654,6 +668,19 @@ export const bulkMarkAttendance = async (
 
   const { userRole, userId, teacherId } = meta;
   const resolvedTeacherId = await resolveTeacherId(undefined, teacherId || userId);
+
+  if (userRole === 'teacher') {
+    const isHomeroom = await prisma.teacherAssignment.findFirst({
+      where: {
+        teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) as string[] },
+        role: 'HOMEROOM_TEACHER',
+      },
+    });
+    if (!isHomeroom) {
+      throw new Error('Access denied: Subject teachers are not authorized to record student attendance. Only assigned Homeroom Teachers can mark attendance.');
+    }
+  }
+
   const settings = await prisma.schoolSettings.findFirst();
 
   let locVerified = meta.locationVerified ?? false;
@@ -689,12 +716,28 @@ export const bulkMarkAttendance = async (
   }
   const cleanRecords = Array.from(dedupedMap.values());
   if (cleanRecords.length === 0) return [];
-
   const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
   const validStudents = await prisma.student.findMany({
     where: { id: { in: studentIds }, status: 'ACTIVE' },
-    select: { id: true, fullName: true, gender: true }
+    select: { id: true, fullName: true, gender: true, gradeId: true, sectionId: true }
   });
+
+  if (userRole === 'teacher') {
+    const homeroomAssignments = await prisma.teacherAssignment.findMany({
+      where: {
+        teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) as string[] },
+        role: 'HOMEROOM_TEACHER',
+      },
+      select: { gradeId: true, sectionId: true }
+    });
+    const unauthorizedStudent = validStudents.find(
+      s => !homeroomAssignments.some(h => h.gradeId === s.gradeId && h.sectionId === s.sectionId)
+    );
+    if (unauthorizedStudent) {
+      throw new Error(`Access denied: You are not authorized to record attendance for student "${unauthorizedStudent.fullName}". You can only record attendance for classes where you are assigned as Homeroom Teacher.`);
+    }
+  }
+
   const studentMap = new Map(validStudents.map(s => [s.id, s]));
 
   const activeAY = await academicYearService.getCurrentAcademicYear();

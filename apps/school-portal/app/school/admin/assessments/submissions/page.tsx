@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   ArrowLeft,
-  FileCheck2,
   CheckCircle,
   Clock,
   AlertTriangle,
@@ -16,7 +16,6 @@ import {
   Download,
   MoreHorizontal,
   FileText,
-  Users,
   UserX,
   AlertCircle,
   Sparkles,
@@ -62,6 +61,10 @@ import {
 import { Progress } from '@/components/ui/progress';
 
 export default function MarkSubmissionApprovalPage() {
+  const pathname = usePathname();
+  const isAcademicHead = pathname?.startsWith('/school/academic-head');
+  const assessmentsBackHref = isAcademicHead ? '/school/academic-head/assessments' : '/school/admin/assessments';
+
   // 1. Filter States
   const [academicYears, setAcademicYears] = useState<any[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string>('');
@@ -543,7 +546,7 @@ export default function MarkSubmissionApprovalPage() {
       {/* 1. Header Navigation & Title */}
       <div className="space-y-2">
         <Link
-          href="/school/admin/assessments/bulk-assignment"
+          href={assessmentsBackHref}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-primary transition-colors mb-1 group"
         >
           <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
@@ -576,83 +579,58 @@ export default function MarkSubmissionApprovalPage() {
       {/* 2. Top Summary Metrics Cards (5-in-a-row) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Submissions */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-            <FileCheck2 className="w-6 h-6" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+            Total Submissions
+          </span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+            {metrics.total}
           </div>
-          <div className="min-w-0">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-              Total Submissions
-            </span>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-0.5">
-              {metrics.total}
-            </div>
-            <span className="text-xs text-muted-foreground truncate block">Across all grades and subjects</span>
-          </div>
+          <span className="text-xs text-muted-foreground truncate block mt-0.5">Across all grades and subjects</span>
         </div>
 
         {/* Card 2: Submitted */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <CheckCircle className="w-6 h-6" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+            Submitted
+          </span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+            {metrics.submitted}
           </div>
-          <div className="min-w-0">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-              Submitted
-            </span>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-0.5">
-              {metrics.submitted}
-            </div>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 truncate block">Ready for review</span>
-          </div>
+          <span className="text-xs text-muted-foreground truncate block mt-0.5">Ready for review</span>
         </div>
 
         {/* Card 3: Pending Approval */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-            <Users className="w-6 h-6" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+            Pending Approval
+          </span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+            {metrics.pendingApproval}
           </div>
-          <div className="min-w-0">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-              Pending Approval
-            </span>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-0.5">
-              {metrics.pendingApproval}
-            </div>
-            <span className="text-xs text-purple-600 dark:text-purple-400 truncate block">Awaiting admin approval</span>
-          </div>
+          <span className="text-xs text-muted-foreground truncate block mt-0.5">Awaiting admin approval</span>
         </div>
 
         {/* Card 4: Requiring Attention */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-            <Clock className="w-6 h-6" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+            Requiring Attention
+          </span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+            {metrics.requiringAttention}
           </div>
-          <div className="min-w-0">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-              Requiring Attention
-            </span>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-0.5">
-              {metrics.requiringAttention}
-            </div>
-            <span className="text-xs text-amber-600 dark:text-amber-400 truncate block">Missing marks or issues</span>
-          </div>
+          <span className="text-xs text-muted-foreground truncate block mt-0.5">Missing marks or issues</span>
         </div>
 
         {/* Card 5: Published */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-            <Check className="w-6 h-6" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+            Published
+          </span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+            {metrics.published}
           </div>
-          <div className="min-w-0">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-              Published
-            </span>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-0.5">
-              {metrics.published}
-            </div>
-            <span className="text-xs text-teal-600 dark:text-teal-400 truncate block">Official results released</span>
-          </div>
+          <span className="text-xs text-muted-foreground truncate block mt-0.5">Official results released</span>
         </div>
       </div>
 

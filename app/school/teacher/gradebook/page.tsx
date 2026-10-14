@@ -33,8 +33,11 @@ import {
   FileText,
   SlidersHorizontal,
   Layers,
-  HelpCircle,
   CheckCircle,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  HelpCircle,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -55,6 +58,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -158,6 +163,16 @@ interface EditableCell {
   remarks: string;
 }
 
+export type ComputedStudentRow = ClassGradebookStudentRow & {
+  computed: {
+    isComplete: boolean;
+    missingCount: number;
+    absentCount: number;
+    provisionalWeightedTotal: number;
+    finalWeightedTotal: number | null;
+  };
+};
+
 export default function TeacherGradebookPage() {
   // Selector options
   const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -179,7 +194,6 @@ export default function TeacherGradebookPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'assessments' | 'markEntry'>('markEntry');
 
   // Local Editable Marks State: [studentId][assessmentId] => cell
   const [localMarks, setLocalMarks] = useState<Record<string, Record<string, EditableCell>>>({});
@@ -195,7 +209,7 @@ export default function TeacherGradebookPage() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [selectedStudentForBreakdown, setSelectedStudentForBreakdown] = useState<ClassGradebookStudentRow | null>(null);
+  const [selectedStudentForBreakdown, setSelectedStudentForBreakdown] = useState<ComputedStudentRow | null>(null);
 
   // New assessment form state
   const [newTitle, setNewTitle] = useState('');
@@ -205,6 +219,21 @@ export default function TeacherGradebookPage() {
   const [newWeightage, setNewWeightage] = useState(10);
   const [newDate, setNewDate] = useState('');
   const [newDescription, setNewDescription] = useState('');
+
+  // Edit & Delete assessment state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedAssessmentForEdit, setSelectedAssessmentForEdit] = useState<ClassGradebookAssessment | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editType, setEditType] = useState('TEST');
+  const [editMaxScore, setEditMaxScore] = useState(20);
+  const [editWeightage, setEditWeightage] = useState(10);
+  const [editDate, setEditDate] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedAssessmentForDelete, setSelectedAssessmentForDelete] = useState<ClassGradebookAssessment | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Single remarks edit modal
   const [remarkModalStudent, setRemarkModalStudent] = useState<{
@@ -758,6 +787,81 @@ export default function TeacherGradebookPage() {
     }
   };
 
+  // Open Edit Assessment Modal
+  const handleOpenEditAssessment = (assessment: ClassGradebookAssessment) => {
+    setSelectedAssessmentForEdit(assessment);
+    setEditTitle(assessment.title || '');
+    setEditCategoryId(assessment.categoryId || (categories[0]?.id || ''));
+    setEditType(assessment.type || 'TEST');
+    setEditMaxScore(assessment.maxScore || 20);
+    setEditWeightage(assessment.weightage || 10);
+    setEditDate(assessment.date ? assessment.date.split('T')[0] : '');
+    setEditDescription(assessment.description || '');
+    setEditModalOpen(true);
+  };
+
+  // Submit Update Assessment
+  const handleUpdateAssessment = async () => {
+    if (!selectedAssessmentForEdit) return;
+    if (!editTitle.trim()) {
+      notifications.error('Validation', 'Assessment title is required');
+      return;
+    }
+    if (!editCategoryId) {
+      notifications.error('Validation', 'Please select an assessment category');
+      return;
+    }
+    if (editMaxScore <= 0) {
+      notifications.error('Validation', 'Max marks must be greater than 0');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await gradebookService.updateAssessment(selectedAssessmentForEdit.id, {
+        title: editTitle.trim(),
+        type: editType,
+        categoryId: editCategoryId,
+        maxScore: Number(editMaxScore),
+        weightage: Number(editWeightage),
+        date: editDate ? new Date(editDate).toISOString() : undefined,
+        description: editDescription || undefined,
+      });
+
+      notifications.success('Assessment Updated', `"${editTitle}" updated successfully.`);
+      setEditModalOpen(false);
+      setSelectedAssessmentForEdit(null);
+      await loadClassGradebook();
+    } catch (err: any) {
+      notifications.error('Update Failed', err?.message || 'Error updating assessment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Open Delete Assessment Confirmation Modal
+  const handleOpenDeleteAssessment = (assessment: ClassGradebookAssessment) => {
+    setSelectedAssessmentForDelete(assessment);
+    setDeleteModalOpen(true);
+  };
+
+  // Confirm Delete Assessment
+  const handleConfirmDeleteAssessment = async () => {
+    if (!selectedAssessmentForDelete) return;
+    try {
+      setDeleting(true);
+      await gradebookService.deleteAssessment(selectedAssessmentForDelete.id);
+      notifications.success('Assessment Deleted', `"${selectedAssessmentForDelete.title}" removed from gradebook.`);
+      setDeleteModalOpen(false);
+      setSelectedAssessmentForDelete(null);
+      await loadClassGradebook();
+    } catch (err: any) {
+      notifications.error('Deletion Failed', err?.message || 'Error deleting assessment');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Export to Excel (CSV)
   const handleExportCSV = () => {
     if (!gradebookData || computedStudents.length === 0) {
@@ -831,45 +935,169 @@ export default function TeacherGradebookPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-[1600px] mx-auto print:p-0 print:m-0">
-      {/* ── BREADCRUMB & HEADER ─────────────────────────────────────────────────── */}
-      <div className="space-y-1.5 print:hidden">
+      {/* ── BREADCRUMB & HEADER (Admin Dashboard Style) ─────────────────────────── */}
+      <div className="space-y-3 print:hidden">
         <Link
           href="/school/teacher"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline transition-colors mb-1"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Dashboard
+          Back to Teacher Dashboard
         </Link>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-              Teacher Gradebook
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="space-y-1 w-full md:w-auto">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
+              <span>Teacher Gradebook</span>
+              {currentSubjectObj?.name && (
+                <span className="text-primary text-xl sm:text-2xl font-bold">
+                  · {currentSubjectObj.name}
+                </span>
+              )}
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Enter and manage marks for your assigned classes. The system will calculate category and final subject marks based on the configured weights.
+            <p className="text-xs md:text-sm font-medium text-muted-foreground">
+              Continuous assessment tracking, automated weighted calculations, and administrative submission approvals.
             </p>
           </div>
 
-          {/* Quick status pill if submitted/approved */}
-          <div className="flex items-center gap-2">
-            {submissionStatus === 'SUBMITTED' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                <Lock className="w-3.5 h-3.5" />
-                Submitted for Review
-              </span>
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            {/* Academic Year & Term Badge */}
+            {currentYearObj && (
+              <div className="text-xs font-semibold bg-muted/80 text-foreground px-3.5 py-1.5 rounded-full border border-border shadow-2xs flex items-center gap-2">
+                <Calendar className="w-3.5 h-3.5 text-primary" />
+                <span>{currentYearObj.name} {currentTermObj ? `· ${currentTermObj.name}` : ''}</span>
+              </div>
             )}
-            {submissionStatus === 'RETURNED' && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30">
-                <AlertCircle className="w-3.5 h-3.5" />
-                Returned for Correction
-              </span>
-            )}
-            {(submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED') && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Approved & Published
-              </span>
-            )}
+
+            {/* Date & Refresh Pill */}
+            <div className="text-xs font-semibold bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20 shadow-2xs flex items-center gap-2.5">
+              <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              <button
+                onClick={loadClassGradebook}
+                className="hover:text-primary-focus transition-colors p-0.5 rounded-full hover:bg-primary/20"
+                title="Refresh Gradebook Data"
+              >
+                <RefreshCw className={cn('w-3.5 h-3.5', loading ? 'animate-spin' : '')} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── TOP OVERVIEW STAT CARDS (Admin Dashboard 5-Card Grid Style) ────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 print:hidden">
+        {/* Card 1: Students */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-2.5 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0">
+              <Users className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Students</span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-foreground">{liveStats.totalStudents}</div>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
+              {currentGradeObj?.name || 'Class'} {currentSectionObj ? `(${currentSectionObj.name})` : ''}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Assessments */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-2.5 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+              <Layers className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assessments</span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-foreground">{assessments.length}</div>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
+              {categories.length} Categories ({totalSchemeWeight}%)
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Mark Entry Progress */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-2.5 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completion</span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{liveStats.completionRate}%</div>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
+              {liveStats.completeCount} of {liveStats.totalStudents} Complete
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: Class Average */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-2.5 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+              <Award className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Class Average</span>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-foreground">{liveStats.classAverage}%</div>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
+              High: {liveStats.highestScore}% · Low: {liveStats.lowestScore}%
+            </p>
+          </div>
+        </div>
+
+        {/* Card 5: Review & Approval Status */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-2.5 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2.5">
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+              submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED'
+                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                : submissionStatus === 'RETURNED'
+                ? "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400"
+                : submissionStatus === 'SUBMITTED'
+                ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+            )}>
+              {submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED' ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : submissionStatus === 'RETURNED' ? (
+                <AlertCircle className="h-4 w-4" />
+              ) : submissionStatus === 'SUBMITTED' ? (
+                <Lock className="h-4 w-4" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4" />
+              )}
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Review Status</span>
+          </div>
+          <div>
+            <div className={cn(
+              "text-lg font-black truncate",
+              submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED'
+                ? "text-emerald-600 dark:text-emerald-400"
+                : submissionStatus === 'RETURNED'
+                ? "text-rose-600 dark:text-rose-400"
+                : submissionStatus === 'SUBMITTED'
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-foreground"
+            )}>
+              {submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED'
+                ? 'Approved'
+                : submissionStatus === 'SUBMITTED'
+                ? 'Under Review'
+                : submissionStatus === 'RETURNED'
+                ? 'Returned'
+                : dirtyCells.size > 0
+                ? `${dirtyCells.size} Unsaved`
+                : 'Draft Mode'}
+            </div>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">
+              {isLocked ? 'Locked for review' : dirtyCells.size > 0 ? 'Unsaved draft marks' : 'Editing enabled'}
+            </p>
           </div>
         </div>
       </div>
@@ -889,8 +1117,8 @@ export default function TeacherGradebookPage() {
         </div>
       )}
 
-      {/* ── CONTEXT SELECTORS ROW ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 p-4 rounded-2xl bg-card border border-border shadow-xs print:hidden items-end">
+      {/* ── CONTEXT SELECTORS ROW (Admin Card Style) ─────────────────────────── */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3.5 print:hidden items-end">
         {/* Academic Year */}
         <div>
           <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -904,7 +1132,7 @@ export default function TeacherGradebookPage() {
               const y = academicYears.find((ay) => ay.id === e.target.value);
               if (y?.terms?.length > 0) setSelectedTermId(y.terms[0].id);
             }}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-semibold focus:ring-2 focus:ring-primary focus:outline-none"
           >
             {academicYears.map((ay) => (
               <option key={ay.id} value={ay.id}>
@@ -922,7 +1150,7 @@ export default function TeacherGradebookPage() {
           <select
             value={selectedTermId}
             onChange={(e) => setSelectedTermId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-semibold focus:ring-2 focus:ring-primary focus:outline-none"
           >
             {currentTerms.map((t: any) => (
               <option key={t.id} value={t.id}>
@@ -940,7 +1168,7 @@ export default function TeacherGradebookPage() {
           <select
             value={selectedGradeId}
             onChange={(e) => setSelectedGradeId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-semibold focus:ring-2 focus:ring-primary focus:outline-none"
           >
             {grades.map((g) => (
               <option key={g.id} value={g.id}>
@@ -958,7 +1186,7 @@ export default function TeacherGradebookPage() {
           <select
             value={selectedSectionId}
             onChange={(e) => setSelectedSectionId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-semibold focus:ring-2 focus:ring-primary focus:outline-none"
           >
             {sections.map((s) => (
               <option key={s.id} value={s.id}>
@@ -976,7 +1204,7 @@ export default function TeacherGradebookPage() {
           <select
             value={selectedSubjectId}
             onChange={(e) => setSelectedSubjectId(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full h-10 px-3 rounded-xl border border-input bg-background text-xs font-semibold focus:ring-2 focus:ring-primary focus:outline-none"
           >
             {subjects.map((sub) => (
               <option key={sub.id} value={sub.id}>
@@ -994,7 +1222,7 @@ export default function TeacherGradebookPage() {
             className="w-full h-10 rounded-xl text-xs font-semibold gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
           >
             <Info className="w-4 h-4 text-primary" />
-            View Assessment Details
+            Assessment Details
           </Button>
         </div>
       </div>
@@ -1083,10 +1311,10 @@ export default function TeacherGradebookPage() {
               size="sm"
               disabled={isLocked}
               onClick={() => setCreateModalOpen(true)}
-              className="gap-1.5 bg-primary text-primary-foreground shadow-xs font-semibold"
+              className="h-8.5 px-3.5 rounded-xl gap-1.5 bg-primary text-primary-foreground font-bold shadow-xs hover:shadow transition-all"
             >
               <Plus className="w-4 h-4" />
-              Create Assessment
+              <span>Create Assessment</span>
             </Button>
 
             <Button
@@ -1094,16 +1322,27 @@ export default function TeacherGradebookPage() {
               size="sm"
               disabled={saving || isLocked || dirtyCells.size === 0}
               onClick={handleSaveMarks}
-              className="gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+              className="h-8.5 px-3.5 rounded-xl gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-2xs"
             >
               <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : dirtyCells.size > 0 ? `Save Draft (${dirtyCells.size})` : 'Save Draft'}
+              <span>{saving ? 'Saving...' : dirtyCells.size > 0 ? `Save Draft (${dirtyCells.size})` : 'Save Draft'}</span>
+            </Button>
+
+            <Button
+              variant="default"
+              size="sm"
+              disabled={saving || isLocked}
+              onClick={() => setSubmitModalOpen(true)}
+              className="h-8.5 px-3.5 rounded-xl gap-1.5 font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
+            >
+              <Send className="w-4 h-4" />
+              <span>Submit for Approval</span>
             </Button>
 
             {/* More Actions Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5 font-semibold">
+                <Button variant="outline" size="sm" className="h-8.5 px-3 rounded-xl gap-1.5 font-semibold">
                   <span>More Actions</span>
                   <ChevronDown className="w-3.5 h-3.5" />
                 </Button>
@@ -1148,40 +1387,14 @@ export default function TeacherGradebookPage() {
           </div>
         </div>
 
-        {/* View Tabs & Category Summary Pills */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-          <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-xl w-fit">
-            <button
-              onClick={() => setActiveTab('assessments')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'assessments'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Assessments ({assessments.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('markEntry')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'markEntry'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Mark Entry Grid
-            </button>
+        {dirtyCells.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              {dirtyCells.size} Unsaved Draft Changes
+            </span>
           </div>
-
-          <div className="text-xs text-muted-foreground flex items-center gap-2">
-            {dirtyCells.size > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                {dirtyCells.size} Unsaved Changes
-              </span>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Category Pill Cards with count & average percentage */}
         {gradebookData?.scheme?.categorySummaries && gradebookData.scheme.categorySummaries.length > 0 && (
@@ -1246,60 +1459,94 @@ export default function TeacherGradebookPage() {
         {/* ── LEFT COLUMN: SPREADSHEET GRID TABLE (Span 3) ───────────────────────── */}
         <div className="lg:col-span-3 space-y-4">
           <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-            {/* Table Toolbar */}
-            <div className="p-3 sm:p-4 border-b border-border flex flex-col sm:flex-row items-center justify-between gap-3 bg-muted/20 print:hidden">
-              <div className="relative w-full sm:w-80">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search student by name or ID..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="pl-9 h-9 rounded-xl text-xs bg-background"
-                />
+              {/* Table Toolbar */}
+              <div className="p-3 sm:p-4 border-b border-border flex flex-col sm:flex-row items-center justify-between gap-3 bg-muted/20 print:hidden">
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search student by name or ID..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="pl-9 h-9 rounded-xl text-xs bg-background"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span>
+                    <strong>Tip:</strong> Press <strong>Arrows</strong> to navigate cells. Type <strong>ABS</strong> for absent, <strong>EXC</strong> for excused.
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span>
-                  <strong>Tip:</strong> Press <strong>Arrows</strong> to navigate cells. Type <strong>ABS</strong> for absent, <strong>EXC</strong> for excused.
-                </span>
-              </div>
-            </div>
+              {/* Multi-Assessment Grid Table */}
+              <div className="overflow-x-auto max-w-full">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-muted/40 font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+                    <tr>
+                      <th className="py-3 px-3 w-10 text-center">#</th>
+                      <th className="py-3 px-3 w-24">Student ID</th>
+                      <th className="py-3 px-4 min-w-[150px]">Student Name</th>
 
-            {/* Multi-Assessment Grid Table */}
-            <div className="overflow-x-auto max-w-full">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead className="bg-muted/40 font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="py-3 px-3 w-10 text-center">#</th>
-                    <th className="py-3 px-3 w-24">Student ID</th>
-                    <th className="py-3 px-4 min-w-[150px]">Student Name</th>
-
-                    {/* Dynamic Columns for each Assessment */}
-                    {assessments.length === 0 ? (
-                      <th className="py-3 px-4 text-muted-foreground italic text-center">
-                        No assessments created yet
-                      </th>
-                    ) : (
-                      assessments.map((ass, aIdx) => {
-                        const theme = getCategoryTheme(ass.categoryName || '', aIdx);
-                        return (
-                          <th
-                            key={ass.id}
-                            className={`py-2 px-3 text-center min-w-[95px] max-w-[120px] border-l border-border/50 ${theme.headerBg}`}
-                          >
-                            <div className="font-bold text-foreground truncate" title={ass.title}>
-                              {ass.title}
-                            </div>
-                            <div className={`text-[10px] font-bold ${theme.text}`}>
-                              ({ass.maxScore})
-                            </div>
-                          </th>
-                        );
-                      })
-                    )}
+                      {/* Dynamic Columns for each Assessment */}
+                      {assessments.length === 0 ? (
+                        <th className="py-3 px-4 text-muted-foreground italic text-center">
+                          No assessments created yet
+                        </th>
+                      ) : (
+                        assessments.map((ass, aIdx) => {
+                          const theme = getCategoryTheme(ass.categoryName || '', aIdx);
+                          return (
+                            <th
+                              key={ass.id}
+                              className={`py-2 px-2.5 text-center min-w-[110px] max-w-[140px] border-l border-border/50 relative group/th ${theme.headerBg}`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex-1 min-w-0 text-center">
+                                  <div className="font-bold text-foreground truncate text-xs" title={ass.title}>
+                                    {ass.title}
+                                  </div>
+                                  <div className={`text-[10px] font-bold ${theme.text}`}>
+                                    ({ass.maxScore} pts)
+                                  </div>
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={isLocked}
+                                      className="h-6 w-6 p-0 rounded-md hover:bg-black/10 dark:hover:bg-white/10 opacity-70 group-hover/th:opacity-100 transition-opacity shrink-0"
+                                      title="Assessment Options"
+                                    >
+                                      <MoreVertical className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-44 text-xs font-medium">
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenEditAssessment(ass)}
+                                      className="gap-2 cursor-pointer text-xs"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                      <span>Edit Assessment</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleOpenDeleteAssessment(ass)}
+                                      className="gap-2 cursor-pointer text-xs text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Delete Assessment</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </th>
+                          );
+                        })
+                      )}
 
                     {/* Total (100) Column */}
                     <th className="py-3 px-4 w-24 text-center border-l border-border bg-primary/5 font-extrabold text-foreground">
@@ -1795,6 +2042,181 @@ export default function TeacherGradebookPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── EDIT ASSESSMENT MODAL ──────────────────────────────────────────────── */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Pencil className="w-4 h-4 text-blue-600" />
+              Edit Assessment
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Update the assessment details. Changes will be reflected immediately in the gradebook.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-2">
+            <div>
+              <Label className="text-xs font-bold">Assessment Title *</Label>
+              <Input
+                placeholder="e.g. Quiz 3, Chapter Test 2, Group Project"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Category (Weight Scheme) *</Label>
+              <select
+                value={editCategoryId}
+                onChange={(e) => setEditCategoryId(e.target.value)}
+                className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-primary"
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.weight}% weight)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold">Assessment Type</Label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value)}
+                  className="w-full h-9 px-3 mt-1 rounded-xl border border-input bg-background text-xs font-medium"
+                >
+                  <option value="QUIZ">Quiz</option>
+                  <option value="ASSIGNMENT">Assignment</option>
+                  <option value="TEST">Class Test</option>
+                  <option value="PROJECT">Project</option>
+                  <option value="MIDTERM">Midterm</option>
+                  <option value="FINAL">Final Exam</option>
+                </select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold">Max Marks (Points) *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={editMaxScore}
+                  onChange={(e) => setEditMaxScore(Number(e.target.value))}
+                  className="mt-1 h-9 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Assessment Date (Optional)</Label>
+              <Input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold">Description / Instructions</Label>
+              <Input
+                placeholder="Optional instructions for students or homeroom record"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditModalOpen(false)}
+              className="rounded-xl text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={saving}
+              onClick={handleUpdateAssessment}
+              className="rounded-xl text-xs font-semibold bg-primary text-primary-foreground"
+            >
+              {saving ? 'Updating...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── DELETE ASSESSMENT CONFIRMATION MODAL ───────────────────────────────── */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent className="sm:max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-destructive">
+              <AlertTriangle className="w-4 h-4" />
+              Delete Assessment
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This action cannot be undone. All student marks recorded for this assessment will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAssessmentForDelete && (
+            <div className="py-3 space-y-3">
+              <div className="p-3.5 rounded-xl bg-destructive/5 border border-destructive/20 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Assessment:</span>
+                  <span className="font-bold text-foreground">{selectedAssessmentForDelete.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Type:</span>
+                  <span className="font-semibold text-foreground">{selectedAssessmentForDelete.type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Max Score:</span>
+                  <span className="font-semibold text-foreground">{selectedAssessmentForDelete.maxScore} pts</span>
+                </div>
+                {selectedAssessmentForDelete.categoryName && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Category:</span>
+                    <span className="font-semibold text-foreground">{selectedAssessmentForDelete.categoryName}</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-destructive font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                All marks entered for this assessment will be deleted permanently.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeleteModalOpen(false)}
+              className="rounded-xl text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={deleting}
+              onClick={handleConfirmDeleteAssessment}
+              className="rounded-xl text-xs font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete Assessment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── VIEW ASSESSMENT DETAILS MODAL ───────────────────────────────────────── */}
       <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
         <DialogContent className="sm:max-w-xl rounded-2xl">
@@ -1943,9 +2365,9 @@ export default function TeacherGradebookPage() {
                       Final Subject Mark (100%)
                     </td>
                     <td className="py-2.5 px-3 text-right text-sm text-foreground">
-                      {selectedStudentForBreakdown?.computed.finalWeightedTotal !== null
-                        ? `${selectedStudentForBreakdown?.computed.finalWeightedTotal} / 100`
-                        : `${selectedStudentForBreakdown?.computed.provisionalWeightedTotal} (Provisional)`}
+                      {selectedStudentForBreakdown?.computed?.finalWeightedTotal != null
+                        ? `${selectedStudentForBreakdown.computed.finalWeightedTotal} / 100`
+                        : `${selectedStudentForBreakdown?.computed?.provisionalWeightedTotal ?? 0} (Provisional)`}
                     </td>
                   </tr>
                 </tfoot>

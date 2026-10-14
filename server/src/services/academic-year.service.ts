@@ -16,38 +16,110 @@ export interface UpdateAcademicYearInput {
 
 export class AcademicYearService {
   /**
-   * Get all academic years sorted by startDate descending
+   * Get all academic years sorted by startDate descending (with terms included)
    */
   async getAcademicYears(_schoolId?: string) {
     let academicYears = await prisma.academicYear.findMany({
       orderBy: { startDate: 'desc' },
+      include: {
+        terms: {
+          orderBy: { startDate: 'asc' },
+        },
+      },
     });
 
     if (academicYears.length === 0) {
       const now = new Date();
       const currentYear = now.getFullYear();
       
-      await prisma.$transaction([
-        prisma.academicYear.create({
+      const prevYearStart = new Date(`${currentYear - 1}-09-11`);
+      const prevYearEnd = new Date(`${currentYear}-07-07`);
+      const prevMid = new Date(prevYearStart.getTime() + (prevYearEnd.getTime() - prevYearStart.getTime()) / 2);
+
+      const curYearStart = new Date(`${currentYear}-09-11`);
+      const curYearEnd = new Date(`${currentYear + 1}-07-07`);
+      const curMid = new Date(curYearStart.getTime() + (curYearEnd.getTime() - curYearStart.getTime()) / 2);
+
+      await prisma.$transaction(async (tx) => {
+        const y1 = await tx.academicYear.create({
           data: {
             name: `${currentYear - 1}/${currentYear} E.C.`,
-            startDate: new Date(`${currentYear - 1}-09-11`),
-            endDate: new Date(`${currentYear}-07-07`),
+            startDate: prevYearStart,
+            endDate: prevYearEnd,
             isCurrent: false,
           },
-        }),
-        prisma.academicYear.create({
+        });
+        await tx.academicTerm.createMany({
+          data: [
+            { academicYearId: y1.id, name: 'Semester 1', startDate: prevYearStart, endDate: prevMid, isCurrent: false },
+            { academicYearId: y1.id, name: 'Semester 2', startDate: new Date(prevMid.getTime() + 86400000), endDate: prevYearEnd, isCurrent: false },
+          ],
+        });
+
+        const y2 = await tx.academicYear.create({
           data: {
             name: `${currentYear}/${currentYear + 1} E.C.`,
-            startDate: new Date(`${currentYear}-09-11`),
-            endDate: new Date(`${currentYear + 1}-07-07`),
+            startDate: curYearStart,
+            endDate: curYearEnd,
             isCurrent: true,
           },
-        }),
-      ]);
+        });
+        await tx.academicTerm.createMany({
+          data: [
+            { academicYearId: y2.id, name: 'Semester 1', startDate: curYearStart, endDate: curMid, isCurrent: true },
+            { academicYearId: y2.id, name: 'Semester 2', startDate: new Date(curMid.getTime() + 86400000), endDate: curYearEnd, isCurrent: false },
+          ],
+        });
+      });
 
       academicYears = await prisma.academicYear.findMany({
         orderBy: { startDate: 'desc' },
+        include: {
+          terms: {
+            orderBy: { startDate: 'asc' },
+          },
+        },
+      });
+    }
+
+    // Ensure any existing academic years without terms get default terms seeded
+    let seededAny = false;
+    for (const year of academicYears) {
+      if (!year.terms || year.terms.length === 0) {
+        const start = new Date(year.startDate);
+        const end = new Date(year.endDate);
+        const midPoint = new Date(start.getTime() + (end.getTime() - start.getTime()) / 2);
+        
+        await prisma.academicTerm.createMany({
+          data: [
+            {
+              academicYearId: year.id,
+              name: 'Semester 1',
+              startDate: start,
+              endDate: midPoint,
+              isCurrent: year.isCurrent,
+            },
+            {
+              academicYearId: year.id,
+              name: 'Semester 2',
+              startDate: new Date(midPoint.getTime() + 86400000),
+              endDate: end,
+              isCurrent: false,
+            },
+          ],
+        }).catch(() => {});
+        seededAny = true;
+      }
+    }
+
+    if (seededAny) {
+      academicYears = await prisma.academicYear.findMany({
+        orderBy: { startDate: 'desc' },
+        include: {
+          terms: {
+            orderBy: { startDate: 'asc' },
+          },
+        },
       });
     }
 
@@ -61,7 +133,7 @@ export class AcademicYearService {
   }
 
   /**
-   * Get the current active academic year (cached in-memory for 5 minutes)
+   * Get the current active academic year (cached in-memory for 5 minutes, with terms included)
    */
   async getCurrentAcademicYear(_schoolId?: string) {
     const now = Date.now();
@@ -71,6 +143,11 @@ export class AcademicYearService {
 
     let current = await prisma.academicYear.findFirst({
       where: { isCurrent: true },
+      include: {
+        terms: {
+          orderBy: { startDate: 'asc' },
+        },
+      },
     });
 
     if (!current) {
@@ -124,6 +201,27 @@ export class AcademicYearService {
         },
       });
 
+      // Automatically create Semester 1 & Semester 2 for the academic year
+      const midPoint = new Date(start.getTime() + (end.getTime() - start.getTime()) / 2);
+      await tx.academicTerm.createMany({
+        data: [
+          {
+            academicYearId: newYear.id,
+            name: 'Semester 1',
+            startDate: start,
+            endDate: midPoint,
+            isCurrent: isCurrent ?? false,
+          },
+          {
+            academicYearId: newYear.id,
+            name: 'Semester 2',
+            startDate: new Date(midPoint.getTime() + 86400000),
+            endDate: end,
+            isCurrent: false,
+          },
+        ],
+      });
+
       if (isCurrent) {
         await tx.schoolSettings.upsert({
           where: { id: 'singleton' },
@@ -133,7 +231,14 @@ export class AcademicYearService {
       }
 
       this.invalidateCurrentCache();
-      return newYear;
+      return await tx.academicYear.findUnique({
+        where: { id: newYear.id },
+        include: {
+          terms: {
+            orderBy: { startDate: 'asc' },
+          },
+        },
+      });
     });
   }
 
@@ -179,7 +284,14 @@ export class AcademicYearService {
       }
 
       this.invalidateCurrentCache();
-      return updated;
+      return await tx.academicYear.findUnique({
+        where: { id: updated.id },
+        include: {
+          terms: {
+            orderBy: { startDate: 'asc' },
+          },
+        },
+      });
     });
   }
 
@@ -209,7 +321,14 @@ export class AcademicYearService {
       });
 
       this.invalidateCurrentCache();
-      return activeYear;
+      return await tx.academicYear.findUnique({
+        where: { id: activeYear.id },
+        include: {
+          terms: {
+            orderBy: { startDate: 'asc' },
+          },
+        },
+      });
     });
   }
 

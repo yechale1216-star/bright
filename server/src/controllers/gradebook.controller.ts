@@ -142,6 +142,23 @@ export const createAssessment = async (req: AuthenticatedRequest, res: Response,
 export const updateAssessment = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (userId && req.user?.role === 'teacher') {
+      const existing = await gradebookService.getAssessmentById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Assessment not found' });
+      }
+      const access = await verifyTeacherClassSubjectAccess(userId, {
+        gradeId: existing.gradeId,
+        subjectId: existing.subjectId,
+        sectionId: existing.sectionId,
+      });
+      if (!access.allowed) {
+        return res.status(403).json({ success: false, message: access.reason || 'You are not assigned to this grade and subject.' });
+      }
+    }
+
     const assessment = await gradebookService.updateAssessment(id, req.body);
     res.status(200).json({ success: true, data: assessment });
   } catch (error) {
@@ -152,6 +169,23 @@ export const updateAssessment = async (req: AuthenticatedRequest, res: Response,
 export const deleteAssessment = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (userId && req.user?.role === 'teacher') {
+      const existing = await gradebookService.getAssessmentById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Assessment not found' });
+      }
+      const access = await verifyTeacherClassSubjectAccess(userId, {
+        gradeId: existing.gradeId,
+        subjectId: existing.subjectId,
+        sectionId: existing.sectionId,
+      });
+      if (!access.allowed) {
+        return res.status(403).json({ success: false, message: access.reason || 'You are not assigned to this grade and subject.' });
+      }
+    }
+
     await gradebookService.deleteAssessment(id);
     res.status(200).json({ success: true, message: 'Assessment deleted successfully' });
   } catch (error) {

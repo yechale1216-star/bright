@@ -4,19 +4,27 @@ import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   GraduationCap, Layers, Award, FileText, ArrowRight,
-  Sparkles, CheckCircle2, Clock, Users, BookOpen, AlertTriangle,
+  CheckCircle2, Clock, Users, AlertTriangle,
   RefreshCw, Check, X, ChevronRight, BarChart2, ShieldCheck,
-  Calendar, ArrowUpRight
+  Calendar, BookOpen, SlidersHorizontal, Sparkles
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { gradebookService, type AssessmentSubmissionItem, type SubmissionDashboardMetrics, type Exam } from '@/lib/gradebook-service'
+import { db } from '@/lib/db/database'
 import { apiFetch } from '@/lib/utils/fetch-with-timeout'
 import { API_URL } from '@/lib/api-config'
 import { notifications } from '@/lib/utils/notifications'
+import { useGreeting } from '@/lib/utils/greeting-utils'
+import { useCalendar } from '@/lib/context/calendar-context'
+import { useAuth } from '@/lib/context/auth-context'
+import { cn } from '@/lib/utils/utils'
 
 export default function AcademicHeadDashboardPage() {
+  const { user } = useAuth()
+  const greeting = useGreeting('academic_head')
+  const { formatDate } = useCalendar()
+  const headName = user?.name || (user as any)?.full_name || 'Academic Head'
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -38,6 +46,7 @@ export default function AcademicHeadDashboardPage() {
   const [structureCounts, setStructureCounts] = useState({
     grades: 0,
     sections: 0,
+    streams: 0,
     subjects: 0,
   })
 
@@ -66,19 +75,21 @@ export default function AcademicHeadDashboardPage() {
         examsData,
         gradesRes,
         sectionsRes,
+        streamsRes,
         subjectsRes,
         yearRes,
       ] = await Promise.allSettled([
-        gradebookService.getSubmissionDashboardMetrics().catch(() => ({
+        gradebookService.getSubmissionDashboard().catch(() => ({
           total: 0, submitted: 0, pendingApproval: 0, requiringAttention: 0, approved: 0, published: 0
         })),
         gradebookService.getSubmissions({ status: 'PENDING_APPROVAL', limit: 6 }).catch(() => ({
           submissions: [], pagination: { total: 0, page: 1, limit: 6, totalPages: 1 }
         })),
         gradebookService.getExams().catch(() => []),
-        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/school/grades`, { headers: getHeaders() }).catch(() => ({ success: true, data: [] })),
-        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/school/sections`, { headers: getHeaders() }).catch(() => ({ success: true, data: [] })),
-        apiFetch<{ success: boolean; data: any[] }>(`${API_URL}/api/school/subjects`, { headers: getHeaders() }).catch(() => ({ success: true, data: [] })),
+        db.getGrades().catch(() => []),
+        db.getSections().catch(() => []),
+        db.getStreams().catch(() => []),
+        db.getSubjects().catch(() => []),
         apiFetch<{ success: boolean; data: any }>(`${API_URL}/api/academic-years/current`, { headers: getHeaders() }).catch(() => ({ success: true, data: null })),
       ])
 
@@ -95,12 +106,15 @@ export default function AcademicHeadDashboardPage() {
         setExams(examsData.value || [])
       }
 
-      const gradesCount = gradesRes.status === 'fulfilled' ? (gradesRes.value.data?.length || 0) : 0
-      const sectionsCount = sectionsRes.status === 'fulfilled' ? (sectionsRes.value.data?.length || 0) : 0
-      const subjectsCount = subjectsRes.status === 'fulfilled' ? (subjectsRes.value.data?.length || 0) : 0
+      const gradesCount = gradesRes.status === 'fulfilled' && Array.isArray(gradesRes.value) ? gradesRes.value.length : 0
+      const sectionsCount = sectionsRes.status === 'fulfilled' && Array.isArray(sectionsRes.value) ? sectionsRes.value.length : 0
+      const streamsCount = streamsRes.status === 'fulfilled' && Array.isArray(streamsRes.value) ? streamsRes.value.length : 0
+      const subjectsCount = subjectsRes.status === 'fulfilled' && Array.isArray(subjectsRes.value) ? subjectsRes.value.length : 0
+
       setStructureCounts({
         grades: gradesCount,
         sections: sectionsCount,
+        streams: streamsCount,
         subjects: subjectsCount,
       })
 
@@ -146,205 +160,222 @@ export default function AcademicHeadDashboardPage() {
     : 100
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-700 p-6 md:p-8 text-white shadow-xl">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold uppercase tracking-wider mb-3">
-              <Sparkles className="w-3.5 h-3.5" /> Academic Dean & Coordinator Console
-            </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight">Academic Operations Overview</h1>
-            <p className="mt-2 text-violet-100 text-sm leading-relaxed">
-              Live curriculum structure, mark submission approvals, exam schedules, and grading performance across all grade levels.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-violet-200">
-              <span className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-lg">
-                <Calendar className="w-3.5 h-3.5 text-violet-300" /> {activeYearName}
-              </span>
-              <span className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-lg font-medium text-emerald-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> {activeTermName}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 relative">
+
+      {/* Header — Greeting + Date & Badges */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+        <div className="space-y-1 w-full md:w-auto">
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-foreground flex items-center gap-2">
+            <span>{greeting},</span>
+            <span className="text-violet-600 dark:text-violet-400">{headName}</span>
+          </h2>
+          <p className="text-xs md:text-sm text-muted-foreground">
+            Academic coordination, assessment policies, and mark approval console
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* Academic Year & Term Badges */}
+          <span className="text-xs font-semibold bg-white/70 dark:bg-slate-800/60 backdrop-blur-md text-foreground px-3.5 py-1.5 rounded-full border border-slate-200/80 dark:border-white/10 shadow-2xs flex items-center gap-1.5">
+            <GraduationCap className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" /> {activeYearName}
+          </span>
+          <span className="text-xs font-semibold bg-white/70 dark:bg-slate-800/60 backdrop-blur-md text-foreground px-3.5 py-1.5 rounded-full border border-slate-200/80 dark:border-white/10 shadow-2xs flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" /> {activeTermName}
+          </span>
+
+          {/* Date & Refresh Pill */}
+          <div className="text-xs font-semibold bg-white/70 dark:bg-slate-800/60 backdrop-blur-md text-foreground px-3.5 py-1.5 rounded-full border border-slate-200/80 dark:border-white/10 shadow-2xs flex items-center gap-2.5">
+            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>{formatDate(new Date(), { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
+            <button
               onClick={() => fetchDashboardData(true)}
               disabled={refreshing || loading}
-              variant="outline"
-              size="sm"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs font-bold gap-2"
+              className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+              title="Refresh Dashboard Data"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </Button>
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing ? "animate-spin text-violet-500" : "")} />
+            </button>
           </div>
         </div>
-        <div className="absolute -right-8 -bottom-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
       </div>
 
       {/* Top Operational Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Pending Approvals */}
-        <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden hover:border-amber-500/50 transition-all">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-xl hover:border-violet-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-center">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pending Approvals</span>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${totalActionNeeded > 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'}`}>
-                <Clock className="w-5 h-5" />
-              </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black tracking-tight text-foreground">
+            <div className="mt-3 flex items-baseline justify-center gap-2">
+              <span className="text-3xl font-extrabold tracking-tight text-foreground text-center">
                 {loading ? '...' : totalActionNeeded}
               </span>
-              <span className="text-xs font-semibold text-muted-foreground">mark sheets</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {totalActionNeeded > 0 ? `${totalActionNeeded} awaiting your sign-off` : 'All marks up to date'}
-              </span>
-              <Link href="/school/academic-head/assessments" className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5">
-                Review <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground font-medium">
+              {totalActionNeeded > 0 ? `${totalActionNeeded} awaiting review` : 'All marks reviewed'}
+            </span>
+            <Link href="/school/academic-head/assessments/submissions" className="font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+              Review <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
 
         {/* Metric 2: Academic Structure */}
-        <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden hover:border-violet-500/50 transition-all">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-xl hover:border-violet-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-center">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Academic Structure</span>
-              <div className="w-10 h-10 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center">
-                <Layers className="w-5 h-5" />
-              </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black tracking-tight text-foreground">
+            <div className="mt-3 flex items-baseline justify-center gap-2">
+              <span className="text-3xl font-extrabold tracking-tight text-foreground text-center">
                 {loading ? '...' : structureCounts.sections}
               </span>
-              <span className="text-xs font-semibold text-muted-foreground">active sections</span>
+              <span className="text-xs font-medium text-muted-foreground">sections active</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {structureCounts.grades} Grades • {structureCounts.subjects} Subjects
-              </span>
-              <Link href="/school/academic-head/academic-structure" className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5">
-                Manage <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground font-medium truncate max-w-[150px]">
+              {structureCounts.grades} grades • {structureCounts.subjects} subjects
+            </span>
+            <Link href="/school/academic-head/academic-structure" className="font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+              Manage <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
 
         {/* Metric 3: Active Exams & Grading */}
-        <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-xl hover:border-violet-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-center">
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Scheduled Exams</span>
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                <Award className="w-5 h-5" />
-              </div>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black tracking-tight text-foreground">
+            <div className="mt-3 flex items-baseline justify-center gap-2">
+              <span className="text-3xl font-extrabold tracking-tight text-foreground text-center">
                 {loading ? '...' : exams.length}
               </span>
-              <span className="text-xs font-semibold text-muted-foreground">terms / sessions</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {exams.filter(e => e.status === 'PUBLISHED' || e.isPublished).length} published
-              </span>
-              <Link href="/school/academic-head/exams" className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5">
-                Exams <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground font-medium">
+              {exams.filter(e => e.status === 'PUBLISHED' || e.isPublished).length} published terms
+            </span>
+            <Link href="/school/academic-head/exams" className="font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+              Exams <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
 
         {/* Metric 4: Clearance & Completion Rate */}
-        <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden hover:border-emerald-500/50 transition-all">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mark Approval Rate</span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
+        <div className="rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-xl hover:border-violet-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-center">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Approval Rate</span>
             </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+            <div className="mt-3 flex items-baseline justify-center gap-2">
+              <span className="text-3xl font-extrabold tracking-tight text-foreground text-center">
                 {loading ? '...' : `${approvalRate}%`}
               </span>
-              <span className="text-xs font-semibold text-muted-foreground">approved</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {metrics.approved + metrics.published} of {metrics.total || 0} batches
-              </span>
-              <Link href="/school/academic-head/report-cards" className="text-[11px] font-bold text-primary hover:underline flex items-center gap-0.5">
-                Reports <ArrowRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground font-medium">
+              {metrics.approved + metrics.published} of {metrics.total || 0} batches
+            </span>
+            <Link href="/school/academic-head/report-cards" className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+              Reports <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {/* Urgent Operational Section: Pending Approvals Queue */}
+      {/* Executive Quick Launchpad */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        {[
+          { label: 'Assessment Policy', desc: 'Weights & schemes', href: '/school/academic-head/assessments/policy', icon: SlidersHorizontal, color: 'text-violet-500 bg-violet-500/10 dark:bg-violet-500/20' },
+          { label: 'Bulk Assignment', desc: 'Distribute tests to grades', href: '/school/academic-head/assessments/bulk-assignment', icon: Layers, color: 'text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20' },
+          { label: 'Timetable Console', desc: 'Class schedules & conflicts', href: '/school/academic-head/timetables', icon: Calendar, color: 'text-sky-500 bg-sky-500/10 dark:bg-sky-500/20' },
+          { label: 'Report Clearance', desc: 'Batch review & publish', href: '/school/academic-head/report-cards', icon: FileText, color: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/20' },
+        ].map((item, idx) => (
+          <Link
+            key={idx}
+            href={item.href}
+            className="p-4 rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-violet-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 group flex items-center gap-3.5"
+          >
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform", item.color)}>
+              <item.icon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs sm:text-sm font-bold text-foreground truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                {item.label}
+              </h4>
+              <p className="text-[11px] text-muted-foreground truncate">{item.desc}</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-violet-600 dark:group-hover:text-violet-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+          </Link>
+        ))}
+      </div>
+
+      {/* Main Grid: Pending Approvals & Status Tracking */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
+          <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden">
+            <div className="p-5 pb-4 border-b border-slate-200/60 dark:border-white/10 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-500" />
-                  Mark Submissions Requiring Your Approval
-                </CardTitle>
-                <CardDescription className="text-xs mt-0.5">
-                  Teacher grade submissions awaiting verification before entering official records
-                </CardDescription>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-violet-500" />
+                  Pending Mark Submissions
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Teacher mark submissions awaiting academic verification and approval
+                </p>
               </div>
-              <Link href="/school/academic-head/assessments">
-                <Button variant="ghost" size="sm" className="text-xs font-bold text-primary gap-1">
-                  View Full Queue <ChevronRight className="w-3.5 h-3.5" />
+              <Link href="/school/academic-head/assessments/submissions">
+                <Button variant="ghost" size="sm" className="text-xs font-bold text-violet-600 dark:text-violet-400 hover:bg-violet-500/10 gap-1 rounded-xl">
+                  View All <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               </Link>
-            </CardHeader>
-            <CardContent className="p-0">
+            </div>
+
+            <div className="p-0">
               {loading ? (
-                <div className="p-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-primary" /> Loading approval queue...
+                <div className="p-10 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-violet-500" /> Loading submissions...
                 </div>
               ) : pendingSubmissions.length === 0 ? (
-                <div className="p-10 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                <div className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/20">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  <p className="text-sm font-bold text-foreground">Approval Queue is Clear!</p>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    All teacher mark submissions have been reviewed and approved. New submissions will appear here automatically.
-                  </p>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">All Submissions Reviewed</p>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-0.5">
+                      No teacher mark sheets are currently pending academic approval.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <div className="divide-y divide-border/60">
+                <div className="divide-y divide-slate-200/60 dark:divide-white/10">
                   {pendingSubmissions.map((sub) => {
-                    const teacherName = sub.teacher?.name || sub.teacher?.user?.full_name || 'Assigned Teacher'
-                    const subjectName = sub.subjectRef?.name || sub.subject || 'Subject'
+                    const teacherName = sub.teacher?.name || 'Assigned Teacher'
+                    const subjectName = sub.subject?.name || 'Subject'
                     const gradeName = sub.grade?.name || 'Grade'
                     const sectionName = sub.section?.name || ''
-                    const title = sub.assessment?.title || `${subjectName} Assessment`
+                    const title = `${subjectName} - ${gradeName}${sectionName ? ` (${sectionName})` : ''}`
 
                     return (
-                      <div key={sub.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                      <div key={sub.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 hover:bg-white/80 dark:hover:bg-slate-800/60 transition-all">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-sm text-foreground truncate">{title}</span>
-                            <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold">
-                              Pending Approval
+                            <Badge variant="outline" className="text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 rounded-full">
+                              Pending
                             </Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">{subjectName}</span>
+                            <span className="font-medium text-foreground/80">{subjectName}</span>
                             <span>•</span>
                             <span>{gradeName} {sectionName ? `(${sectionName})` : ''}</span>
                             <span>•</span>
@@ -357,13 +388,13 @@ export default function AcademicHeadDashboardPage() {
                             size="sm"
                             disabled={approvingId === sub.id}
                             onClick={() => handleQuickApprove(sub.id, title)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 h-8 px-3 rounded-lg shadow-sm"
+                            className="text-xs font-bold gap-1.5 h-8 px-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-sm shadow-violet-600/30"
                           >
                             <Check className="w-3.5 h-3.5" />
                             {approvingId === sub.id ? 'Approving...' : 'Approve'}
                           </Button>
-                          <Link href={`/school/academic-head/assessments`}>
-                            <Button size="sm" variant="outline" className="text-xs font-semibold h-8 px-3 rounded-lg">
+                          <Link href="/school/academic-head/assessments/submissions">
+                            <Button size="sm" variant="outline" className="text-xs font-semibold h-8 px-3 rounded-xl border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800">
                               Inspect
                             </Button>
                           </Link>
@@ -373,164 +404,96 @@ export default function AcademicHeadDashboardPage() {
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Academic Structure Breakdown */}
-          <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Layers className="w-4 h-4 text-violet-500" />
-                Active Academic Programs
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Structural distribution across grades, classroom sections, and departmental curricula
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-5">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-4 rounded-xl bg-violet-500/10 border border-violet-500/20">
-                  <p className="text-2xl font-black text-violet-600 dark:text-violet-400">{structureCounts.grades}</p>
-                  <p className="text-xs font-bold text-muted-foreground mt-1">Grade Levels</p>
-                </div>
-                <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                  <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{structureCounts.sections}</p>
-                  <p className="text-xs font-bold text-muted-foreground mt-1">Class Sections</p>
-                </div>
-                <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                  <p className="text-2xl font-black text-purple-600 dark:text-purple-400">{structureCounts.subjects}</p>
-                  <p className="text-xs font-bold text-muted-foreground mt-1">Course Subjects</p>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Need to add new grades, section splits, or subjects?</span>
-                <Link href="/school/academic-head/academic-structure" className="font-bold text-primary hover:underline flex items-center gap-1">
-                  Open Structure Workspace <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
-        {/* Right Column: Quick Operational Actions & Workspaces */}
+        {/* Right Column: Submission Status */}
         <div className="space-y-6">
-          {/* Quick Actions Card */}
-          <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                Academic Head Workspaces
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Direct access to module management consoles
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-3 space-y-2">
-              <Link href="/school/academic-head/assessments" className="block">
-                <div className="p-3 rounded-xl border border-border/60 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-all flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
-                      <GraduationCap className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-foreground">Assessments & Marks</p>
-                      <p className="text-[11px] text-muted-foreground">Weights, submissions & approvals</p>
-                    </div>
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </div>
-              </Link>
+          <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/10 pb-3">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <BarChart2 className="w-4 h-4 text-violet-500" />
+                Submission Status
+              </h3>
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                {approvalRate}% Done
+              </span>
+            </div>
 
-              <Link href="/school/academic-head/academic-structure" className="block">
-                <div className="p-3 rounded-xl border border-border/60 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-all flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center font-bold">
-                      <Layers className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-foreground">Curriculum & Structure</p>
-                      <p className="text-[11px] text-muted-foreground">Grades, sections & courses</p>
-                    </div>
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </div>
-              </Link>
-
-              <Link href="/school/academic-head/exams" className="block">
-                <div className="p-3 rounded-xl border border-border/60 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-all flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-                      <Award className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-foreground">Exams & Grading Scales</p>
-                      <p className="text-[11px] text-muted-foreground">Exam rosters & GPA standards</p>
-                    </div>
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </div>
-              </Link>
-
-              <Link href="/school/academic-head/report-cards" className="block">
-                <div className="p-3 rounded-xl border border-border/60 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-all flex items-center justify-between group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-foreground">Report Cards Console</p>
-                      <p className="text-[11px] text-muted-foreground">Batch compile, verify & print</p>
-                    </div>
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </div>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Submission Pipeline Status Card */}
-          <Card className="border border-border/80 shadow-sm rounded-2xl overflow-hidden">
-            <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-indigo-500" />
-                Marks Submission Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Approved / Published:</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{metrics.approved + metrics.published} batches</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-muted-foreground">Approved Batches:</span>
+                <span className="text-foreground">{metrics.approved + metrics.published}</span>
               </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200/70 dark:bg-slate-800/80 h-2.5 rounded-full overflow-hidden p-0.5">
                 <div
-                  className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                  className="bg-gradient-to-r from-violet-600 to-indigo-600 h-full rounded-full transition-all duration-500"
                   style={{ width: `${approvalRate}%` }}
                 />
               </div>
+            </div>
 
-              <div className="pt-2 border-t border-border/60 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" /> Pending Review:
-                  </span>
-                  <span className="font-bold text-amber-600 dark:text-amber-400">{metrics.pendingApproval + metrics.submitted}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Requires Attention:
-                  </span>
-                  <span className="font-bold text-rose-600 dark:text-rose-400">{metrics.requiringAttention || 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-slate-400" /> Total Tracked Batches:
-                  </span>
-                  <span className="font-bold text-foreground">{metrics.total}</span>
-                </div>
+            <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" /> Pending Review:
+                </span>
+                <span className="font-bold text-foreground">{metrics.pendingApproval + metrics.submitted}</span>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" /> Needs Attention:
+                </span>
+                <span className="font-bold text-foreground">{metrics.requiringAttention || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-violet-500" /> Total Submitted:
+                </span>
+                <span className="font-bold text-foreground">{metrics.total}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Academic Structure Breakdown */}
+      <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 dark:border-white/10 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+              <Layers className="w-4 h-4 text-violet-500" />
+              Academic Structure Directory
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Grade levels, class sections, academic streams, and taught subjects
+            </p>
+          </div>
+          <Link href="/school/academic-head/academic-structure">
+            <Button size="sm" variant="outline" className="text-xs font-bold gap-1 rounded-xl border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800">
+              Manage Structure <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+          <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-2xs hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+            <p className="text-3xl font-black text-foreground">{structureCounts.grades}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mt-1.5">Grades</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-2xs hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+            <p className="text-3xl font-black text-foreground">{structureCounts.sections}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mt-1.5">Sections</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-2xs hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+            <p className="text-3xl font-black text-foreground">{structureCounts.streams}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mt-1.5">Streams</p>
+          </div>
+          <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 backdrop-blur-md shadow-2xs hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+            <p className="text-3xl font-black text-foreground">{structureCounts.subjects}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mt-1.5">Subjects</p>
+          </div>
         </div>
       </div>
     </div>

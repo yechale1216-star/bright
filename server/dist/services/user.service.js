@@ -140,23 +140,28 @@ const getContacts = async (_schoolId, currentUser) => {
 };
 exports.getContacts = getContacts;
 const createUser = async (data) => {
-    let teacherId = data.teacher_id || null;
-    if (data.role === 'teacher' && data.phone) {
-        const cleanPhone = data.phone.trim();
-        const existing = await db_1.default.user.findFirst({
-            where: { phone: cleanPhone, role: 'teacher' }
-        });
-        if (existing) {
-            throw new Error('Phone already registered for another teacher.');
-        }
-        data.phone = cleanPhone;
+    const cleanEmail = (data.email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+        throw new Error('Email is required.');
     }
+    const existingEmail = await db_1.default.user.findUnique({ where: { email: cleanEmail } });
+    if (existingEmail) {
+        throw new Error('An account with this email address already exists.');
+    }
+    const cleanPhone = data.phone && typeof data.phone === 'string' && data.phone.trim() ? data.phone.trim() : null;
+    if (cleanPhone) {
+        const existingPhone = await db_1.default.user.findFirst({ where: { phone: cleanPhone } });
+        if (existingPhone) {
+            throw new Error('This phone number is already registered to another account.');
+        }
+    }
+    let teacherId = data.teacher_id || null;
     if (data.role === 'teacher' && !teacherId) {
         const teacher = await db_1.default.teacher.create({
             data: {
                 name: data.full_name,
-                email: data.email,
-                phone: data.phone || null,
+                email: cleanEmail,
+                phone: cleanPhone,
                 subject: data.subject || null,
                 qualification: data.qualification || null,
                 experience_years: data.experience_years !== undefined && data.experience_years !== null ? Number(data.experience_years) : null,
@@ -185,11 +190,11 @@ const createUser = async (data) => {
         : bcryptjs_1.default.hashSync(rawPassword, 10);
     const user = await db_1.default.user.create({
         data: {
-            email: data.email,
+            email: cleanEmail,
             password_hash: hashedPassword,
             full_name: data.full_name,
             role: data.role || 'teacher',
-            phone: data.phone || null,
+            phone: cleanPhone,
             is_active: data.is_active !== false,
             teacher_id: teacherId,
             attendanceMode: (data.attendanceMode || data.attendance_mode || 'DAILY').toString().trim().toUpperCase() === 'SESSION' ? 'SESSION' : 'DAILY',
@@ -229,16 +234,26 @@ const updateUser = async (id, data, _schoolId) => {
     const updateData = {};
     if (data.full_name !== undefined)
         updateData.full_name = data.full_name;
-    if (data.email !== undefined)
-        updateData.email = data.email;
+    if (data.role !== undefined)
+        updateData.role = data.role;
+    if (data.email !== undefined) {
+        const cleanEmail = data.email.trim().toLowerCase();
+        const existing = await db_1.default.user.findFirst({
+            where: { email: cleanEmail, id: { not: targetUserId } }
+        });
+        if (existing) {
+            throw new Error('An account with this email address already exists.');
+        }
+        updateData.email = cleanEmail;
+    }
     if (data.phone !== undefined) {
-        const cleanPhone = data.phone.trim();
-        if (currentUser.role === 'teacher' && cleanPhone) {
+        const cleanPhone = data.phone && typeof data.phone === 'string' && data.phone.trim() ? data.phone.trim() : null;
+        if (cleanPhone) {
             const existing = await db_1.default.user.findFirst({
-                where: { phone: cleanPhone, role: 'teacher', id: { not: targetUserId } }
+                where: { phone: cleanPhone, id: { not: targetUserId } }
             });
             if (existing) {
-                throw new Error('Phone already registered for another teacher.');
+                throw new Error('This phone number is already registered to another account.');
             }
         }
         updateData.phone = cleanPhone;

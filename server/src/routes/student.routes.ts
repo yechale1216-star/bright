@@ -9,6 +9,7 @@ const router = Router();
 router.get('/', studentController.getStudents);
 router.get('/auto/next-id', studentController.getNextStudentId);
 router.get('/parent/:phone', studentController.getStudentsByParentPhone);
+router.post('/activation/bulk-generate', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.bulkGenerateActivationCodes);
 router.post('/', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), validateStudent, studentController.createStudent);
 router.post('/bulk', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.bulkCreateStudents);
 
@@ -16,5 +17,6 @@ router.post('/bulk', authorize(['admin', 'school_admin', 'super_admin', 'registr
 router.get('/:id', studentController.getStudentById);
 router.put('/:id', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.updateStudent);
 router.delete('/:id', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.deleteStudent);
+router.post('/:id/generate-activation-code', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.generateActivationCode);
 
 export default router;

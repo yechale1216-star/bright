@@ -238,6 +238,9 @@ model Student {
   sectionId              String
   streamId               String?
   address                String?
+  accountStatus          String                      @default("PENDING_ACTIVATION")
+  activation_code        String?
+  activation_code_expires DateTime?
   attendance             Attendance[]
   parentNotifications    ParentNotification[]
   parentStudents         ParentStudentLink[]
@@ -1460,6 +1463,7 @@ model LearningMaterial {
   fileUrl      String
   fileType     String?
   fileSize     Int?
+  viewCount    Int      @default(0)
   uploadedById String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

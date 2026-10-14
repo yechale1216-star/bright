@@ -66,11 +66,11 @@ export default function StudentParentRootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-[#070d1a] text-slate-100`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-slate-50 text-slate-900 dark:bg-[#070d1a] dark:text-slate-100 transition-colors duration-200`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
+          defaultTheme="light"
           enableSystem
         >
           <GlobalOfflineOverlay />

@@ -36,15 +36,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const studentController = __importStar(require("../controllers/student.controller"));
 const validate_1 = require("../middleware/validate");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 // Static routes MUST come before dynamic /:id routes
 router.get('/', studentController.getStudents);
 router.get('/auto/next-id', studentController.getNextStudentId);
 router.get('/parent/:phone', studentController.getStudentsByParentPhone);
-router.post('/', validate_1.validateStudent, studentController.createStudent);
-router.post('/bulk', studentController.bulkCreateStudents);
+router.post('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), validate_1.validateStudent, studentController.createStudent);
+router.post('/bulk', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.bulkCreateStudents);
 // Dynamic routes last
 router.get('/:id', studentController.getStudentById);
-router.put('/:id', studentController.updateStudent);
-router.delete('/:id', studentController.deleteStudent);
+router.put('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.updateStudent);
+router.delete('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.deleteStudent);
 exports.default = router;

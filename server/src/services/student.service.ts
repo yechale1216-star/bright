@@ -235,6 +235,69 @@ export const getNextStudentId = async (_schoolId?: string) => {
   return `${idPrefix}${nextSequence.toString().padStart(6, '0')}`;
 };
 
+// ─── ACTIVATION CODE MANAGEMENT ───────────────────────────────────────────────
+
+/**
+ * Generate (or regenerate) a one-time activation code for a student.
+ * Called by staff from the admin portal.
+ * Returns all data needed to print an activation slip.
+ */
+export const generateActivationCode = async (studentId: string) => {
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    include: { grade: true, section: true },
+  }) as any;
+
+  if (!student) throw new Error('Student not found.');
+
+  // Generate a random 8-char uppercase alphanumeric code
+  const { randomBytes } = await import('crypto');
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars (0,O,1,I)
+  const bytes = randomBytes(8);
+  const code = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  await (prisma.student as any).update({
+    where: { id: studentId },
+    data: {
+      activation_code: code,
+      activation_code_expires: expires,
+      accountStatus: 'PENDING_ACTIVATION',
+    },
+  });
+
+  return {
+    student_id: student.student_id,
+    fullName: student.fullName,
+    grade: student.grade?.name || '',
+    section: student.section?.name || '',
+    activationCode: code,
+    expiresAt: expires,
+  };
+};
+
+/**
+ * Bulk generate activation codes for all PENDING_ACTIVATION students in a grade/section.
+ */
+export const bulkGenerateActivationCodes = async (gradeId?: string, sectionId?: string) => {
+  const where: any = { accountStatus: 'PENDING_ACTIVATION' };
+  if (gradeId) where.gradeId = gradeId;
+  if (sectionId) where.sectionId = sectionId;
+
+  const students = await (prisma.student as any).findMany({
+    where,
+    include: { grade: true, section: true },
+  });
+
+  const results = [];
+  for (const student of students) {
+    const slip = await generateActivationCode(student.id);
+    results.push(slip);
+  }
+  return results;
+};
+
 export const createStudent = async (data: any, _schoolId?: string) => {
   let studentId = data.student_id;
   if (!studentId) {
@@ -367,9 +430,18 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     console.error('[StudentService] Failed to send admin notification for new student:', notifErr);
   }
 
+  let activationSlip: any = null;
+  try {
+    activationSlip = await generateActivationCode(newStudent.id);
+  } catch (actErr) {
+    console.error('[StudentService] Failed to auto-generate activation code for new student:', actErr);
+  }
+
   return {
     ...mapStudentToFlat(newStudent),
     relationshipType: data.relationshipType || linkRecord?.relationshipType || 'Guardian',
+    activationCode: activationSlip?.activationCode || null,
+    activationSlip,
   };
 };
 

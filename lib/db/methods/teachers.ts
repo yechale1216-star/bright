@@ -56,6 +56,7 @@ export async function getTeacherAssignments(headers: any, schoolId = "single-sch
         gradeObj: typeof a.grade === "object" ? a.grade : undefined,
         sectionObj: typeof a.section === "object" ? a.section : undefined,
         streamObj: typeof a.stream === "object" ? a.stream : undefined,
+        role: a.role,
         class_id: a.id,
         teacher: a.teacher ? {
           id: a.teacher.id,

@@ -152,6 +152,8 @@ export default function ParentMaterialsPage() {
                     href={m.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => learningMaterialClientService.incrementView(m.id)}
+                    download={m.fileUrl.startsWith('data:') ? m.title : undefined}
                     className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:border-primary/40 hover:bg-muted/30 transition-all group"
                   >
                     <div className="text-3xl flex-shrink-0">{getFileIcon(m.fileUrl, m.fileType)}</div>
@@ -163,7 +165,9 @@ export default function ParentMaterialsPage() {
                         <ExternalLink className="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5 group-hover:text-primary transition-colors" />
                       </div>
                       {m.description && (
-                        <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{m.description}</p>
+                        <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">
+                          {m.description.replace(/^<!--BP_META:[\s\S]*?-->/, '')}
+                        </p>
                       )}
                       <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
                         {m.fileType && <span className="uppercase">{m.fileType}</span>}

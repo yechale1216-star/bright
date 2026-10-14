@@ -152,6 +152,7 @@ export default function ParentMaterialsPage() {
                     href={m.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => learningMaterialClientService.incrementView(m.id)}
                     className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:border-primary/40 hover:bg-muted/30 transition-all group"
                   >
                     <div className="text-3xl flex-shrink-0">{getFileIcon(m.fileUrl, m.fileType)}</div>

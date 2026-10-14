@@ -54,6 +54,8 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
     if (!requestedRole) {
       if (url.startsWith('/api/parent')) {
         requestedRole = 'parent';
+      } else if (url.startsWith('/api/student')) {
+        requestedRole = 'student';
       } else if (url.startsWith('/api/teachers') || url.includes('/attendance-sessions')) {
         requestedRole = 'teacher';
       } else if (url.startsWith('/api/staff') || url.startsWith('/school/staff')) {

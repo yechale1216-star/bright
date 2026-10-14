@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const attendanceController = __importStar(require("../controllers/attendance.controller"));
 const validate_1 = require("../middleware/validate");
+const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 router.post('/', validate_1.validateAttendance, attendanceController.markAttendance);
 router.post('/bulk', attendanceController.bulkMarkAttendance);
@@ -45,7 +46,7 @@ router.get('/student/:studentId', attendanceController.getAttendanceByStudent);
 // Edit Permission Requests & Audit Logs
 router.post('/edit-requests', attendanceController.createEditRequest);
 router.get('/edit-requests', attendanceController.getEditRequests);
-router.put('/edit-requests/:id/approve', attendanceController.approveEditRequest);
-router.put('/edit-requests/:id/reject', attendanceController.rejectEditRequest);
-router.get('/audit-logs', attendanceController.getAuditLogs);
+router.put('/edit-requests/:id/approve', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'academic_head']), attendanceController.approveEditRequest);
+router.put('/edit-requests/:id/reject', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'academic_head']), attendanceController.rejectEditRequest);
+router.get('/audit-logs', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'academic_head', 'discipline_officer']), attendanceController.getAuditLogs);
 exports.default = router;

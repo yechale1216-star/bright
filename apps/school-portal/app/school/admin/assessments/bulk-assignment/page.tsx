@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import {
   ArrowLeft,
   Calendar,
@@ -59,6 +59,10 @@ const isStreamGrade = (name: string) => {
 };
 
 function BulkAssignAssessmentContent() {
+  const pathname = usePathname();
+  const isAcademicHead = pathname?.startsWith('/school/academic-head');
+  const assessmentsBasePath = isAcademicHead ? '/school/academic-head/assessments' : '/school/admin/assessments';
+
   const searchParams = useSearchParams();
   const urlSchemeId = searchParams?.get('schemeId') || searchParams?.get('templateId') || '';
   const urlYearId = searchParams?.get('yearId') || '';
@@ -358,7 +362,7 @@ function BulkAssignAssessmentContent() {
         <div>
           <div className="flex items-center gap-2">
             <Link
-              href="/school/admin/assessments"
+              href={assessmentsBasePath}
               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline mr-2"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Back
@@ -1040,7 +1044,7 @@ function BulkAssignAssessmentContent() {
                 >
                   Run Another Assignment
                 </Button>
-                <Link href="/school/admin/assessments">
+                <Link href={assessmentsBasePath}>
                   <Button className="rounded-xl text-xs font-bold h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white">
                     Done — View Assessments
                   </Button>

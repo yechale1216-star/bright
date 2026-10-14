@@ -73,6 +73,7 @@ export interface LearningMaterial {
   fileUrl: string;
   fileType?: string | null;
   fileSize?: number | null;
+  viewCount?: number | null;
   uploadedById?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -275,5 +276,16 @@ export const learningMaterialClientService = {
       { headers: getAuthHeaders() }
     );
     return res.data ?? [];
+  },
+
+  incrementView: async (id: string): Promise<void> => {
+    try {
+      await apiFetch(`${API_URL}/api/learning-materials/${id}/view`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+      });
+    } catch {
+      // Silently ignore — view tracking is non-critical
+    }
   },
 };

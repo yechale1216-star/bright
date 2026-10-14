@@ -1251,12 +1251,28 @@ export class GradebookService {
   }) {
     const { academicYearId, academicTermId, gradeId, sectionId, subjectId } = params;
 
+    // Resolve subject if subjectId was passed as a name or code
+    let resolvedSubjectId = subjectId;
+    const subjectRecord = await prisma.subject.findFirst({
+      where: {
+        OR: [
+          { id: subjectId },
+          { name: { equals: subjectId, mode: 'insensitive' as const } },
+          { code: { equals: subjectId, mode: 'insensitive' as const } },
+        ],
+      },
+      select: { id: true, name: true, code: true },
+    });
+    if (subjectRecord) {
+      resolvedSubjectId = subjectRecord.id;
+    }
+
     // 1. Resolve Assessment Policy Scheme
     const scheme = await AssessmentPolicyService.resolveSchemeForContext({
       academicYearId,
       academicTermId,
       gradeId,
-      subjectId,
+      subjectId: resolvedSubjectId,
     });
 
     const configuredCategories: ConfiguredCategory[] = (scheme?.categories || []).map((c: any) => ({
@@ -1288,7 +1304,7 @@ export class GradebookService {
         academicYearId,
         ...(academicTermId ? { academicTermId } : {}),
         gradeId,
-        subjectId,
+        subjectId: resolvedSubjectId,
         OR: [{ sectionId: null }, { sectionId }],
       },
       include: {
@@ -1390,7 +1406,22 @@ export class GradebookService {
         ...(academicTermId ? { academicTermId } : {}),
         gradeId,
         sectionId,
-        subjectId,
+        subjectId: resolvedSubjectId,
+      },
+      include: {
+        teacher: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    // Fetch the assigned teacher for this class & subject
+    const assignmentRecord = await prisma.teacherAssignment.findFirst({
+      where: {
+        gradeId,
+        ...(sectionId ? { sectionId } : {}),
+        OR: [
+          { subjectId: resolvedSubjectId },
+          { subject: subjectRecord?.name || subjectId },
+        ],
       },
       include: {
         teacher: { select: { id: true, name: true, email: true } },
@@ -1494,6 +1525,8 @@ export class GradebookService {
         reopenReason: submissionRecord.reopenReason,
         teacher: submissionRecord.teacher,
       } : null,
+      assignedTeacher: assignmentRecord?.teacher || null,
+      subject: subjectRecord || { id: resolvedSubjectId, name: subjectId, code: subjectId },
       statistics: {
         totalStudents,
         completedStudentsCount,

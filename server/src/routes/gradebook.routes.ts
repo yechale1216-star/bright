@@ -21,7 +21,7 @@ router.get('/assessments', gradebookController.getAssessments);
 router.get('/assessments/:id', gradebookController.getAssessmentById);
 router.post('/assessments', authorize(['admin', 'school_admin', 'academic_head', 'teacher']), gradebookController.createAssessment);
 router.put('/assessments/:id', authorize(['admin', 'school_admin', 'academic_head', 'teacher']), gradebookController.updateAssessment);
-router.delete('/assessments/:id', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.deleteAssessment);
+router.delete('/assessments/:id', authorize(['admin', 'school_admin', 'academic_head', 'teacher']), gradebookController.deleteAssessment);
 
 // Marks Entry
 router.get('/class-matrix', gradebookController.getClassGradebook);

@@ -344,6 +344,15 @@ export const DisciplineApi = {
     return data.data;
   },
 
+  async getStudentIncidents(studentId: string): Promise<StudentDiscipline[]> {
+    try {
+      const res = await this.getIncidents({ studentId, limit: 50 });
+      return res?.items || [];
+    } catch {
+      return [];
+    }
+  },
+
   async createIncident(payload: any): Promise<StudentDiscipline> {
     const data = await apiFetch<{ success: boolean; data: StudentDiscipline }>(
       `${API_URL}/api/discipline`,

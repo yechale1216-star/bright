@@ -111,7 +111,7 @@ router.get('/contacts', async (req, res, next) => {
     }
 });
 // Create user (Admin only)
-router.post('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.post('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin']), async (req, res, next) => {
     try {
         const data = { ...req.body };
         const user = await userService.createUser(data);
@@ -130,7 +130,7 @@ router.put('/:id', async (req, res, next) => {
         if (!requestingUserId) {
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         }
-        const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin';
+        const isAdmin = requestingUserRole === 'admin' || requestingUserRole === 'school_admin' || requestingUserRole === 'super_admin';
         // Non-admins can only update themselves
         if (!isAdmin && requestingUserId !== targetUserId) {
             return res.status(403).json({ success: false, message: 'Forbidden: You cannot modify another user\'s profile' });
@@ -174,7 +174,7 @@ router.post(['/change-password', '/update-password'], async (req, res, next) => 
     }
 });
 // Delete user (Admin only)
-router.delete('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+router.delete('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin']), async (req, res, next) => {
     try {
         await userService.deleteUser(req.params.id);
         res.status(200).json({ success: true, message: 'User deleted' });

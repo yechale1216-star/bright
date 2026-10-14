@@ -129,8 +129,9 @@ const getEditRequests = async (req, res, next) => {
 exports.getEditRequests = getEditRequests;
 const approveEditRequest = async (req, res, next) => {
     try {
-        if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin') {
-            return res.status(403).json({ success: false, message: 'Only School Admin can approve edit requests' });
+        const approverRoles = ['admin', 'school_admin', 'super_admin', 'academic_head'];
+        if (!approverRoles.includes(req.user?.role || '')) {
+            return res.status(403).json({ success: false, message: 'Only authorized administrators can approve edit requests' });
         }
         const result = await attendanceService.approveEditRequest(req.params.id, req.user?.id || 'admin', undefined, req.body.adminNote);
         res.status(200).json({ success: true, data: result });
@@ -142,8 +143,9 @@ const approveEditRequest = async (req, res, next) => {
 exports.approveEditRequest = approveEditRequest;
 const rejectEditRequest = async (req, res, next) => {
     try {
-        if (req.user?.role !== 'admin' && req.user?.role !== 'school_admin') {
-            return res.status(403).json({ success: false, message: 'Only School Admin can reject edit requests' });
+        const approverRoles = ['admin', 'school_admin', 'super_admin', 'academic_head'];
+        if (!approverRoles.includes(req.user?.role || '')) {
+            return res.status(403).json({ success: false, message: 'Only authorized administrators can reject edit requests' });
         }
         const result = await attendanceService.rejectEditRequest(req.params.id, req.user?.id || 'admin', undefined, req.body.adminNote);
         res.status(200).json({ success: true, data: result });

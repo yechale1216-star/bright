@@ -405,7 +405,10 @@ export function AttendanceTracking() {
           db.getStudents(false, "ACTIVE"),
           db.getTeacherAssignments(user.schoolId, user.teacherId || user.id),
         ])
-        const classes = assignmentsData || []
+        const rawAssignments = assignmentsData || []
+        // Attendance module is strictly scoped to homeroom assignments.
+        // Even if the teacher is also a subject teacher for other grades, only their assigned homeroom classes appear.
+        const classes = rawAssignments.filter((cls: any) => cls.role === 'HOMEROOM_TEACHER')
 
         const allFilteredStudents = studentsData.filter((student: Student) => {
           // Strictly exclude transferred, withdrawn, graduated, expelled, or inactive students

@@ -49,7 +49,15 @@ httpServer.keepAliveTimeout = 65000; // > 60s for Cloudflare/ALB/Render keep-ali
 async function start() {
     // 1. Connect Redis (gracefully falls back if unavailable — socket still works on single instance)
     await (0, redis_1.connectRedis)();
-    // 2. Initialize Socket.IO (with Redis adapter already attached inside initSocket)
+    // 2. Seed default system roles if needed
+    try {
+        const { seedDefaultRoles } = await Promise.resolve().then(() => __importStar(require('./services/roles.service')));
+        await seedDefaultRoles();
+    }
+    catch (err) {
+        console.warn('[Startup] Warning seeding default roles:', err);
+    }
+    // 3. Initialize Socket.IO (with Redis adapter already attached inside initSocket)
     (0, socket_1.initSocket)(httpServer);
     // 3. Start HTTP server
     httpServer.listen(PORT, '0.0.0.0', () => {

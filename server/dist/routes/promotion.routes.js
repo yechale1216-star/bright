@@ -37,10 +37,10 @@ const express_1 = require("express");
 const promotionController = __importStar(require("../controllers/promotion.controller"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
-// Only school admins/admins can perform promotions
-router.get('/preview', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getPromotionPreview);
-router.get('/preview/:gradeId/students', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getStudentsByGrade);
-router.post('/promote', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.promoteStudents);
-router.get('/history', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.getPromotionHistory);
-router.post('/rollback/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), promotionController.rollbackPromotion);
+// School admins, super admins, and registrars can manage student promotions
+router.get('/preview', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), promotionController.getPromotionPreview);
+router.get('/preview/:gradeId/students', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), promotionController.getStudentsByGrade);
+router.post('/promote', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), promotionController.promoteStudents);
+router.get('/history', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), promotionController.getPromotionHistory);
+router.post('/rollback/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), promotionController.rollbackPromotion);
 exports.default = router;

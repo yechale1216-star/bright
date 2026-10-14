@@ -8,7 +8,7 @@ import {
   Settings, LogOut, MessageSquare, Phone, TrendingUp, Calendar,
   X, ChevronRight, Megaphone, MessageCircle, ShieldAlert, ShieldCheck, UserCheck,
   GraduationCap, FileText, Bus, Layers, Award, BarChart3, Clock,
-  ScanFace, PieChart, ClipboardList, History
+  ScanFace, PieChart, ClipboardList, History, CalendarDays
 } from 'lucide-react'
 import { cn } from "@/lib/utils/utils"
 
@@ -129,9 +129,19 @@ export default function SchoolAdminClientLayout({
       title: '',
       items: [
         { href: '/school/admin',                 icon: <LayoutDashboard className="w-5 h-5" />,  label: 'Dashboard' },
-        { href: '/school/admin/students',         icon: <Users className="w-5 h-5" />,           label: 'Students',          roles: ['admin', 'school_admin', 'super_admin', 'registrar'] },
+        {
+          href: '/school/admin/students',
+          icon: <Users className="w-5 h-5" />,
+          label: 'Students',
+          roles: ['admin', 'school_admin', 'super_admin', 'registrar'],
+          children: [
+            { href: '/school/admin/students', label: 'All Students' },
+            { href: '/school/admin/students/activation', label: 'Account Activation' },
+          ],
+        },
         { href: '/school/admin/teachers',         icon: <UserCheck className="w-5 h-5" />,       label: 'Teachers & Staff',  roles: ['admin', 'school_admin', 'super_admin', 'academic_head', 'staff_attendance_officer', 'hr_officer'] },
         { href: '/school/admin/academic-structure', icon: <Layers className="w-5 h-5" />,        label: 'Academics',         roles: ['admin', 'school_admin', 'super_admin', 'academic_head', 'registrar'] },
+        { href: '/school/admin/timetables',         icon: <CalendarDays className="w-5 h-5" />,   label: 'Timetables',        roles: ['admin', 'school_admin', 'super_admin', 'academic_head'] },
         {
           href: '/school/admin/assessments',
           icon: <GraduationCap className="w-5 h-5" />,
@@ -141,6 +151,7 @@ export default function SchoolAdminClientLayout({
             { href: '/school/admin/assessments/types', label: 'Assessment Types' },
             { href: '/school/admin/assessments/templates', label: 'Assessment Templates' },
             { href: '/school/admin/assessments/configurations', label: 'Grade & Subject Configuration' },
+            { href: '/school/admin/assessments/bulk-assignment', label: 'Bulk Assessment Assignment' },
             { href: '/school/admin/assessments/policy', label: 'Assessments' },
             { href: '/school/admin/assessments/submissions', label: 'Mark Submission & Approval' },
             { href: '/school/admin/assessments/reports', label: 'Assessment Reports' },
@@ -233,24 +244,42 @@ export default function SchoolAdminClientLayout({
                         </p>
                       </div>
                       {group.items.map(item => (
-                        <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
-                          <div className={cn(
-                            "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group",
-                            isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
-                          )}>
-                            <span className={cn(
-                              "transition-colors flex-shrink-0",
-                              isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
-                            )}>{item.icon}</span>
-                            <span className="flex-1 truncate">{item.label}</span>
-                            {(item as any).badge && (
-                              <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
-                                {(item as any).badge}
-                              </span>
-                            )}
-                            {isActive(item.href) && !(item as any).badge && <ChevronRight className="w-4 h-4" />}
-                          </div>
-                        </Link>
+                        <div key={item.href} className="space-y-1">
+                          <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
+                            <div className={cn(
+                              "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group",
+                              isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
+                            )}>
+                              <span className={cn(
+                                "transition-colors flex-shrink-0",
+                                isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                              )}>{item.icon}</span>
+                              <span className="flex-1 truncate">{item.label}</span>
+                              {(item as any).badge && (
+                                <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+                                  {(item as any).badge}
+                                </span>
+                              )}
+                              {isActive(item.href) && !(item as any).badge && <ChevronRight className="w-4 h-4" />}
+                            </div>
+                          </Link>
+                          {(item.children?.length ?? 0) > 0 && (pathname?.startsWith(item.href) || item.children?.some(c => pathname === c.href)) && (
+                            <div className="pl-9 pr-2 py-1 space-y-1">
+                              {item.children?.map(child => (
+                                <Link key={child.href} href={child.href} onClick={() => setSidebarOpen(false)}>
+                                  <div className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors block truncate",
+                                    pathname === child.href
+                                      ? "bg-blue-600 text-white font-bold shadow-xs"
+                                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                  )}>
+                                    {child.label}
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   ))}
@@ -310,7 +339,7 @@ export default function SchoolAdminClientLayout({
                           href={item.href}
                           icon={item.icon}
                           label={item.label}
-                          active={isActive(item.href) || (Boolean(item.children) && Boolean(pathname?.startsWith('/school/admin/assessments')))}
+                          active={isActive(item.href) || !!(pathname && item.href !== '/' && pathname.startsWith(item.href)) || !!(item.children?.some(c => isActive(c.href)))}
                           isCollapsed={isCollapsed}
                           badge={(item as any).badge}
                           children={item.children}
@@ -381,7 +410,10 @@ function NavLink({
   currentPath?: string;
 }) {
   const [expanded, setExpanded] = useState(
-    Boolean(currentPath?.startsWith('/school/admin/assessments') && label === 'Assessments')
+    Boolean(
+      (currentPath?.startsWith('/school/admin/assessments') && label === 'Assessments') ||
+      (children && children.some(c => currentPath?.startsWith(c.href)))
+    )
   );
 
   const hasChildren = Boolean(children && children.length > 0 && !isCollapsed);

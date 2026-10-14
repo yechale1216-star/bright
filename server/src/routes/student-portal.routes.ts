@@ -10,6 +10,8 @@ publicStudentRouter.post('/login', studentPortalController.login);
 publicStudentRouter.post('/forgot-password', studentPortalController.forgotPassword);
 publicStudentRouter.post('/verify-otp', studentPortalController.verifyOtp);
 publicStudentRouter.post('/reset-password', studentPortalController.resetPassword);
+publicStudentRouter.post('/verify-activation-code', studentPortalController.verifyActivationCode);
+publicStudentRouter.post('/activate', studentPortalController.activateAccount);
 
 // ─── Protected Student Portal Routes ─────────────────────────────────────────
 // Requires valid authentication token and role must be 'student'

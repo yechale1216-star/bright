@@ -57,6 +57,7 @@ class StudentDatabase {
     const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : null;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      "x-requested-role": "student",
     };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -132,6 +133,53 @@ class StudentDatabase {
         body: JSON.stringify({ studentId, code, newPassword }),
       }
     );
+  }
+
+  async verifyActivationCode(studentId: string, activationCode: string): Promise<any> {
+    return apiFetch<{ success: boolean; studentName?: string; message?: string }>(
+      `${API_URL}/api/student/verify-activation-code`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, activationCode }),
+      }
+    );
+  }
+
+  async activateAccount(studentId: string, activationCode: string, newPassword: string): Promise<any> {
+    const res = await apiFetch<{ success: boolean; token?: string; student?: any; school?: any; message?: string }>(
+      `${API_URL}/api/student/activate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, activationCode, newPassword }),
+      }
+    );
+
+    // Auto-login on successful activation
+    if (res.success && res.token && typeof window !== "undefined") {
+      localStorage.setItem("attendance_token", res.token);
+      localStorage.setItem(
+        "attendance_current_user",
+        JSON.stringify({
+          id: res.student?.id,
+          studentId: res.student?.id,
+          studentCode: res.student?.student_id,
+          name: res.student?.fullName,
+          role: "student",
+          grade: res.student?.grade,
+          section: res.student?.section,
+          stream: res.student?.stream,
+          schoolId: res.school?.id || "single-school",
+          schoolName: res.school?.name || "Bright Path",
+          schoolLogo: res.school?.logo || "",
+          profile_photo: null,
+        })
+      );
+      window.dispatchEvent(new Event("userSessionChanged"));
+    }
+
+    return res;
   }
 
   // ─── DASHBOARD ───────────────────────────────────────────────────────────────

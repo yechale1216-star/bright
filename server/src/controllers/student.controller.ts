@@ -94,3 +94,25 @@ export const bulkCreateStudents = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
+// ─── ACTIVATION CODE MANAGEMENT ───────────────────────────────────────────────
+
+export const generateActivationCode = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const slip = await studentService.generateActivationCode(id);
+    res.status(200).json({ success: true, data: slip });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const bulkGenerateActivationCodes = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { gradeId, sectionId } = req.body;
+    const slips = await studentService.bulkGenerateActivationCodes(gradeId, sectionId);
+    res.status(200).json({ success: true, data: slips });
+  } catch (error) {
+    next(error);
+  }
+};
+

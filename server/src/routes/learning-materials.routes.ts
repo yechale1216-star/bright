@@ -9,6 +9,7 @@ router.get('/:id', materialsController.getMaterialById);
 router.post('/', materialsController.createMaterial);
 router.put('/:id', materialsController.updateMaterial);
 router.delete('/:id', materialsController.deleteMaterial);
+router.patch('/:id/view', materialsController.incrementView);
 
 // ─── Student Portal ───────────────────────────────────────────────────────────
 router.get('/student/:studentId', materialsController.getStudentMaterials);

@@ -212,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Situational Role Inference — only apply when NOT on a login/neutral page
     const currentPath = typeof window !== "undefined" ? window.location.pathname : pathname
     if (currentPath.startsWith('/parent')) profileHeaders["x-requested-role"] = 'parent'
+    else if (currentPath.startsWith('/student')) profileHeaders["x-requested-role"] = 'student'
     else if (currentPath.startsWith('/school/teacher')) profileHeaders["x-requested-role"] = 'teacher'
     else if (currentPath.startsWith('/school/admin')) profileHeaders["x-requested-role"] = 'school_admin'
     else if (currentPath.startsWith('/school/registrar')) profileHeaders["x-requested-role"] = 'registrar'

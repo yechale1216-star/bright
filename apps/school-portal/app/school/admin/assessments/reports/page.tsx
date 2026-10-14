@@ -6,9 +6,6 @@ import {
   ArrowLeft,
   Calendar,
   FileText,
-  CheckCircle2,
-  TrendingUp,
-  AlertTriangle,
   Search,
   Filter,
   Download,
@@ -523,63 +520,43 @@ export default function AssessmentReportsPage() {
       {/* ─── 4 Assessment Summary Cards ──────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Subjects */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-center shrink-0">
-            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Subjects</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-              {analytics?.summary?.totalSubjects ?? 48}
-            </p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">Across all grades and sections</p>
-          </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Subjects</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
+            {analytics?.summary?.totalSubjects ?? 48}
+          </p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">Across all grades and sections</p>
         </div>
 
         {/* Card 2: Average Subject Score */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Average Subject Score</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-              {analytics?.summary?.averageSubjectScore ? `${analytics.summary.averageSubjectScore}%` : '76.4%'}
-            </p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">School-wide average</p>
-          </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Average Subject Score</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
+            {analytics?.summary?.averageSubjectScore ? `${analytics.summary.averageSubjectScore}%` : '76.4%'}
+          </p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">School-wide average</p>
         </div>
 
         {/* Card 3: Highest Subject Score */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-6 h-6 text-amber-500 dark:text-amber-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Highest Subject Score</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-              {analytics?.summary?.highestSubject?.score ? `${analytics.summary.highestSubject.score}%` : '98%'}
-            </p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
-              {analytics?.summary?.highestSubject?.name || 'Mathematics'} ({analytics?.summary?.highestSubject?.gradeName || 'Grade 10'})
-            </p>
-          </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Highest Subject Score</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
+            {analytics?.summary?.highestSubject?.score ? `${analytics.summary.highestSubject.score}%` : '98%'}
+          </p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+            {analytics?.summary?.highestSubject?.name || 'Mathematics'} ({analytics?.summary?.highestSubject?.gradeName || 'Grade 10'})
+          </p>
         </div>
 
         {/* Card 4: Lowest Subject Score */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4 transition-all hover:shadow-md">
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200/60 dark:border-rose-900/40 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-6 h-6 text-rose-500 dark:text-rose-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lowest Subject Score</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-              {analytics?.summary?.lowestSubject?.score ? `${analytics.summary.lowestSubject.score}%` : '42%'}
-            </p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
-              {analytics?.summary?.lowestSubject?.name || 'Civics'} ({analytics?.summary?.lowestSubject?.gradeName || 'Grade 9'})
-            </p>
-          </div>
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Lowest Subject Score</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
+            {analytics?.summary?.lowestSubject?.score ? `${analytics.summary.lowestSubject.score}%` : '42%'}
+          </p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+            {analytics?.summary?.lowestSubject?.name || 'Civics'} ({analytics?.summary?.lowestSubject?.gradeName || 'Grade 9'})
+          </p>
         </div>
       </div>
 
@@ -678,10 +655,10 @@ export default function AssessmentReportsPage() {
             </p>
           </div>
 
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-            {/* SVG Donut */}
-            <div className="relative w-40 h-40 shrink-0 flex items-center justify-center">
-              <svg width="160" height="160" viewBox="0 0 160 160" className="transform -rotate-90">
+          {/* SVG Donut — centered */}
+          <div className="mt-6 flex justify-center">
+            <div className="relative w-36 h-36 flex items-center justify-center">
+              <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
                 {donutPaths.map((slice, i) => (
                   <path
                     key={i}
@@ -691,8 +668,6 @@ export default function AssessmentReportsPage() {
                   />
                 ))}
               </svg>
-
-              {/* Center Metrics in Donut */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
                 <span className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
                   {totalResults.toLocaleString()}
@@ -702,31 +677,26 @@ export default function AssessmentReportsPage() {
                 </span>
               </div>
             </div>
+          </div>
 
-            {/* Legend & Count Breakdown */}
-            <div className="flex-1 space-y-2.5 w-full">
-              {distributionBands.map((band, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: band.color }}
-                    />
-                    <span className="font-medium text-slate-700 dark:text-slate-300 truncate">
-                      {band.name} ({band.rangeLabel})
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 w-8 text-right">
-                      {band.percentage}%
-                    </span>
-                    <span className="font-bold text-slate-900 dark:text-white w-9 text-right font-mono">
-                      {band.count}
-                    </span>
-                  </div>
+          {/* Legend — 2-col grid below the donut so nothing is clipped */}
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
+            {distributionBands.map((band, idx) => (
+              <div key={idx} className="flex items-center justify-between text-xs gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: band.color }}
+                  />
+                  <span className="font-medium text-slate-700 dark:text-slate-300 truncate">
+                    {band.name}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <span className="font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+                  {band.percentage}%
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

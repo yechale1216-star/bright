@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   SlidersHorizontal,
   Plus,
@@ -124,6 +125,12 @@ function WeightBar({ categories }: { categories: SchemeCategory[] }) {
 
 // ─── Main Assessment Policy Page ───────────────────────────────────────────
 export default function AssessmentPolicyPage() {
+  const pathname = usePathname();
+  const isAcademicHead = pathname?.startsWith('/school/academic-head');
+  const bulkAssignBasePath = isAcademicHead
+    ? '/school/academic-head/assessments/bulk-assignment'
+    : '/school/admin/assessments/bulk-assignment';
+
   const [loading, setLoading] = useState(false);
 
   const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -381,7 +388,7 @@ export default function AssessmentPolicyPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/school/admin/assessments/bulk-assignment">
+          <Link href={bulkAssignBasePath}>
             <Button
               size="sm"
               className="gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs font-semibold"
@@ -556,7 +563,7 @@ export default function AssessmentPolicyPage() {
                   <span>{scheme._count?.assessments || 0} assessments linked</span>
                   <div className="flex items-center gap-2">
                     <span>{scheme.assignments?.length || 0} class assignments</span>
-                    <Link href={`/school/admin/assessments/bulk-assignment?schemeId=${scheme.id}`}>
+                    <Link href={`${bulkAssignBasePath}?schemeId=${scheme.id}`}>
                       <Button
                         size="sm"
                         variant="ghost"

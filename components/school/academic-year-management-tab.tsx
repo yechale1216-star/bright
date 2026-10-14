@@ -389,14 +389,34 @@ export function AcademicYearManagementTab() {
                 ) : academicYears.map((year) => (
                   <TableRow key={year.id} className="border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
                     <TableCell className="py-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-slate-900 dark:text-white">
-                          {year.name}
-                        </span>
-                        {year.isCurrent && (
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold text-[10px] px-2">
-                            Current Active
-                          </Badge>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-slate-900 dark:text-white">
+                            {year.name}
+                          </span>
+                          {year.isCurrent && (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold text-[10px] px-2">
+                              Current Active
+                            </Badge>
+                          )}
+                        </div>
+                        {Array.isArray((year as any).terms) && (year as any).terms.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {(year as any).terms.map((term: any) => (
+                              <Badge
+                                key={term.id}
+                                variant="secondary"
+                                className={`text-[10px] px-1.5 py-0 font-medium ${
+                                  term.isCurrent
+                                    ? 'bg-primary/10 text-primary border border-primary/20 font-semibold'
+                                    : 'text-slate-500 bg-slate-100 dark:bg-slate-800'
+                                }`}
+                              >
+                                {term.name}
+                                {term.isCurrent && ' (Current)'}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </TableCell>

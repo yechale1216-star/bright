@@ -22,10 +22,13 @@ import {
   ChevronRight,
   Clock,
   Layers,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "@/components/theme-provider";
 import { studentDb } from "@/lib/db/student-db";
 import { cn } from "@/lib/utils/utils";
 
@@ -49,13 +52,23 @@ const NAV_ITEMS = [
 export function StudentShell({ children }: StudentShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   const [student, setStudent] = useState<any>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
 
+  const isDark = mounted ? theme === "dark" : false;
+
+  const toggleTheme = () => {
+    setTheme(isDark ? "light" : "dark");
+  };
+
   useEffect(() => {
+    setMounted(true);
+
     // Read cached student or fetch profile
     const readSession = () => {
       try {
@@ -128,20 +141,20 @@ export function StudentShell({ children }: StudentShellProps) {
   const displayStream = student?.stream ? ` • ${student.stream}` : " • Natural";
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col md:flex-row antialiased selection:bg-purple-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#070d1a] dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-purple-500 selection:text-white transition-colors duration-200">
       {/* ─── Desktop Sidebar ──────────────────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-64 bg-[#1e1b4b] text-white shrink-0 shadow-xl border-r border-indigo-950/40 z-30 justify-between">
+      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shrink-0 shadow-xs dark:shadow-xl border-r border-slate-200/80 dark:border-slate-800/80 z-30 justify-between transition-colors duration-200">
         <div>
           {/* Logo Brand Header */}
-          <div className="p-6 pb-5 border-b border-indigo-900/40 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-900/30 ring-2 ring-purple-400/20">
+          <div className="p-6 pb-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 text-white">
               <BookOpen className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-wide leading-tight text-white flex items-center gap-1.5">
+              <h1 className="font-bold text-base tracking-wide leading-tight text-slate-900 dark:text-white flex items-center gap-1.5">
                 Bright Path
               </h1>
-              <p className="text-xs text-purple-300 font-medium">Student Portal</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold">Student Portal</p>
             </div>
           </div>
 
@@ -161,14 +174,16 @@ export function StudentShell({ children }: StudentShellProps) {
                   className={cn(
                     "flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 group",
                     isActive
-                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
-                      : "text-indigo-200/80 hover:bg-white/10 hover:text-white"
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/25 font-semibold"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
                   )}
                 >
                   <Icon
                     className={cn(
                       "w-4 h-4 transition-transform group-hover:scale-110",
-                      isActive ? "text-white" : "text-purple-300/80"
+                      isActive
+                        ? "text-white"
+                        : "text-slate-400 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400"
                     )}
                   />
                   <span>{item.name}</span>
@@ -181,41 +196,79 @@ export function StudentShell({ children }: StudentShellProps) {
           </nav>
         </div>
 
-        {/* Sidebar Footer Branding & Logout */}
-        <div className="p-4 border-t border-indigo-900/40 space-y-3">
+        {/* Sidebar Footer: Theme Toggle & Logout */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5">
+          {/* Light / Dark Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800/80 group cursor-pointer"
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-purple-600 dark:text-purple-400 transition-transform group-hover:scale-110">
+                {isDark ? (
+                  <Moon className="w-4 h-4 animate-in fade-in zoom-in duration-200" />
+                ) : (
+                  <Sun className="w-4 h-4 animate-in fade-in zoom-in duration-200" />
+                )}
+              </span>
+              <span>{isDark ? "Dark Mode" : "Light Mode"}</span>
+            </div>
+            <div className="flex h-5 w-9 items-center rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-200 dark:border-purple-800/60 px-0.5">
+              <div
+                className={cn(
+                  "h-3.5 w-3.5 rounded-full bg-purple-600 shadow-xs transition-transform duration-300",
+                  isDark ? "translate-x-4" : "translate-x-0"
+                )}
+              />
+            </div>
+          </button>
+
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className="w-full justify-start text-indigo-300 hover:text-white hover:bg-white/10 text-xs font-medium rounded-xl h-9 px-3"
+            className="w-full justify-start text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium rounded-xl h-9 px-3"
           >
             <LogOut className="w-3.5 h-3.5 mr-2" />
             Sign Out
           </Button>
 
-          <div className="px-2 pt-1 text-[11px] text-indigo-300/70 leading-relaxed">
-            <p className="font-semibold text-indigo-200">Student Portal</p>
+          <div className="px-2 pt-1 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+            <p className="font-semibold text-slate-700 dark:text-slate-300">Student Portal</p>
             <p>Bright Path • Powered by Ethio Nova</p>
           </div>
         </div>
       </aside>
 
       {/* ─── Mobile Header ────────────────────────────────────────────────── */}
-      <header className="md:hidden bg-[#1e1b4b] text-white px-4 py-3.5 flex items-center justify-between sticky top-0 z-40 shadow-md">
+      <header className="md:hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-xs border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
             <BookOpen className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-none">Bright Path</h1>
-            <p className="text-[10px] text-purple-300">Student Portal</p>
+            <h1 className="font-bold text-sm leading-none text-slate-900 dark:text-white">Bright Path</h1>
+            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">Student Portal</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Quick theme toggle on mobile */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-8 w-8 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+            aria-label="Toggle theme"
+          >
+            {isDark ? <Moon className="w-4 h-4 text-purple-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+          </Button>
+
           <Link href="/student/profile" className="flex items-center gap-2">
             <Avatar className="w-8 h-8 ring-2 ring-purple-500/30">
               <AvatarImage src={student?.photo || ""} />
-              <AvatarFallback className="bg-purple-700 text-white text-xs font-semibold">
+              <AvatarFallback className="bg-purple-600 text-white text-xs font-semibold">
                 {displayName.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -224,7 +277,7 @@ export function StudentShell({ children }: StudentShellProps) {
             variant="ghost"
             size="icon"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="text-white hover:bg-white/10"
+            className="text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 h-8 w-8"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
@@ -234,38 +287,38 @@ export function StudentShell({ children }: StudentShellProps) {
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex">
-          <div className="w-72 bg-[#1e1b4b] text-white h-full flex flex-col justify-between p-4 shadow-2xl animate-in slide-in-from-left duration-200">
+          <div className="w-72 bg-white dark:bg-slate-900 text-slate-900 dark:text-white h-full flex flex-col justify-between p-4 shadow-2xl border-r border-slate-200 dark:border-slate-800 animate-in slide-in-from-left duration-200">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-indigo-900/40">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center text-white">
                     <BookOpen className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-sm">Bright Path</h2>
-                    <p className="text-xs text-purple-300">Student Portal</p>
+                    <h2 className="font-bold text-sm text-slate-900 dark:text-white">Bright Path</h2>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Student Portal</p>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-white hover:bg-white/10"
+                  className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
               {/* Student info summary */}
-              <div className="my-4 p-3 bg-white/5 rounded-xl border border-white/10 flex items-center gap-3">
+              <div className="my-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center gap-3">
                 <Avatar className="w-10 h-10 ring-2 ring-purple-400/40">
-                  <AvatarFallback className="bg-purple-700 text-white text-xs font-bold">
+                  <AvatarFallback className="bg-purple-600 text-white text-xs font-bold">
                     {displayName.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold text-xs text-white">{displayName}</p>
-                  <p className="text-[11px] text-purple-300">
+                  <p className="font-semibold text-xs text-slate-900 dark:text-white">{displayName}</p>
+                  <p className="text-[11px] text-purple-600 dark:text-purple-300 font-medium">
                     {displayGrade} {displayStream}
                   </p>
                 </div>
@@ -287,8 +340,8 @@ export function StudentShell({ children }: StudentShellProps) {
                       className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-xs transition-colors",
                         isActive
-                          ? "bg-purple-600 text-white font-semibold"
-                          : "text-indigo-200/80 hover:bg-white/10 hover:text-white"
+                          ? "bg-purple-600 text-white font-semibold shadow-xs"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60"
                       )}
                     >
                       <Icon className="w-4 h-4" />
@@ -299,11 +352,33 @@ export function StudentShell({ children }: StudentShellProps) {
               </nav>
             </div>
 
-            <div className="pt-4 border-t border-indigo-900/40">
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              {/* Theme toggle inside drawer */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 border border-slate-200/80 dark:border-slate-800/80"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-purple-600 dark:text-purple-400">
+                    {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                  </span>
+                  <span>{isDark ? "Dark Mode" : "Light Mode"}</span>
+                </div>
+                <div className="flex h-5 w-9 items-center rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-200 dark:border-purple-800/60 px-0.5">
+                  <div
+                    className={cn(
+                      "h-3.5 w-3.5 rounded-full bg-purple-600 shadow-xs transition-transform duration-300",
+                      isDark ? "translate-x-4" : "translate-x-0"
+                    )}
+                  />
+                </div>
+              </button>
+
               <Button
                 variant="destructive"
                 onClick={handleLogout}
-                className="w-full bg-red-600/80 hover:bg-red-600 text-white text-xs h-9 rounded-xl"
+                className="w-full bg-red-600/10 hover:bg-red-600 text-red-600 hover:text-white dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white text-xs h-9 rounded-xl transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5 mr-2" />
                 Sign Out
@@ -318,33 +393,48 @@ export function StudentShell({ children }: StudentShellProps) {
       {/* ─── Main Content Area ────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Header Bar (Desktop & Tablet) */}
-        <header className="hidden md:flex items-center justify-between px-8 py-3.5 bg-white border-b border-slate-200/80 sticky top-0 z-20 shadow-sm">
+        <header className="hidden md:flex items-center justify-between px-8 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors duration-200">
           {/* Search bar */}
           <div className="relative w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search classes, marks, announcements..."
-              className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-700"
+              className="w-full pl-9 pr-4 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
 
-          {/* Right Header: Clock, Ethiopian Time indicator, Profile Badge */}
-          <div className="flex items-center gap-6">
+          {/* Right Header: Theme Toggle, Clock, Ethiopian Time indicator, Profile Badge */}
+          <div className="flex items-center gap-4">
+            {/* Quick theme toggle button in header */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-9 w-9 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? (
+                <Moon className="w-4 h-4 text-purple-400" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-500" />
+              )}
+            </Button>
+
             <div className="text-right">
-              <p className="text-xs font-semibold text-slate-800 flex items-center justify-end gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-purple-600" />
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center justify-end gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                 {currentDate || "Thursday, Oct 9, 2026"}
               </p>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Ethiopian Time • <span className="font-semibold text-purple-700">{currentTime || "10:24 AM"}</span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Ethiopian Time • <span className="font-semibold text-purple-700 dark:text-purple-400">{currentTime || "10:24 AM"}</span>
               </p>
             </div>
 
             {/* Profile pill */}
             <Link
               href="/student/profile"
-              className="flex items-center gap-3 pl-4 border-l border-slate-200 group hover:opacity-90 transition-opacity"
+              className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800 group hover:opacity-90 transition-opacity"
             >
               <Avatar className="w-9 h-9 ring-2 ring-purple-600/20 group-hover:ring-purple-600/40 transition-all">
                 <AvatarImage src={student?.photo || ""} />
@@ -353,10 +443,10 @@ export function StudentShell({ children }: StudentShellProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <p className="text-xs font-bold text-slate-800 leading-tight">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">
                   {displayName}
                 </p>
-                <p className="text-[11px] text-purple-700 font-semibold leading-tight">
+                <p className="text-[11px] text-purple-700 dark:text-purple-400 font-semibold leading-tight">
                   {displayGrade} {displayStream}
                 </p>
               </div>
@@ -370,12 +460,12 @@ export function StudentShell({ children }: StudentShellProps) {
         </main>
 
         {/* ─── Mobile Bottom Navigation ──────────────────────────────────── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 flex items-center justify-around z-40 shadow-lg">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1 flex items-center justify-around z-40 shadow-lg transition-colors duration-200">
           <Link
             href="/student"
             className={cn(
               "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
-              pathname === "/student" ? "text-purple-700" : "text-slate-500"
+              pathname === "/student" ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
             )}
           >
             <Home className="w-5 h-5 mb-0.5" />
@@ -385,7 +475,7 @@ export function StudentShell({ children }: StudentShellProps) {
             href="/student/classes"
             className={cn(
               "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
-              pathname.startsWith("/student/classes") ? "text-purple-700" : "text-slate-500"
+              pathname.startsWith("/student/classes") ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
             )}
           >
             <Layers className="w-5 h-5 mb-0.5" />
@@ -395,7 +485,7 @@ export function StudentShell({ children }: StudentShellProps) {
             href="/student/marks"
             className={cn(
               "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
-              pathname.startsWith("/student/marks") ? "text-purple-700" : "text-slate-500"
+              pathname.startsWith("/student/marks") ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
             )}
           >
             <Award className="w-5 h-5 mb-0.5" />
@@ -405,7 +495,7 @@ export function StudentShell({ children }: StudentShellProps) {
             href="/student/attendance"
             className={cn(
               "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
-              pathname.startsWith("/student/attendance") ? "text-purple-700" : "text-slate-500"
+              pathname.startsWith("/student/attendance") ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
             )}
           >
             <CalendarCheck className="w-5 h-5 mb-0.5" />
@@ -415,7 +505,7 @@ export function StudentShell({ children }: StudentShellProps) {
             href="/student/profile"
             className={cn(
               "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
-              pathname.startsWith("/student/profile") ? "text-purple-700" : "text-slate-500"
+              pathname.startsWith("/student/profile") ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
             )}
           >
             <User className="w-5 h-5 mb-0.5" />

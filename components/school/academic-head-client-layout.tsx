@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   GraduationCap, Layers, Award, FileText, User, MessageSquare, UserCheck,
-  ChevronRight, X, LayoutDashboard
+  ChevronRight, X, LayoutDashboard, CalendarDays
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { useAuth } from '@/lib/context/auth-context'
@@ -13,16 +13,142 @@ import { AuthGuard } from '@/components/auth/auth-guard'
 import { TopNav } from '@/components/layout/top-nav'
 import { DeveloperBrand } from '@/components/developer-brand'
 
-const navItems = [
+interface NavItem {
+  href: string
+  icon: any
+  label: string
+  exact?: boolean
+  children?: Array<{ href: string; label: string }>
+}
+
+const navItems: NavItem[] = [
   { href: '/school/academic-head', icon: LayoutDashboard, label: 'Overview', exact: true },
   { href: '/school/academic-head/academic-structure', icon: Layers, label: 'Academic Structure' },
-  { href: '/school/academic-head/assessments', icon: GraduationCap, label: 'Assessments & Marks' },
+  { href: '/school/academic-head/timetables', icon: CalendarDays, label: 'Timetables' },
+  {
+    href: '/school/academic-head/assessments',
+    icon: GraduationCap,
+    label: 'Assessments',
+    children: [
+      { href: '/school/academic-head/assessments/submissions', label: 'Mark Submissions & Approval' },
+      { href: '/school/academic-head/assessments/bulk-assignment', label: 'Bulk Assessment Assignment' },
+      { href: '/school/academic-head/assessments/policy', label: 'Assessment Policy' },
+      { href: '/school/academic-head/assessments/reports', label: 'Assessment Reports' },
+      { href: '/school/academic-head/assessments/types', label: 'Assessment Types' },
+      { href: '/school/academic-head/assessments/templates', label: 'Assessment Templates' },
+      { href: '/school/academic-head/assessments/configurations', label: 'Grade & Subject Config' },
+    ],
+  },
   { href: '/school/academic-head/exams', icon: Award, label: 'Exams & Grades' },
   { href: '/school/academic-head/report-cards', icon: FileText, label: 'Report Cards' },
   { href: '/school/academic-head/staff-attendance', icon: UserCheck, label: 'My Attendance' },
   { href: '/school/academic-head/communication', icon: MessageSquare, label: 'Communication' },
   { href: '/school/academic-head/profile', icon: User, label: 'My Profile' },
 ]
+
+function AcademicNavItem({
+  item,
+  pathname,
+  isCollapsed = false,
+  onNavigate,
+}: {
+  item: NavItem
+  pathname: string
+  isCollapsed?: boolean
+  onNavigate?: () => void
+}) {
+  const hasChildren = Boolean(item.children && item.children.length > 0)
+  const isParentActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
+  const [expanded, setExpanded] = useState(isParentActive)
+
+  useEffect(() => {
+    if (isParentActive) {
+      setExpanded(true)
+    }
+  }, [isParentActive, pathname])
+
+  if (hasChildren && !isCollapsed) {
+    return (
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className={cn(
+            'w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-semibold group cursor-pointer text-left',
+            isParentActive || expanded
+              ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-400'
+          )}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <item.icon className={cn(
+              "w-5 h-5 flex-shrink-0 transition-colors",
+              isParentActive ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground group-hover:text-violet-500"
+            )} />
+            <span className="truncate">{item.label}</span>
+          </div>
+          <ChevronRight className={cn(
+            'w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0',
+            expanded && 'rotate-90 text-violet-600 dark:text-violet-400'
+          )} />
+        </button>
+
+        {expanded && (
+          <div className="pl-9 pr-2 py-1 space-y-1">
+            {item.children!.map((child) => {
+              const isChildActive = pathname === child.href
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  onClick={onNavigate}
+                >
+                  <div
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors block truncate',
+                      isChildActive
+                        ? 'bg-violet-600 text-white font-bold shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-violet-500/10'
+                    )}
+                  >
+                    {child.label}
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const targetHref = hasChildren ? item.children![0].href : item.href
+
+  return (
+    <Link
+      href={targetHref}
+      title={isCollapsed ? item.label : undefined}
+      onClick={onNavigate}
+    >
+      <div className={cn(
+        'flex items-center gap-3 rounded-xl transition-all text-sm font-semibold group',
+        isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
+        isParentActive
+          ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
+          : 'text-slate-600 dark:text-slate-300 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-400'
+      )}>
+        <item.icon className={cn(
+          "w-5 h-5 flex-shrink-0 transition-colors",
+          isParentActive ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground group-hover:text-violet-500"
+        )} />
+        {!isCollapsed && <span className="truncate">{item.label}</span>}
+        {!isCollapsed && isParentActive && !hasChildren && (
+          <ChevronRight className="w-4 h-4 ml-auto text-violet-500" />
+        )}
+      </div>
+    </Link>
+  )
+}
 
 export default function AcademicHeadClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -34,9 +160,6 @@ export default function AcademicHeadClientLayout({ children }: { children: React
 
   useEffect(() => { setIsMounted(true) }, [])
   useEffect(() => { setSidebarOpen(false) }, [pathname])
-
-  const isActive = (href: string, exact = false) =>
-    exact ? pathname === href : pathname.startsWith(href)
 
   if (!isMounted || !sessionReady) return null
 
@@ -78,18 +201,12 @@ export default function AcademicHeadClientLayout({ children }: { children: React
           </div>
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
             {navItems.map(item => (
-              <Link key={item.href} href={item.href}>
-                <div className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold group',
-                  isActive(item.href, item.exact)
-                    ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                )}>
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="flex-1">{item.label}</span>
-                  {isActive(item.href, item.exact) && <ChevronRight className="w-4 h-4" />}
-                </div>
-              </Link>
+              <AcademicNavItem
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                onNavigate={() => setSidebarOpen(false)}
+              />
             ))}
           </nav>
           <div className="shrink-0 p-4 border-t border-border text-center bg-card/50">
@@ -128,18 +245,12 @@ export default function AcademicHeadClientLayout({ children }: { children: React
           </div>
           <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
             {navItems.map(item => (
-              <Link key={item.href} href={item.href} title={isCollapsed ? item.label : undefined}>
-                <div className={cn(
-                  'flex items-center gap-3 rounded-xl transition-all text-sm font-semibold group',
-                  isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
-                  isActive(item.href, item.exact)
-                    ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-400'
-                )}>
-                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground group-hover:text-violet-500")} />
-                  {!isCollapsed && <span className="truncate">{item.label}</span>}
-                </div>
-              </Link>
+              <AcademicNavItem
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                isCollapsed={isCollapsed}
+              />
             ))}
           </nav>
           <div className={cn("p-4 border-t border-border/80 text-center bg-card/50", isCollapsed && "hidden")}>

@@ -133,6 +133,19 @@ const markAttendance = async (data, _schoolId) => {
     if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
         throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
     }
+    if (userRole === 'teacher') {
+        const isHomeroom = await db_1.default.teacherAssignment.findFirst({
+            where: {
+                teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) },
+                role: 'HOMEROOM_TEACHER',
+                gradeId: student.gradeId,
+                sectionId: student.sectionId,
+            },
+        });
+        if (!isHomeroom) {
+            throw new Error(`Access denied: You are not authorized to record attendance for this class. Only the assigned Homeroom Teacher for ${student.fullName}'s grade and section can record attendance.`);
+        }
+    }
     const settings = await db_1.default.schoolSettings.findFirst();
     const { locVerified, locDistance } = validateGeofence(data, settings);
     const { dateStr, startDate, endDate } = (0, exports.normalizeDate)(date);
@@ -583,6 +596,17 @@ const bulkMarkAttendance = async (records, _schoolId, meta = {}) => {
     }
     const { userRole, userId, teacherId } = meta;
     const resolvedTeacherId = await (0, exports.resolveTeacherId)(undefined, teacherId || userId);
+    if (userRole === 'teacher') {
+        const isHomeroom = await db_1.default.teacherAssignment.findFirst({
+            where: {
+                teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) },
+                role: 'HOMEROOM_TEACHER',
+            },
+        });
+        if (!isHomeroom) {
+            throw new Error('Access denied: Subject teachers are not authorized to record student attendance. Only assigned Homeroom Teachers can mark attendance.');
+        }
+    }
     const settings = await db_1.default.schoolSettings.findFirst();
     let locVerified = meta.locationVerified ?? false;
     let locDistance = meta.locationDistance != null ? Number(meta.locationDistance) : null;
@@ -615,8 +639,21 @@ const bulkMarkAttendance = async (records, _schoolId, meta = {}) => {
     const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
     const validStudents = await db_1.default.student.findMany({
         where: { id: { in: studentIds }, status: 'ACTIVE' },
-        select: { id: true, fullName: true, gender: true }
+        select: { id: true, fullName: true, gender: true, gradeId: true, sectionId: true }
     });
+    if (userRole === 'teacher') {
+        const homeroomAssignments = await db_1.default.teacherAssignment.findMany({
+            where: {
+                teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) },
+                role: 'HOMEROOM_TEACHER',
+            },
+            select: { gradeId: true, sectionId: true }
+        });
+        const unauthorizedStudent = validStudents.find(s => !homeroomAssignments.some(h => h.gradeId === s.gradeId && h.sectionId === s.sectionId));
+        if (unauthorizedStudent) {
+            throw new Error(`Access denied: You are not authorized to record attendance for student "${unauthorizedStudent.fullName}". You can only record attendance for classes where you are assigned as Homeroom Teacher.`);
+        }
+    }
     const studentMap = new Map(validStudents.map(s => [s.id, s]));
     const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
     const activeAYId = activeAY?.id || null;
