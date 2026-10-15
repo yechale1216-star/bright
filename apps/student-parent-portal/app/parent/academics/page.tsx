@@ -39,7 +39,9 @@ export default function ParentAcademicsPage() {
     let activeId = localStorage.getItem('parent_selected_student_id');
     if (!activeId && list.length > 0) {
       activeId = list[0].id;
-      localStorage.setItem('parent_selected_student_id', activeId);
+      if (activeId) {
+        localStorage.setItem('parent_selected_student_id', activeId);
+      }
     }
 
     setStudentId(activeId);
