@@ -20,6 +20,7 @@ import { notifications } from '@/lib/utils/notifications'
 import { useUnread } from '@/lib/context/unread-context'
 import { TopNav } from '@/components/layout/top-nav'
 import { DeveloperBrand } from '@/components/developer-brand'
+import { useIsNativeApp } from '@/hooks/use-is-native-app'
 
 export interface NavItem {
   href: string;
@@ -51,6 +52,7 @@ export default function SchoolAdminClientLayout({
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [showBottomNav, setShowBottomNav] = React.useState(true)
   const [lastScrollY, setLastScrollY] = React.useState(0)
+  const isNative = useIsNativeApp()
 
   const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {
     const currentScrollY = e.currentTarget.scrollTop
@@ -361,7 +363,7 @@ export default function SchoolAdminClientLayout({
                 <main
                   className={cn(
                     "flex-1 flex flex-col overflow-auto relative min-h-0",
-                    !isCommunicationPage && "pb-20 md:pb-0"
+                    isNative && !isCommunicationPage && "pb-20 md:pb-0"
                   )}
                   onScroll={handleMainScroll}
                 >
@@ -370,7 +372,7 @@ export default function SchoolAdminClientLayout({
                   </div>
                 </main>
 
-                {!isCommunicationPage && (
+                {isNative && !isCommunicationPage && (
                   <nav className={cn(
                     "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/80 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe",
                     !showBottomNav ? "translate-y-full" : "translate-y-0"

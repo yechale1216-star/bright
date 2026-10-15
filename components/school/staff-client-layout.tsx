@@ -24,6 +24,7 @@ import { notifications } from '@/lib/utils/notifications'
 import { DeveloperBrand } from '@/components/developer-brand'
 import { useUnread } from '@/lib/context/unread-context'
 import { Spinner } from '@/components/ui/spinner'
+import { useIsNativeApp } from '@/hooks/use-is-native-app'
 
 const navItems = [
   { href: '/school/staff', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -38,6 +39,7 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
   const { user, logout, sessionReady } = useAuth()
   const { totalUnreadCount } = useUnread()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const isNative = useIsNativeApp()
   const [showBottomNav, setShowBottomNav] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
   const lastScrollY = useRef(0)
@@ -226,7 +228,7 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
             onScroll={handleScroll}
             className={cn(
               "flex-1 flex flex-col min-h-0 relative",
-              isCommunicationPage ? "overflow-hidden" : "overflow-y-auto p-3.5 sm:p-4 md:p-6 pb-24 md:pb-6"
+              isCommunicationPage ? "overflow-hidden" : cn("overflow-y-auto p-3.5 sm:p-4 md:p-6", isNative ? "pb-24 md:pb-6" : "pb-6")
             )}
           >
             <div className="flex-1 flex flex-col min-h-0 h-full">
@@ -236,7 +238,7 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
           <DeveloperBrand />
 
           {/* Mobile Glassmorphic Bottom Navigation Bar */}
-          {!isCommunicationPage && (
+          {isNative && !isCommunicationPage && (
             <nav
               className={cn(
                 'md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/85 backdrop-blur-xl transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe shadow-lg',

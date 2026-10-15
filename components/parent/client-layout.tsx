@@ -39,6 +39,7 @@ import { DeveloperBrand } from "@/components/developer-brand"
 import { clearMessageCache } from "@/lib/utils/message-cache"
 import { cn } from "@/lib/utils/utils"
 import { useUnread } from "@/lib/context/unread-context"
+import { useIsNativeApp } from "@/hooks/use-is-native-app"
 
 
 export default function ParentClientLayout({ children }: { children: React.ReactNode }) {
@@ -62,6 +63,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
   const { activeSchool: ctxActiveSchool, availableSchools: ctxAvailableSchools, clearSchoolContext } = useSchool()
   const { user: currentUser, logout: authLogout } = useAuth()
   const { totalUnreadCount } = useUnread()
+  const isNative = useIsNativeApp()
 
   // Fallback to localStorage when SchoolContext hasn't hydrated yet.
   const [lsActiveSchool, setLsActiveSchool] = useState<any>(null)
@@ -446,7 +448,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         )}
 
         <main
-          className={cn("flex-1 flex flex-col overflow-y-auto relative min-h-0 w-full max-w-full box-border", !isCommunicationPage && "pb-20 md:pb-0")}
+          className={cn("flex-1 flex flex-col overflow-y-auto relative min-h-0 w-full max-w-full box-border", isNative && !isCommunicationPage && "pb-20 md:pb-0")}
           onScroll={handleMainScroll}
         >
           <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10 box-border max-w-full", !isCommunicationPage ? "max-w-6xl px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6 space-y-4 sm:space-y-6" : "p-0")}>
@@ -454,7 +456,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
         </main>
 
-        {!isCommunicationPage && (
+        {isNative && !isCommunicationPage && (
           <nav className={cn(
             "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/90 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe w-full max-w-full box-border",
             !showBottomNav ? "translate-y-full" : "translate-y-0"

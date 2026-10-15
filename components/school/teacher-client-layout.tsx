@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { useUnread } from '@/lib/context/unread-context'
 import { DeveloperBrand } from '@/components/developer-brand'
 import { useTeacherRole } from '@/hooks/use-teacher-role'
+import { useIsNativeApp } from '@/hooks/use-is-native-app'
 
 export default function TeacherClientLayout({
   children,
@@ -43,6 +44,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
   const [lastScrollY, setLastScrollY] = useState(0)
   const { totalUnreadCount } = useUnread()
   const { isHomeroomTeacher, isDualRole } = useTeacherRole()
+  const isNative = useIsNativeApp()
 
   useEffect(() => {
     setMounted(true)
@@ -221,7 +223,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
               <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
                 {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
                 <main 
-                  className={cn("flex-1 flex flex-col overflow-auto focus:outline-none relative", !isCommunicationPage && "pb-20 md:pb-0")}
+                  className={cn("flex-1 flex flex-col overflow-auto focus:outline-none relative", isNative && !isCommunicationPage && "pb-20 md:pb-0")}
                   onScroll={handleMainScroll}
                 >
                   <div className="flex-1 flex flex-col min-h-0">
@@ -229,7 +231,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                   </div>
                 </main>
 
-                {!isCommunicationPage && (
+                {isNative && !isCommunicationPage && (
                   <nav className={cn(
                     "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/80 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe",
                     !showBottomNav ? "translate-y-full" : "translate-y-0"

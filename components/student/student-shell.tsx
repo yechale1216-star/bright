@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/components/theme-provider";
 import { studentDb } from "@/lib/db/student-db";
 import { cn } from "@/lib/utils/utils";
+import { useIsNativeApp } from "@/hooks/use-is-native-app";
 
 interface StudentShellProps {
   children: React.ReactNode;
@@ -59,6 +60,7 @@ export function StudentShell({ children }: StudentShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
+  const isNative = useIsNativeApp();
 
   const isDark = mounted ? theme === "dark" : false;
 
@@ -455,22 +457,23 @@ export function StudentShell({ children }: StudentShellProps) {
         </header>
 
         {/* Page View Container */}
-        <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto pb-20 md:pb-8">
+        <main className={cn("flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto", isNative ? "pb-20 md:pb-8" : "pb-8")}>
           {children}
         </main>
 
         {/* ─── Mobile Bottom Navigation ──────────────────────────────────── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1 flex items-center justify-around z-40 shadow-lg transition-colors duration-200">
-          <Link
-            href="/student"
-            className={cn(
-              "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
-              pathname === "/student" ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
-            )}
-          >
-            <Home className="w-5 h-5 mb-0.5" />
-            <span>Home</span>
-          </Link>
+        {isNative && (
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-2 py-1 flex items-center justify-around z-40 shadow-lg transition-colors duration-200">
+            <Link
+              href="/student"
+              className={cn(
+                "flex flex-col items-center py-1 px-2.5 rounded-lg text-[10px] font-semibold transition-colors",
+                pathname === "/student" ? "text-purple-600 dark:text-purple-400 font-bold" : "text-slate-500 dark:text-slate-400"
+              )}
+            >
+              <Home className="w-5 h-5 mb-0.5" />
+              <span>Home</span>
+            </Link>
           <Link
             href="/student/classes"
             className={cn(
@@ -512,6 +515,7 @@ export function StudentShell({ children }: StudentShellProps) {
             <span>Profile</span>
           </Link>
         </nav>
+        )}
       </div>
     </div>
   );
