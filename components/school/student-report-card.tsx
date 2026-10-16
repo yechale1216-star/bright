@@ -207,12 +207,13 @@ export function StudentReportCard({ card, showPrintStyles = true, className = ''
                   </td>
                   {periods.map((period) => {
                     const score = row.scores[period.id];
+                    const hasScore = score !== undefined && score !== null;
                     return (
                       <td
                         key={period.id}
                         className="py-1 px-2 text-center font-bold text-slate-900 border-r border-slate-900"
                       >
-                        {score !== undefined && score !== null ? score : '—'}
+                        {hasScore ? score : '—'}
                       </td>
                     );
                   })}
@@ -236,14 +237,17 @@ export function StudentReportCard({ card, showPrintStyles = true, className = ''
                 <td className="py-1.5 px-2 border-r border-slate-900 font-bold text-slate-900">
                   {summary.totalRow.weight}
                 </td>
-                {periods.map((period) => (
-                  <td
-                    key={period.id}
-                    className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
-                  >
-                    {summary.totalRow.periodSums[period.id] ?? '—'}
-                  </td>
-                ))}
+                {periods.map((period) => {
+                  const pSum = summary.totalRow.periodSums[period.id];
+                  return (
+                    <td
+                      key={period.id}
+                      className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                    >
+                      {pSum !== null && pSum !== undefined ? pSum : '—'}
+                    </td>
+                  );
+                })}
                 <td className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900 bg-slate-200/50">
                   {summary.totalRow.total}
                 </td>
@@ -258,16 +262,17 @@ export function StudentReportCard({ card, showPrintStyles = true, className = ''
                   Average
                 </td>
                 <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                {periods.map((period) => (
-                  <td
-                    key={period.id}
-                    className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
-                  >
-                    {summary.averageRow.periodAverages[period.id] !== undefined
-                      ? `${summary.averageRow.periodAverages[period.id]}%`
-                      : '—'}
-                  </td>
-                ))}
+                {periods.map((period) => {
+                  const pAvg = summary.averageRow.periodAverages[period.id];
+                  return (
+                    <td
+                      key={period.id}
+                      className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                    >
+                      {pAvg !== null && pAvg !== undefined ? `${pAvg}%` : '—'}
+                    </td>
+                  );
+                })}
                 <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
                 <td className="py-1.5 px-2 font-black text-blue-900 bg-blue-50/40">
                   {summary.averageRow.overallAverage}%
@@ -403,39 +408,33 @@ export function StudentReportCard({ card, showPrintStyles = true, className = ''
 
       {/* Embedded Print Styles for A4 Paper */}
       {showPrintStyles && (
-        <style jsx global>{`
-          @media print {
-            @page {
-              size: A4 portrait;
-              margin: 8mm;
-            }
-            body {
-              background: white !important;
-              color: black !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            .print\\:hidden,
-            nav,
-            header,
-            aside,
-            button,
-            [role='dialog'] > div:first-child:not(.report-card-container) {
-              display: none !important;
-            }
-            .report-card-container {
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 4mm !important;
-              box-shadow: none !important;
-              border: none !important;
-              page-break-after: always;
-            }
-          }
-        `}</style>
+        <style
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{
+            __html: `
+@media print {
+  @page { size: A4 portrait; margin: 8mm; }
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  nav, header, aside, .print-hidden { display: none !important; }
+  .report-card-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: always;
+  }
+}`,
+          }}
+        />
       )}
     </div>
   );

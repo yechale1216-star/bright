@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import prisma from '../config/db';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { gradebookService } from '../services/gradebook.service';
 import { verifyTeacherClassSubjectAccess } from '../services/assignment.service';
@@ -344,6 +345,91 @@ export const bulkUpdateReportCardStatus = async (req: AuthenticatedRequest, res:
   }
 };
 
+export const getReportCardReadiness = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { gradeId, sectionId, academicYearId, academicTermId, reportCardId } = req.query as any;
+    if (reportCardId) {
+      const result = await gradebookService.validateReportCardReadiness(reportCardId);
+      return res.status(200).json({ success: true, data: result });
+    }
+    if (!gradeId || !sectionId || !academicYearId) {
+      return res.status(400).json({
+        success: false,
+        message: 'gradeId, sectionId, and academicYearId query parameters are required',
+      });
+    }
+    const overview = await gradebookService.getClassReadinessOverview({
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId: academicTermId || undefined,
+    });
+    res.status(200).json({ success: true, data: overview });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const publishReportCard = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const publisherId = req.user?.id;
+    const published = await gradebookService.publishReportCard(id, publisherId);
+    res.status(200).json({
+      success: true,
+      data: published,
+      message: `Report card published successfully for ${published.student.fullName}`,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error?.message || 'Failed to publish report card',
+    });
+  }
+};
+
+export const bulkPublishReportCards = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { gradeId, sectionId, academicYearId, academicTermId, reportCardIds } = req.body;
+    if (!gradeId || !sectionId || !academicYearId) {
+      return res.status(400).json({
+        success: false,
+        message: 'gradeId, sectionId, and academicYearId are required',
+      });
+    }
+
+    // If academicTermId is not provided, fetch the first term of the year or use empty
+    let termId = academicTermId;
+    if (!termId) {
+      const year = await prisma.academicYear.findUnique({
+        where: { id: academicYearId },
+        include: { terms: { orderBy: { startDate: 'asc' }, take: 1 } },
+      });
+      termId = year?.terms?.[0]?.id || '';
+    }
+
+    const publisherId = req.user?.id;
+    const result = await gradebookService.bulkPublishReportCards(
+      { gradeId, sectionId, academicYearId, academicTermId: termId, reportCardIds },
+      publisherId
+    );
+    res.status(200).json({
+      success: true,
+      data: {
+        ...result,
+        published: result.publishedCount,
+        skipped: result.skippedCount,
+      },
+      message: `Successfully published ${result.publishedCount} report cards. ${result.skippedCount} skipped due to incomplete marks.`,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error?.message || 'Failed to execute bulk publication',
+    });
+  }
+};
+
 export const getStudentReportCard = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { studentId } = req.params;
@@ -361,6 +447,19 @@ export const getComprehensiveReportCard = async (req: AuthenticatedRequest, res:
     if (!studentId) {
       return res.status(400).json({ success: false, message: 'studentId query parameter is required' });
     }
+
+    // Role check: Students and Parents must NOT see draft or unpublished report cards
+    const userRole = req.user?.role;
+    if (userRole === 'student' || userRole === 'parent') {
+      const isPublished = await gradebookService.isReportCardPublished(studentId, academicYearId, academicTermId);
+      if (!isPublished) {
+        return res.status(403).json({
+          success: false,
+          message: 'Report card has not been published yet. Please check back after official publication.',
+        });
+      }
+    }
+
     const reportCard = await gradebookService.getComprehensiveReportCardData({
       studentId,
       academicYearId,
@@ -408,6 +507,17 @@ export const getSubmissions = async (req: AuthenticatedRequest, res: Response, n
     const { assessmentSubmissionService } = await import('../services/assessment-submission.service');
     const result = await assessmentSubmissionService.getSubmissions(req.query as any);
     res.status(200).json({ success: true, data: result.submissions, pagination: result.pagination });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const syncSubmissions = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { academicYearId, academicTermId } = req.body || {};
+    const { assessmentSubmissionService } = await import('../services/assessment-submission.service');
+    const synced = await assessmentSubmissionService.syncSubmissions(academicYearId, academicTermId);
+    res.status(200).json({ success: true, count: synced, message: `Successfully synced ${synced} submissions` });
   } catch (error) {
     next(error);
   }

@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.getNextStudentId = exports.getStudentCount = exports.getAllStudents = void 0;
+exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.bulkUpsertStudents = exports.generateStudentId = exports.createStudent = exports.bulkGenerateActivationCodes = exports.generateActivationCode = exports.getNextStudentId = exports.getStudentCount = exports.getAllStudents = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const parentService = __importStar(require("./parent.service"));
 const academic_year_service_1 = require("./academic-year.service");
@@ -247,6 +247,64 @@ const getNextStudentId = async (_schoolId) => {
     return `${idPrefix}${nextSequence.toString().padStart(6, '0')}`;
 };
 exports.getNextStudentId = getNextStudentId;
+// ─── ACTIVATION CODE MANAGEMENT ───────────────────────────────────────────────
+/**
+ * Generate (or regenerate) a one-time activation code for a student.
+ * Called by staff from the admin portal.
+ * Returns all data needed to print an activation slip.
+ */
+const generateActivationCode = async (studentId) => {
+    const student = await db_1.default.student.findUnique({
+        where: { id: studentId },
+        include: { grade: true, section: true },
+    });
+    if (!student)
+        throw new Error('Student not found.');
+    // Generate a random 8-char uppercase alphanumeric code
+    const { randomBytes } = await Promise.resolve().then(() => __importStar(require('crypto')));
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars (0,O,1,I)
+    const bytes = randomBytes(8);
+    const code = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    await db_1.default.student.update({
+        where: { id: studentId },
+        data: {
+            activation_code: code,
+            activation_code_expires: expires,
+            accountStatus: 'PENDING_ACTIVATION',
+        },
+    });
+    return {
+        student_id: student.student_id,
+        fullName: student.fullName,
+        grade: student.grade?.name || '',
+        section: student.section?.name || '',
+        activationCode: code,
+        expiresAt: expires,
+    };
+};
+exports.generateActivationCode = generateActivationCode;
+/**
+ * Bulk generate activation codes for all PENDING_ACTIVATION students in a grade/section.
+ */
+const bulkGenerateActivationCodes = async (gradeId, sectionId) => {
+    const where = { accountStatus: 'PENDING_ACTIVATION' };
+    if (gradeId)
+        where.gradeId = gradeId;
+    if (sectionId)
+        where.sectionId = sectionId;
+    const students = await db_1.default.student.findMany({
+        where,
+        include: { grade: true, section: true },
+    });
+    const results = [];
+    for (const student of students) {
+        const slip = await (0, exports.generateActivationCode)(student.id);
+        results.push(slip);
+    }
+    return results;
+};
+exports.bulkGenerateActivationCodes = bulkGenerateActivationCodes;
 const createStudent = async (data, _schoolId) => {
     let studentId = data.student_id;
     if (!studentId) {
@@ -373,9 +431,18 @@ const createStudent = async (data, _schoolId) => {
     catch (notifErr) {
         console.error('[StudentService] Failed to send admin notification for new student:', notifErr);
     }
+    let activationSlip = null;
+    try {
+        activationSlip = await (0, exports.generateActivationCode)(newStudent.id);
+    }
+    catch (actErr) {
+        console.error('[StudentService] Failed to auto-generate activation code for new student:', actErr);
+    }
     return {
         ...mapStudentToFlat(newStudent),
         relationshipType: data.relationshipType || linkRecord?.relationshipType || 'Guardian',
+        activationCode: activationSlip?.activationCode || null,
+        activationSlip,
     };
 };
 exports.createStudent = createStudent;

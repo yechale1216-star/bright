@@ -38,6 +38,8 @@ import {
   Trash2,
   AlertTriangle,
   HelpCircle,
+  Clock,
+  RotateCcw,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -194,6 +196,18 @@ export default function TeacherGradebookPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Submission Record & Locking Status
+  const submissionRecord = gradebookData?.submissionRecord;
+  const submissionStatus = submissionRecord?.status || 'DRAFT';
+  const isLocked =
+    submissionStatus === 'SUBMITTED' ||
+    submissionStatus === 'PENDING_APPROVAL' ||
+    submissionStatus === 'APPROVED' ||
+    submissionStatus === 'PUBLISHED';
+  const isReturned = submissionStatus === 'RETURNED';
+  const isApproved = submissionStatus === 'APPROVED';
+  const isPublished = submissionStatus === 'PUBLISHED';
 
   // Local Editable Marks State: [studentId][assessmentId] => cell
   const [localMarks, setLocalMarks] = useState<Record<string, Record<string, EditableCell>>>({});
@@ -427,10 +441,6 @@ export default function TeacherGradebookPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [dirtyCells]);
 
-  // Read-only lock status based on submissionRecord
-  const submissionStatus = gradebookData?.submissionRecord?.status || 'DRAFT';
-  const isLocked = submissionStatus === 'SUBMITTED' || submissionStatus === 'APPROVED' || submissionStatus === 'PUBLISHED';
-  const isReturned = submissionStatus === 'RETURNED';
 
   // Handle Mark Cell Change (Instant client calculation & dirty tracking)
   const handleCellChange = useCallback(
@@ -1328,16 +1338,49 @@ export default function TeacherGradebookPage() {
               <span>{saving ? 'Saving...' : dirtyCells.size > 0 ? `Save Draft (${dirtyCells.size})` : 'Save Draft'}</span>
             </Button>
 
-            <Button
-              variant="default"
-              size="sm"
-              disabled={saving || isLocked}
-              onClick={() => setSubmitModalOpen(true)}
-              className="h-8.5 px-3.5 rounded-xl gap-1.5 font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
-            >
-              <Send className="w-4 h-4" />
-              <span>Submit for Approval</span>
-            </Button>
+            {/* Primary Submit Button / Lock Indicator */}
+            {isLocked ? (
+              <Badge
+                variant="outline"
+                className={`h-8.5 px-3 rounded-xl gap-1.5 font-bold text-xs ${
+                  isApproved
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : isPublished
+                    ? 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                    : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                }`}
+              >
+                {isApproved ? (
+                  <CheckCircle className="w-3.5 h-3.5" />
+                ) : isPublished ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5" />
+                )}
+                <span>{isApproved ? 'Approved' : isPublished ? 'Published' : 'Under Review'}</span>
+              </Badge>
+            ) : isReturned ? (
+              <Button
+                size="sm"
+                onClick={() => setSubmitModalOpen(true)}
+                disabled={saving}
+                className="h-8.5 px-3.5 rounded-xl gap-1.5 font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Re-submit for Approval</span>
+              </Button>
+            ) : (
+              <Button
+                variant="default"
+                size="sm"
+                disabled={saving || isLocked}
+                onClick={() => setSubmitModalOpen(true)}
+                className="h-8.5 px-3.5 rounded-xl gap-1.5 font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
+              >
+                <Send className="w-4 h-4" />
+                <span>Submit for Approval</span>
+              </Button>
+            )}
 
             {/* More Actions Dropdown */}
             <DropdownMenu>
@@ -1386,6 +1429,60 @@ export default function TeacherGradebookPage() {
             </DropdownMenu>
           </div>
         </div>
+
+        {/* Submission Status Alert Banner */}
+        {isLocked ? (
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-500/10 dark:bg-blue-950/40 border border-blue-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-900 dark:text-blue-200 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
+                {isApproved ? <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> : <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  {isApproved
+                    ? 'Assessment Marks Approved & Verified'
+                    : isPublished
+                    ? 'Official Results Published'
+                    : 'Submitted to School Administrator for Approval'}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {isApproved
+                    ? 'Marks for this class have been verified and approved. Editing is locked.'
+                    : isPublished
+                    ? 'Official report card scores are active. Editing is locked.'
+                    : `Marks were submitted on ${submissionRecord?.submittedAt ? new Date(submissionRecord.submittedAt).toLocaleDateString() : 'recent date'}. Marks are in read-only mode while under review.`}
+                </p>
+              </div>
+            </div>
+            <Badge className="shrink-0 font-mono text-[11px] bg-blue-600 text-white self-start sm:self-auto">
+              {submissionStatus}
+            </Badge>
+          </div>
+        ) : isReturned ? (
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                  Returned for Correction by School Administrator
+                </p>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
+                  <strong>Reason:</strong> {submissionRecord?.rejectionReason || 'Please review student marks and re-submit.'}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setSubmitModalOpen(true)}
+              className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs gap-1.5 rounded-xl shadow-xs self-start sm:self-auto"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Re-submit Marks
+            </Button>
+          </div>
+        ) : null}
 
         {dirtyCells.size > 0 && (
           <div className="flex items-center gap-2">

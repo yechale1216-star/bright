@@ -32,6 +32,9 @@ router.get('/students/:studentId/marks', gradebookController.getStudentMarks);
 
 // Report Cards
 router.post('/report-cards/generate', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.generateReportCards);
+router.get('/report-cards/readiness', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.getReportCardReadiness);
+router.post('/report-cards/:id/publish', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.publishReportCard);
+router.post('/report-cards/bulk-publish', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.bulkPublishReportCards);
 router.get('/report-cards', gradebookController.getReportCards);
 router.get('/report-cards/comprehensive', gradebookController.getComprehensiveReportCard);
 router.get('/report-cards/batch-comprehensive', gradebookController.getBatchComprehensiveReportCards);
@@ -42,6 +45,7 @@ router.post('/report-cards/bulk-status', authorize(['admin', 'school_admin']), g
 // Mark Submission & Approval Workflow
 router.get('/submissions/dashboard', gradebookController.getSubmissionDashboard);
 router.get('/submissions', gradebookController.getSubmissions);
+router.post('/submissions/sync', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.syncSubmissions);
 router.get('/submissions/:id/details', gradebookController.getSubmissionDetails);
 router.post('/submissions/:id/approve', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.approveSubmission);
 router.post('/submissions/:id/return', authorize(['admin', 'school_admin', 'academic_head']), gradebookController.returnSubmission);

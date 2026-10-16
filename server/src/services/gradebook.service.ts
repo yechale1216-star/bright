@@ -378,10 +378,14 @@ export class GradebookService {
       throw new Error('Assessment not found');
     }
 
-    const results = [];
-    for (const item of marks) {
+    if (!marks || marks.length === 0) {
+      return { count: 0, assessmentId };
+    }
+
+    const operations = marks.map((item) => {
       const score = item.isAbsent ? 0 : Math.min(Math.max(Number(item.score || 0), 0), assessment.maxScore);
-      const res = await prisma.studentMark.upsert({
+      const status = item.isAbsent ? 'ABSENT' : score !== null && score !== undefined ? 'PRESENT' : 'UNGRADED';
+      return prisma.studentMark.upsert({
         where: {
           assessmentId_studentId: {
             assessmentId,
@@ -391,6 +395,7 @@ export class GradebookService {
         update: {
           score,
           isAbsent: !!item.isAbsent,
+          status,
           remarks: item.remarks || null,
           gradedById: gradedById || null,
         },
@@ -399,11 +404,19 @@ export class GradebookService {
           studentId: item.studentId,
           score,
           isAbsent: !!item.isAbsent,
+          status,
           remarks: item.remarks || null,
           gradedById: gradedById || null,
         },
       });
-      results.push(res);
+    });
+
+    const BATCH_SIZE = 50;
+    const results: any[] = [];
+    for (let i = 0; i < operations.length; i += BATCH_SIZE) {
+      const chunk = operations.slice(i, i + BATCH_SIZE);
+      const chunkResults = await prisma.$transaction(chunk);
+      results.push(...chunkResults);
     }
 
     return {
@@ -437,7 +450,130 @@ export class GradebookService {
   }
 
   /**
-   * Report Cards Calculation & Generation
+   * Resolve all required subjects assigned to a student's grade & section
+   */
+  async getRequiredSubjectsForGradeAndSection(
+    gradeId: string,
+    sectionId?: string,
+    academicYearId?: string,
+    academicTermId?: string
+  ): Promise<Array<{ id: string; name: string; code: string; color: string }>> {
+    const subjectIdSet = new Set<string>();
+
+    // 1. Teacher assignments for this grade/section
+    const teacherAssignments = await prisma.teacherAssignment.findMany({
+      where: {
+        gradeId,
+        ...(sectionId ? { sectionId } : {}),
+      },
+      select: { subjectId: true, subject: true },
+    });
+
+    for (const ta of teacherAssignments) {
+      if (ta.subjectId) {
+        subjectIdSet.add(ta.subjectId);
+      } else if (ta.subject) {
+        const matched = await prisma.subject.findFirst({
+          where: {
+            OR: [
+              { name: { equals: ta.subject, mode: 'insensitive' } },
+              { code: { equals: ta.subject, mode: 'insensitive' } },
+            ],
+          },
+          select: { id: true },
+        });
+        if (matched) subjectIdSet.add(matched.id);
+      }
+    }
+
+    // 2. Assessment scheme assignments
+    const schemeAssignments = await prisma.assessmentSchemeAssignment.findMany({
+      where: {
+        gradeId,
+        ...(academicYearId ? { academicYearId } : {}),
+        ...(academicTermId ? { OR: [{ academicTermId: null }, { academicTermId }] } : {}),
+      },
+      select: { subjectId: true },
+    });
+    for (const sa of schemeAssignments) {
+      if (sa.subjectId) subjectIdSet.add(sa.subjectId);
+    }
+
+    // 3. Assessments created for this grade
+    const assessments = await prisma.assessment.findMany({
+      where: {
+        gradeId,
+        ...(sectionId ? { OR: [{ sectionId: null }, { sectionId }] } : {}),
+        ...(academicYearId ? { academicYearId } : {}),
+        ...(academicTermId ? { academicTermId } : {}),
+      },
+      select: { subjectId: true },
+    });
+    for (const a of assessments) {
+      if (a.subjectId) subjectIdSet.add(a.subjectId);
+    }
+
+    // 4. Assessment submission records
+    const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
+      where: {
+        gradeId,
+        ...(sectionId ? { sectionId } : {}),
+        ...(academicYearId ? { academicYearId } : {}),
+        ...(academicTermId ? { academicTermId } : {}),
+      },
+      select: { subjectId: true },
+    });
+    for (const sr of submissionRecords) {
+      if (sr.subjectId) subjectIdSet.add(sr.subjectId);
+    }
+
+    let subjects: any[] = [];
+    if (subjectIdSet.size > 0) {
+      subjects = await prisma.subject.findMany({
+        where: { id: { in: Array.from(subjectIdSet) }, isActive: true },
+        select: { id: true, name: true, code: true, color: true },
+      });
+    }
+
+    if (subjects.length === 0) {
+      // Fallback to all active subjects in school
+      subjects = await prisma.subject.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, code: true, color: true },
+      });
+    }
+
+    // Standard Addis Hiwot / Ethiopian curriculum ordering
+    const SUBJECT_ORDER: Record<string, number> = {
+      English: 1,
+      Maths: 2,
+      Mathematics: 2,
+      'Phy. Edu.': 3,
+      'Physical Education': 3,
+      Physics: 4,
+      Chemistry: 5,
+      Biology: 6,
+      History: 7,
+      Geography: 8,
+      'Inform. Tech.': 9,
+      'Information Technology': 9,
+      Citizenship: 10,
+      Economics: 11,
+      PVA: 12,
+    };
+
+    return subjects.sort((a, b) => {
+      const orderA = SUBJECT_ORDER[a.name] ?? 99;
+      const orderB = SUBJECT_ORDER[b.name] ?? 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  /**
+   * Report Cards Calculation & Draft Generation
+   * Never sets status to PUBLISHED — saves as DRAFT or READY.
+   * Averages and totals are computed strictly across APPROVED subjects.
    */
   async generateReportCards(params: {
     gradeId: string;
@@ -447,9 +583,7 @@ export class GradebookService {
   }) {
     const { gradeId, sectionId, academicYearId, academicTermId } = params;
 
-    // 1. Get grading scales for letter conversion
     const gradingScales = await this.getGradingScales();
-
     const findGradeLetter = (pct: number) => {
       for (const scale of gradingScales) {
         if (pct >= scale.minScore && pct <= scale.maxScore) {
@@ -459,18 +593,9 @@ export class GradebookService {
       return { letter: 'F', gpa: 0.0 };
     };
 
-    // 2. Find all students in this grade & section
     const students = await prisma.student.findMany({
-      where: {
-        gradeId,
-        sectionId,
-        status: 'ACTIVE',
-      },
-      select: {
-        id: true,
-        student_id: true,
-        fullName: true,
-      },
+      where: { gradeId, sectionId, status: 'ACTIVE' },
+      select: { id: true, student_id: true, fullName: true },
       orderBy: { fullName: 'asc' },
     });
 
@@ -478,13 +603,51 @@ export class GradebookService {
       throw new Error('No active students found in the selected grade and section.');
     }
 
-    // 3. Find all subjects assigned or available
-    const subjects = await prisma.subject.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, code: true },
+    // 1. Get all required subjects for this grade & section
+    const requiredSubjects = await this.getRequiredSubjectsForGradeAndSection(
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId
+    );
+
+    // 2. Fetch all submission records for this context
+    const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
+      where: {
+        academicYearId,
+        academicTermId,
+        gradeId,
+        sectionId,
+      },
     });
 
-    // 4. Find all assessments for this grade, section (or grade-wide), year, term
+    const submissionBySubject = new Map<string, any>();
+    for (const sr of submissionRecords) {
+      submissionBySubject.set(sr.subjectId, sr);
+    }
+
+    // 3. Determine approval status per subject
+    const subjectApprovalMap = new Map<string, { status: 'APPROVED' | 'PENDING_APPROVAL' | 'RETURNED' | 'MISSING' }>();
+    for (const subj of requiredSubjects) {
+      const subRecord = submissionBySubject.get(subj.id);
+      if (!subRecord) {
+        subjectApprovalMap.set(subj.id, { status: 'MISSING' });
+      } else if (subRecord.status === 'APPROVED') {
+        subjectApprovalMap.set(subj.id, { status: 'APPROVED' });
+      } else if (subRecord.status === 'SUBMITTED' || subRecord.status === 'PENDING_APPROVAL') {
+        subjectApprovalMap.set(subj.id, { status: 'PENDING_APPROVAL' });
+      } else if (subRecord.status === 'RETURNED') {
+        subjectApprovalMap.set(subj.id, { status: 'RETURNED' });
+      } else {
+        subjectApprovalMap.set(subj.id, { status: 'MISSING' });
+      }
+    }
+
+    const allRequiredApproved =
+      requiredSubjects.length > 0 &&
+      requiredSubjects.every((subj) => subjectApprovalMap.get(subj.id)?.status === 'APPROVED');
+
+    // 4. Fetch assessments
     const assessments = await prisma.assessment.findMany({
       where: {
         gradeId,
@@ -492,9 +655,7 @@ export class GradebookService {
         academicTermId,
         OR: [{ sectionId: null }, { sectionId }],
       },
-      include: {
-        marks: true,
-      },
+      include: { marks: true },
     });
 
     // 5. Gather term attendance data for students
@@ -507,10 +668,7 @@ export class GradebookService {
         studentId: { in: students.map((s) => s.id) },
         date: { gte: startDate, lte: endDate },
       },
-      select: {
-        studentId: true,
-        status: true,
-      },
+      select: { studentId: true, status: true },
     });
 
     const studentAttendanceMap = new Map<string, { present: number; total: number }>();
@@ -523,18 +681,21 @@ export class GradebookService {
       studentAttendanceMap.set(att.studentId, cur);
     }
 
-    // 6. Calculate scores per student
+    // 6. Calculate student scores
     const studentScoresList: Array<{
       studentId: string;
       totalScore: number;
       maxPossibleScore: number;
       averageScore: number;
+      gpa: number;
+      approvedSubjectCount: number;
       subjectScores: Array<{
         subjectId: string;
         score: number;
         maxScore: number;
-        gradeLetter: string;
+        gradeLetter: string | null;
         gpaPoint: number;
+        status: string;
       }>;
     }> = [];
 
@@ -543,53 +704,73 @@ export class GradebookService {
         subjectId: string;
         score: number;
         maxScore: number;
-        gradeLetter: string;
+        gradeLetter: string | null;
         gpaPoint: number;
+        status: string;
       }> = [];
 
       let studentTotal = 0;
-      let studentMax = 0;
+      let approvedCount = 0;
+      let totalGpaPoints = 0;
 
-      for (const subject of subjects) {
+      for (const subject of requiredSubjects) {
+        const approvalInfo = subjectApprovalMap.get(subject.id) || { status: 'MISSING' };
+        const isApproved = approvalInfo.status === 'APPROVED';
+
         const subjectAssessments = assessments.filter((a) => a.subjectId === subject.id);
-        if (subjectAssessments.length === 0) continue;
 
-        let subjectWeightedSum = 0;
-        let totalWeight = 0;
+        let subjectScore = 0;
+        let gradeLetter: string | null = null;
+        let gpaPoint = 0;
 
-        for (const ass of subjectAssessments) {
-          const mark = ass.marks.find((m) => m.studentId === student.id);
-          const score = mark && !mark.isAbsent && mark.score != null ? mark.score : 0;
-          const pct = ass.maxScore > 0 ? (score / ass.maxScore) * 100 : 0;
-          const weight = ass.weightage > 0 ? ass.weightage : 100;
+        if (isApproved) {
+          approvedCount += 1;
+          if (subjectAssessments.length > 0) {
+            let weightedSum = 0;
+            let totalWeight = 0;
 
-          subjectWeightedSum += (pct * weight) / 100;
-          totalWeight += weight;
+            for (const ass of subjectAssessments) {
+              const mark = ass.marks.find((m) => m.studentId === student.id);
+              const score = mark && !mark.isAbsent && mark.score != null ? mark.score : 0;
+              const pct = ass.maxScore > 0 ? (score / ass.maxScore) * 100 : 0;
+              const weight = ass.weightage > 0 ? ass.weightage : 100;
+
+              weightedSum += (pct * weight) / 100;
+              totalWeight += weight;
+            }
+
+            const normalized = totalWeight > 0 ? (weightedSum / totalWeight) * 100 : 0;
+            subjectScore = Math.round(normalized * 10) / 10;
+            const letterRes = findGradeLetter(subjectScore);
+            gradeLetter = letterRes.letter;
+            gpaPoint = letterRes.gpa || 0;
+
+            studentTotal += subjectScore;
+            totalGpaPoints += gpaPoint;
+          }
         }
-
-        const normalizedSubjectScore = totalWeight > 0 ? (subjectWeightedSum / totalWeight) * 100 : 0;
-        const roundedScore = Math.round(normalizedSubjectScore * 10) / 10;
-        const { letter, gpa } = findGradeLetter(roundedScore);
 
         subjectResults.push({
           subjectId: subject.id,
-          score: roundedScore,
+          score: isApproved ? subjectScore : 0,
           maxScore: 100,
-          gradeLetter: letter,
-          gpaPoint: gpa || 0,
+          gradeLetter: isApproved ? gradeLetter : null,
+          gpaPoint: isApproved ? gpaPoint : 0,
+          status: approvalInfo.status,
         });
-
-        studentTotal += roundedScore;
-        studentMax += 100;
       }
 
-      const avg = studentMax > 0 ? Math.round((studentTotal / (studentMax / 100)) * 10) / 10 : 0;
+      // Calculations are strictly computed over approved subjects
+      const avg = approvedCount > 0 ? Math.round((studentTotal / approvedCount) * 10) / 10 : 0;
+      const gpaAvg = approvedCount > 0 ? Math.round((totalGpaPoints / approvedCount) * 100) / 100 : 0;
 
       studentScoresList.push({
         studentId: student.id,
         totalScore: Math.round(studentTotal * 10) / 10,
-        maxPossibleScore: studentMax,
+        maxPossibleScore: approvedCount * 100,
         averageScore: avg,
+        gpa: gpaAvg,
+        approvedSubjectCount: approvedCount,
         subjectScores: subjectResults,
       });
     }
@@ -597,16 +778,41 @@ export class GradebookService {
     // 7. Rank students by average score descending
     studentScoresList.sort((a, b) => b.averageScore - a.averageScore);
 
+    // 8. Fetch existing report cards to preserve published state or flag correction
+    const existingCards = await prisma.reportCard.findMany({
+      where: {
+        studentId: { in: students.map((s) => s.id) },
+        academicYearId,
+        academicTermId,
+      },
+    });
+    const existingCardMap = new Map<string, any>(existingCards.map((rc) => [rc.studentId, rc]));
+
     const generatedReportCards = [];
 
     for (let i = 0; i < studentScoresList.length; i++) {
       const item = studentScoresList[i];
       const rank = i + 1;
       const att = studentAttendanceMap.get(item.studentId) || { present: 0, total: 0 };
+      const existing = existingCardMap.get(item.studentId);
 
-      // Compute GPA from subjects
-      const totalGpa = item.subjectScores.reduce((acc, curr) => acc + curr.gpaPoint, 0);
-      const avgGpa = item.subjectScores.length > 0 ? Math.round((totalGpa / item.subjectScores.length) * 100) / 100 : 0;
+      // Status determination:
+      // If all required subjects are approved -> READY (or keep PUBLISHED if already published)
+      // If not all approved -> DRAFT (or NEEDS_CORRECTION if it was previously published)
+      let newStatus = 'DRAFT';
+      if (allRequiredApproved) {
+        if (existing?.status === 'PUBLISHED') {
+          newStatus = 'PUBLISHED';
+        } else {
+          newStatus = 'READY';
+        }
+      } else {
+        if (existing?.status === 'PUBLISHED') {
+          newStatus = 'NEEDS_CORRECTION';
+        } else {
+          newStatus = 'DRAFT';
+        }
+      }
 
       const reportCard = await prisma.reportCard.upsert({
         where: {
@@ -622,12 +828,12 @@ export class GradebookService {
           totalScore: item.totalScore,
           maxPossibleScore: item.maxPossibleScore,
           averageScore: item.averageScore,
-          gpa: avgGpa,
+          gpa: item.gpa,
           rank,
           totalStudentsInClass: students.length,
           attendancePresentDays: att.present,
           attendanceTotalDays: att.total,
-          status: 'GENERATED',
+          status: newStatus,
         },
         create: {
           studentId: item.studentId,
@@ -638,16 +844,16 @@ export class GradebookService {
           totalScore: item.totalScore,
           maxPossibleScore: item.maxPossibleScore,
           averageScore: item.averageScore,
-          gpa: avgGpa,
+          gpa: item.gpa,
           rank,
           totalStudentsInClass: students.length,
           attendancePresentDays: att.present,
           attendanceTotalDays: att.total,
-          status: 'GENERATED',
+          status: newStatus,
         },
       });
 
-      // Upsert subject scores
+      // Upsert subject scores with status
       for (const subj of item.subjectScores) {
         await prisma.reportCardSubjectScore.upsert({
           where: {
@@ -661,6 +867,7 @@ export class GradebookService {
             maxScore: subj.maxScore,
             gradeLetter: subj.gradeLetter,
             gpaPoint: subj.gpaPoint,
+            status: subj.status,
           },
           create: {
             reportCardId: reportCard.id,
@@ -669,6 +876,7 @@ export class GradebookService {
             maxScore: subj.maxScore,
             gradeLetter: subj.gradeLetter,
             gpaPoint: subj.gpaPoint,
+            status: subj.status,
           },
         });
       }
@@ -682,7 +890,387 @@ export class GradebookService {
       sectionId,
       academicYearId,
       academicTermId,
+      allRequiredApproved,
+      requiredSubjectsCount: requiredSubjects.length,
     };
+  }
+
+  /**
+   * Report Card Readiness Validation
+   * Checks whether all required subjects for the student's grade/section have approved submissions
+   */
+  async validateReportCardReadiness(reportCardId: string) {
+    const reportCard = await prisma.reportCard.findUnique({
+      where: { id: reportCardId },
+      include: {
+        student: { select: { id: true, student_id: true, fullName: true } },
+        grade: true,
+        section: true,
+        academicYear: true,
+        academicTerm: true,
+        subjectScores: { include: { subject: true } },
+      },
+    });
+
+    if (!reportCard) {
+      throw new Error(`Report card with ID "${reportCardId}" not found`);
+    }
+
+    const requiredSubjects = await this.getRequiredSubjectsForGradeAndSection(
+      reportCard.gradeId,
+      reportCard.sectionId,
+      reportCard.academicYearId,
+      reportCard.academicTermId
+    );
+
+    const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
+      where: {
+        academicYearId: reportCard.academicYearId,
+        academicTermId: reportCard.academicTermId,
+        gradeId: reportCard.gradeId,
+        sectionId: reportCard.sectionId,
+      },
+      include: { subject: true, teacher: true },
+    });
+
+    const subMap = new Map<string, any>(submissionRecords.map((s) => [s.subjectId, s]));
+
+    const blockers: string[] = [];
+    const subjectDetails: Array<{
+      subjectId: string;
+      subjectName: string;
+      code: string;
+      status: 'APPROVED' | 'PENDING_APPROVAL' | 'RETURNED' | 'MISSING';
+      teacherName?: string;
+      reason?: string;
+    }> = [];
+
+    let approvedCount = 0;
+    let pendingCount = 0;
+    let missingCount = 0;
+
+    for (const reqSub of requiredSubjects) {
+      const sub = subMap.get(reqSub.id);
+      if (!sub) {
+        missingCount++;
+        blockers.push(`Subject "${reqSub.name}" has no mark submission.`);
+        subjectDetails.push({
+          subjectId: reqSub.id,
+          subjectName: reqSub.name,
+          code: reqSub.code,
+          status: 'MISSING',
+          reason: 'No mark submission created by teacher',
+        });
+      } else if (sub.status === 'APPROVED') {
+        approvedCount++;
+        subjectDetails.push({
+          subjectId: reqSub.id,
+          subjectName: reqSub.name,
+          code: reqSub.code,
+          status: 'APPROVED',
+          teacherName: sub.teacher?.name,
+        });
+      } else if (sub.status === 'SUBMITTED' || sub.status === 'PENDING_APPROVAL') {
+        pendingCount++;
+        blockers.push(`Subject "${reqSub.name}" is pending administrative approval.`);
+        subjectDetails.push({
+          subjectId: reqSub.id,
+          subjectName: reqSub.name,
+          code: reqSub.code,
+          status: 'PENDING_APPROVAL',
+          teacherName: sub.teacher?.name,
+          reason: 'Awaiting admin approval',
+        });
+      } else if (sub.status === 'RETURNED') {
+        missingCount++;
+        blockers.push(`Subject "${reqSub.name}" was returned for correction: ${sub.rejectionReason || 'Please review.'}`);
+        subjectDetails.push({
+          subjectId: reqSub.id,
+          subjectName: reqSub.name,
+          code: reqSub.code,
+          status: 'RETURNED',
+          teacherName: sub.teacher?.name,
+          reason: sub.rejectionReason || 'Returned for correction',
+        });
+      } else {
+        missingCount++;
+        blockers.push(`Subject "${reqSub.name}" mark submission is in draft.`);
+        subjectDetails.push({
+          subjectId: reqSub.id,
+          subjectName: reqSub.name,
+          code: reqSub.code,
+          status: 'MISSING',
+          teacherName: sub.teacher?.name,
+          reason: 'Submission is in draft mode',
+        });
+      }
+    }
+
+    if (requiredSubjects.length === 0) {
+      blockers.push('No required subjects found for this grade and section.');
+    } else if (approvedCount === requiredSubjects.length) {
+      if (reportCard.averageScore === null || isNaN(reportCard.averageScore)) {
+        blockers.push('Report card calculations are invalid (average score is invalid).');
+      }
+    }
+
+    const isReady = blockers.length === 0 && approvedCount === requiredSubjects.length && requiredSubjects.length > 0;
+
+    return {
+      reportCardId,
+      studentId: reportCard.studentId,
+      studentName: reportCard.student?.fullName,
+      studentUniqueId: reportCard.student?.student_id,
+      currentStatus: reportCard.status,
+      isReady,
+      canPublish: isReady,
+      blockers,
+      summary: {
+        totalRequired: requiredSubjects.length,
+        approvedCount,
+        pendingCount,
+        missingCount,
+      },
+      subjectDetails,
+      reportCard,
+    };
+  }
+
+  /**
+   * Publish an individual report card after validating readiness
+   */
+  async publishReportCard(id: string, publisherId?: string) {
+    const validation = await this.validateReportCardReadiness(id);
+    if (!validation.isReady) {
+      throw new Error(`Cannot publish report card: ${validation.blockers.join('; ')}`);
+    }
+
+    const existing = validation.reportCard;
+    const now = new Date();
+    const isRepublish = !!existing.publishedAt || existing.status === 'PUBLISHED' || existing.status === 'NEEDS_CORRECTION';
+
+    return prisma.reportCard.update({
+      where: { id },
+      data: {
+        status: 'PUBLISHED',
+        publishedAt: existing.publishedAt || now,
+        publishedById: existing.publishedById || publisherId || null,
+        republishedAt: isRepublish ? now : undefined,
+        republishedById: isRepublish ? (publisherId || null) : undefined,
+      },
+      include: {
+        student: { select: { id: true, student_id: true, fullName: true } },
+        grade: true,
+        section: true,
+        academicYear: true,
+        academicTerm: true,
+        subjectScores: { include: { subject: true } },
+      },
+    });
+  }
+
+  /**
+   * Bulk publish eligible report cards for a grade and section
+   * Skips incomplete ones and returns detailed report
+   */
+  async bulkPublishReportCards(
+    params: {
+      gradeId: string;
+      sectionId: string;
+      academicYearId: string;
+      academicTermId: string;
+      reportCardIds?: string[];
+    },
+    publisherId?: string
+  ) {
+    const { gradeId, sectionId, academicYearId, academicTermId, reportCardIds } = params;
+
+    // Refresh calculations
+    await this.generateReportCards({ gradeId, sectionId, academicYearId, academicTermId });
+
+    const where: any = {
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId,
+    };
+    if (reportCardIds && reportCardIds.length > 0) {
+      where.id = { in: reportCardIds };
+    }
+
+    const cards = await prisma.reportCard.findMany({
+      where,
+      select: { id: true },
+    });
+
+    const publishedIds: string[] = [];
+    const blocked: Array<{
+      studentId: string;
+      studentName: string;
+      reasons: string[];
+    }> = [];
+
+    const now = new Date();
+
+    for (const c of cards) {
+      const val = await this.validateReportCardReadiness(c.id);
+      if (val.isReady) {
+        const isRepublish = !!val.reportCard.publishedAt || val.reportCard.status === 'PUBLISHED' || val.reportCard.status === 'NEEDS_CORRECTION';
+        await prisma.reportCard.update({
+          where: { id: c.id },
+          data: {
+            status: 'PUBLISHED',
+            publishedAt: val.reportCard.publishedAt || now,
+            publishedById: val.reportCard.publishedById || publisherId || null,
+            republishedAt: isRepublish ? now : undefined,
+            republishedById: isRepublish ? (publisherId || null) : undefined,
+          },
+        });
+        publishedIds.push(c.id);
+      } else {
+        blocked.push({
+          studentId: val.studentId,
+          studentName: val.studentName || 'Student',
+          reasons: val.blockers,
+        });
+      }
+    }
+
+    return {
+      total: cards.length,
+      publishedCount: publishedIds.length,
+      skippedCount: blocked.length,
+      publishedIds,
+      blocked,
+    };
+  }
+
+  /**
+   * Class Readiness Overview for Administration Dashboard
+   */
+  async getClassReadinessOverview(params: {
+    gradeId: string;
+    sectionId: string;
+    academicYearId: string;
+    academicTermId?: string;
+  }) {
+    const { gradeId, sectionId, academicYearId, academicTermId } = params;
+
+    const requiredSubjects = await this.getRequiredSubjectsForGradeAndSection(
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId
+    );
+
+    const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
+      where: {
+        academicYearId,
+        ...(academicTermId ? { academicTermId } : {}),
+        gradeId,
+        sectionId,
+      },
+      include: {
+        subject: true,
+        teacher: true,
+      },
+    });
+
+    const subMap = new Map<string, any>(submissionRecords.map((s) => [s.subjectId, s]));
+
+    const subjectStatusList = requiredSubjects.map((subj) => {
+      const sub = subMap.get(subj.id);
+      let status: 'APPROVED' | 'PENDING_APPROVAL' | 'RETURNED' | 'MISSING' = 'MISSING';
+      if (sub?.status === 'APPROVED') status = 'APPROVED';
+      else if (sub?.status === 'SUBMITTED' || sub?.status === 'PENDING_APPROVAL') status = 'PENDING_APPROVAL';
+      else if (sub?.status === 'RETURNED') status = 'RETURNED';
+
+      return {
+        id: subj.id,
+        name: subj.name,
+        code: subj.code,
+        color: subj.color,
+        status,
+        submissionId: sub?.id,
+        teacherName: sub?.teacher?.name,
+        submittedAt: sub?.submittedAt,
+        reviewedAt: sub?.reviewedAt,
+        rejectionReason: sub?.rejectionReason,
+      };
+    });
+
+    const approvedCount = subjectStatusList.filter((s) => s.status === 'APPROVED').length;
+    const pendingCount = subjectStatusList.filter((s) => s.status === 'PENDING_APPROVAL').length;
+    const missingCount = subjectStatusList.filter((s) => s.status === 'MISSING' || s.status === 'RETURNED').length;
+
+    const pendingSubjects = subjectStatusList
+      .filter((s) => s.status !== 'APPROVED')
+      .map((s) => ({
+        subjectId: s.id,
+        subjectName: s.name,
+        status: s.status,
+      }));
+
+    const reportCards = await prisma.reportCard.findMany({
+      where: {
+        gradeId,
+        sectionId,
+        academicYearId,
+        ...(academicTermId ? { academicTermId } : {}),
+      },
+      select: { id: true, status: true },
+    });
+
+    const totalStudents = await prisma.student.count({
+      where: { gradeId, sectionId, status: 'ACTIVE' },
+    });
+
+    const draftCount = reportCards.filter((r) => r.status === 'DRAFT').length;
+    const readyCount = reportCards.filter((r) => r.status === 'READY').length;
+    const publishedCount = reportCards.filter((r) => r.status === 'PUBLISHED').length;
+    const needsCorrectionCount = reportCards.filter((r) => r.status === 'NEEDS_CORRECTION').length;
+
+    const isReady = requiredSubjects.length > 0 && approvedCount === requiredSubjects.length;
+
+    return {
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId,
+      totalStudents,
+      isFullyReady: isReady,
+      isAllApproved: isReady,
+      totalRequiredSubjects: requiredSubjects.length,
+      requiredSubjectsCount: requiredSubjects.length,
+      approvedSubjectsCount: approvedCount,
+      pendingSubjectsCount: pendingCount,
+      missingSubjectsCount: missingCount,
+      pendingSubjects,
+      subjectStatusList,
+      reportCardsSummary: {
+        total: reportCards.length,
+        ready: readyCount,
+        draft: draftCount,
+        published: publishedCount,
+        needsCorrection: needsCorrectionCount,
+        draftCount,
+        readyCount,
+        publishedCount,
+        needsCorrectionCount,
+      },
+    };
+  }
+
+  async isReportCardPublished(studentId: string, academicYearId?: string, academicTermId?: string): Promise<boolean> {
+    const card = await prisma.reportCard.findFirst({
+      where: {
+        studentId,
+        ...(academicYearId ? { academicYearId } : {}),
+        ...(academicTermId ? { academicTermId } : {}),
+        status: 'PUBLISHED',
+      },
+    });
+    return !!card;
   }
 
   async getReportCards(filters: {
@@ -786,9 +1374,10 @@ export class GradebookService {
   }
 
   async getStudentReportCard(studentId: string, academicTermId?: string, academicYearId?: string) {
+    // Only published report cards are visible to students and parents
     const where: any = {
       studentId,
-      status: { in: ['APPROVED', 'PUBLISHED'] },
+      status: 'PUBLISHED',
     };
     if (academicTermId) where.academicTermId = academicTermId;
     if (academicYearId) where.academicYearId = academicYearId;
@@ -989,11 +1578,36 @@ export class GradebookService {
       },
     });
 
-    // Conduct & Remarks from latest report card
-    const latestRc = reportCards[0];
+    // Conduct & Remarks from matching report card
+    const termSpecificRc = isSingleTerm
+      ? reportCards.find((rc) => rc.academicTermId === academicTermId)
+      : null;
+    const latestRc = termSpecificRc || reportCards[0];
     const conduct = latestRc?.conduct || 'A-';
     const teacherComment = latestRc?.homeroomTeacherComment || '';
     const principalComment = latestRc?.principalComment || '';
+
+    // Filter subjects to only those taught or assessed for this grade & section
+    const teacherAssignedSubjectIds = await prisma.teacherAssignment.findMany({
+      where: {
+        gradeId: student.gradeId,
+        ...(targetYear ? { academicYearId: targetYear.id } : {}),
+      },
+      select: { subjectId: true },
+    }).then((records) => records.map((r) => r.subjectId).filter(Boolean) as string[]);
+
+    const assessedSubjectIds = assessments.map((a) => a.subjectId).filter(Boolean);
+    const scoredSubjectIds = reportCards.flatMap((rc) => rc.subjectScores.map((ss) => ss.subjectId)).filter(Boolean);
+
+    const relevantSubjectIdSet = new Set([
+      ...teacherAssignedSubjectIds,
+      ...assessedSubjectIds,
+      ...scoredSubjectIds,
+    ]);
+
+    const activeSubjects = relevantSubjectIdSet.size > 0
+      ? sortedSubjects.filter((s) => relevantSubjectIdSet.has(s.id))
+      : sortedSubjects;
 
     // Helper to compute weighted score for an assessment collection
     const computeWeightedScore = (
@@ -1023,8 +1637,8 @@ export class GradebookService {
       return Math.round(((weightedSum / totalWeight) * 100) * 10) / 10;
     };
 
-    const subjectRows = sortedSubjects.map((subj) => {
-      const scores: Record<string, number> = {};
+    const subjectRows = activeSubjects.map((subj) => {
+      const scores: Record<string, number | null> = {};
       const subjAssessments = assessments.filter((a) => a.subjectId === subj.id);
 
       periods.forEach((period) => {
@@ -1083,20 +1697,25 @@ export class GradebookService {
           }
         }
 
-        // 4. Default to 0 if no real marks exist (no fake scores generated)
-        scores[period.id] = score !== null ? score : 0;
+        // Keep null if the period has not occurred / has no assessments
+        scores[period.id] = score;
       });
 
-      const periodValues = periods.map((p) => scores[p.id] || 0);
-      const rowTotal = periodValues.reduce((a, b) => a + b, 0);
-      const rowAverage = periodValues.length > 0 ? Math.round((rowTotal / periodValues.length) * 10) / 10 : 0;
+      const validPeriodValues = periods
+        .map((p) => scores[p.id])
+        .filter((val): val is number => val !== null && val !== undefined);
+
+      const rowTotal = Math.round(validPeriodValues.reduce((a, b) => a + b, 0) * 10) / 10;
+      const rowAverage = validPeriodValues.length > 0
+        ? Math.round((rowTotal / validPeriodValues.length) * 10) / 10
+        : 0;
 
       return {
         subjectId: subj.id,
         subjectName: subj.name,
         code: subj.code,
         weight: 100,
-        scores,
+        scores: scores as Record<string, number>,
         total: rowTotal,
         average: rowAverage,
       };
@@ -1107,14 +1726,28 @@ export class GradebookService {
     const columnAverages: Record<string, number> = {};
 
     periods.forEach((p) => {
-      const sum = subjectRows.reduce((acc, row) => acc + (row.scores[p.id] || 0), 0);
-      columnTotals[p.id] = sum;
-      columnAverages[p.id] = subjectRows.length > 0 ? Math.round((sum / subjectRows.length) * 10) / 10 : 0;
+      const validScores = subjectRows
+        .map((r) => r.scores[p.id])
+        .filter((s): s is number => s !== null && s !== undefined);
+
+      if (validScores.length > 0) {
+        const sum = validScores.reduce((acc, curr) => acc + curr, 0);
+        columnTotals[p.id] = Math.round(sum * 10) / 10;
+        columnAverages[p.id] = Math.round((sum / validScores.length) * 10) / 10;
+      } else {
+        columnTotals[p.id] = null as any;
+        columnAverages[p.id] = null as any;
+      }
     });
 
-    const totalPointsSum = subjectRows.reduce((acc, row) => acc + row.total, 0);
-    const totalAverageSum = subjectRows.reduce((acc, row) => acc + row.average, 0);
-    const overallAverage = subjectRows.length > 0 ? Math.round((totalAverageSum / subjectRows.length) * 10) / 10 : 0;
+    const activeRows = subjectRows.filter((r) => {
+      return periods.some((p) => r.scores[p.id] !== null && r.scores[p.id] !== undefined);
+    });
+    const rowsForCalculations = activeRows.length > 0 ? activeRows : subjectRows;
+
+    const totalPointsSum = Math.round(subjectRows.reduce((acc, row) => acc + (row.total || 0), 0) * 10) / 10;
+    const totalAverageSum = rowsForCalculations.reduce((acc, row) => acc + (row.average || 0), 0);
+    const overallAverage = rowsForCalculations.length > 0 ? Math.round((totalAverageSum / rowsForCalculations.length) * 10) / 10 : 0;
 
     columnTotals['total'] = totalPointsSum;
     columnTotals['average'] = Math.round(totalAverageSum * 10) / 10;
@@ -1233,6 +1866,23 @@ export class GradebookService {
         academicTermId,
       });
       results.push(card);
+    }
+
+    // Ensure rankings are correctly assigned across the class section
+    const totalStudents = results.length;
+    const needsBatchRank = results.length > 1 && results.every(
+      (c) => !c.summary.rank || c.summary.rank === '1/1' || c.summary.rank === `1/${totalStudents}`
+    );
+
+    if (needsBatchRank && totalStudents > 1) {
+      // Sort copy descending by overallAverage
+      const sortedCards = [...results].sort(
+        (a, b) => (b.summary.averageRow.overallAverage || 0) - (a.summary.averageRow.overallAverage || 0)
+      );
+      sortedCards.forEach((card, index) => {
+        const rankStr = `${index + 1}/${totalStudents}`;
+        card.summary.rank = rankStr;
+      });
     }
 
     return results;
@@ -1554,6 +2204,7 @@ export class GradebookService {
       studentId: string;
       score: number | null;
       isAbsent?: boolean;
+      status?: string;
       remarks?: string;
     }>;
     gradedById?: string;
@@ -1575,6 +2226,14 @@ export class GradebookService {
       throw new Error(`Cannot modify marks. This gradebook is currently ${submission.status}.`);
     }
 
+    if (!marks || marks.length === 0) {
+      return {
+        count: 0,
+        updatedCount: 0,
+        success: true,
+      };
+    }
+
     // Load assessments to validate maxScore
     const assessmentIds = Array.from(new Set(marks.map((m) => m.assessmentId)));
     const assessments = await prisma.assessment.findMany({
@@ -1582,20 +2241,22 @@ export class GradebookService {
     });
     const assessmentMap = new Map(assessments.map((a) => [a.id, a]));
 
-    const results = await prisma.$transaction(async (tx) => {
-      const updatedMarks = [];
-      for (const item of marks) {
-        const assess = assessmentMap.get(item.assessmentId);
-        if (!assess) continue;
+    const operations: any[] = [];
+    for (const item of marks) {
+      const assess = assessmentMap.get(item.assessmentId);
+      if (!assess) continue;
 
-        let score = item.score;
-        if (item.isAbsent) {
-          score = 0;
-        } else if (score !== null && score !== undefined) {
-          score = Math.min(Math.max(Number(score), 0), assess.maxScore);
-        }
+      let score = item.score;
+      if (item.isAbsent) {
+        score = 0;
+      } else if (score !== null && score !== undefined) {
+        score = Math.min(Math.max(Number(score), 0), assess.maxScore);
+      }
 
-        const res = await tx.studentMark.upsert({
+      const status = item.status || (item.isAbsent ? 'ABSENT' : score !== null && score !== undefined ? 'PRESENT' : 'UNGRADED');
+
+      operations.push(
+        prisma.studentMark.upsert({
           where: {
             assessmentId_studentId: {
               assessmentId: item.assessmentId,
@@ -1605,6 +2266,7 @@ export class GradebookService {
           update: {
             score,
             isAbsent: !!item.isAbsent,
+            status,
             remarks: item.remarks || null,
             gradedById: gradedById || null,
           },
@@ -1613,22 +2275,48 @@ export class GradebookService {
             studentId: item.studentId,
             score,
             isAbsent: !!item.isAbsent,
+            status,
             remarks: item.remarks || null,
             gradedById: gradedById || null,
           },
-        });
-        updatedMarks.push(res);
-      }
+        })
+      );
+    }
 
-      // If submission record does not exist, create it as DRAFT
-      if (!submission && academicTermId) {
+    // Execute in batch transactions of 50 to avoid interactive transaction timeouts and handle connection pooling gracefully
+    const BATCH_SIZE = 50;
+    const results: any[] = [];
+    for (let i = 0; i < operations.length; i += BATCH_SIZE) {
+      const chunk = operations.slice(i, i + BATCH_SIZE);
+      const chunkResults = await prisma.$transaction(chunk);
+      results.push(...chunkResults);
+    }
+
+    // If submission record does not exist, create it as DRAFT
+    if (!submission && academicTermId) {
+      try {
         let teacherId = gradedById;
-        const user = await tx.user.findUnique({ where: { id: gradedById || '' } });
-        if (user?.teacher_id) teacherId = user.teacher_id;
+        if (gradedById) {
+          const user = await prisma.user.findUnique({
+            where: { id: gradedById },
+            select: { teacher_id: true },
+          });
+          if (user?.teacher_id) teacherId = user.teacher_id;
+        }
 
         if (teacherId) {
-          await tx.assessmentSubmissionRecord.create({
-            data: {
+          await prisma.assessmentSubmissionRecord.upsert({
+            where: {
+              academicYearId_academicTermId_gradeId_sectionId_subjectId: {
+                academicYearId,
+                academicTermId,
+                gradeId,
+                sectionId,
+                subjectId,
+              },
+            },
+            update: {},
+            create: {
               academicYearId,
               academicTermId,
               gradeId,
@@ -1639,10 +2327,10 @@ export class GradebookService {
             },
           });
         }
+      } catch (submissionErr) {
+        console.warn('[GradebookService] Auto-create draft submission record warning:', submissionErr);
       }
-
-      return updatedMarks;
-    });
+    }
 
     return {
       count: results.length,

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkCreateStudents = exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.createStudent = exports.getNextStudentId = exports.getStudents = void 0;
+exports.bulkGenerateActivationCodes = exports.generateActivationCode = exports.bulkCreateStudents = exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.createStudent = exports.getNextStudentId = exports.getStudents = void 0;
 const studentService = __importStar(require("../services/student.service"));
 const getStudents = async (req, res, next) => {
     try {
@@ -133,3 +133,26 @@ const bulkCreateStudents = async (req, res, next) => {
     }
 };
 exports.bulkCreateStudents = bulkCreateStudents;
+// ─── ACTIVATION CODE MANAGEMENT ───────────────────────────────────────────────
+const generateActivationCode = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const slip = await studentService.generateActivationCode(id);
+        res.status(200).json({ success: true, data: slip });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.generateActivationCode = generateActivationCode;
+const bulkGenerateActivationCodes = async (req, res, next) => {
+    try {
+        const { gradeId, sectionId } = req.body;
+        const slips = await studentService.bulkGenerateActivationCodes(gradeId, sectionId);
+        res.status(200).json({ success: true, data: slips });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.bulkGenerateActivationCodes = bulkGenerateActivationCodes;

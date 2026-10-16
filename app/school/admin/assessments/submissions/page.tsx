@@ -94,6 +94,11 @@ export default function MarkSubmissionApprovalPage() {
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 1 });
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
+
+  // Review modal search and filter
+  const [reviewSearch, setReviewSearch] = useState<string>('');
+  const [reviewFilter, setReviewFilter] = useState<'ALL' | 'ISSUES' | 'ABSENT' | 'COMPLETE'>('ALL');
 
   // 3. Selection & Side Panel States
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
@@ -425,6 +430,44 @@ export default function MarkSubmissionApprovalPage() {
     );
   };
 
+  // Sync Submissions across all assignments & assessments
+  const handleSyncSubmissions = async () => {
+    try {
+      setSyncing(true);
+      const res = await gradebookService.syncSubmissions(selectedYearId || undefined, selectedTermId || undefined);
+      notifications.success('Sync Complete', res?.message || `Successfully synced ${res?.count ?? 0} submissions.`);
+      await fetchSubmissionsAndMetrics();
+    } catch (err: any) {
+      notifications.error('Sync Error', err?.message || 'Failed to sync submissions');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Filtered review modal students
+  const filteredReviewStudents = useMemo(() => {
+    if (!selectedDetails?.students) return [];
+    return selectedDetails.students.filter((st) => {
+      const matchesSearch =
+        !reviewSearch.trim() ||
+        st.fullName.toLowerCase().includes(reviewSearch.toLowerCase()) ||
+        st.studentNumber.toLowerCase().includes(reviewSearch.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      if (reviewFilter === 'ISSUES') {
+        return st.status === 'INVALID' || st.status === 'MISSING' || st.issues.length > 0;
+      }
+      if (reviewFilter === 'ABSENT') {
+        return st.status === 'ABSENT' || st.marks?.some((m) => m.isAbsent);
+      }
+      if (reviewFilter === 'COMPLETE') {
+        return st.status === 'COMPLETE';
+      }
+      return true;
+    });
+  }, [selectedDetails, reviewSearch, reviewFilter]);
+
   // Export CSV Report
   const handleExportReport = () => {
     if (submissions.length === 0) {
@@ -459,6 +502,44 @@ export default function MarkSubmissionApprovalPage() {
     link.click();
     document.body.removeChild(link);
     notifications.success('Report Exported', 'Submissions summary downloaded as CSV.');
+  };
+
+  // Export Detailed Review Marks Sheet
+  const handleExportReviewSheet = () => {
+    if (!selectedDetails || !selectedDetails.students || selectedDetails.students.length === 0) {
+      notifications.error('Export Error', 'No student marks available to export');
+      return;
+    }
+
+    const assessTitles = (selectedDetails.assessments || []).map((a) => `"${a.title} (Max ${a.maxScore})"`);
+    const headers = ['Student ID', 'Student Name', ...assessTitles, 'Final Percentage', 'Status'];
+
+    const rows = selectedDetails.students.map((st) => {
+      const marksCols = (selectedDetails.assessments || []).map((a) => {
+        const mark = st.marks?.find((m) => m.assessmentId === a.id);
+        if (mark?.isAbsent) return '"ABSENT"';
+        if (mark?.score !== null && mark?.score !== undefined) return mark.score;
+        return '"--"';
+      });
+      return [
+        `"${st.studentNumber}"`,
+        `"${st.fullName}"`,
+        ...marksCols,
+        st.finalPercentage !== null ? `"${st.finalPercentage}%"` : '"--"',
+        `"${st.status}"`,
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${selectedDetails.submission.subject.name}_Marks_Sheet_${selectedDetails.submission.grade.name}_${selectedDetails.submission.section.name}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    notifications.success('Exported', 'Student marks sheet downloaded as CSV.');
   };
 
   // Status Badge Helper
@@ -565,9 +646,19 @@ export default function MarkSubmissionApprovalPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={handleSyncSubmissions}
+              disabled={syncing || refreshing}
+              className="gap-2 bg-white dark:bg-slate-900 shadow-sm border-slate-200 dark:border-slate-800 text-xs"
+            >
+              <Sparkles className={`w-4 h-4 text-amber-500 ${syncing ? 'animate-spin' : ''}`} />
+              <span>{syncing ? 'Syncing...' : 'Sync Submissions'}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={fetchSubmissionsAndMetrics}
-              disabled={refreshing}
-              className="gap-2 bg-white dark:bg-slate-900 shadow-sm border-slate-200 dark:border-slate-800"
+              disabled={refreshing || syncing}
+              className="gap-2 bg-white dark:bg-slate-900 shadow-sm border-slate-200 dark:border-slate-800 text-xs"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-primary' : ''}`} />
               Refresh
@@ -576,13 +667,23 @@ export default function MarkSubmissionApprovalPage() {
         </div>
       </div>
 
-      {/* 2. Top Summary Metrics Cards (5-in-a-row) */}
+      {/* 2. Top Summary Metrics Cards (Interactive Filters) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Total Submissions */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-            Total Submissions
-          </span>
+        <div
+          onClick={() => setSelectedStatus('ALL')}
+          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+            selectedStatus === 'ALL'
+              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/10'
+              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Total Submissions
+            </span>
+            {selectedStatus === 'ALL' && <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Active</Badge>}
+          </div>
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
             {metrics.total}
           </div>
@@ -590,10 +691,20 @@ export default function MarkSubmissionApprovalPage() {
         </div>
 
         {/* Card 2: Submitted */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-            Submitted
-          </span>
+        <div
+          onClick={() => setSelectedStatus('SUBMITTED')}
+          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+            selectedStatus === 'SUBMITTED'
+              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/10'
+              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Submitted
+            </span>
+            {selectedStatus === 'SUBMITTED' && <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Active</Badge>}
+          </div>
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
             {metrics.submitted}
           </div>
@@ -601,10 +712,20 @@ export default function MarkSubmissionApprovalPage() {
         </div>
 
         {/* Card 3: Pending Approval */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-            Pending Approval
-          </span>
+        <div
+          onClick={() => setSelectedStatus('PENDING_APPROVAL')}
+          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+            selectedStatus === 'PENDING_APPROVAL'
+              ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/10'
+              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Pending Approval
+            </span>
+            {selectedStatus === 'PENDING_APPROVAL' && <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">Active</Badge>}
+          </div>
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
             {metrics.pendingApproval}
           </div>
@@ -612,10 +733,20 @@ export default function MarkSubmissionApprovalPage() {
         </div>
 
         {/* Card 4: Requiring Attention */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-            Requiring Attention
-          </span>
+        <div
+          onClick={() => setSelectedStatus('REQUIRES_ATTENTION')}
+          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+            selectedStatus === 'REQUIRES_ATTENTION'
+              ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/10'
+              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Requiring Attention
+            </span>
+            {selectedStatus === 'REQUIRES_ATTENTION' && <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Active</Badge>}
+          </div>
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
             {metrics.requiringAttention}
           </div>
@@ -623,10 +754,20 @@ export default function MarkSubmissionApprovalPage() {
         </div>
 
         {/* Card 5: Published */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs transition-all hover:border-slate-300 dark:hover:border-slate-700">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
-            Published
-          </span>
+        <div
+          onClick={() => setSelectedStatus('PUBLISHED')}
+          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+            selectedStatus === 'PUBLISHED'
+              ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/10'
+              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+              Published
+            </span>
+            {selectedStatus === 'PUBLISHED' && <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">Active</Badge>}
+          </div>
           <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
             {metrics.published}
           </div>
@@ -635,7 +776,24 @@ export default function MarkSubmissionApprovalPage() {
       </div>
 
       {/* 3. Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+        {/* Search Input Row */}
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by subject, teacher name, grade, section..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setPagination((p) => ({ ...p, page: 1 }));
+                fetchSubmissionsAndMetrics();
+              }
+            }}
+            className="pl-9 h-9 text-xs rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+          />
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end">
           {/* Academic Year */}
           <div className="space-y-1.5">
@@ -758,7 +916,10 @@ export default function MarkSubmissionApprovalPage() {
               </select>
               <Button
                 size="sm"
-                onClick={fetchSubmissionsAndMetrics}
+                onClick={() => {
+                  setPagination((p) => ({ ...p, page: 1 }));
+                  fetchSubmissionsAndMetrics();
+                }}
                 className="h-9 px-3.5 bg-blue-600 hover:bg-blue-700 text-white shrink-0 gap-1.5 shadow-sm"
               >
                 <Search className="w-3.5 h-3.5" />
@@ -1285,6 +1446,69 @@ export default function MarkSubmissionApprovalPage() {
             </div>
           )}
 
+          {/* Modal Student Search & Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Filter student name or ID..."
+                value={reviewSearch}
+                onChange={(e) => setReviewSearch(e.target.value)}
+                className="h-8 pl-8 text-xs rounded-lg bg-slate-50 dark:bg-slate-800/60"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                <button
+                  type="button"
+                  onClick={() => setReviewFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    reviewFilter === 'ALL' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  All ({selectedDetails?.students?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewFilter('ISSUES')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    reviewFilter === 'ISSUES' ? 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Issues ({(selectedDetails?.stats?.missingStudents || 0) + (selectedDetails?.students?.filter((s) => s.status === 'INVALID').length || 0)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewFilter('ABSENT')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    reviewFilter === 'ABSENT' ? 'bg-white dark:bg-slate-700 text-rose-700 dark:text-rose-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Absent ({selectedDetails?.stats?.absentStudents || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewFilter('COMPLETE')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    reviewFilter === 'COMPLETE' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Complete ({selectedDetails?.stats?.completedStudents || 0})
+                </button>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportReviewSheet}
+                className="h-8 gap-1.5 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+              >
+                <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Export CSV</span>
+              </Button>
+            </div>
+          </div>
+
           {/* Students Marks Sheet Table */}
           <div className="flex-1 overflow-y-auto min-h-[300px] border border-slate-200 dark:border-slate-800 rounded-xl">
             {detailsLoading ? (
@@ -1294,6 +1518,8 @@ export default function MarkSubmissionApprovalPage() {
               </div>
             ) : !selectedDetails?.students || selectedDetails.students.length === 0 ? (
               <div className="p-12 text-center text-muted-foreground text-xs">No student marks recorded for this subject.</div>
+            ) : filteredReviewStudents.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-xs">No students match current search / filter.</div>
             ) : (
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/70 font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
@@ -1311,7 +1537,7 @@ export default function MarkSubmissionApprovalPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {selectedDetails.students.map((student) => (
+                  {filteredReviewStudents.map((student) => (
                     <tr key={student.studentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="p-3 pl-4 font-mono font-medium text-slate-500">{student.studentNumber}</td>
                       <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">{student.fullName}</td>

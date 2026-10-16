@@ -1361,6 +1361,9 @@ model ReportCard {
   principalComment       String?
   status                 String                   @default("DRAFT")
   publishedAt            DateTime?
+  publishedById          String?
+  republishedAt          DateTime?
+  republishedById        String?
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
 
@@ -1389,6 +1392,7 @@ model ReportCardSubjectScore {
   gpaPoint       Float?
   rank           Int?
   teacherRemarks String?
+  status         String     @default("APPROVED") // APPROVED, PENDING_APPROVAL, MISSING
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

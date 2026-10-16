@@ -27,6 +27,18 @@ const resolveRoleInSchool = async (userId, _schoolId, requestedRole) => {
     if (!userId)
         return null;
     if (requestedRole) {
+        if (requestedRole === 'student') {
+            const student = await db_1.default.student.findFirst({
+                where: { user_id: userId }
+            });
+            if (student)
+                return 'student';
+            const user = await db_1.default.user.findFirst({
+                where: { id: userId, role: 'student' }
+            });
+            if (user)
+                return 'student';
+        }
         if (requestedRole === 'parent') {
             const parent = await db_1.default.parentStudentLink.findFirst({
                 where: { parentId: userId }

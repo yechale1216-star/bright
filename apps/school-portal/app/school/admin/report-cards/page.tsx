@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   FileText,
   Printer,
@@ -17,12 +17,18 @@ import {
   Send,
   Eye,
   Layers,
-  GraduationCap
+  GraduationCap,
+  AlertTriangle,
+  ShieldCheck,
+  Clock,
+  BookOpen,
+  Info,
+  ChevronRight,
 } from 'lucide-react';
 import {
   gradebookService,
   ReportCard,
-  ComprehensiveReportCardData
+  ComprehensiveReportCardData,
 } from '@/lib/gradebook-service';
 import { notifications } from '@/lib/utils/notifications';
 import { Button } from '@/components/ui/button';
@@ -32,10 +38,42 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { StudentReportCard } from '@/components/school/student-report-card';
+
+type ReadinessOverview = {
+  gradeId: string;
+  sectionId: string;
+  isFullyReady: boolean;
+  totalRequiredSubjects: number;
+  approvedSubjectsCount: number;
+  pendingSubjects: Array<{ subjectId: string; subjectName: string; status: string }>;
+  reportCardsSummary: {
+    total: number;
+    ready: number;
+    draft: number;
+    published: number;
+    needsCorrection: number;
+  };
+} | null;
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; className: string }> = {
+    PUBLISHED: { label: 'Published', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' },
+    READY: { label: 'Ready', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30' },
+    DRAFT: { label: 'Draft', className: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-300/50' },
+    NEEDS_CORRECTION: { label: 'Needs Correction', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30' },
+    PENDING: { label: 'Pending', className: 'bg-muted text-muted-foreground' },
+  };
+  const cfg = map[status] || map.PENDING;
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+}
 
 export default function AdminReportCardsPage() {
   const [academicYears, setAcademicYears] = useState<any[]>([]);
@@ -43,7 +81,6 @@ export default function AdminReportCardsPage() {
   const [selectedTermId, setSelectedTermId] = useState<string>('annual');
   const [grades, setGrades] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
-
   const [selectedGradeId, setSelectedGradeId] = useState<string>('');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
 
@@ -52,6 +89,15 @@ export default function AdminReportCardsPage() {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Readiness state
+  const [readiness, setReadiness] = useState<ReadinessOverview>(null);
+  const [loadingReadiness, setLoadingReadiness] = useState(false);
+  const [readinessPanelOpen, setReadinessPanelOpen] = useState(false);
+
+  // Publishing state
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [bulkPublishing, setBulkPublishing] = useState(false);
 
   // Edit comments modal
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -95,16 +141,12 @@ export default function AdminReportCardsPage() {
       if (ayRes?.success && Array.isArray(ayRes.data)) {
         setAcademicYears(ayRes.data);
         const currentYear = ayRes.data.find((y: any) => y.isCurrent) || ayRes.data[0];
-        if (currentYear) {
-          setSelectedYearId(currentYear.id);
-        }
+        if (currentYear) setSelectedYearId(currentYear.id);
       }
 
       if (gradesRes?.success && Array.isArray(gradesRes.data)) {
         setGrades(gradesRes.data);
-        if (gradesRes.data.length > 0) {
-          setSelectedGradeId(gradesRes.data[0].id);
-        }
+        if (gradesRes.data.length > 0) setSelectedGradeId(gradesRes.data[0].id);
       }
     } catch (err: any) {
       notifications.error('Error', err?.message || 'Failed to load metadata');
@@ -129,9 +171,10 @@ export default function AdminReportCardsPage() {
         try {
           const token = localStorage.getItem('attendance_token');
           const { getApiUrl } = await import('@/lib/api-config');
-          const res = await fetch(`${getApiUrl()}/api/schools/sections?gradeId=${selectedGradeId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }).then((r) => r.json());
+          const res = await fetch(
+            `${getApiUrl()}/api/schools/sections?gradeId=${selectedGradeId}`,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          ).then((r) => r.json());
           if (res?.success && Array.isArray(res.data)) {
             setSections(res.data);
             if (res.data.length > 0) setSelectedSectionId(res.data[0].id);
@@ -142,10 +185,11 @@ export default function AdminReportCardsPage() {
     }
   }, [selectedGradeId, grades]);
 
-  // Load report cards & students whenever filters change
+  // Load report cards & students + readiness whenever filters change
   useEffect(() => {
     if (selectedGradeId && selectedSectionId && selectedYearId) {
       loadData();
+      loadReadiness();
     }
   }, [selectedGradeId, selectedSectionId, selectedYearId, selectedTermId]);
 
@@ -181,6 +225,30 @@ export default function AdminReportCardsPage() {
     }
   };
 
+  const loadReadiness = useCallback(async () => {
+    if (!selectedGradeId || !selectedSectionId || !selectedYearId) return;
+    try {
+      setLoadingReadiness(true);
+      const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
+      const termToUse =
+        selectedTermId !== 'annual'
+          ? selectedTermId
+          : currentYearObj?.terms?.[0]?.id || '';
+
+      const data = await gradebookService.getClassReadinessOverview({
+        gradeId: selectedGradeId,
+        sectionId: selectedSectionId,
+        academicYearId: selectedYearId,
+        academicTermId: termToUse || undefined,
+      });
+      setReadiness(data);
+    } catch {
+      setReadiness(null);
+    } finally {
+      setLoadingReadiness(false);
+    }
+  }, [selectedGradeId, selectedSectionId, selectedYearId, selectedTermId, academicYears]);
+
   const handleGenerate = async () => {
     if (!selectedGradeId || !selectedSectionId || !selectedYearId) {
       notifications.error('Required', 'Please select Grade, Section, and Academic Year');
@@ -202,12 +270,77 @@ export default function AdminReportCardsPage() {
         academicTermId: termToUse,
       });
 
-      notifications.success('Calculations Complete', res.message || `Generated ${res.count} student report cards.`);
+      notifications.success(
+        'Calculations Complete',
+        res.message || `Generated ${res.count} student report cards.`
+      );
       await loadData();
+      await loadReadiness();
     } catch (err: any) {
       notifications.error('Generation Notice', err?.message || 'Error compiling marks');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handlePublishSingle = async (reportCardId: string, studentName: string) => {
+    if (!confirm(`Publish the report card for ${studentName} and make it visible to parents?`)) return;
+    try {
+      setPublishingId(reportCardId);
+      const result = await gradebookService.publishReportCard(reportCardId);
+      notifications.success('Published!', result.message || `Report card published for ${studentName}.`);
+      await loadData();
+      await loadReadiness();
+    } catch (err: any) {
+      notifications.error('Publish Failed', err?.message || 'Could not publish report card.');
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleBulkPublish = async () => {
+    if (!readiness?.isFullyReady) {
+      const pending = readiness?.pendingSubjects?.length || 0;
+      const msg = pending > 0
+        ? `${pending} subject(s) are not yet approved. All subjects must be approved before publishing.`
+        : 'Not all required subjects are approved yet.';
+      notifications.error('Not Ready to Publish', msg);
+      return;
+    }
+
+    const readyCount = readiness?.reportCardsSummary?.ready || 0;
+    if (readyCount === 0) {
+      notifications.error('Nothing to Publish', 'No report cards are in READY state. Generate/recalculate first.');
+      return;
+    }
+
+    if (!confirm(`Publish all ${readyCount} ready report cards to parents? This will make them visible on the parent and student portals.`)) return;
+
+    try {
+      setBulkPublishing(true);
+      const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
+      const termToUse =
+        selectedTermId !== 'annual'
+          ? selectedTermId
+          : currentYearObj?.terms?.[0]?.id || '';
+
+      const result = await gradebookService.bulkPublishReportCards({
+        gradeId: selectedGradeId,
+        sectionId: selectedSectionId,
+        academicYearId: selectedYearId,
+        academicTermId: termToUse || undefined,
+      });
+
+      notifications.success(
+        'Bulk Publish Complete',
+        result.message || `Published: ${result.published}, Skipped: ${result.skipped}`
+      );
+      await loadData();
+      await loadReadiness();
+    } catch (err: any) {
+      notifications.error('Bulk Publish Failed', err?.message || 'Error publishing report cards');
+    } finally {
+      setBulkPublishing(false);
     }
   };
 
@@ -279,30 +412,12 @@ export default function AdminReportCardsPage() {
     }
   };
 
-  const handleBulkPublish = async () => {
-    if (reportCards.length === 0) {
-      notifications.error('No Cards', 'No report cards to publish. Please generate first.');
-      return;
-    }
-    if (!confirm('Publish all generated report cards to parents?')) return;
-
-    try {
-      const ids = reportCards.map((c) => c.id);
-      await gradebookService.bulkUpdateReportCardStatus(ids, 'PUBLISHED');
-      notifications.success('Published', 'Report cards published to parents portal!');
-      loadData();
-    } catch (err: any) {
-      notifications.error('Error', err?.message || 'Failed to publish');
-    }
-  };
-
   const handlePrint = () => {
     window.print();
   };
 
   // Combine report cards and enrolled students into a unified list
   const studentRows = useMemo(() => {
-    // If report cards exist, use them as primary source
     if (reportCards.length > 0) {
       return reportCards.map((rc, idx) => ({
         id: rc.id,
@@ -323,7 +438,6 @@ export default function AdminReportCardsPage() {
       }));
     }
 
-    // Fallback to students enrolled in section
     return students.map((s, idx) => ({
       id: s.id,
       studentId: s.id,
@@ -343,7 +457,6 @@ export default function AdminReportCardsPage() {
     }));
   }, [reportCards, students]);
 
-  // Filtered rows by search
   const filteredRows = useMemo(() => {
     if (!searchQuery.trim()) return studentRows;
     const q = searchQuery.toLowerCase();
@@ -354,26 +467,29 @@ export default function AdminReportCardsPage() {
     );
   }, [studentRows, searchQuery]);
 
-  // Overall Stats
   const stats = useMemo(() => {
     const total = studentRows.length;
-    if (total === 0) return { total: 0, avgPct: 0, topScore: 0, published: 0 };
+    if (total === 0) return { total: 0, avgPct: 0, topScore: 0, published: 0, ready: 0, needsCorrection: 0 };
 
     const withScores = studentRows.filter((r) => r.averageScore > 0);
     const sumPct = withScores.reduce((acc, c) => acc + c.averageScore, 0);
     const avgPct = withScores.length > 0 ? Math.round((sumPct / withScores.length) * 10) / 10 : 0;
     const topScore = withScores.length > 0 ? Math.max(...withScores.map((c) => c.averageScore)) : 0;
     const published = studentRows.filter((c) => c.status === 'PUBLISHED').length;
+    const ready = studentRows.filter((c) => c.status === 'READY').length;
+    const needsCorrection = studentRows.filter((c) => c.status === 'NEEDS_CORRECTION').length;
 
-    return { total, avgPct, topScore, published };
+    return { total, avgPct, topScore, published, ready, needsCorrection };
   }, [studentRows]);
 
   const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
   const currentTerms = currentYearObj?.terms || [];
 
+  const canBulkPublish = readiness?.isFullyReady && (readiness?.reportCardsSummary?.ready || 0) > 0;
+
   return (
     <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto print:p-0">
-      {/* Header (Hidden in Print) */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/70 print:hidden">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400">
@@ -384,7 +500,7 @@ export default function AdminReportCardsPage() {
               Official Student Report Cards
             </h1>
             <p className="text-sm text-muted-foreground">
-              Bright Path School academic evaluation cards, multi-period results, and A4 print generator.
+              Manage, publish, and print academic evaluation cards for parents & students.
             </p>
           </div>
         </div>
@@ -406,22 +522,26 @@ export default function AdminReportCardsPage() {
             className="gap-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <Layers className="w-4 h-4" />
-            Batch Print Class (A4)
+            Batch Print
           </Button>
 
           <Button
-            variant="outline"
             onClick={handleBulkPublish}
-            disabled={reportCards.length === 0}
-            className="gap-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+            disabled={bulkPublishing || !canBulkPublish}
+            className={`gap-2 ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
+            variant={canBulkPublish ? 'default' : 'outline'}
           >
-            <Send className="w-4 h-4" />
-            Publish All
+            {bulkPublishing ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            {bulkPublishing ? 'Publishing...' : 'Publish All Ready'}
           </Button>
         </div>
       </div>
 
-      {/* Filter Toolbar (Hidden in Print) */}
+      {/* Filter Toolbar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-xs print:hidden">
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
@@ -449,7 +569,7 @@ export default function AdminReportCardsPage() {
             onChange={(e) => setSelectedTermId(e.target.value)}
             className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm font-medium"
           >
-            <option value="annual">★ Annual / Full Year (Cumulative 4-Period)</option>
+            <option value="annual">★ Annual / Full Year</option>
             {currentTerms.map((t: any) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -493,11 +613,87 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-      {/* Aggregate Stats Cards (Hidden in Print) */}
+      {/* Readiness Banner */}
+      {selectedSectionId && (
+        <div
+          className={`rounded-xl border px-4 py-3 flex items-start gap-3 print:hidden cursor-pointer transition-all ${
+            loadingReadiness
+              ? 'border-border/50 bg-muted/30'
+              : readiness?.isFullyReady
+              ? 'border-emerald-500/30 bg-emerald-500/5'
+              : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
+              ? 'border-amber-500/30 bg-amber-500/5'
+              : 'border-blue-500/20 bg-blue-500/5'
+          }`}
+          onClick={() => setReadinessPanelOpen((o) => !o)}
+        >
+          {loadingReadiness ? (
+            <RefreshCw className="w-5 h-5 text-muted-foreground animate-spin mt-0.5 shrink-0" />
+          ) : readiness?.isFullyReady ? (
+            <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+          ) : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0 ? (
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+          ) : (
+            <Info className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+          )}
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                {loadingReadiness
+                  ? 'Checking readiness...'
+                  : readiness?.isFullyReady
+                  ? 'All subjects approved — class is ready to publish!'
+                  : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
+                  ? `⚠ ${readiness?.reportCardsSummary?.needsCorrection} report card(s) need correction`
+                  : `${readiness?.approvedSubjectsCount || 0} / ${readiness?.totalRequiredSubjects || '?'} subjects approved`}
+              </p>
+              <ChevronRight
+                className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${readinessPanelOpen ? 'rotate-90' : ''}`}
+              />
+            </div>
+            {readiness && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Report cards: {readiness.reportCardsSummary.published} published •{' '}
+                {readiness.reportCardsSummary.ready} ready •{' '}
+                {readiness.reportCardsSummary.draft} draft
+                {readiness.reportCardsSummary.needsCorrection > 0
+                  ? ` • ${readiness.reportCardsSummary.needsCorrection} need correction`
+                  : ''}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Readiness Detail Panel */}
+      {readinessPanelOpen && readiness && !readiness.isFullyReady && readiness.pendingSubjects?.length > 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 print:hidden">
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2">
+            Pending Subject Approvals
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            {readiness.pendingSubjects.map((s) => (
+              <div
+                key={s.subjectId}
+                className="flex items-center gap-2 p-2 rounded-lg bg-background border border-border"
+              >
+                <BookOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">{s.subjectName}</p>
+                  <p className="text-[10px] text-muted-foreground">{s.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
         <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Class Enrollment</span>
+            <span className="text-xs font-semibold text-muted-foreground">Enrollment</span>
             <GraduationCap className="w-4 h-4 text-blue-600" />
           </div>
           <p className="text-2xl font-black text-foreground mt-2">{stats.total}</p>
@@ -534,7 +730,12 @@ export default function AdminReportCardsPage() {
           <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
             {stats.published} / {stats.total}
           </p>
-          <span className="text-[11px] text-muted-foreground">Visible to parents</span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[11px] text-muted-foreground">Visible to parents</span>
+            {stats.ready > 0 && (
+              <span className="text-[10px] font-bold text-blue-500">({stats.ready} ready)</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -549,7 +750,7 @@ export default function AdminReportCardsPage() {
             className="pl-9 h-10 rounded-xl"
           />
         </div>
-        <Button variant="ghost" size="sm" onClick={loadData} disabled={loading} className="gap-2">
+        <Button variant="ghost" size="sm" onClick={() => { loadData(); loadReadiness(); }} disabled={loading} className="gap-2">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
@@ -563,7 +764,7 @@ export default function AdminReportCardsPage() {
               <tr>
                 <th className="py-3 px-4 w-12 text-center">Rank</th>
                 <th className="py-3 px-4">Student Details</th>
-                <th className="py-3 px-4 text-center">Total Points</th>
+                <th className="py-3 px-4 text-center">Total</th>
                 <th className="py-3 px-4 text-center">Average %</th>
                 <th className="py-3 px-4 text-center">Conduct</th>
                 <th className="py-3 px-4 text-center">Absences</th>
@@ -587,7 +788,12 @@ export default function AdminReportCardsPage() {
                 </tr>
               ) : (
                 filteredRows.map((row) => (
-                  <tr key={row.studentId} className="hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={row.studentId}
+                    className={`hover:bg-muted/30 transition-colors ${
+                      row.status === 'NEEDS_CORRECTION' ? 'bg-amber-500/5' : ''
+                    }`}
+                  >
                     <td className="py-3 px-4 text-center font-bold">
                       <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-black text-slate-800 dark:text-slate-200">
                         {row.rank}
@@ -630,20 +836,27 @@ export default function AdminReportCardsPage() {
                       {row.absence}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          row.status === 'PUBLISHED'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                            : row.status === 'GENERATED'
-                            ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {row.status}
-                      </span>
+                      <StatusBadge status={row.status} />
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Publish single button for READY or NEEDS_CORRECTION */}
+                        {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
+                          <Button
+                            size="sm"
+                            onClick={() => handlePublishSingle(row.id, row.fullName)}
+                            disabled={publishingId === row.id}
+                            className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                          >
+                            {publishingId === row.id ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Send className="w-3 h-3" />
+                            )}
+                            Publish
+                          </Button>
+                        )}
+
                         <Button
                           variant="outline"
                           size="sm"
@@ -652,7 +865,7 @@ export default function AdminReportCardsPage() {
                           title="View Official Report Card"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          View / Print
+                          View
                         </Button>
                         <Button
                           variant="ghost"
@@ -673,9 +886,9 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-      {/* ==================================================== */}
-      {/* 1. SINGLE OFFICIAL REPORT CARD MODAL */}
-      {/* ==================================================== */}
+      {/* ================================================ */}
+      {/* 1. SINGLE OFFICIAL REPORT CARD MODAL            */}
+      {/* ================================================ */}
       <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[94vh] overflow-y-auto p-0 border border-slate-300">
           <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
@@ -692,7 +905,7 @@ export default function AdminReportCardsPage() {
                 className="gap-2 bg-primary text-primary-foreground font-semibold"
               >
                 <Printer className="w-4 h-4" />
-                Print / Save A4 PDF
+                Print / Save PDF
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setPreviewModalOpen(false)}>
                 <X className="w-4 h-4" />
@@ -715,9 +928,9 @@ export default function AdminReportCardsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ==================================================== */}
-      {/* 2. BATCH PRINT MODAL (ENTIRE CLASS A4) */}
-      {/* ==================================================== */}
+      {/* ================================================ */}
+      {/* 2. BATCH PRINT MODAL (ENTIRE CLASS A4)           */}
+      {/* ================================================ */}
       <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
         <DialogContent className="sm:max-w-5xl max-h-[94vh] overflow-y-auto p-0 border border-slate-300">
           <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
@@ -738,7 +951,7 @@ export default function AdminReportCardsPage() {
                 className="gap-2 bg-primary text-primary-foreground font-semibold"
               >
                 <Printer className="w-4 h-4" />
-                Print All ({batchCards.length} Cards)
+                Print All ({batchCards.length})
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setBatchModalOpen(false)}>
                 <X className="w-4 h-4" />
@@ -765,9 +978,9 @@ export default function AdminReportCardsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ==================================================== */}
-      {/* 3. EDIT REMARKS & CONDUCT MODAL */}
-      {/* ==================================================== */}
+      {/* ================================================ */}
+      {/* 3. EDIT REMARKS & CONDUCT MODAL                  */}
+      {/* ================================================ */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

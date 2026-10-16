@@ -42,10 +42,12 @@ const router = (0, express_1.Router)();
 router.get('/', studentController.getStudents);
 router.get('/auto/next-id', studentController.getNextStudentId);
 router.get('/parent/:phone', studentController.getStudentsByParentPhone);
+router.post('/activation/bulk-generate', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.bulkGenerateActivationCodes);
 router.post('/', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), validate_1.validateStudent, studentController.createStudent);
 router.post('/bulk', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.bulkCreateStudents);
 // Dynamic routes last
 router.get('/:id', studentController.getStudentById);
 router.put('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.updateStudent);
 router.delete('/:id', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.deleteStudent);
+router.post('/:id/generate-activation-code', (0, auth_middleware_1.authorize)(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.generateActivationCode);
 exports.default = router;

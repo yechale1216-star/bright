@@ -584,6 +584,72 @@ export const gradebookService = {
     });
   },
 
+  async publishReportCard(id: string): Promise<{ message: string; reportCard: ReportCard }> {
+    const res = await apiFetch<{ success: boolean; message: string; data: ReportCard }>(
+      `${API_URL}/api/gradebook/report-cards/${id}/publish`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      }
+    );
+    return { message: res.message || 'Published', reportCard: res.data };
+  },
+
+  async bulkPublishReportCards(params: {
+    gradeId: string;
+    sectionId: string;
+    academicYearId: string;
+    academicTermId?: string;
+  }): Promise<{ published: number; skipped: number; errors: number; message: string }> {
+    const res = await apiFetch<{
+      success: boolean;
+      message: string;
+      data: { published: number; skipped: number; errors: number };
+    }>(
+      `${API_URL}/api/gradebook/report-cards/bulk-publish`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(params),
+      }
+    );
+    return { ...(res.data || { published: 0, skipped: 0, errors: 0 }), message: res.message || '' };
+  },
+
+  async getClassReadinessOverview(params: {
+    gradeId: string;
+    sectionId: string;
+    academicYearId: string;
+    academicTermId?: string;
+  }): Promise<{
+    gradeId: string;
+    sectionId: string;
+    isFullyReady: boolean;
+    totalRequiredSubjects: number;
+    approvedSubjectsCount: number;
+    pendingSubjects: Array<{ subjectId: string; subjectName: string; status: string }>;
+    reportCardsSummary: {
+      total: number;
+      ready: number;
+      draft: number;
+      published: number;
+      needsCorrection: number;
+    };
+  }> {
+    const query = new URLSearchParams({
+      gradeId: params.gradeId,
+      sectionId: params.sectionId,
+      academicYearId: params.academicYearId,
+    });
+    if (params.academicTermId) query.set('academicTermId', params.academicTermId);
+
+    const res = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/gradebook/report-cards/readiness?${query.toString()}`,
+      { headers: getAuthHeaders() }
+    );
+    return res.data;
+  },
+
   async getStudentReportCards(
     studentId: string,
     academicTermId?: string,
@@ -696,6 +762,18 @@ export const gradebookService = {
       submissions: res.data || [],
       pagination: res.pagination || { total: 0, page: 1, limit: 10, totalPages: 1 },
     };
+  },
+
+  async syncSubmissions(academicYearId?: string, academicTermId?: string): Promise<{ success: boolean; count: number; message: string }> {
+    const res = await apiFetch<{ success: boolean; count: number; message: string }>(
+      `${API_URL}/api/gradebook/submissions/sync`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ academicYearId, academicTermId }),
+      }
+    );
+    return res;
   },
 
   async getSubmissionDetails(id: string): Promise<SubmissionDetailsResponse> {

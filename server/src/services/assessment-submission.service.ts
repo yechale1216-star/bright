@@ -48,8 +48,11 @@ export class AssessmentSubmissionService {
       // 2. Fetch Teacher Assignments for this context
       const assignments = await prisma.teacherAssignment.findMany({
         where: {
-          subjectId: { not: null },
-          role: 'SUBJECT_TEACHER',
+          OR: [
+            { subjectId: { not: null } },
+            { subject: { not: null } },
+            { role: 'SUBJECT_TEACHER' },
+          ],
         },
         include: {
           teacher: true,
@@ -62,7 +65,19 @@ export class AssessmentSubmissionService {
       let createdCount = 0;
 
       for (const assign of assignments) {
-        if (!assign.subjectId) continue;
+        let targetSubjectId = assign.subjectId;
+        if (!targetSubjectId && assign.subject) {
+          const matchedSubject = await prisma.subject.findFirst({
+            where: {
+              OR: [
+                { name: { equals: assign.subject, mode: 'insensitive' } },
+                { code: { equals: assign.subject, mode: 'insensitive' } },
+              ],
+            },
+          });
+          targetSubjectId = matchedSubject?.id || null;
+        }
+        if (!targetSubjectId || !assign.teacher_id) continue;
 
         // Check if submission record already exists
         const existing = await prisma.assessmentSubmissionRecord.findUnique({
@@ -72,20 +87,20 @@ export class AssessmentSubmissionService {
               academicTermId: targetTermId,
               gradeId: assign.gradeId,
               sectionId: assign.sectionId,
-              subjectId: assign.subjectId,
+              subjectId: targetSubjectId,
             },
           },
         });
 
         if (!existing) {
-          // Check if assessments exist for this combo
+          // Check if assessments exist for this combo (section-specific or grade-wide)
           const assessments = await prisma.assessment.findMany({
             where: {
               academicYearId: targetYearId,
               academicTermId: targetTermId,
               gradeId: assign.gradeId,
-              sectionId: assign.sectionId,
-              subjectId: assign.subjectId,
+              subjectId: targetSubjectId,
+              OR: [{ sectionId: null }, { sectionId: assign.sectionId }],
             },
             include: {
               marks: true,
@@ -103,17 +118,28 @@ export class AssessmentSubmissionService {
             initialStatus = 'PUBLISHED';
           }
 
-          await prisma.assessmentSubmissionRecord.create({
-            data: {
+          // Use upsert to safely handle any race conditions or duplicate keys
+          await prisma.assessmentSubmissionRecord.upsert({
+            where: {
+              academicYearId_academicTermId_gradeId_sectionId_subjectId: {
+                academicYearId: targetYearId,
+                academicTermId: targetTermId,
+                gradeId: assign.gradeId,
+                sectionId: assign.sectionId,
+                subjectId: targetSubjectId,
+              },
+            },
+            create: {
               academicYearId: targetYearId,
               academicTermId: targetTermId,
               gradeId: assign.gradeId,
               sectionId: assign.sectionId,
-              subjectId: assign.subjectId,
+              subjectId: targetSubjectId,
               teacherId: assign.teacher_id,
               status: initialStatus,
               submittedAt: new Date(),
             },
+            update: {}, // Don't overwrite existing records
           });
           createdCount++;
         }
@@ -154,17 +180,27 @@ export class AssessmentSubmissionService {
         });
 
         if (!exists) {
-          await prisma.assessmentSubmissionRecord.create({
-            data: {
+          await prisma.assessmentSubmissionRecord.upsert({
+            where: {
+              academicYearId_academicTermId_gradeId_sectionId_subjectId: {
+                academicYearId: a.academicYearId,
+                academicTermId: a.academicTermId!,
+                gradeId: a.gradeId,
+                sectionId: a.sectionId!,
+                subjectId: a.subjectId,
+              },
+            },
+            create: {
               academicYearId: a.academicYearId,
-              academicTermId: a.academicTermId,
+              academicTermId: a.academicTermId!,
               gradeId: a.gradeId,
-              sectionId: a.sectionId,
+              sectionId: a.sectionId!,
               subjectId: a.subjectId,
-              teacherId: a.teacherId,
+              teacherId: a.teacherId!,
               status: a.status === 'APPROVED' ? 'APPROVED' : (a.status === 'PUBLISHED' ? 'PUBLISHED' : 'SUBMITTED'),
               submittedAt: new Date(),
             },
+            update: {}, // Don't overwrite existing records
           });
           createdCount++;
         }
@@ -277,59 +313,67 @@ export class AssessmentSubmissionService {
     const enriched = await Promise.all(
       records.map(async (rec) => {
         // Enrolled active students in this grade & section
-        const totalStudents = await prisma.student.count({
+        const students = await prisma.student.findMany({
           where: {
             gradeId: rec.gradeId,
             sectionId: rec.sectionId,
             status: 'ACTIVE',
           },
+          select: { id: true },
         });
 
-        // Assessments for this subject/term
+        const totalStudents = students.length;
+
+        // Assessments for this subject/term (both section-specific and grade-wide)
         const assessments = await prisma.assessment.findMany({
           where: {
             academicYearId: rec.academicYearId,
             academicTermId: rec.academicTermId,
             gradeId: rec.gradeId,
-            sectionId: rec.sectionId,
             subjectId: rec.subjectId,
+            OR: [{ sectionId: null }, { sectionId: rec.sectionId }],
           },
           include: {
             marks: true,
           },
         });
 
-        let validMarksCount = 0;
-        let absentCount = 0;
-        let missingMarksCount = 0;
+        let completedStudentsCount = 0;
+        let absentStudentsCount = 0;
         let hasInvalidMark = false;
 
-        const totalExpectedMarks = Math.max(1, totalStudents * Math.max(1, assessments.length));
+        if (assessments.length > 0 && totalStudents > 0) {
+          const studentMarkMap = new Map<string, number>();
+          const studentAbsentSet = new Set<string>();
 
-        for (const assess of assessments) {
-          const marks = assess.marks;
-          for (const m of marks) {
-            if (m.isAbsent || m.status === 'ABSENT' || m.status === 'EXCUSED') {
-              absentCount++;
-            } else if (m.score !== null && m.score !== undefined) {
-              if (m.score < 0 || m.score > assess.maxScore) {
-                hasInvalidMark = true;
+          for (const assess of assessments) {
+            for (const m of assess.marks) {
+              if (m.score !== null && m.score !== undefined && !m.isAbsent) {
+                if (m.score < 0 || m.score > assess.maxScore) {
+                  hasInvalidMark = true;
+                }
+                studentMarkMap.set(m.studentId, (studentMarkMap.get(m.studentId) || 0) + 1);
+              } else if (m.isAbsent || m.status === 'ABSENT' || m.status === 'EXCUSED') {
+                studentAbsentSet.add(m.studentId);
+                studentMarkMap.set(m.studentId, (studentMarkMap.get(m.studentId) || 0) + 1);
               }
-              validMarksCount++;
+            }
+          }
+
+          for (const s of students) {
+            const count = studentMarkMap.get(s.id) || 0;
+            if (count >= assessments.length) {
+              completedStudentsCount++;
+            }
+            if (studentAbsentSet.has(s.id)) {
+              absentStudentsCount++;
             }
           }
         }
 
-        // If total students > 0 and assessments exist
-        if (assessments.length > 0 && totalStudents > 0) {
-          const totalEntered = validMarksCount + absentCount;
-          missingMarksCount = Math.max(0, (totalStudents * assessments.length) - totalEntered);
-        } else {
-          missingMarksCount = totalStudents;
-        }
-
+        const missingMarksCount = Math.max(0, totalStudents - completedStudentsCount);
         const completionPercentage = totalStudents > 0
-          ? Math.min(100, Math.round(((validMarksCount + absentCount) / totalExpectedMarks) * 100))
+          ? Math.min(100, Math.round((completedStudentsCount / totalStudents) * 100))
           : 0;
 
         return {
@@ -379,9 +423,9 @@ export class AssessmentSubmissionService {
           },
           metrics: {
             totalStudents,
-            validMarksCount: Math.min(totalStudents, validMarksCount),
+            validMarksCount: completedStudentsCount,
             missingMarksCount,
-            absentCount,
+            absentCount: absentStudentsCount,
             completionPercentage,
             assessmentsCount: assessments.length,
             hasInvalidMark,
@@ -431,14 +475,14 @@ export class AssessmentSubmissionService {
       orderBy: { fullName: 'asc' },
     });
 
-    // 2. Fetch assessments in this context
+    // 2. Fetch assessments in this context (section-specific and grade-wide)
     const assessments = await prisma.assessment.findMany({
       where: {
         academicYearId: record.academicYearId,
         academicTermId: record.academicTermId,
         gradeId: record.gradeId,
-        sectionId: record.sectionId,
         subjectId: record.subjectId,
+        OR: [{ sectionId: null }, { sectionId: record.sectionId }],
       },
       include: {
         category: true,
@@ -559,6 +603,22 @@ export class AssessmentSubmissionService {
       ? Math.round(((completedCount + absentCount) / students.length) * 100)
       : 0;
 
+    // Resolve reviewer name if reviewedById is present
+    let reviewerName = 'Administrator';
+    if (record.reviewedById) {
+      try {
+        const reviewerUser = await prisma.user.findUnique({
+          where: { id: record.reviewedById },
+          select: { full_name: true, email: true },
+        });
+        if (reviewerUser?.full_name) {
+          reviewerName = reviewerUser.full_name;
+        } else if (reviewerUser?.email) {
+          reviewerName = reviewerUser.email.split('@')[0];
+        }
+      } catch {}
+    }
+
     // 4. Build Activity & Audit Timeline
     const activities: Array<{
       id: string;
@@ -598,8 +658,8 @@ export class AssessmentSubmissionService {
           id: 'app-' + record.id,
           type: 'APPROVAL',
           title: 'Marks Approved',
-          description: 'Submission was reviewed and approved by School Administrator.',
-          author: 'Administrator',
+          description: `Submission was reviewed and approved by ${reviewerName}.`,
+          author: reviewerName,
           timestamp: record.reviewedAt,
         });
       } else if (record.status === 'RETURNED') {
@@ -608,7 +668,7 @@ export class AssessmentSubmissionService {
           type: 'RETURNED',
           title: 'Returned for Correction',
           description: `Reason: ${record.rejectionReason || 'Issues identified in marks submission.'}`,
-          author: 'Administrator',
+          author: reviewerName,
           timestamp: record.reviewedAt,
         });
       }
@@ -621,7 +681,7 @@ export class AssessmentSubmissionService {
         type: 'PUBLISHED',
         title: 'Results Published',
         description: 'Approved marks were released for official report card generation.',
-        author: 'Administrator',
+        author: reviewerName,
         timestamp: record.publishedAt,
       });
     }
@@ -633,7 +693,7 @@ export class AssessmentSubmissionService {
         type: 'REOPENED',
         title: 'Submission Reopened',
         description: `Reason: ${record.reopenReason || 'Reopened for corrections.'}`,
-        author: 'Administrator',
+        author: reviewerName,
         timestamp: record.reopenedAt,
       });
     }
@@ -724,8 +784,8 @@ export class AssessmentSubmissionService {
     const now = new Date();
 
     // Atomic update
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.assessmentSubmissionRecord.update({
+    const updated = await prisma.$transaction(async (tx) => {
+      const up = await tx.assessmentSubmissionRecord.update({
         where: { id },
         data: {
           status: 'APPROVED',
@@ -735,14 +795,14 @@ export class AssessmentSubmissionService {
         },
       });
 
-      // Update assessments status
+      // Update assessments status strictly for this subject
       await tx.assessment.updateMany({
         where: {
           academicYearId: record.academicYearId,
           academicTermId: record.academicTermId,
           gradeId: record.gradeId,
-          sectionId: record.sectionId,
           subjectId: record.subjectId,
+          OR: [{ sectionId: null }, { sectionId: record.sectionId }],
         },
         data: {
           status: 'APPROVED',
@@ -751,8 +811,26 @@ export class AssessmentSubmissionService {
         },
       });
 
-      return updated;
+      return up;
     });
+
+    // Auto-create / refresh DRAFT report cards for this class using approved marks
+    // Crucial: Report cards remain DRAFT or READY, NEVER auto-published!
+    (async () => {
+      try {
+        const { gradebookService } = await import('./gradebook.service');
+        await gradebookService.generateReportCards({
+          gradeId: record.gradeId,
+          sectionId: record.sectionId,
+          academicYearId: record.academicYearId,
+          academicTermId: record.academicTermId,
+        });
+      } catch (err) {
+        console.warn('[approveSubmission] Background draft report card update failed:', err);
+      }
+    })();
+
+    return updated;
   }
 
   /**
@@ -773,8 +851,8 @@ export class AssessmentSubmissionService {
 
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.assessmentSubmissionRecord.update({
+    const updated = await prisma.$transaction(async (tx) => {
+      const up = await tx.assessmentSubmissionRecord.update({
         where: { id },
         data: {
           status: 'RETURNED',
@@ -790,16 +868,47 @@ export class AssessmentSubmissionService {
           academicYearId: record.academicYearId,
           academicTermId: record.academicTermId,
           gradeId: record.gradeId,
-          sectionId: record.sectionId,
           subjectId: record.subjectId,
+          OR: [{ sectionId: null }, { sectionId: record.sectionId }],
         },
         data: {
           status: 'OPEN',
         },
       });
 
-      return updated;
+      // If report cards were already published, flag as NEEDS_CORRECTION
+      await tx.reportCard.updateMany({
+        where: {
+          academicYearId: record.academicYearId,
+          academicTermId: record.academicTermId,
+          gradeId: record.gradeId,
+          sectionId: record.sectionId,
+          status: 'PUBLISHED',
+        },
+        data: {
+          status: 'NEEDS_CORRECTION',
+        },
+      });
+
+      return up;
     });
+
+    // Re-sync draft report cards to reflect returned status
+    (async () => {
+      try {
+        const { gradebookService } = await import('./gradebook.service');
+        await gradebookService.generateReportCards({
+          gradeId: record.gradeId,
+          sectionId: record.sectionId,
+          academicYearId: record.academicYearId,
+          academicTermId: record.academicTermId,
+        });
+      } catch (err) {
+        console.warn('[returnSubmission] Background report card sync failed:', err);
+      }
+    })();
+
+    return updated;
   }
 
   /**
@@ -820,8 +929,8 @@ export class AssessmentSubmissionService {
 
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.assessmentSubmissionRecord.update({
+    const updated = await prisma.$transaction(async (tx) => {
+      const up = await tx.assessmentSubmissionRecord.update({
         where: { id },
         data: {
           status: 'SUBMITTED',
@@ -835,20 +944,52 @@ export class AssessmentSubmissionService {
           academicYearId: record.academicYearId,
           academicTermId: record.academicTermId,
           gradeId: record.gradeId,
-          sectionId: record.sectionId,
           subjectId: record.subjectId,
+          OR: [{ sectionId: null }, { sectionId: record.sectionId }],
         },
         data: {
           status: 'OPEN',
         },
       });
 
-      return updated;
+      // If report cards were already published, flag as NEEDS_CORRECTION
+      await tx.reportCard.updateMany({
+        where: {
+          academicYearId: record.academicYearId,
+          academicTermId: record.academicTermId,
+          gradeId: record.gradeId,
+          sectionId: record.sectionId,
+          status: 'PUBLISHED',
+        },
+        data: {
+          status: 'NEEDS_CORRECTION',
+        },
+      });
+
+      return up;
     });
+
+    // Re-sync draft report cards to reflect reopened status
+    (async () => {
+      try {
+        const { gradebookService } = await import('./gradebook.service');
+        await gradebookService.generateReportCards({
+          gradeId: record.gradeId,
+          sectionId: record.sectionId,
+          academicYearId: record.academicYearId,
+          academicTermId: record.academicTermId,
+        });
+      } catch (err) {
+        console.warn('[reopenSubmission] Background report card sync failed:', err);
+      }
+    })();
+
+    return updated;
   }
 
   /**
-   * Publish results for report card generation
+   * Publish results for subject mark submission (marks approved for official records)
+   * Note: This does NOT publish report cards to students or parents.
    */
   async publishSubmission(id: string, publisherId?: string) {
     const record = await prisma.assessmentSubmissionRecord.findUnique({
@@ -861,12 +1002,14 @@ export class AssessmentSubmissionService {
 
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.assessmentSubmissionRecord.update({
+    const updated = await prisma.$transaction(async (tx) => {
+      const up = await tx.assessmentSubmissionRecord.update({
         where: { id },
         data: {
-          status: 'PUBLISHED',
+          status: 'APPROVED',
           publishedAt: now,
+          reviewedById: publisherId || undefined,
+          reviewedAt: now,
         },
       });
 
@@ -875,17 +1018,35 @@ export class AssessmentSubmissionService {
           academicYearId: record.academicYearId,
           academicTermId: record.academicTermId,
           gradeId: record.gradeId,
-          sectionId: record.sectionId,
           subjectId: record.subjectId,
+          OR: [{ sectionId: null }, { sectionId: record.sectionId }],
         },
         data: {
-          status: 'PUBLISHED',
-          publishedAt: now,
+          status: 'APPROVED',
+          approvedAt: now,
+          approvedById: publisherId || null,
         },
       });
 
-      return updated;
+      return up;
     });
+
+    // Refresh draft report cards with approved marks (remains DRAFT or READY, never PUBLISHED)
+    (async () => {
+      try {
+        const { gradebookService } = await import('./gradebook.service');
+        await gradebookService.generateReportCards({
+          gradeId: record.gradeId,
+          sectionId: record.sectionId,
+          academicYearId: record.academicYearId,
+          academicTermId: record.academicTermId,
+        });
+      } catch (err) {
+        console.warn('[publishSubmission] Background draft report card update failed:', err);
+      }
+    })();
+
+    return updated;
   }
 
   /**
@@ -985,8 +1146,8 @@ export class AssessmentSubmissionService {
         academicYearId,
         academicTermId,
         gradeId,
-        sectionId,
         subjectId,
+        OR: [{ sectionId: null }, { sectionId }],
       },
       data: {
         status: 'SUBMITTED',
