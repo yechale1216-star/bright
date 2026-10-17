@@ -527,6 +527,19 @@ export class GradebookService {
       if (sr.subjectId) subjectIdSet.add(sr.subjectId);
     }
 
+    // 5. Grade Subject assignments (Curriculum)
+    const gradeSubjects = await prisma.gradeSubject.findMany({
+      where: {
+        gradeId,
+        ...(sectionId ? { OR: [{ sectionId: null }, { sectionId }] } : {}),
+      },
+      select: { subjectId: true },
+    });
+    for (const gs of gradeSubjects) {
+      if (gs.subjectId) subjectIdSet.add(gs.subjectId);
+    }
+
+
     let subjects: any[] = [];
     if (subjectIdSet.size > 0) {
       subjects = await prisma.subject.findMany({
@@ -1773,19 +1786,10 @@ export class GradebookService {
     const reportCardId = latestRc?.id ? `AH-RC-${latestRc.id.substring(0, 8).toUpperCase()}` : `AH-RC-${student.student_id}-2018`;
     const issueDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-    const qrVerificationPayload = JSON.stringify({
-      school: school.name,
-      reportCardId,
-      studentId: student.student_id,
-      studentName: student.fullName,
-      grade: student.grade?.name,
-      section: student.section?.name,
-      year: targetYear?.name || '2018 E.C.',
-      average: overallAverage,
-      rank: rankDisplay,
-      status: remarkBadge,
-      issued: issueDate,
-    });
+    // Verifiable QR Code payload (direct URL for mobile camera scanning)
+    const appBaseUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const targetRcId = latestRc?.id || student.id;
+    const qrVerificationPayload = `${appBaseUrl.replace(/\/$/, '')}/verify/report-card?id=${targetRcId}`;
 
     return {
       reportCardId,
@@ -2336,6 +2340,115 @@ export class GradebookService {
       count: results.length,
       updatedCount: results.length,
       success: true,
+    };
+  }
+
+  /**
+   * Public verification of an official report card by ReportCard ID or Student ID
+   */
+  async verifyReportCard(id: string) {
+    if (!id || id.trim() === '') {
+      throw new Error('Verification identifier is required');
+    }
+
+    const cleanId = id.trim();
+    const reportCard = await prisma.reportCard.findFirst({
+      where: {
+        OR: [
+          { id: cleanId },
+          { studentId: cleanId },
+          { student: { student_id: cleanId } },
+          { student: { student_id: { equals: cleanId, mode: 'insensitive' } } },
+        ],
+      },
+      include: {
+        student: {
+          include: {
+            user: { select: { profile_photo: true } },
+          },
+        },
+        grade: true,
+        section: true,
+        academicYear: true,
+        academicTerm: true,
+        subjectScores: {
+          include: { subject: true },
+          orderBy: { score: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!reportCard) {
+      return null;
+    }
+
+    const settings = await prisma.schoolSettings.findUnique({ where: { id: 'singleton' } });
+    const school = {
+      name: settings?.school_name || 'Bright Path School',
+      amharicName: 'ብራይት ፓዝ ት/ቤት',
+      address: settings?.school_address || 'Dire Dawa',
+      phone: settings?.school_phone || '0251 - 11 41 87 / 1838',
+      logo: settings?.school_logo || '/bright-path-logo.png',
+    };
+    const issueDate = reportCard.publishedAt
+      ? new Date(reportCard.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : new Date(reportCard.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    const totalStudentsInClass = await prisma.student.count({
+      where: { gradeId: reportCard.gradeId, sectionId: reportCard.sectionId, status: 'ACTIVE' },
+    });
+
+    const rankDisplay = reportCard.rank ? `${reportCard.rank} of ${totalStudentsInClass}` : '—';
+    const remarkBadge = reportCard.averageScore >= 50 ? 'PASSED' : 'NEEDS IMPROVEMENT';
+
+    return {
+      verified: true,
+      status: reportCard.status,
+      isOfficial: reportCard.status === 'PUBLISHED',
+      reportCardId: `AH-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
+      certificateId: reportCard.id,
+      issueDate,
+      school: {
+        name: school.name,
+        amharicName: school.amharicName,
+        address: school.address,
+        phone: school.phone,
+        logo: school.logo,
+      },
+      student: {
+        id: reportCard.student.id,
+        studentId: reportCard.student.student_id,
+        fullName: reportCard.student.fullName,
+        gender: reportCard.student.gender || 'M',
+        photo: reportCard.student.user?.profile_photo || null,
+      },
+      academic: {
+        gradeName: reportCard.grade?.name || '10',
+        sectionName: reportCard.section?.name || 'A',
+        academicYearName: reportCard.academicYear?.name || '2018 E.C.',
+        termName: reportCard.academicTerm?.name || 'Annual',
+      },
+      performance: {
+        totalScore: reportCard.totalScore,
+        maxPossibleScore: reportCard.maxPossibleScore,
+        averageScore: reportCard.averageScore,
+        gpa: reportCard.gpa,
+        rank: rankDisplay,
+        conduct: reportCard.conduct || 'A',
+        remarkBadge,
+        teacherComment: reportCard.homeroomTeacherComment,
+        principalComment: reportCard.principalComment,
+      },
+      subjects: reportCard.subjectScores.map((ss) => ({
+        id: ss.subjectId,
+        name: ss.subject?.name || 'Subject',
+        code: ss.subject?.code,
+        score: ss.score,
+        maxScore: ss.maxScore || 100,
+        gradeLetter: ss.gradeLetter || '-',
+        gpaPoint: ss.gpaPoint || 0,
+      })),
     };
   }
 }

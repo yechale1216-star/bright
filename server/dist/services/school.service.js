@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteSubject = exports.updateSubject = exports.createSubject = exports.getSubjects = exports.deleteStream = exports.updateStream = exports.createStream = exports.getStreams = exports.deleteSection = exports.updateSection = exports.createSection = exports.getSections = exports.deleteGrade = exports.updateGrade = exports.createGrade = exports.getGrades = exports.updateSchool = exports.createSchool = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.getSingleSchool = void 0;
+exports.bulkRemoveGradeSubjects = exports.deleteGradeSubject = exports.assignSubjectsToGrade = exports.getGradeSubjects = exports.deleteSubject = exports.updateSubject = exports.createSubject = exports.getSubjects = exports.deleteStream = exports.updateStream = exports.createStream = exports.getStreams = exports.deleteSection = exports.updateSection = exports.createSection = exports.getTeachers = exports.getSections = exports.deleteGrade = exports.updateGrade = exports.createGrade = exports.getGrades = exports.updateSchool = exports.createSchool = exports.getAllSchools = exports.getSchoolByCustomId = exports.getSchoolById = exports.getSingleSchool = void 0;
 const db_1 = __importDefault(require("../config/db"));
 const settingsService = __importStar(require("./settings.service"));
 const getSingleSchool = async () => {
@@ -121,12 +121,37 @@ const deleteGrade = async (id) => {
 exports.deleteGrade = deleteGrade;
 // ─── Sections ───────────────────────────────────────────────────────────────
 const getSections = async (gradeId) => {
+    try {
+        if (gradeId && gradeId !== 'ALL' && gradeId !== 'all') {
+            const filtered = await db_1.default.section.findMany({
+                where: {
+                    OR: [
+                        { students: { some: { gradeId } } },
+                        { assignments: { some: { gradeId } } },
+                        { assessments: { some: { gradeId } } },
+                    ],
+                },
+                orderBy: { name: 'asc' },
+            });
+            if (filtered && filtered.length > 0)
+                return filtered;
+        }
+    }
+    catch (err) {
+        console.warn('[getSections] Failed to filter by gradeId, returning all sections:', err);
+    }
     return await db_1.default.section.findMany({
-        where: gradeId ? { gradeId } : undefined,
         orderBy: { name: 'asc' },
     });
 };
 exports.getSections = getSections;
+// ─── Teachers ───────────────────────────────────────────────────────────────
+const getTeachers = async () => {
+    return await db_1.default.teacher.findMany({
+        orderBy: { name: 'asc' },
+    });
+};
+exports.getTeachers = getTeachers;
 const createSection = async (data) => {
     const trimmedName = data.name?.trim();
     if (!trimmedName)
@@ -253,3 +278,105 @@ const deleteSubject = async (id) => {
     return await db_1.default.subject.delete({ where: { id } });
 };
 exports.deleteSubject = deleteSubject;
+// ─── Grade Subjects (Curriculum Allocation) ──────────────────────────────────
+const getGradeSubjects = async (filter) => {
+    const where = {};
+    if (filter?.gradeId)
+        where.gradeId = filter.gradeId;
+    if (filter?.streamId !== undefined) {
+        where.streamId = filter.streamId ? filter.streamId : null;
+    }
+    if (filter?.sectionId !== undefined) {
+        where.sectionId = filter.sectionId ? filter.sectionId : null;
+    }
+    return await db_1.default.gradeSubject.findMany({
+        where,
+        orderBy: [
+            { grade: { name: 'asc' } },
+            { subject: { name: 'asc' } },
+        ],
+        include: {
+            grade: true,
+            stream: true,
+            section: true,
+            subject: true,
+        },
+    });
+};
+exports.getGradeSubjects = getGradeSubjects;
+const assignSubjectsToGrade = async (data) => {
+    if (!data.gradeId)
+        throw new Error('Grade is required');
+    if (!data.subjectIds || !Array.isArray(data.subjectIds) || data.subjectIds.length === 0) {
+        throw new Error('At least one subject must be selected');
+    }
+    const grade = await db_1.default.grade.findUnique({ where: { id: data.gradeId } });
+    if (!grade)
+        throw new Error('Grade not found');
+    const isGrade11or12 = /\b(11|12)\b/.test(grade.name);
+    if (isGrade11or12 && !data.streamId) {
+        throw new Error('Stream selection (Natural Science or Social Science) is required for Grades 11 and 12');
+    }
+    const streamId = isGrade11or12 ? data.streamId : (data.streamId || null);
+    const sectionId = data.sectionId || null;
+    if (streamId) {
+        const stream = await db_1.default.stream.findUnique({ where: { id: streamId } });
+        if (!stream)
+            throw new Error('Stream not found');
+    }
+    const results = [];
+    for (const subjectId of data.subjectIds) {
+        const subject = await db_1.default.subject.findUnique({ where: { id: subjectId } });
+        if (!subject)
+            continue;
+        // Check if already assigned to prevent duplicates
+        const existing = await db_1.default.gradeSubject.findFirst({
+            where: {
+                gradeId: data.gradeId,
+                streamId: streamId,
+                sectionId: sectionId,
+                subjectId: subjectId,
+            },
+        });
+        if (!existing) {
+            const created = await db_1.default.gradeSubject.create({
+                data: {
+                    gradeId: data.gradeId,
+                    streamId: streamId,
+                    sectionId: sectionId,
+                    subjectId: subjectId,
+                },
+                include: {
+                    grade: true,
+                    stream: true,
+                    section: true,
+                    subject: true,
+                },
+            });
+            results.push(created);
+        }
+        else {
+            results.push(existing);
+        }
+    }
+    return results;
+};
+exports.assignSubjectsToGrade = assignSubjectsToGrade;
+const deleteGradeSubject = async (id) => {
+    const existing = await db_1.default.gradeSubject.findUnique({ where: { id } });
+    if (!existing)
+        throw new Error('Grade subject assignment not found');
+    return await db_1.default.gradeSubject.delete({ where: { id } });
+};
+exports.deleteGradeSubject = deleteGradeSubject;
+const bulkRemoveGradeSubjects = async (data) => {
+    return await db_1.default.gradeSubject.deleteMany({
+        where: {
+            gradeId: data.gradeId,
+            streamId: data.streamId || null,
+            sectionId: data.sectionId || null,
+            subjectId: { in: data.subjectIds },
+        },
+    });
+};
+exports.bulkRemoveGradeSubjects = bulkRemoveGradeSubjects;

@@ -86,9 +86,14 @@ const createAssignment = async (data, _schoolId) => {
     if (!section) {
         throw new Error('Section does not exist.');
     }
-    if (data.streamId) {
+    const isGrade11or12 = /\b(11|12)\b/.test(grade.name);
+    if (isGrade11or12 && !data.streamId) {
+        throw new Error('Stream selection (Natural Science or Social Science) is required for Grades 11 and 12.');
+    }
+    const effectiveStreamId = isGrade11or12 ? data.streamId : null;
+    if (effectiveStreamId) {
         const stream = await db_1.default.stream.findUnique({
-            where: { id: data.streamId },
+            where: { id: effectiveStreamId },
         });
         if (!stream) {
             throw new Error('Stream does not exist.');
@@ -107,6 +112,19 @@ const createAssignment = async (data, _schoolId) => {
         const subj = await db_1.default.subject.findUnique({ where: { id: data.subjectId } });
         if (subj)
             subjectName = subj.name;
+        // Check if curriculum subjects are defined for this grade and stream
+        const curriculumSubjects = await db_1.default.gradeSubject.findMany({
+            where: {
+                gradeId: data.gradeId,
+                ...(isGrade11or12 ? { streamId: effectiveStreamId } : {}),
+            },
+        });
+        if (curriculumSubjects.length > 0) {
+            const isSubjectAssigned = curriculumSubjects.some((gs) => gs.subjectId === data.subjectId);
+            if (!isSubjectAssigned) {
+                throw new Error('The selected subject is not assigned to this Grade and Stream curriculum.');
+            }
+        }
     }
     const role = data.role || 'SUBJECT_TEACHER';
     // ── Conflict Check 1: Homeroom Teacher Exclusivity ───────────────────────
@@ -210,9 +228,14 @@ const updateAssignment = async (id, data, _schoolId) => {
     if (!section) {
         throw new Error('Section does not exist.');
     }
-    if (data.streamId) {
+    const isGrade11or12 = /\b(11|12)\b/.test(grade.name);
+    if (isGrade11or12 && !data.streamId) {
+        throw new Error('Stream selection (Natural Science or Social Science) is required for Grades 11 and 12.');
+    }
+    const effectiveStreamId = isGrade11or12 ? data.streamId : null;
+    if (effectiveStreamId) {
         const stream = await db_1.default.stream.findUnique({
-            where: { id: data.streamId },
+            where: { id: effectiveStreamId },
         });
         if (!stream) {
             throw new Error('Stream does not exist.');
@@ -229,6 +252,19 @@ const updateAssignment = async (id, data, _schoolId) => {
         const subj = await db_1.default.subject.findUnique({ where: { id: data.subjectId } });
         if (subj)
             subjectName = subj.name;
+        // Check if curriculum subjects are defined for this grade and stream
+        const curriculumSubjects = await db_1.default.gradeSubject.findMany({
+            where: {
+                gradeId: data.gradeId,
+                ...(isGrade11or12 ? { streamId: effectiveStreamId } : {}),
+            },
+        });
+        if (curriculumSubjects.length > 0) {
+            const isSubjectAssigned = curriculumSubjects.some((gs) => gs.subjectId === data.subjectId);
+            if (!isSubjectAssigned) {
+                throw new Error('The selected subject is not assigned to this Grade and Stream curriculum.');
+            }
+        }
     }
     const role = data.role || 'SUBJECT_TEACHER';
     // Conflict Check 1: Homeroom exclusivity

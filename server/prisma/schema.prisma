@@ -188,6 +188,7 @@ model Grade {
   learningMaterials          LearningMaterial[]
   assessmentSchemeAssignments AssessmentSchemeAssignment[]
   assessmentSubmissions      AssessmentSubmissionRecord[]
+  gradeSubjects              GradeSubject[]
 }
 
 model Section {
@@ -205,6 +206,7 @@ model Section {
   reportCards                ReportCard[]
   homeworkTasks              Assignment[]
   assessmentSubmissions      AssessmentSubmissionRecord[]
+  gradeSubjects              GradeSubject[]
 }
 
 model Stream {
@@ -220,6 +222,7 @@ model Stream {
   timetableSlots             TimetableSlot[]
   assessments                Assessment[]
   assessmentSchemeAssignments AssessmentSchemeAssignment[]
+  gradeSubjects              GradeSubject[]
 }
 
 model Student {
@@ -926,9 +929,32 @@ model Subject {
   teacherAssignments      TeacherAssignment[]
   assessmentSchemeAssignments AssessmentSchemeAssignment[]
   assessmentSubmissions   AssessmentSubmissionRecord[]
+  gradeSubjects           GradeSubject[]
 
   @@map("subjects")
 }
+
+model GradeSubject {
+  id          String    @id @default(uuid())
+  gradeId     String
+  streamId    String?
+  sectionId   String?
+  subjectId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  grade       Grade     @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  stream      Stream?   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  section     Section?  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([gradeId])
+  @@index([streamId])
+  @@index([sectionId])
+  @@index([subjectId])
+  @@map("grade_subjects")
+}
+
 
 model Classroom {
   id        String          @id @default(uuid())

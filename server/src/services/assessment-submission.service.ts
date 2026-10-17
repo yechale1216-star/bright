@@ -220,12 +220,20 @@ export class AssessmentSubmissionService {
     await this.syncSubmissions(filters.academicYearId, filters.academicTermId);
 
     const where: any = {};
-    if (filters.academicYearId) where.academicYearId = filters.academicYearId;
-    if (filters.academicTermId) where.academicTermId = filters.academicTermId;
-    if (filters.gradeId) where.gradeId = filters.gradeId;
-    if (filters.sectionId) where.sectionId = filters.sectionId;
-    if (filters.subjectId) where.subjectId = filters.subjectId;
-    if (filters.teacherId) where.teacherId = filters.teacherId;
+    if (filters.academicYearId && filters.academicYearId !== 'ALL') where.academicYearId = filters.academicYearId;
+    if (filters.academicTermId && filters.academicTermId !== 'ALL') where.academicTermId = filters.academicTermId;
+    if (filters.gradeId && filters.gradeId !== 'ALL' && filters.gradeId !== 'all') where.gradeId = filters.gradeId;
+    if (filters.sectionId && filters.sectionId !== 'ALL' && filters.sectionId !== 'all') where.sectionId = filters.sectionId;
+    if (filters.subjectId && filters.subjectId !== 'ALL' && filters.subjectId !== 'all') where.subjectId = filters.subjectId;
+    if (filters.teacherId && filters.teacherId !== 'ALL' && filters.teacherId !== 'all') {
+      let resolvedTeacherId = filters.teacherId;
+      const user = await prisma.user.findFirst({
+        where: { OR: [{ id: filters.teacherId }, { teacher_id: filters.teacherId }] },
+        select: { teacher_id: true },
+      });
+      if (user?.teacher_id) resolvedTeacherId = user.teacher_id;
+      where.teacherId = resolvedTeacherId;
+    }
 
     const [total, submitted, pendingApproval, requiringAttention, approved, published] = await Promise.all([
       prisma.assessmentSubmissionRecord.count({ where }),
@@ -262,12 +270,20 @@ export class AssessmentSubmissionService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (params.academicYearId) where.academicYearId = params.academicYearId;
-    if (params.academicTermId) where.academicTermId = params.academicTermId;
-    if (params.gradeId) where.gradeId = params.gradeId;
-    if (params.sectionId) where.sectionId = params.sectionId;
-    if (params.subjectId) where.subjectId = params.subjectId;
-    if (params.teacherId) where.teacherId = params.teacherId;
+    if (params.academicYearId && params.academicYearId !== 'ALL') where.academicYearId = params.academicYearId;
+    if (params.academicTermId && params.academicTermId !== 'ALL') where.academicTermId = params.academicTermId;
+    if (params.gradeId && params.gradeId !== 'ALL' && params.gradeId !== 'all') where.gradeId = params.gradeId;
+    if (params.sectionId && params.sectionId !== 'ALL' && params.sectionId !== 'all') where.sectionId = params.sectionId;
+    if (params.subjectId && params.subjectId !== 'ALL' && params.subjectId !== 'all') where.subjectId = params.subjectId;
+    if (params.teacherId && params.teacherId !== 'ALL' && params.teacherId !== 'all') {
+      let resolvedTeacherId = params.teacherId;
+      const user = await prisma.user.findFirst({
+        where: { OR: [{ id: params.teacherId }, { teacher_id: params.teacherId }] },
+        select: { teacher_id: true },
+      });
+      if (user?.teacher_id) resolvedTeacherId = user.teacher_id;
+      where.teacherId = resolvedTeacherId;
+    }
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'REQUIRES_ATTENTION') {

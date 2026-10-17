@@ -82,6 +82,7 @@ const transport_routes_1 = __importDefault(require("./routes/transport.routes"))
 const student_portal_routes_1 = __importStar(require("./routes/student-portal.routes"));
 const assessment_policy_routes_1 = __importDefault(require("./routes/assessment-policy.routes"));
 const timetable_routes_1 = __importDefault(require("./routes/timetable.routes"));
+const teacher_routes_1 = __importDefault(require("./routes/teacher.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const maintenance_middleware_1 = require("./middleware/maintenance.middleware");
 const parentController = __importStar(require("./controllers/parent.controller"));
@@ -273,6 +274,7 @@ app.use('/api/transport', transport_routes_1.default);
 app.use('/api/student', student_portal_routes_1.default);
 app.use('/api/assessment-policy', assessment_policy_routes_1.default);
 app.use('/api/timetables', timetable_routes_1.default);
+app.use('/api/teachers', teacher_routes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

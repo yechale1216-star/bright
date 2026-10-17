@@ -38,7 +38,7 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const schoolService = __importStar(require("../services/school.service"));
 const router = (0, express_1.Router)();
 const STRUCTURE_ADMINS = ['admin', 'school_admin', 'super_admin', 'academic_head', 'registrar'];
-const CURRICULUM_ADMINS = ['admin', 'school_admin', 'super_admin', 'academic_head'];
+const CURRICULUM_ADMINS = ['admin', 'school_admin', 'super_admin', 'academic_head', 'principal', 'director', 'registrar'];
 const EXECUTIVE_ADMINS = ['admin', 'school_admin', 'super_admin'];
 // ─── Grades ─────────────────────────────────────────────────────────────────
 const getGradesHandler = async (_req, res, next) => {
@@ -195,6 +195,67 @@ router.delete('/me/subjects/:id', (0, auth_middleware_1.authorize)(CURRICULUM_AD
         next(error);
     }
 });
+// ─── Grade Subjects (Curriculum Allocation) ──────────────────────────────────
+const getGradeSubjectsHandler = async (req, res, next) => {
+    try {
+        const { gradeId, streamId, sectionId } = req.query;
+        const data = await schoolService.getGradeSubjects({ gradeId, streamId, sectionId });
+        res.status(200).json({ success: true, data });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+router.get('/me/grade-subjects', getGradeSubjectsHandler);
+router.get('/grade-subjects', getGradeSubjectsHandler);
+router.post('/me/grade-subjects', (0, auth_middleware_1.authorize)(CURRICULUM_ADMINS), async (req, res, next) => {
+    try {
+        const data = await schoolService.assignSubjectsToGrade(req.body);
+        res.status(201).json({ success: true, data });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/grade-subjects', (0, auth_middleware_1.authorize)(CURRICULUM_ADMINS), async (req, res, next) => {
+    try {
+        const data = await schoolService.assignSubjectsToGrade(req.body);
+        res.status(201).json({ success: true, data });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.delete('/me/grade-subjects/:id', (0, auth_middleware_1.authorize)(CURRICULUM_ADMINS), async (req, res, next) => {
+    try {
+        await schoolService.deleteGradeSubject(req.params.id);
+        res.status(200).json({ success: true, message: 'Grade subject assignment removed' });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.delete('/grade-subjects/:id', (0, auth_middleware_1.authorize)(CURRICULUM_ADMINS), async (req, res, next) => {
+    try {
+        await schoolService.deleteGradeSubject(req.params.id);
+        res.status(200).json({ success: true, message: 'Grade subject assignment removed' });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// ─── Teachers ───────────────────────────────────────────────────────────────
+const getTeachersHandler = async (_req, res, next) => {
+    try {
+        const teachers = await schoolService.getTeachers();
+        res.status(200).json({ success: true, data: teachers });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+router.get('/me/teachers', getTeachersHandler);
+router.get('/teachers', getTeachersHandler); // alias for frontend compatibility
 // Create or upsert school
 router.post('/', (0, auth_middleware_1.authorize)(EXECUTIVE_ADMINS), async (req, res, next) => {
     try {

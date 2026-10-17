@@ -41,6 +41,7 @@ router.get('/report-cards/batch-comprehensive', gradebookController.getBatchComp
 router.get('/report-cards/:id', gradebookController.getReportCardById);
 router.put('/report-cards/:id', authorize(['admin', 'school_admin', 'academic_head', 'teacher']), gradebookController.updateReportCard);
 router.post('/report-cards/bulk-status', authorize(['admin', 'school_admin']), gradebookController.bulkUpdateReportCardStatus);
+router.get('/verify/:id', gradebookController.verifyReportCard);
 
 // Mark Submission & Approval Workflow
 router.get('/submissions/dashboard', gradebookController.getSubmissionDashboard);

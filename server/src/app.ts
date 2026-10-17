@@ -49,6 +49,7 @@ import transportRoutes from './routes/transport.routes';
 import studentPortalRoutes, { publicStudentRouter } from './routes/student-portal.routes';
 import assessmentPolicyRoutes from './routes/assessment-policy.routes';
 import timetableRoutes from './routes/timetable.routes';
+import teacherRoutes from './routes/teacher.routes';
 
 import { authMiddleware } from './middleware/auth.middleware';
 import { maintenanceMiddleware } from './middleware/maintenance.middleware';
@@ -264,6 +265,7 @@ app.use('/api/transport', transportRoutes);
 app.use('/api/student', studentPortalRoutes);
 app.use('/api/assessment-policy', assessmentPolicyRoutes);
 app.use('/api/timetables', timetableRoutes);
+app.use('/api/teachers', teacherRoutes);
 
 
 // Error handling middleware

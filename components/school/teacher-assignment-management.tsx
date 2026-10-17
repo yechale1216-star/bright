@@ -57,6 +57,7 @@ export function TeacherAssignmentManagement() {
   const [availableSections, setAvailableSections] = useState<any[]>([])
   const [availableStreams, setAvailableStreams] = useState<any[]>([])
   const [availableSubjects, setAvailableSubjects] = useState<any[]>([])
+  const [gradeSubjects, setGradeSubjects] = useState<any[]>([])
 
   // Form state
   const [selectedTeacher, setSelectedTeacher] = useState("")
@@ -144,17 +145,19 @@ export function TeacherAssignmentManagement() {
     }
     init()
 
-    const handleTeacherChanged = () => {
+    const handleDataChanged = () => {
       const sid = localStorage.getItem("x-school-id") || ""
       loadAllData(sid, true, true)
     }
-    window.addEventListener("teacherDataChanged", handleTeacherChanged)
+    window.addEventListener("teacherDataChanged", handleDataChanged)
+    window.addEventListener("gradeSubjectsChanged", handleDataChanged)
     const poll = setInterval(() => {
       const sid = localStorage.getItem("x-school-id") || ""
       if (sid) loadAllData(sid, true, false)
     }, 60_000)
     return () => {
-      window.removeEventListener("teacherDataChanged", handleTeacherChanged)
+      window.removeEventListener("teacherDataChanged", handleDataChanged)
+      window.removeEventListener("gradeSubjectsChanged", handleDataChanged)
       clearInterval(poll)
     }
   }, [])
@@ -162,13 +165,14 @@ export function TeacherAssignmentManagement() {
   const loadAllData = async (school: string, isBackground = false, forceRefetch = false) => {
     try {
       if (!isBackground && assignments.length === 0) setIsLoading(true)
-      const [teachersData, assignmentsData, gradesData, sectionsData, streamsData, subjectsData] = await Promise.all([
+      const [teachersData, assignmentsData, gradesData, sectionsData, streamsData, subjectsData, gradeSubjectsData] = await Promise.all([
         db.getTeachers(forceRefetch),
         db.getTeacherAssignments(),
         db.getGrades(),
         db.getSections(),
         db.getStreams(),
         db.getSubjects(),
+        db.getGradeSubjects(),
       ])
       setTeachers(teachersData)
       setAssignments(assignmentsData as any)
@@ -176,12 +180,46 @@ export function TeacherAssignmentManagement() {
       setAvailableSections(sectionsData)
       setAvailableStreams(streamsData)
       setAvailableSubjects(subjectsData)
+      setGradeSubjects(gradeSubjectsData || [])
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
       setIsLoading(false)
     }
   }
+
+  const selectedGradeObj = useMemo(() => {
+    return availableGrades.find((g) => g.id === selectedGrade)
+  }, [availableGrades, selectedGrade])
+
+  const isGrade11or12 = useMemo(() => {
+    if (!selectedGradeObj) return false
+    const name = (selectedGradeObj.name || "").toLowerCase()
+    return /\b(11|12)\b/.test(name) || name.includes("11") || name.includes("12")
+  }, [selectedGradeObj])
+
+  const subjectsForSelectedClass = useMemo(() => {
+    if (!selectedGrade) return []
+    if (isGrade11or12 && !selectedStream) return []
+
+    const filtered = gradeSubjects.filter((gs) => {
+      if (gs.gradeId !== selectedGrade) return false
+      if (isGrade11or12) {
+        return gs.streamId === selectedStream
+      }
+      return true
+    })
+
+    const map = new Map<string, any>()
+    for (const gs of filtered) {
+      if (gs.subject && !map.has(gs.subject.id)) {
+        map.set(gs.subject.id, gs.subject)
+      }
+    }
+
+    return Array.from(map.values())
+  }, [selectedGrade, selectedStream, isGrade11or12, gradeSubjects])
+
 
   const resetForm = () => {
     setSelectedTeacher("")
@@ -200,6 +238,10 @@ export function TeacherAssignmentManagement() {
   const handleAssignTeacher = async () => {
     if (!selectedTeacher || !selectedGrade || !selectedSection) {
       notifications.error("Error", "Please select teacher, grade, and section")
+      return
+    }
+    if (isGrade11or12 && !selectedStream) {
+      notifications.error("Error", "Stream selection (Natural Science or Social Science) is required for Grades 11 and 12")
       return
     }
     if (selectedRole === "SUBJECT_TEACHER" && !selectedSubject) {
@@ -465,54 +507,140 @@ export function TeacherAssignmentManagement() {
                   )}
                 </div>
 
-                {/* Grade & Section */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Grade <span className="text-red-500">*</span>
-                    </label>
-                    <select value={selectedGrade} onChange={(e) => { setSelectedGrade(e.target.value); setSelectedStream("") }}
-                      className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all">
-                      <option value="">-- Grade --</option>
-                      {availableGrades.map((g) => <option key={g.id} value={g.id}>Grade {g.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Section <span className="text-red-500">*</span>
-                    </label>
-                    <select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)}
-                      className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all">
-                      <option value="">-- Section --</option>
-                      {availableSections.map((s) => <option key={s.id} value={s.id}>Section {s.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Subject (required for Subject Teacher) */}
+                {/* 1. Grade Selector */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Subject {selectedRole === "SUBJECT_TEACHER" && <span className="text-red-500">*</span>}
-                    {selectedRole === "HOMEROOM_TEACHER" && <span className="text-slate-400 font-medium normal-case"> (optional – if they also teach a subject)</span>}
+                    Grade <span className="text-red-500">*</span>
                   </label>
-                  <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all">
-                    <option value="">-- Choose Subject --</option>
-                    {availableSubjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  <select
+                    value={selectedGrade}
+                    onChange={(e) => {
+                      setSelectedGrade(e.target.value)
+                      setSelectedStream("")
+                      setSelectedSubject("")
+                    }}
+                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
+                  >
+                    <option value="">-- Select Grade --</option>
+                    {availableGrades.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        Grade {g.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Stream */}
-                {availableStreams.length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">Stream</label>
-                    <select value={selectedStream} onChange={(e) => setSelectedStream(e.target.value)} disabled={!selectedGrade}
-                      className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50">
-                      <option value="">-- Stream (Optional) --</option>
-                      {availableStreams.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {/* 2. Stream (REQUIRED for Grade 11 & 12, not required for other grades) */}
+                {isGrade11or12 ? (
+                  <div className="space-y-2 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Stream <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">
+                        Required for Grade 11 &amp; 12
+                      </span>
+                    </div>
+                    <select
+                      value={selectedStream}
+                      onChange={(e) => {
+                        setSelectedStream(e.target.value)
+                        setSelectedSubject("")
+                      }}
+                      className={cn(
+                        "text-xs w-full px-3 py-2.5 rounded-xl border bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 transition-all font-medium",
+                        !selectedStream
+                          ? "border-amber-400 focus:ring-amber-500/20"
+                          : "border-slate-200 dark:border-slate-800 focus:ring-blue-500/20"
+                      )}
+                    >
+                      <option value="">-- Choose Stream (Natural / Social Science) --</option>
+                      {availableStreams.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} Stream
+                        </option>
+                      ))}
                     </select>
                   </div>
-                )}
+                ) : selectedGrade ? (
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+                    <span>Standard Curriculum (No stream required for Grade {selectedGradeObj?.name})</span>
+                  </div>
+                ) : null}
+
+                {/* 3. Class / Section */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Class / Section <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedSection}
+                    onChange={(e) => setSelectedSection(e.target.value)}
+                    disabled={!selectedGrade || (isGrade11or12 && !selectedStream)}
+                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 font-medium"
+                  >
+                    <option value="">-- Select Class / Section --</option>
+                    {availableSections.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        Section {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Subject (Display ONLY subjects assigned to that specific grade, stream) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Subject {selectedRole === "SUBJECT_TEACHER" && <span className="text-red-500">*</span>}
+                      {selectedRole === "HOMEROOM_TEACHER" && (
+                        <span className="text-slate-400 font-medium normal-case"> (optional – if teaching a subject)</span>
+                      )}
+                    </label>
+                    {subjectsForSelectedClass.length > 0 && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                        {subjectsForSelectedClass.length} assigned subject{subjectsForSelectedClass.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+
+                  <select
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    disabled={
+                      !selectedGrade ||
+                      (isGrade11or12 && !selectedStream) ||
+                      !selectedSection ||
+                      subjectsForSelectedClass.length === 0
+                    }
+                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 font-medium"
+                  >
+                    {!selectedGrade ? (
+                      <option value="">-- Select Grade First --</option>
+                    ) : isGrade11or12 && !selectedStream ? (
+                      <option value="">-- Select Stream First --</option>
+                    ) : !selectedSection ? (
+                      <option value="">-- Select Section / Class First --</option>
+                    ) : subjectsForSelectedClass.length === 0 ? (
+                      <option value="">-- No Subjects Assigned to this Grade/Stream --</option>
+                    ) : (
+                      <>
+                        <option value="">-- Choose Assigned Subject --</option>
+                        {subjectsForSelectedClass.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.code})
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+
+                  {selectedGrade && (!isGrade11or12 || selectedStream) && selectedSection && subjectsForSelectedClass.length === 0 && (
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-300">
+                      ⚠️ No subjects are assigned to this class curriculum yet. Assign subjects to this grade and stream in Academic Structure &gt; Subject Assignment.
+                    </div>
+                  )}
+                </div>
 
                 {/* Preview */}
                 {selectedGrade && selectedSection && (
@@ -524,10 +652,13 @@ export function TeacherAssignmentManagement() {
                     <span className="font-black">
                       {selectedRole === "HOMEROOM_TEACHER" ? "🏠 Homeroom" : "📚 Subject"}:
                     </span>{" "}
-                    Grade {availableGrades.find((g) => g.id === selectedGrade)?.name} — Section {availableSections.find((s) => s.id === selectedSection)?.name}
-                    {selectedSubject && ` — ${availableSubjects.find((s) => s.id === selectedSubject)?.name}`}
+                    Grade {availableGrades.find((g) => g.id === selectedGrade)?.name}
+                    {selectedStream && ` (${availableStreams.find((s) => s.id === selectedStream)?.name})`}
+                    {" — "}Section {availableSections.find((s) => s.id === selectedSection)?.name}
+                    {selectedSubject && ` — ${subjectsForSelectedClass.find((s) => s.id === selectedSubject)?.name || availableSubjects.find((s) => s.id === selectedSubject)?.name}`}
                   </div>
                 )}
+
 
                 {/* Actions */}
                 <div className="flex justify-end gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/50">

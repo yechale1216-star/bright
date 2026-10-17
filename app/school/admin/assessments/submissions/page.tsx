@@ -144,10 +144,11 @@ export default function MarkSubmissionApprovalPage() {
       const { getApiUrl } = await import('@/lib/api-config');
       const API_URL = getApiUrl();
 
-      const [ayRes, gradesRes, subjectsRes, teachersRes] = await Promise.all([
+      const [ayRes, gradesRes, sectionsRes, subjectsRes, teachersRes] = await Promise.all([
         fetch(`${API_URL}/api/academic-years`, { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
         fetch(`${API_URL}/api/schools/grades`, { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
-        fetch(`${API_URL}/api/settings/subjects`, { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_URL}/api/schools/sections`, { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_URL}/api/schools/subjects`, { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
         fetch(`${API_URL}/api/teachers`, { headers }).then((r) => r.json()).catch(() => ({ data: [] })),
       ]);
 
@@ -163,12 +164,31 @@ export default function MarkSubmissionApprovalPage() {
         setGrades(gradesRes.data);
       }
 
-      if (subjectsRes?.success && Array.isArray(subjectsRes.data)) {
-        setSubjects(subjectsRes.data);
+      if (sectionsRes?.success && Array.isArray(sectionsRes.data)) {
+        setSections(sectionsRes.data);
       }
 
-      if (teachersRes?.success && Array.isArray(teachersRes.data)) {
+      if (subjectsRes?.success && Array.isArray(subjectsRes.data) && subjectsRes.data.length > 0) {
+        setSubjects(subjectsRes.data);
+      } else {
+        const fallbackSub = await fetch(`${API_URL}/api/settings/subjects`, { headers }).then((r) => r.json()).catch(() => ({ data: [] }));
+        if (fallbackSub?.success && Array.isArray(fallbackSub.data)) {
+          setSubjects(fallbackSub.data);
+        }
+      }
+
+      if (teachersRes?.success && Array.isArray(teachersRes.data) && teachersRes.data.length > 0) {
         setTeachers(teachersRes.data);
+      } else {
+        const fallbackT = await fetch(`${API_URL}/api/schools/teachers`, { headers }).then((r) => r.json()).catch(() => null);
+        if (fallbackT?.success && Array.isArray(fallbackT.data) && fallbackT.data.length > 0) {
+          setTeachers(fallbackT.data);
+        } else {
+          const userTeachers = await fetch(`${API_URL}/api/users?role=teacher`, { headers }).then((r) => r.json()).catch(() => ({ data: [] }));
+          if (userTeachers?.success && Array.isArray(userTeachers.data)) {
+            setTeachers(userTeachers.data);
+          }
+        }
       }
     } catch (err: any) {
       console.error('Failed to load initial data:', err);
@@ -179,19 +199,37 @@ export default function MarkSubmissionApprovalPage() {
 
   // Update sections when grade filter changes
   useEffect(() => {
-    if (selectedGradeId === 'ALL') {
-      setSections([]);
-      setSelectedSectionId('ALL');
-    } else {
-      const grade = grades.find((g) => g.id === selectedGradeId);
-      if (grade?.sections && Array.isArray(grade.sections)) {
-        setSections(grade.sections);
-      } else {
-        setSections([]);
+    const updateSectionsForGrade = async () => {
+      try {
+        const { getApiUrl } = await import('@/lib/api-config');
+        const API_URL = getApiUrl();
+        const token = typeof window !== 'undefined' ? localStorage.getItem('attendance_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        if (selectedGradeId === 'ALL') {
+          const res = await fetch(`${API_URL}/api/schools/sections`, { headers }).then((r) => r.json()).catch(() => null);
+          if (res?.success && Array.isArray(res.data)) {
+            setSections(res.data);
+          }
+        } else {
+          const res = await fetch(`${API_URL}/api/schools/sections?gradeId=${selectedGradeId}`, { headers }).then((r) => r.json()).catch(() => null);
+          if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+            setSections(res.data);
+          } else {
+            const allRes = await fetch(`${API_URL}/api/schools/sections`, { headers }).then((r) => r.json()).catch(() => null);
+            if (allRes?.success && Array.isArray(allRes.data)) {
+              setSections(allRes.data);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to update sections for grade:', err);
       }
-      setSelectedSectionId('ALL');
-    }
-  }, [selectedGradeId, grades]);
+    };
+
+    updateSectionsForGrade();
+  }, [selectedGradeId]);
 
   // Load submissions and dashboard data whenever filters or pagination change
   const fetchSubmissionsAndMetrics = useCallback(async () => {
@@ -593,7 +631,7 @@ export default function MarkSubmissionApprovalPage() {
       case 'DRAFT':
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">
             <FileText className="w-3.5 h-3.5" />
             Draft
           </span>
@@ -616,31 +654,36 @@ export default function MarkSubmissionApprovalPage() {
 
   // Subject icon helper colors
   const getSubjectColorBg = (color?: string) => {
-    return color ? `${color}20` : '#3b82f620';
+    return color ? `${color}20` : '#8b5cf620';
   };
   const getSubjectColorText = (color?: string) => {
-    return color || '#3b82f6';
+    return color || '#8b5cf6';
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950/50 p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
       {/* 1. Header Navigation & Title */}
       <div className="space-y-2">
         <Link
           href={assessmentsBackHref}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-primary transition-colors mb-1 group"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-violet-600 dark:hover:text-violet-400 transition-colors mb-1 group"
         >
           <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
           <span>Back to Assessments</span>
         </Link>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Mark Submission & Approval
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Review and manage assessment marks, submissions and approvals for your school.
-            </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border/70">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-500/10 border border-violet-500/30 text-violet-600 dark:text-violet-400">
+              <GraduationCap className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                Mark Submission & Approval
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Review and manage assessment marks, submissions and approvals for your school.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2.5">
             <Button
@@ -648,7 +691,7 @@ export default function MarkSubmissionApprovalPage() {
               size="sm"
               onClick={handleSyncSubmissions}
               disabled={syncing || refreshing}
-              className="gap-2 bg-white dark:bg-slate-900 shadow-sm border-slate-200 dark:border-slate-800 text-xs"
+              className="gap-2 bg-card border-border hover:bg-accent text-xs"
             >
               <Sparkles className={`w-4 h-4 text-amber-500 ${syncing ? 'animate-spin' : ''}`} />
               <span>{syncing ? 'Syncing...' : 'Sync Submissions'}</span>
@@ -658,9 +701,9 @@ export default function MarkSubmissionApprovalPage() {
               size="sm"
               onClick={fetchSubmissionsAndMetrics}
               disabled={refreshing || syncing}
-              className="gap-2 bg-white dark:bg-slate-900 shadow-sm border-slate-200 dark:border-slate-800 text-xs"
+              className="gap-2 bg-card border-border hover:bg-accent text-xs"
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-primary' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-violet-600 dark:text-violet-400' : ''}`} />
               Refresh
             </Button>
           </div>
@@ -672,19 +715,19 @@ export default function MarkSubmissionApprovalPage() {
         {/* Card 1: Total Submissions */}
         <div
           onClick={() => setSelectedStatus('ALL')}
-          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-card text-card-foreground rounded-2xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
             selectedStatus === 'ALL'
-              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/10'
-              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'border-violet-500 ring-2 ring-violet-500/20 bg-violet-500/10'
+              : 'border-border dark:border-white/10 hover:border-violet-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Total Submissions
             </span>
-            {selectedStatus === 'ALL' && <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Active</Badge>}
+            {selectedStatus === 'ALL' && <Badge variant="secondary" className="text-[10px] bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">Active</Badge>}
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+          <div className="text-2xl font-bold text-foreground tracking-tight mt-1">
             {metrics.total}
           </div>
           <span className="text-xs text-muted-foreground truncate block mt-0.5">Across all grades and subjects</span>
@@ -693,10 +736,10 @@ export default function MarkSubmissionApprovalPage() {
         {/* Card 2: Submitted */}
         <div
           onClick={() => setSelectedStatus('SUBMITTED')}
-          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-card text-card-foreground rounded-2xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
             selectedStatus === 'SUBMITTED'
-              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/10'
-              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
+              : 'border-border dark:border-white/10 hover:border-blue-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -705,7 +748,7 @@ export default function MarkSubmissionApprovalPage() {
             </span>
             {selectedStatus === 'SUBMITTED' && <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Active</Badge>}
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+          <div className="text-2xl font-bold text-foreground tracking-tight mt-1">
             {metrics.submitted}
           </div>
           <span className="text-xs text-muted-foreground truncate block mt-0.5">Ready for review</span>
@@ -714,19 +757,19 @@ export default function MarkSubmissionApprovalPage() {
         {/* Card 3: Pending Approval */}
         <div
           onClick={() => setSelectedStatus('PENDING_APPROVAL')}
-          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-card text-card-foreground rounded-2xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
             selectedStatus === 'PENDING_APPROVAL'
-              ? 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50/10'
-              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'border-violet-500 ring-2 ring-violet-500/20 bg-violet-500/10'
+              : 'border-border dark:border-white/10 hover:border-violet-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
               Pending Approval
             </span>
-            {selectedStatus === 'PENDING_APPROVAL' && <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">Active</Badge>}
+            {selectedStatus === 'PENDING_APPROVAL' && <Badge variant="secondary" className="text-[10px] bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">Active</Badge>}
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+          <div className="text-2xl font-bold text-foreground tracking-tight mt-1">
             {metrics.pendingApproval}
           </div>
           <span className="text-xs text-muted-foreground truncate block mt-0.5">Awaiting admin approval</span>
@@ -735,10 +778,10 @@ export default function MarkSubmissionApprovalPage() {
         {/* Card 4: Requiring Attention */}
         <div
           onClick={() => setSelectedStatus('REQUIRES_ATTENTION')}
-          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-card text-card-foreground rounded-2xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
             selectedStatus === 'REQUIRES_ATTENTION'
-              ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/10'
-              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-500/10'
+              : 'border-border dark:border-white/10 hover:border-amber-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -747,7 +790,7 @@ export default function MarkSubmissionApprovalPage() {
             </span>
             {selectedStatus === 'REQUIRES_ATTENTION' && <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Active</Badge>}
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+          <div className="text-2xl font-bold text-foreground tracking-tight mt-1">
             {metrics.requiringAttention}
           </div>
           <span className="text-xs text-muted-foreground truncate block mt-0.5">Missing marks or issues</span>
@@ -756,10 +799,10 @@ export default function MarkSubmissionApprovalPage() {
         {/* Card 5: Published */}
         <div
           onClick={() => setSelectedStatus('PUBLISHED')}
-          className={`bg-white dark:bg-slate-900 rounded-xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-card text-card-foreground rounded-2xl p-4 border shadow-xs transition-all cursor-pointer hover:shadow-md ${
             selectedStatus === 'PUBLISHED'
-              ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-50/10'
-              : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              ? 'border-teal-500 ring-2 ring-teal-500/20 bg-teal-500/10'
+              : 'border-border dark:border-white/10 hover:border-teal-500/40'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -768,7 +811,7 @@ export default function MarkSubmissionApprovalPage() {
             </span>
             {selectedStatus === 'PUBLISHED' && <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">Active</Badge>}
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight mt-1">
+          <div className="text-2xl font-bold text-foreground tracking-tight mt-1">
             {metrics.published}
           </div>
           <span className="text-xs text-muted-foreground truncate block mt-0.5">Official results released</span>
@@ -776,7 +819,7 @@ export default function MarkSubmissionApprovalPage() {
       </div>
 
       {/* 3. Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+      <div className="bg-card text-card-foreground rounded-2xl p-4 sm:p-5 border border-border dark:border-white/10 shadow-sm space-y-3">
         {/* Search Input Row */}
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -790,18 +833,18 @@ export default function MarkSubmissionApprovalPage() {
                 fetchSubmissionsAndMetrics();
               }
             }}
-            className="pl-9 h-9 text-xs rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+            className="pl-9 h-9 text-xs rounded-xl bg-background border-input text-foreground"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end">
           {/* Academic Year */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Academic Year</label>
+            <label className="text-xs font-semibold text-foreground">Academic Year</label>
             <select
               value={selectedYearId}
               onChange={(e) => setSelectedYearId(e.target.value)}
-              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
               {academicYears.map((ay) => (
                 <option key={ay.id} value={ay.id}>
@@ -813,11 +856,11 @@ export default function MarkSubmissionApprovalPage() {
 
           {/* Term */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Term</label>
+            <label className="text-xs font-semibold text-foreground">Term</label>
             <select
               value={selectedTermId}
               onChange={(e) => setSelectedTermId(e.target.value)}
-              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
               <option value="">All Terms</option>
               {currentTerms.map((t: any) => (
@@ -830,11 +873,15 @@ export default function MarkSubmissionApprovalPage() {
 
           {/* Grade */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Grade</label>
+            <label className="text-xs font-semibold text-foreground">Grade</label>
             <select
               value={selectedGradeId}
-              onChange={(e) => setSelectedGradeId(e.target.value)}
-              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              onChange={(e) => {
+                setSelectedGradeId(e.target.value);
+                setSelectedSectionId('ALL');
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
               <option value="ALL">All Grades</option>
               {grades.map((g) => (
@@ -847,12 +894,14 @@ export default function MarkSubmissionApprovalPage() {
 
           {/* Section */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Section</label>
+            <label className="text-xs font-semibold text-foreground">Section</label>
             <select
               value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
-              disabled={selectedGradeId === 'ALL'}
-              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+              onChange={(e) => {
+                setSelectedSectionId(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
               <option value="ALL">All Sections</option>
               {sections.map((s) => (
@@ -865,16 +914,19 @@ export default function MarkSubmissionApprovalPage() {
 
           {/* Subject */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Subject</label>
+            <label className="text-xs font-semibold text-foreground">Subject</label>
             <select
               value={selectedSubjectId}
-              onChange={(e) => setSelectedSubjectId(e.target.value)}
-              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              onChange={(e) => {
+                setSelectedSubjectId(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
               <option value="ALL">All Subjects</option>
               {subjects.map((sub) => (
                 <option key={sub.id} value={sub.id}>
-                  {sub.name}
+                  {sub.name} {sub.code ? `(${sub.code})` : ''}
                 </option>
               ))}
             </select>
@@ -882,16 +934,19 @@ export default function MarkSubmissionApprovalPage() {
 
           {/* Teacher */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Teacher</label>
+            <label className="text-xs font-semibold text-foreground">Teacher</label>
             <select
               value={selectedTeacherId}
-              onChange={(e) => setSelectedTeacherId(e.target.value)}
-              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+              onChange={(e) => {
+                setSelectedTeacherId(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
               <option value="ALL">All Teachers</option>
               {teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+                <option key={t.id} value={t.teacher_id || t.id}>
+                  {t.name || t.full_name}
                 </option>
               ))}
             </select>
@@ -899,12 +954,15 @@ export default function MarkSubmissionApprovalPage() {
 
           {/* Status + Search Button */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Status</label>
+            <label className="text-xs font-semibold text-foreground">Status</label>
             <div className="flex items-center gap-2">
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/40"
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setPagination((p) => ({ ...p, page: 1 }));
+                }}
+                className="w-full h-9 rounded-lg border border-input bg-background text-foreground px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/40"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="SUBMITTED">Submitted</option>
@@ -920,158 +978,189 @@ export default function MarkSubmissionApprovalPage() {
                   setPagination((p) => ({ ...p, page: 1 }));
                   fetchSubmissionsAndMetrics();
                 }}
-                className="h-9 px-3.5 bg-blue-600 hover:bg-blue-700 text-white shrink-0 gap-1.5 shadow-sm"
+                className="h-9 px-3.5 bg-violet-600 hover:bg-violet-700 text-white shrink-0 gap-1.5 shadow-sm"
               >
                 <Search className="w-3.5 h-3.5" />
                 <span>Search</span>
               </Button>
+              {(selectedGradeId !== 'ALL' || selectedSectionId !== 'ALL' || selectedSubjectId !== 'ALL' || selectedTeacherId !== 'ALL' || selectedStatus !== 'ALL') && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedGradeId('ALL');
+                    setSelectedSectionId('ALL');
+                    setSelectedSubjectId('ALL');
+                    setSelectedTeacherId('ALL');
+                    setSelectedStatus('ALL');
+                    setPagination((p) => ({ ...p, page: 1 }));
+                  }}
+                  className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                  title="Reset filters"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Reset</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. Main Submissions Grid: Left Table, Right Detail Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Submissions Table (7 or 8 columns on large screens) */}
-        <div className={`${currentSubmission ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-4`}>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-            {/* Table Header Controls */}
-            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Submissions</h2>
-                {selectedRowIds.length > 0 && (
-                  <Badge variant="secondary" className="gap-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                    <CheckCheck className="w-3.5 h-3.5" />
-                    {selectedRowIds.length} Selected
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedRowIds.length > 0 && (
-                  <Button
-                    size="sm"
-                    onClick={() => setBulkModalOpen(true)}
-                    className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Approve Selected ({selectedRowIds.length})
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportReport}
-                  className="h-9 gap-1.5 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-                >
-                  <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                  Export Report
-                </Button>
-              </div>
+      {/* 4. Submissions Table (FULL WIDTH) */}
+      <div className="w-full space-y-4">
+        <div className="bg-card text-card-foreground rounded-2xl border border-border dark:border-white/10 shadow-sm overflow-hidden">
+          {/* Table Header Controls */}
+          <div className="p-4 sm:p-5 border-b border-border dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-bold text-foreground">Submissions</h2>
+              {selectedRowIds.length > 0 && (
+                <Badge variant="secondary" className="gap-1 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  {selectedRowIds.length} Selected
+                </Badge>
+              )}
             </div>
+            <div className="flex items-center gap-2">
+              {selectedRowIds.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => setBulkModalOpen(true)}
+                  className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Approve Selected ({selectedRowIds.length})
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportReport}
+                className="h-9 gap-1.5 text-xs bg-card border-border hover:bg-accent"
+              >
+                <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                Export Report
+              </Button>
+            </div>
+          </div>
 
-            {/* Submissions Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50/75 dark:bg-slate-800/50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+          {/* Submissions Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border dark:border-white/10">
+                <tr>
+                  <th className="p-3.5 pl-5 w-10">
+                    <input
+                      type="checkbox"
+                      checked={submissions.length > 0 && selectedRowIds.length === submissions.length}
+                      onChange={handleSelectAll}
+                      className="rounded border-input text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
+                    />
+                  </th>
+                  <th className="p-3.5 w-12 text-center">#</th>
+                  <th className="p-3.5">Subject</th>
+                  <th className="p-3.5">Grade</th>
+                  <th className="p-3.5">Section</th>
+                  <th className="p-3.5">Teacher</th>
+                  <th className="p-3.5">Submission Date</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5 pr-5 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {loading ? (
                   <tr>
-                    <th className="p-3.5 pl-5 w-10">
-                      <input
-                        type="checkbox"
-                        checked={submissions.length > 0 && selectedRowIds.length === submissions.length}
-                        onChange={handleSelectAll}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                      />
-                    </th>
-                    <th className="p-3.5 w-12 text-center">#</th>
-                    <th className="p-3.5">Subject</th>
-                    <th className="p-3.5">Grade</th>
-                    <th className="p-3.5">Section</th>
-                    <th className="p-3.5">Teacher</th>
-                    <th className="p-3.5">Submission Date</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 pr-5 text-center">Actions</th>
+                    <td colSpan={9} className="p-12 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <RefreshCw className="w-6 h-6 animate-spin text-violet-600 dark:text-violet-400" />
+                        <span className="text-xs">Loading mark submissions...</span>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={9} className="p-12 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                          <span className="text-xs">Loading mark submissions...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : submissions.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="p-12 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <BookOpen className="w-8 h-8 text-slate-400" />
-                          <p className="text-base font-semibold text-slate-700 dark:text-slate-300">No submissions found</p>
-                          <p className="text-xs max-w-sm text-slate-500">
-                            Try adjusting your filters or check if teachers have entered assessment marks for this term.
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    submissions.map((sub, index) => {
-                      const isSelected = selectedSubmissionId === sub.id;
-                      const isChecked = selectedRowIds.includes(sub.id);
-                      return (
-                        <tr
-                          key={sub.id}
-                          onClick={() => setSelectedSubmissionId(sub.id)}
-                          className={`group cursor-pointer transition-colors ${
-                            isSelected
-                              ? 'bg-blue-50/70 dark:bg-blue-950/30 font-medium'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                          }`}
-                        >
-                          <td className="p-3.5 pl-5" onClick={(e) => handleRowCheckbox(sub.id, e)}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {}}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3.5 text-center text-xs text-muted-foreground font-mono">
-                            {(pagination.page - 1) * pagination.limit + index + 1}
-                          </td>
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 shadow-xs"
-                                style={{
-                                  backgroundColor: getSubjectColorBg(sub.subject.color),
-                                  color: getSubjectColorText(sub.subject.color),
-                                }}
-                              >
-                                <BookOpen className="w-4 h-4" />
-                              </div>
-                              <span className="font-semibold text-slate-900 dark:text-slate-100">{sub.subject.name}</span>
+                ) : submissions.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="p-12 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <BookOpen className="w-8 h-8 text-muted-foreground/60" />
+                        <p className="text-base font-semibold text-foreground">No submissions found</p>
+                        <p className="text-xs max-w-sm text-muted-foreground">
+                          Try adjusting your filters or check if teachers have entered assessment marks for this term.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  submissions.map((sub, index) => {
+                    const isSelected = selectedSubmissionId === sub.id;
+                    const isChecked = selectedRowIds.includes(sub.id);
+                    return (
+                      <tr
+                        key={sub.id}
+                        onClick={() => setSelectedSubmissionId(sub.id)}
+                        className={`group cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-violet-500/10 dark:bg-violet-950/30 font-medium'
+                            : 'hover:bg-muted/40'
+                        }`}
+                      >
+                        <td className="p-3.5 pl-5" onClick={(e) => handleRowCheckbox(sub.id, e)}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="rounded border-input text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3.5 text-center text-xs text-muted-foreground font-mono">
+                          {(pagination.page - 1) * pagination.limit + index + 1}
+                        </td>
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 shadow-xs"
+                              style={{
+                                backgroundColor: getSubjectColorBg(sub.subject.color),
+                                color: getSubjectColorText(sub.subject.color),
+                              }}
+                            >
+                              <BookOpen className="w-4 h-4" />
                             </div>
-                          </td>
-                          <td className="p-3.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{sub.grade.name}</td>
-                          <td className="p-3.5 text-slate-700 dark:text-slate-300 whitespace-nowrap font-medium">
-                            {sub.section.name}
-                          </td>
-                          <td className="p-3.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{sub.teacher.name}</td>
-                          <td className="p-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                            {formatDate(sub.submittedAt)}
-                          </td>
-                          <td className="p-3.5 whitespace-nowrap">
-                            {renderStatusBadge(sub.status, sub.metrics?.hasInvalidMark)}
-                          </td>
-                          <td className="p-3.5 pr-5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <span className="font-semibold text-foreground">{sub.subject.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-3.5 text-foreground whitespace-nowrap">{sub.grade.name}</td>
+                        <td className="p-3.5 text-foreground whitespace-nowrap font-medium">
+                          {sub.section.name}
+                        </td>
+                        <td className="p-3.5 text-foreground whitespace-nowrap">{sub.teacher.name}</td>
+                        <td className="p-3.5 text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDate(sub.submittedAt)}
+                        </td>
+                        <td className="p-3.5 whitespace-nowrap">
+                          {renderStatusBadge(sub.status, sub.metrics?.hasInvalidMark)}
+                        </td>
+                        <td className="p-3.5 pr-5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedSubmissionId(sub.id);
+                                setReviewModalOpen(true);
+                              }}
+                              className="h-8 px-2.5 text-xs gap-1.5 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-900/60 hover:bg-violet-50 dark:hover:bg-violet-950/40"
+                              title="Review Marks"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Review</span>
+                            </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg">
                                   <MoreHorizontal className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-slate-900 shadow-lg">
+                              <DropdownMenuContent align="end" className="w-48 bg-card text-card-foreground border-border shadow-lg">
                                 <DropdownMenuLabel className="text-xs">Submission Actions</DropdownMenuLabel>
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -1080,7 +1169,7 @@ export default function MarkSubmissionApprovalPage() {
                                   }}
                                   className="gap-2 cursor-pointer text-xs"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                  <Eye className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
                                   Review Marks
                                 </DropdownMenuItem>
 
@@ -1125,257 +1214,128 @@ export default function MarkSubmissionApprovalPage() {
                                 )}
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
 
-            {/* Table Pagination Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-              <div>
-                Showing {submissions.length > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0} to{' '}
-                {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} submissions
-              </div>
-              <div className="flex items-center gap-1.5">
+          {/* Table Pagination Footer */}
+          <div className="p-4 border-t border-border dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+            <div>
+              Showing {submissions.length > 0 ? (pagination.page - 1) * pagination.limit + 1 : 0} to{' '}
+              {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} submissions
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                disabled={pagination.page <= 1}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => i + 1).map((pageNum) => (
                 <Button
-                  variant="outline"
+                  key={pageNum}
+                  variant={pagination.page === pageNum ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
-                  disabled={pagination.page <= 1}
-                  className="h-8 w-8 p-0"
+                  onClick={() => setPagination((p) => ({ ...p, page: pageNum }))}
+                  className={`h-8 w-8 p-0 text-xs font-medium ${
+                    pagination.page === pageNum ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''
+                  }`}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  {pageNum}
                 </Button>
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => i + 1).map((pageNum) => (
-                  <Button
-                    key={pageNum}
-                    variant={pagination.page === pageNum ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPagination((p) => ({ ...p, page: pageNum }))}
-                    className={`h-8 w-8 p-0 text-xs font-medium ${
-                      pagination.page === pageNum ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''
-                    }`}
-                  >
-                    {pageNum}
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPagination((p) => ({ ...p, page: Math.min(p.totalPages, p.page + 1) }))}
-                  disabled={pagination.page >= pagination.totalPages}
-                  className="h-8 w-8 p-0"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination((p) => ({ ...p, page: Math.min(p.totalPages, p.page + 1) }))}
+                disabled={pagination.page >= pagination.totalPages}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>
-
-        {/* Right Column: Submission Details Panel */}
-        {currentSubmission && (
-          <div className="lg:col-span-4 space-y-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 space-y-5 sticky top-6">
-              {/* Details Header */}
-              <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-xs"
-                    style={{
-                      backgroundColor: getSubjectColorBg(currentSubmission.subject?.color),
-                      color: getSubjectColorText(currentSubmission.subject?.color),
-                    }}
-                  >
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                      {currentSubmission.subject?.name}
-                    </h3>
-                    <span className="text-xs text-muted-foreground">Submission Details</span>
-                  </div>
-                </div>
-                {renderStatusBadge(currentSubmission.status, currentSubmission.metrics?.hasInvalidMark)}
-              </div>
-
-              {/* Info Matrix */}
-              <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
-                <div>
-                  <span className="text-muted-foreground block">Grade</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{currentSubmission.grade?.name}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Section</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">Section {currentSubmission.section?.name}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Teacher</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{currentSubmission.teacher?.name}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Academic Year</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{currentSubmission.academicYear?.name}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Term</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{currentSubmission.academicTerm?.name || 'Term 1'}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Submission Date</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDate(currentSubmission.submittedAt)}</span>
-                </div>
-              </div>
-
-              {/* Progress Section */}
-              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="text-slate-800 dark:text-slate-200">Mark Entry Progress</span>
-                  <span className="text-blue-600 dark:text-blue-400">
-                    {selectedDetails ? selectedDetails.stats.completionPercentage : currentSubmission.metrics?.completionPercentage || 0}%
-                  </span>
-                </div>
-                <Progress
-                  value={selectedDetails ? selectedDetails.stats.completionPercentage : currentSubmission.metrics?.completionPercentage || 0}
-                  className="h-2 bg-slate-100 dark:bg-slate-800"
-                />
-                <div className="text-xs text-muted-foreground">
-                  {selectedDetails
-                    ? `${selectedDetails.stats.completedStudents}/${selectedDetails.stats.totalStudents} students completed`
-                    : `${currentSubmission.metrics?.validMarksCount || 0}/${currentSubmission.metrics?.totalStudents || 0} students completed`}
-                </div>
-
-                {/* Progress Metric Chips */}
-                <div className="grid grid-cols-3 gap-2 pt-1.5">
-                  <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-2 text-center">
-                    <div className="flex items-center justify-center gap-1 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      <span>{selectedDetails ? selectedDetails.stats.completedStudents : currentSubmission.metrics?.validMarksCount || 0}</span>
-                    </div>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400">Complete</span>
-                  </div>
-
-                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-2 text-center">
-                    <div className="flex items-center justify-center gap-1 text-amber-700 dark:text-amber-400 text-xs font-bold">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>{selectedDetails ? selectedDetails.stats.missingStudents : currentSubmission.metrics?.missingMarksCount || 0}</span>
-                    </div>
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400">Missing</span>
-                  </div>
-
-                  <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl p-2 text-center">
-                    <div className="flex items-center justify-center gap-1 text-rose-700 dark:text-rose-400 text-xs font-bold">
-                      <UserX className="w-3.5 h-3.5" />
-                      <span>{selectedDetails ? selectedDetails.stats.absentStudents : currentSubmission.metrics?.absentCount || 0}</span>
-                    </div>
-                    <span className="text-[10px] text-rose-600 dark:text-rose-400">Absent</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2 pt-2">
-                <Button
-                  onClick={() => setReviewModalOpen(true)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-10 gap-2 shadow-sm rounded-xl"
-                >
-                  <Eye className="w-4 h-4" />
-                  Review Marks
-                </Button>
-
-                {(currentSubmission.status === 'SUBMITTED' || currentSubmission.status === 'PENDING_APPROVAL' || currentSubmission.status === 'REQUIRES_ATTENTION') && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOpenApproveModal(currentSubmission)}
-                    className="w-full border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-semibold text-xs h-10 gap-2 rounded-xl"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    Approve Submission
-                  </Button>
-                )}
-
-                {(currentSubmission.status === 'SUBMITTED' || currentSubmission.status === 'PENDING_APPROVAL') && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOpenReturnModal(currentSubmission)}
-                    className="w-full border-orange-300 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 font-medium text-xs h-9 gap-2 rounded-xl"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Return for Correction
-                  </Button>
-                )}
-
-                {(currentSubmission.status === 'APPROVED' || currentSubmission.status === 'PUBLISHED') && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOpenReopenModal(currentSubmission)}
-                    className="w-full border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium text-xs h-10 gap-2 rounded-xl"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Reopen for Editing
-                  </Button>
-                )}
-
-                {currentSubmission.status === 'APPROVED' && (
-                  <Button
-                    onClick={() => handlePublishResults(currentSubmission)}
-                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs h-10 gap-2 rounded-xl shadow-sm"
-                  >
-                    <Check className="w-4 h-4" />
-                    Publish Results
-                  </Button>
-                )}
-              </div>
-
-              {/* Recent Activity Timeline */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-                  Recent Activity
-                </h4>
-                <div className="relative pl-4 space-y-3.5 before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-                  {selectedDetails?.activities && selectedDetails.activities.length > 0 ? (
-                    selectedDetails.activities.map((act) => (
-                      <div key={act.id} className="relative text-xs space-y-0.5">
-                        <div className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-blue-600 ring-4 ring-white dark:ring-slate-900" />
-                        <span className="text-[11px] text-muted-foreground block font-mono">
-                          {formatDate(act.timestamp)}
-                        </span>
-                        <div className="font-semibold text-slate-800 dark:text-slate-200">{act.title}</div>
-                        <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
-                          {act.author} — {act.description}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="relative text-xs space-y-0.5">
-                      <div className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-blue-600 ring-4 ring-white dark:ring-slate-900" />
-                      <span className="text-[11px] text-muted-foreground block font-mono">
-                        {formatDate(currentSubmission.submittedAt)}
-                      </span>
-                      <div className="font-semibold text-slate-800 dark:text-slate-200">Teacher submitted marks</div>
-                      <span className="text-slate-500 dark:text-slate-400 block text-[11px]">{currentSubmission.teacher.name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* 5. Approve Confirmation Modal (Matches Screenshot Modal) */}
+      {/* 5. Recent Activity Timeline at the Bottom */}
+      <div className="bg-card text-card-foreground rounded-2xl border border-border dark:border-white/10 shadow-sm p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border dark:border-white/10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">
+                Recent Submission & Approval Activity
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Audit history of teacher mark entries, administrative reviews, returns, and grade publications.
+              </p>
+            </div>
+          </div>
+          {currentSubmission && (
+            <Badge variant="outline" className="text-xs font-medium self-start sm:self-auto bg-muted border-border">
+              Active: <strong className="ml-1 text-foreground">{currentSubmission.subject?.name}</strong> (Grade {currentSubmission.grade?.name} &ldquo;{currentSubmission.section?.name}&rdquo;)
+            </Badge>
+          )}
+        </div>
+
+        {/* Timeline Items Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+          {selectedDetails?.activities && selectedDetails.activities.length > 0 ? (
+            selectedDetails.activities.map((act) => (
+              <div
+                key={act.id}
+                className="p-3.5 rounded-xl border border-border/80 dark:border-white/10 bg-muted/20 space-y-1.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-mono text-muted-foreground">{formatDate(act.timestamp)}</span>
+                  <span className="w-2 h-2 rounded-full bg-violet-600" />
+                </div>
+                <div className="text-xs font-bold text-foreground">{act.title}</div>
+                <p className="text-[11px] text-muted-foreground">
+                  <strong className="text-foreground">{act.author}</strong> — {act.description}
+                </p>
+              </div>
+            ))
+          ) : currentSubmission ? (
+            <div className="p-3.5 rounded-xl border border-border/80 dark:border-white/10 bg-muted/20 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-muted-foreground">{formatDate(currentSubmission.submittedAt)}</span>
+                <span className="w-2 h-2 rounded-full bg-violet-600" />
+              </div>
+              <div className="text-xs font-bold text-foreground">Teacher Submitted Marks</div>
+              <p className="text-[11px] text-muted-foreground">
+                <strong className="text-foreground">{currentSubmission.teacher?.name}</strong> submitted assessment grades for {currentSubmission.subject?.name}.
+              </p>
+            </div>
+          ) : (
+            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+              Select any submission in the table above to view its activity history.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 5. Approve Confirmation Modal */}
       <Dialog open={approveModalOpen} onOpenChange={setApproveModalOpen}>
-        <DialogContent className="max-w-md p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-xl">
+        <DialogContent className="max-w-md p-6 bg-card text-card-foreground border border-border dark:border-white/10 rounded-2xl shadow-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <CheckCircle className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+              <DialogTitle className="text-base font-bold text-foreground">
                 Approve Submission
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
@@ -1384,12 +1344,12 @@ export default function MarkSubmissionApprovalPage() {
             </div>
           </div>
 
-          <div className="space-y-3.5 py-2 text-xs text-slate-600 dark:text-slate-300">
-            <p>
+          <div className="space-y-3.5 py-2 text-xs text-muted-foreground">
+            <p className="text-foreground">
               Are you sure you want to approve this submission? The marks will be locked for further editing.
             </p>
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-blue-800 dark:text-blue-300">
-              <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+            <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl flex items-start gap-2.5 text-violet-700 dark:text-violet-300">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-violet-600 dark:text-violet-400" />
               <p className="text-[11px] leading-relaxed">
                 This action will make the results available for report card generation, subject to your school&apos;s publication policy.
               </p>
@@ -1408,7 +1368,7 @@ export default function MarkSubmissionApprovalPage() {
             <Button
               onClick={handleConfirmApproval}
               disabled={approvalLoading}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-xl gap-1.5 shadow-sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-xl gap-1.5 shadow-sm"
             >
               {approvalLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
               Approve
@@ -1419,11 +1379,11 @@ export default function MarkSubmissionApprovalPage() {
 
       {/* 6. Review Marks Modal: Detailed Gradebook Breakdown */}
       <Dialog open={reviewModalOpen} onOpenChange={setReviewModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col">
-          <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+        <DialogContent className="max-w-4xl max-h-[85vh] p-6 bg-card text-card-foreground border border-border dark:border-white/10 rounded-2xl shadow-2xl flex flex-col">
+          <DialogHeader className="pb-3 border-b border-border dark:border-white/10">
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                <DialogTitle className="text-lg font-bold text-foreground">
                   Review Marks: {selectedDetails?.submission?.subject?.name || currentSubmission?.subject?.name}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
@@ -1436,10 +1396,54 @@ export default function MarkSubmissionApprovalPage() {
             </div>
           </DialogHeader>
 
+          {/* Mark Entry Progress (Inside Review Modal) */}
+          <div className="bg-muted/40 text-foreground rounded-xl p-4 border border-border dark:border-white/10 shadow-sm space-y-2.5">
+            <div className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+              MARK ENTRY PROGRESS
+            </div>
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-base font-black text-foreground">
+                {selectedDetails ? selectedDetails.stats.completionPercentage : currentSubmission?.metrics?.completionPercentage || 0}%
+              </span>
+              <span className="text-muted-foreground font-mono text-xs font-semibold">
+                {selectedDetails
+                  ? `${selectedDetails.stats.completedStudents}/${selectedDetails.stats.totalStudents}`
+                  : `${currentSubmission?.metrics?.validMarksCount || 0}/${currentSubmission?.metrics?.totalStudents || 0}`}
+              </span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full transition-all duration-300"
+                style={{
+                  width: `${selectedDetails ? selectedDetails.stats.completionPercentage : currentSubmission?.metrics?.completionPercentage || 0}%`,
+                }}
+              />
+            </div>
+
+            {/* Quick Completion Breakdown Chips */}
+            <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg py-1 px-2">
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold block">
+                  ✓ {selectedDetails ? selectedDetails.stats.completedStudents : currentSubmission?.metrics?.validMarksCount || 0} Complete
+                </span>
+              </div>
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg py-1 px-2">
+                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold block">
+                  ⚠ {selectedDetails ? selectedDetails.stats.missingStudents : currentSubmission?.metrics?.missingMarksCount || 0} Missing
+                </span>
+              </div>
+              <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg py-1 px-2">
+                <span className="text-[11px] text-rose-600 dark:text-rose-400 font-bold block">
+                  ✕ {selectedDetails ? selectedDetails.stats.absentStudents : currentSubmission?.metrics?.absentCount || 0} Absent
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Validation Alert Banner */}
           {selectedDetails?.stats?.hasValidationErrors && (
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
                 Attention: Some student records contain missing marks or scores exceeding maximum limits. Please review below.
               </span>
@@ -1454,16 +1458,16 @@ export default function MarkSubmissionApprovalPage() {
                 placeholder="Filter student name or ID..."
                 value={reviewSearch}
                 onChange={(e) => setReviewSearch(e.target.value)}
-                className="h-8 pl-8 text-xs rounded-lg bg-slate-50 dark:bg-slate-800/60"
+                className="h-8 pl-8 text-xs rounded-lg bg-background border-input text-foreground"
               />
             </div>
             <div className="flex items-center gap-1.5 self-end sm:self-auto">
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+              <div className="flex items-center bg-muted/60 p-0.5 rounded-lg text-xs border border-border/50">
                 <button
                   type="button"
                   onClick={() => setReviewFilter('ALL')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    reviewFilter === 'ALL' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                    reviewFilter === 'ALL' ? 'bg-card text-foreground shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   All ({selectedDetails?.students?.length || 0})
@@ -1472,7 +1476,7 @@ export default function MarkSubmissionApprovalPage() {
                   type="button"
                   onClick={() => setReviewFilter('ISSUES')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    reviewFilter === 'ISSUES' ? 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                    reviewFilter === 'ISSUES' ? 'bg-card text-amber-600 dark:text-amber-400 shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Issues ({(selectedDetails?.stats?.missingStudents || 0) + (selectedDetails?.students?.filter((s) => s.status === 'INVALID').length || 0)})
@@ -1481,7 +1485,7 @@ export default function MarkSubmissionApprovalPage() {
                   type="button"
                   onClick={() => setReviewFilter('ABSENT')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    reviewFilter === 'ABSENT' ? 'bg-white dark:bg-slate-700 text-rose-700 dark:text-rose-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                    reviewFilter === 'ABSENT' ? 'bg-card text-rose-600 dark:text-rose-400 shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Absent ({selectedDetails?.stats?.absentStudents || 0})
@@ -1490,7 +1494,7 @@ export default function MarkSubmissionApprovalPage() {
                   type="button"
                   onClick={() => setReviewFilter('COMPLETE')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                    reviewFilter === 'COMPLETE' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'
+                    reviewFilter === 'COMPLETE' ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   Complete ({selectedDetails?.stats?.completedStudents || 0})
@@ -1501,7 +1505,7 @@ export default function MarkSubmissionApprovalPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleExportReviewSheet}
-                className="h-8 gap-1.5 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                className="h-8 gap-1.5 text-xs bg-card border-border hover:bg-accent text-foreground"
               >
                 <Download className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>Export CSV</span>
@@ -1510,10 +1514,10 @@ export default function MarkSubmissionApprovalPage() {
           </div>
 
           {/* Students Marks Sheet Table */}
-          <div className="flex-1 overflow-y-auto min-h-[300px] border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div className="flex-1 overflow-y-auto min-h-[300px] border border-border dark:border-white/10 rounded-xl bg-card">
             {detailsLoading ? (
               <div className="flex flex-col items-center justify-center p-12 text-muted-foreground gap-2">
-                <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+                <RefreshCw className="w-6 h-6 animate-spin text-violet-600 dark:text-violet-400" />
                 <span className="text-xs">Loading detailed marks...</span>
               </div>
             ) : !selectedDetails?.students || selectedDetails.students.length === 0 ? (
@@ -1522,7 +1526,7 @@ export default function MarkSubmissionApprovalPage() {
               <div className="p-12 text-center text-muted-foreground text-xs">No students match current search / filter.</div>
             ) : (
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/70 font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                <thead className="bg-muted/50 font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 border-b border-border dark:border-white/10">
                   <tr>
                     <th className="p-3 pl-4">Student ID</th>
                     <th className="p-3">Student Name</th>
@@ -1536,11 +1540,11 @@ export default function MarkSubmissionApprovalPage() {
                     <th className="p-3 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-border/60">
                   {filteredReviewStudents.map((student) => (
-                    <tr key={student.studentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="p-3 pl-4 font-mono font-medium text-slate-500">{student.studentNumber}</td>
-                      <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">{student.fullName}</td>
+                    <tr key={student.studentId} className="hover:bg-muted/40 transition-colors">
+                      <td className="p-3 pl-4 font-mono font-medium text-muted-foreground">{student.studentNumber}</td>
+                      <td className="p-3 font-semibold text-foreground">{student.fullName}</td>
                       {selectedDetails.assessments?.map((assess) => {
                         const mark = student.marks?.find((m) => m.assessmentId === assess.id);
                         const isScoreMissing = mark?.score === null || mark?.score === undefined;
@@ -1550,39 +1554,39 @@ export default function MarkSubmissionApprovalPage() {
                         return (
                           <td key={assess.id} className="p-3 text-center">
                             {mark?.isAbsent ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
                                 ABSENT
                               </span>
                             ) : isNegative || isExceeding ? (
-                              <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+                              <span className="px-2 py-0.5 rounded text-xs font-bold bg-destructive/10 text-destructive border border-destructive/20">
                                 {mark?.score} ⚠
                               </span>
                             ) : isScoreMissing ? (
-                              <span className="text-amber-600 font-bold">--</span>
+                              <span className="text-amber-500 font-bold">--</span>
                             ) : (
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{mark?.score}</span>
+                              <span className="font-semibold text-foreground">{mark?.score}</span>
                             )}
                           </td>
                         );
                       })}
-                      <td className="p-3 text-center font-bold text-blue-600 dark:text-blue-400">
+                      <td className="p-3 text-center font-bold text-violet-600 dark:text-violet-400">
                         {student.finalPercentage !== null ? `${student.finalPercentage}%` : '--'}
                       </td>
                       <td className="p-3 text-center">
                         {student.status === 'COMPLETE' ? (
-                          <Badge variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200 text-[10px]">
+                          <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20 text-[10px]">
                             Complete
                           </Badge>
                         ) : student.status === 'ABSENT' ? (
-                          <Badge variant="outline" className="text-rose-700 bg-rose-50 border-rose-200 text-[10px]">
+                          <Badge variant="outline" className="text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20 text-[10px]">
                             Absent
                           </Badge>
                         ) : student.status === 'INVALID' ? (
-                          <Badge variant="outline" className="text-red-700 bg-red-50 border-red-200 text-[10px]">
+                          <Badge variant="outline" className="text-destructive bg-destructive/10 border-destructive/20 text-[10px]">
                             Invalid Score
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-200 text-[10px]">
+                          <Badge variant="outline" className="text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20 text-[10px]">
                             Missing Mark
                           </Badge>
                         )}
@@ -1594,7 +1598,7 @@ export default function MarkSubmissionApprovalPage() {
             )}
           </div>
 
-          <DialogFooter className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+          <DialogFooter className="pt-3 border-t border-border dark:border-white/10 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {currentSubmission && (currentSubmission.status === 'SUBMITTED' || currentSubmission.status === 'PENDING_APPROVAL') && (
                 <Button
@@ -1603,7 +1607,7 @@ export default function MarkSubmissionApprovalPage() {
                   onClick={() => {
                     handleOpenReturnModal(currentSubmission);
                   }}
-                  className="border-orange-300 text-orange-700 hover:bg-orange-50 text-xs rounded-xl gap-1.5"
+                  className="border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 text-xs rounded-xl gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Return for Correction
@@ -1621,7 +1625,7 @@ export default function MarkSubmissionApprovalPage() {
                   onClick={() => {
                     handleOpenApproveModal(currentSubmission);
                   }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-xl gap-1.5 shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-xl gap-1.5 shadow-sm"
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
                   Approve Submission
@@ -1634,9 +1638,9 @@ export default function MarkSubmissionApprovalPage() {
 
       {/* 7. Return for Correction Modal */}
       <Dialog open={returnModalOpen} onOpenChange={setReturnModalOpen}>
-        <DialogContent className="max-w-md p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-xl">
+        <DialogContent className="max-w-md p-6 bg-card text-card-foreground border border-border dark:border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-orange-600" />
               Return for Correction
             </DialogTitle>
@@ -1646,15 +1650,15 @@ export default function MarkSubmissionApprovalPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Correction Reason <span className="text-red-500">*</span>
+            <label className="text-xs font-semibold text-foreground">
+              Correction Reason <span className="text-destructive">*</span>
             </label>
             <textarea
               rows={3}
               value={returnReason}
               onChange={(e) => setReturnReason(e.target.value)}
               placeholder="e.g. 2 students are missing marks for Midterm Quiz, and 1 mark is out of range."
-              className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full text-xs p-3 rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             />
           </div>
 
@@ -1683,9 +1687,9 @@ export default function MarkSubmissionApprovalPage() {
 
       {/* 8. Reopen for Editing Modal */}
       <Dialog open={reopenModalOpen} onOpenChange={setReopenModalOpen}>
-        <DialogContent className="max-w-md p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-xl">
+        <DialogContent className="max-w-md p-6 bg-card text-card-foreground border border-border dark:border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-amber-600" />
               Reopen Submission
             </DialogTitle>
@@ -1695,15 +1699,15 @@ export default function MarkSubmissionApprovalPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Reopen Reason <span className="text-red-500">*</span>
+            <label className="text-xs font-semibold text-foreground">
+              Reopen Reason <span className="text-destructive">*</span>
             </label>
             <textarea
               rows={3}
               value={reopenReason}
               onChange={(e) => setReopenReason(e.target.value)}
               placeholder="e.g. Teacher requested score correction after re-grading student exam paper."
-              className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full text-xs p-3 rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             />
           </div>
 
@@ -1732,13 +1736,13 @@ export default function MarkSubmissionApprovalPage() {
 
       {/* 9. Bulk Approval Confirmation Modal */}
       <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
-        <DialogContent className="max-w-md p-6 bg-white dark:bg-slate-900 rounded-2xl shadow-xl">
+        <DialogContent className="max-w-md p-6 bg-card text-card-foreground border border-border dark:border-white/10 rounded-2xl shadow-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <CheckCheck className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+              <DialogTitle className="text-base font-bold text-foreground">
                 Bulk Approve Submissions
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
@@ -1747,12 +1751,12 @@ export default function MarkSubmissionApprovalPage() {
             </div>
           </div>
 
-          <div className="space-y-3.5 py-2 text-xs text-slate-600 dark:text-slate-300">
-            <p>
+          <div className="space-y-3.5 py-2 text-xs text-muted-foreground">
+            <p className="text-foreground">
               Each selected submission will be validated independently. Valid submissions will be approved and locked for editing.
             </p>
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl flex items-start gap-2.5 text-blue-800 dark:text-blue-300">
-              <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+            <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl flex items-start gap-2.5 text-violet-700 dark:text-violet-300">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-violet-600 dark:text-violet-400" />
               <p className="text-[11px] leading-relaxed">
                 Results will become available for report card publication according to your school&apos;s configured policy.
               </p>

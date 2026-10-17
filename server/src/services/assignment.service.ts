@@ -104,9 +104,16 @@ export const createAssignment = async (data: AssignmentInput, _schoolId?: string
     throw new Error('Section does not exist.');
   }
 
-  if (data.streamId) {
+  const isGrade11or12 = /\b(11|12)\b/.test(grade.name);
+  if (isGrade11or12 && !data.streamId) {
+    throw new Error('Stream selection (Natural Science or Social Science) is required for Grades 11 and 12.');
+  }
+
+  const effectiveStreamId = isGrade11or12 ? data.streamId : null;
+
+  if (effectiveStreamId) {
     const stream = await prisma.stream.findUnique({
-      where: { id: data.streamId },
+      where: { id: effectiveStreamId },
     });
     if (!stream) {
       throw new Error('Stream does not exist.');
@@ -125,6 +132,21 @@ export const createAssignment = async (data: AssignmentInput, _schoolId?: string
   if (data.subjectId) {
     const subj = await prisma.subject.findUnique({ where: { id: data.subjectId } });
     if (subj) subjectName = subj.name;
+
+    // Check if curriculum subjects are defined for this grade and stream
+    const curriculumSubjects = await prisma.gradeSubject.findMany({
+      where: {
+        gradeId: data.gradeId,
+        ...(isGrade11or12 ? { streamId: effectiveStreamId } : {}),
+      },
+    });
+
+    if (curriculumSubjects.length > 0) {
+      const isSubjectAssigned = curriculumSubjects.some((gs) => gs.subjectId === data.subjectId);
+      if (!isSubjectAssigned) {
+        throw new Error('The selected subject is not assigned to this Grade and Stream curriculum.');
+      }
+    }
   }
 
   const role = data.role || 'SUBJECT_TEACHER';
@@ -241,9 +263,16 @@ export const updateAssignment = async (id: string, data: any, _schoolId?: string
     throw new Error('Section does not exist.');
   }
 
-  if (data.streamId) {
+  const isGrade11or12 = /\b(11|12)\b/.test(grade.name);
+  if (isGrade11or12 && !data.streamId) {
+    throw new Error('Stream selection (Natural Science or Social Science) is required for Grades 11 and 12.');
+  }
+
+  const effectiveStreamId = isGrade11or12 ? data.streamId : null;
+
+  if (effectiveStreamId) {
     const stream = await prisma.stream.findUnique({
-      where: { id: data.streamId },
+      where: { id: effectiveStreamId },
     });
     if (!stream) {
       throw new Error('Stream does not exist.');
@@ -260,6 +289,21 @@ export const updateAssignment = async (id: string, data: any, _schoolId?: string
   if (data.subjectId) {
     const subj = await prisma.subject.findUnique({ where: { id: data.subjectId } });
     if (subj) subjectName = subj.name;
+
+    // Check if curriculum subjects are defined for this grade and stream
+    const curriculumSubjects = await prisma.gradeSubject.findMany({
+      where: {
+        gradeId: data.gradeId,
+        ...(isGrade11or12 ? { streamId: effectiveStreamId } : {}),
+      },
+    });
+
+    if (curriculumSubjects.length > 0) {
+      const isSubjectAssigned = curriculumSubjects.some((gs) => gs.subjectId === data.subjectId);
+      if (!isSubjectAssigned) {
+        throw new Error('The selected subject is not assigned to this Grade and Stream curriculum.');
+      }
+    }
   }
 
   const role = data.role || 'SUBJECT_TEACHER';

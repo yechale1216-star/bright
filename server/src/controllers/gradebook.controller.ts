@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/db';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { gradebookService } from '../services/gradebook.service';
@@ -484,6 +484,23 @@ export const getBatchComprehensiveReportCards = async (req: AuthenticatedRequest
       academicTermId,
     });
     res.status(200).json({ success: true, data: cards });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyReportCard = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const result = await gradebookService.verifyReportCard(id);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        verified: false,
+        message: 'No official report card found for this verification code.',
+      });
+    }
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

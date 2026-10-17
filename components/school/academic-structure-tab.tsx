@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import {
   Plus, Pencil, Trash2, BookMarked, Layers, 
   LayoutGrid, GraduationCap, ChevronDown, ChevronRight, 
-  Calendar
+  Calendar, CheckSquare, Square, BookOpen, AlertCircle, 
+  X, Check, Search, Filter
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -66,6 +67,19 @@ interface Subject {
   description?: string | null
   isActive: boolean
 }
+
+interface GradeSubjectItem {
+  id: string
+  gradeId: string
+  streamId?: string | null
+  sectionId?: string | null
+  subjectId: string
+  grade?: Grade
+  stream?: Stream | null
+  section?: Section | null
+  subject?: Subject
+}
+
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -733,6 +747,595 @@ function SubjectsSection() {
   )
 }
 
+// ─── Grade Subjects Section (Curriculum Assignment) ──────────────────────────
+
+function GradeSubjectsSection() {
+  const [gradeSubjects, setGradeSubjects] = useState<GradeSubjectItem[]>([])
+  const [grades, setGrades] = useState<Grade[]>([])
+  const [streams, setStreams] = useState<Stream[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Form states
+  const [selectedGradeId, setSelectedGradeId] = useState("")
+  const [selectedStreamId, setSelectedStreamId] = useState("")
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([])
+  const [subjectSearch, setSubjectSearch] = useState("")
+  const [filterGrade, setFilterGrade] = useState<string>("ALL")
+
+  const loadAll = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const [gsData, gData, sData, subData] = await Promise.all([
+        db.getGradeSubjects(),
+        db.getGrades(),
+        db.getStreams(),
+        db.getSubjects(),
+      ])
+      setGradeSubjects(gsData || [])
+      setGrades(gData || [])
+      setStreams(sData || [])
+      setSubjects(subData || [])
+    } catch (e: any) {
+      notifications.error("Error", e?.message || "Failed to load grade subjects data")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadAll()
+    const handleChanged = () => loadAll()
+    window.addEventListener("gradeSubjectsChanged", handleChanged)
+    return () => window.removeEventListener("gradeSubjectsChanged", handleChanged)
+  }, [loadAll])
+
+  const selectedGradeObj = grades.find((g) => g.id === selectedGradeId)
+  const isGrade11or12 = selectedGradeObj
+    ? /\b(11|12)\b/.test(selectedGradeObj.name) ||
+      selectedGradeObj.name.includes("11") ||
+      selectedGradeObj.name.includes("12")
+    : false
+
+  // Determine which subjects are already assigned to the selected Grade + Stream
+  const alreadyAssignedSubjectIds = new Set(
+    gradeSubjects
+      .filter((gs) => {
+        if (gs.gradeId !== selectedGradeId) return false
+        if (isGrade11or12) {
+          return gs.streamId === selectedStreamId
+        }
+        return true
+      })
+      .map((gs) => gs.subjectId)
+  )
+
+  const openAssignModal = (prefillGradeId?: string, prefillStreamId?: string) => {
+    const targetGradeId = prefillGradeId || (grades.length > 0 ? grades[0].id : "")
+    setSelectedGradeId(targetGradeId)
+    setSelectedStreamId(prefillStreamId || "")
+    setSelectedSubjectIds([])
+    setSubjectSearch("")
+    setIsOpen(true)
+  }
+
+  const toggleSubjectSelection = (subjectId: string) => {
+    setSelectedSubjectIds((prev) =>
+      prev.includes(subjectId) ? prev.filter((id) => id !== subjectId) : [...prev, subjectId]
+    )
+  }
+
+  const selectAllActiveSubjects = () => {
+    const unassigned = subjects
+      .filter((s) => s.isActive && !alreadyAssignedSubjectIds.has(s.id))
+      .map((s) => s.id)
+    setSelectedSubjectIds(unassigned)
+  }
+
+  const clearSubjectSelection = () => {
+    setSelectedSubjectIds([])
+  }
+
+  const handleSaveAssignment = async () => {
+    if (!selectedGradeId) {
+      notifications.error("Validation Error", "Please select a grade")
+      return
+    }
+    if (isGrade11or12 && !selectedStreamId) {
+      notifications.error(
+        "Validation Error",
+        "Stream selection (Natural Science or Social Science) is required for Grades 11 and 12"
+      )
+      return
+    }
+    if (selectedSubjectIds.length === 0) {
+      notifications.error("Validation Error", "Please select at least one subject to assign")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await db.assignSubjectsToGrade({
+        gradeId: selectedGradeId,
+        streamId: isGrade11or12 ? selectedStreamId : null,
+        subjectIds: selectedSubjectIds,
+      })
+      notifications.success(
+        "Subjects Assigned",
+        `Successfully assigned ${selectedSubjectIds.length} subject(s) to Grade ${selectedGradeObj?.name}${
+          selectedStreamId ? ` (${streams.find((s) => s.id === selectedStreamId)?.name})` : ""
+        }`
+      )
+      setIsOpen(false)
+      setSelectedSubjectIds([])
+      await loadAll()
+    } catch (e: any) {
+      notifications.error("Error", e?.message || "Failed to assign subjects")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteAssignment = async (id: string, subjectName: string, gradeName: string, streamName?: string | null) => {
+    const label = `${gradeName}${streamName ? ` (${streamName})` : ""}`
+    if (!confirm(`Remove "${subjectName}" from Grade ${label} curriculum?`)) return
+    setDeletingId(id)
+    try {
+      await db.deleteGradeSubject(id)
+      notifications.success("Removed", `"${subjectName}" unassigned from Grade ${label}`)
+      await loadAll()
+    } catch (e: any) {
+      notifications.error("Error", e?.message || "Failed to remove assignment")
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  // Filter subjects for modal
+  const filteredModalSubjects = subjects.filter((s) => {
+    if (!subjectSearch.trim()) return true
+    const q = subjectSearch.toLowerCase()
+    return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
+  })
+
+  // Group gradeSubjects by Grade & Stream
+  const groupedCurriculum = useMemo(() => {
+    const groups: {
+      key: string
+      gradeId: string
+      gradeName: string
+      streamId?: string | null
+      streamName?: string | null
+      items: GradeSubjectItem[]
+    }[] = []
+
+    const list =
+      filterGrade === "ALL" ? gradeSubjects : gradeSubjects.filter((gs) => gs.gradeId === filterGrade)
+
+    for (const item of list) {
+      const gName = item.grade?.name || "Unknown Grade"
+      const sName = item.stream?.name || null
+      const key = `${item.gradeId}_${item.streamId || "none"}`
+
+      let group = groups.find((g) => g.key === key)
+      if (!group) {
+        group = {
+          key,
+          gradeId: item.gradeId,
+          gradeName: gName,
+          streamId: item.streamId,
+          streamName: sName,
+          items: [],
+        }
+        groups.push(group)
+      }
+      group.items.push(item)
+    }
+
+    return groups.sort((a, b) => a.gradeName.localeCompare(b.gradeName, undefined, { numeric: true }))
+  }, [gradeSubjects, filterGrade])
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-extrabold text-base text-foreground flex items-center gap-2">
+              Subject Assignment by Grade &amp; Stream
+              <Badge variant="outline" className="text-[10px] font-bold rounded-full py-0 h-4 border-blue-500/30 text-blue-600 dark:text-blue-400">
+                {gradeSubjects.length} Allocations
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Assign curriculum subjects to grades. Grades 11 and 12 require selecting a stream (Natural or Social Science).
+            </div>
+          </div>
+        </div>
+
+        <Button
+          onClick={() => openAssignModal()}
+          className="rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-2 shadow-md shadow-blue-500/20 h-10 px-4 shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Assign Subjects to Grade
+        </Button>
+      </div>
+
+      {/* Grade Quick Filter Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        <Button
+          variant={filterGrade === "ALL" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setFilterGrade("ALL")}
+          className={cn(
+            "rounded-xl text-xs font-bold h-8 px-3 shrink-0",
+            filterGrade === "ALL" ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900" : "border-border/60"
+          )}
+        >
+          All Grades ({gradeSubjects.length})
+        </Button>
+        {grades.map((g) => {
+          const count = gradeSubjects.filter((gs) => gs.gradeId === g.id).length
+          const isSelected = filterGrade === g.id
+          return (
+            <Button
+              key={g.id}
+              variant={isSelected ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterGrade(g.id)}
+              className={cn(
+                "rounded-xl text-xs font-bold h-8 px-3 shrink-0",
+                isSelected ? "bg-blue-600 text-white" : "border-border/60 text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Grade {g.name}
+              <span className="ml-1.5 text-[10px] opacity-75">({count})</span>
+            </Button>
+          )
+        })}
+      </div>
+
+      {/* Main Content Area */}
+      {isLoading ? (
+        <div className="py-16 flex flex-col items-center justify-center gap-3">
+          <Spinner className="w-6 h-6 text-blue-500" />
+          <p className="text-xs text-muted-foreground font-medium">Loading curriculum allocations...</p>
+        </div>
+      ) : groupedCurriculum.length === 0 ? (
+        <div className="py-16 text-center border-2 border-dashed border-border/60 rounded-3xl p-8 flex flex-col items-center justify-center">
+          <div className="w-14 h-14 rounded-3xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+            <BookOpen className="w-7 h-7" />
+          </div>
+          <h3 className="text-sm font-bold text-foreground">No subjects assigned to classes yet</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md">
+            Assign subjects to grades and stream tracks so teachers can be allocated and mark submissions are scoped to each class.
+          </p>
+          <Button
+            onClick={() => openAssignModal()}
+            className="mt-5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Assign First Subjects
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {groupedCurriculum.map((group) => {
+            const is11or12 =
+              /\b(11|12)\b/.test(group.gradeName) ||
+              group.gradeName.includes("11") ||
+              group.gradeName.includes("12")
+
+            return (
+              <div
+                key={group.key}
+                className="rounded-3xl border border-border/70 bg-card/60 backdrop-blur-sm p-5 space-y-4 hover:border-blue-500/40 transition-all shadow-sm"
+              >
+                {/* Group Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-sm text-foreground">
+                        Grade {group.gradeName}
+                      </span>
+                      {group.streamName ? (
+                        <Badge
+                          className={cn(
+                            "text-[10px] font-extrabold uppercase tracking-wide rounded-lg px-2 py-0.5",
+                            group.streamName.toLowerCase().includes("nat")
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          )}
+                          variant="outline"
+                        >
+                          {group.streamName} Stream
+                        </Badge>
+                      ) : is11or12 ? (
+                        <Badge variant="outline" className="text-[10px] font-bold rounded-lg px-2 py-0.5 border-rose-500/30 text-rose-500 bg-rose-500/5">
+                          Stream Missing
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] font-medium rounded-lg px-2 py-0.5 border-border/60 text-muted-foreground">
+                          Standard Track
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {group.items.length} subject{group.items.length !== 1 ? "s" : ""} assigned
+                    </p>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openAssignModal(group.gradeId, group.streamId || undefined)}
+                    className="rounded-xl text-[11px] font-bold h-7 px-2.5 gap-1 border-border/60 hover:bg-muted"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add More
+                  </Button>
+                </div>
+
+                {/* Assigned Subjects Badges / Pills */}
+                <div className="flex flex-wrap gap-1.5">
+                  {group.items.map((item) => {
+                    const sub = item.subject
+                    if (!sub) return null
+                    const isDeleting = deletingId === item.id
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-xl text-xs font-semibold border transition-all",
+                          "bg-muted/40 hover:bg-muted/70 border-border/60 text-foreground"
+                        )}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: sub.color || "#3b82f6" }}
+                        />
+                        <span>{sub.name}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground/80 px-1 py-0.2 rounded bg-background/50 border border-border/30">
+                          {sub.code}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={() =>
+                            handleDeleteAssignment(
+                              item.id,
+                              sub.name,
+                              group.gradeName,
+                              group.streamName
+                            )
+                          }
+                          title={`Remove ${sub.name}`}
+                          className="p-0.5 rounded-md text-muted-foreground/60 hover:text-rose-500 hover:bg-rose-500/10 transition-colors ml-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Assignment Dialog */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[560px] rounded-3xl p-6 bg-card border border-border/70 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-base flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-600" />
+              Assign Subjects to Class / Grade
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select grade, stream (if Grade 11 or 12), and check all curriculum subjects to assign.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {/* Grade & Stream Selection */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-muted/30 border border-border/50">
+              {/* Grade */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">
+                  Grade <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  value={selectedGradeId}
+                  onChange={(e) => {
+                    setSelectedGradeId(e.target.value)
+                    setSelectedStreamId("")
+                    setSelectedSubjectIds([])
+                  }}
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+                >
+                  <option value="">-- Choose Grade --</option>
+                  {grades.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      Grade {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Stream */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground">
+                    Stream {isGrade11or12 && <span className="text-red-500">*</span>}
+                  </Label>
+                  {isGrade11or12 ? (
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                      Required for Gr 11/12
+                    </span>
+                  ) : null}
+                </div>
+
+                <select
+                  value={selectedStreamId}
+                  onChange={(e) => {
+                    setSelectedStreamId(e.target.value)
+                    setSelectedSubjectIds([])
+                  }}
+                  disabled={!isGrade11or12}
+                  className={cn(
+                    "w-full text-xs px-3 py-2 rounded-xl border bg-background focus:outline-none focus:ring-2 transition-all font-medium",
+                    isGrade11or12 && !selectedStreamId
+                      ? "border-amber-400 focus:ring-amber-500/20"
+                      : "border-border focus:ring-blue-500/20",
+                    !isGrade11or12 && "opacity-60 bg-muted/40 cursor-not-allowed"
+                  )}
+                >
+                  {!isGrade11or12 ? (
+                    <option value="">Not Applicable (Standard Curriculum)</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select Stream Track --</option>
+                      {streams.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} Stream
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* Subject Selection Box */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-bold text-foreground">
+                  Select Subjects to Assign ({selectedSubjectIds.length} selected)
+                </Label>
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={selectAllActiveSubjects}
+                    className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                  >
+                    Select All Unassigned
+                  </button>
+                  <span className="text-muted-foreground">•</span>
+                  <button
+                    type="button"
+                    onClick={clearSubjectSelection}
+                    className="text-muted-foreground font-medium hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* Search filter */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={subjectSearch}
+                  onChange={(e) => setSubjectSearch(e.target.value)}
+                  placeholder="Filter subjects by name or code..."
+                  className="pl-8 text-xs h-8 rounded-xl"
+                />
+              </div>
+
+              {/* Subject Checkboxes Grid */}
+              <div className="max-h-56 overflow-y-auto p-2 rounded-2xl border border-border/70 bg-muted/20 space-y-1">
+                {filteredModalSubjects.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-muted-foreground">
+                    No subjects found.
+                  </div>
+                ) : (
+                  filteredModalSubjects.map((s) => {
+                    const isAlready = alreadyAssignedSubjectIds.has(s.id)
+                    const isChecked = selectedSubjectIds.includes(s.id)
+
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          if (!isAlready) toggleSubjectSelection(s.id)
+                        }}
+                        className={cn(
+                          "flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors cursor-pointer select-none",
+                          isAlready
+                            ? "bg-muted/40 opacity-70 cursor-not-allowed text-muted-foreground"
+                            : isChecked
+                            ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-900"
+                            : "hover:bg-muted/60 text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked || isAlready}
+                            disabled={isAlready}
+                            onChange={() => {}}
+                            className="rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                          />
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: s.color || "#3b82f6" }}
+                          />
+                          <span className="truncate">{s.name}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            ({s.code})
+                          </span>
+                        </div>
+
+                        {isAlready ? (
+                          <Badge variant="outline" className="text-[10px] font-semibold py-0 h-4 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
+                            Already Assigned
+                          </Badge>
+                        ) : isChecked ? (
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                            Selected
+                          </span>
+                        ) : null}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3 border-t border-border/50">
+            <Button
+              variant="outline"
+              onClick={() => setIsOpen(false)}
+              className="rounded-xl text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSaving || !selectedGradeId || (isGrade11or12 && !selectedStreamId) || selectedSubjectIds.length === 0}
+              onClick={handleSaveAssignment}
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs gap-1.5"
+            >
+              {isSaving ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-4 h-4" />}
+              Save Assignment ({selectedSubjectIds.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+
 // ─── Academic Terms Section ───────────────────────────────────────────────────
 
 function AcademicTermsSection({ year }: { year: AcademicYear }) {
@@ -1047,6 +1650,10 @@ export function AcademicStructureTab() {
             <BookMarked className="w-3.5 h-3.5" />
             Subjects
           </TabsTrigger>
+          <TabsTrigger value="subject_assignments" className="rounded-xl text-xs font-semibold gap-1.5 py-2">
+            <BookOpen className="w-3.5 h-3.5" />
+            Subject Assignment
+          </TabsTrigger>
           <TabsTrigger value="terms" className="rounded-xl text-xs font-semibold gap-1.5 py-2">
             <Calendar className="w-3.5 h-3.5" />
             Academic Terms
@@ -1084,7 +1691,17 @@ export function AcademicStructureTab() {
             <SubjectsSection />
           </Card>
           <div className="mt-4 p-4 rounded-2xl bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900 text-xs text-violet-800 dark:text-violet-300">
-            <strong>Tip:</strong> Each subject needs a unique code (e.g. MATH, ENG, SCI). After adding subjects, assign them to teachers via Teacher Assignments. Inactive subjects are hidden from student portals but retained in gradebook data.
+            <strong>Tip:</strong> Each subject needs a unique code (e.g. MATH, ENG, SCI). After adding subjects, assign them to classes in the "Subject Assignment" tab. Inactive subjects are hidden from student portals but retained in gradebook data.
+          </div>
+        </TabsContent>
+
+        {/* Subject Assignment by Grade & Stream */}
+        <TabsContent value="subject_assignments">
+          <Card className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-6">
+            <GradeSubjectsSection />
+          </Card>
+          <div className="mt-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 text-xs text-blue-800 dark:text-blue-300">
+            <strong>Curriculum Allocation:</strong> Assign subjects to classes based on Grade and Stream. For Grades 11 and 12, selecting the stream (Natural Science or Social Science) is mandatory. Teacher assignments and mark submissions are automatically constrained to these assigned subjects.
           </div>
         </TabsContent>
 
@@ -1097,6 +1714,7 @@ export function AcademicStructureTab() {
             <strong>Tip:</strong> Terms belong to a specific academic year. Expand a year to add its semesters/quarters. Mark one term as "Active" to use it in gradebook reports and attendance tracking.
           </div>
         </TabsContent>
+
       </Tabs>
     </div>
   )

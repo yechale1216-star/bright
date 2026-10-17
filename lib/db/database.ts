@@ -828,6 +828,56 @@ class Database extends BaseDatabase {
     queryCache.invalidate(/^subjects_/)
   }
 
+  // ─── Grade Subjects (Curriculum Allocation) ───
+  async getGradeSubjects(filter?: { gradeId?: string; streamId?: string; sectionId?: string }): Promise<any[]> {
+    const params = new URLSearchParams()
+    if (filter?.gradeId) params.append("gradeId", filter.gradeId)
+    if (filter?.streamId) params.append("streamId", filter.streamId)
+    if (filter?.sectionId) params.append("sectionId", filter.sectionId)
+    const queryString = params.toString() ? `?${params.toString()}` : ""
+
+    const result = await apiFetch<{ success: boolean; data: any[] }>(
+      `${API_URL}/api/schools/me/grade-subjects${queryString}`,
+      { headers: this.getApiHeaders(), cache: "no-store" }
+    )
+    return result.data || []
+  }
+
+  async assignSubjectsToGrade(data: {
+    gradeId: string;
+    streamId?: string | null;
+    sectionId?: string | null;
+    subjectIds: string[];
+  }): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/schools/me/grade-subjects`,
+      {
+        method: "POST",
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    queryCache.invalidate(/^grade_subjects_/)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("gradeSubjectsChanged"))
+    }
+    return result.data
+  }
+
+  async deleteGradeSubject(id: string): Promise<void> {
+    await apiFetch(
+      `${API_URL}/api/schools/me/grade-subjects/${id}`,
+      {
+        method: "DELETE",
+        headers: this.getApiHeaders(),
+      }
+    )
+    queryCache.invalidate(/^grade_subjects_/)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("gradeSubjectsChanged"))
+    }
+  }
+
   // ─── Academic Terms ───
   async getTerms(yearId: string): Promise<any[]> {
     const result = await apiFetch<{ success: boolean; data: any[] }>(
