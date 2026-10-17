@@ -214,13 +214,10 @@ export default function MarkSubmissionApprovalPage() {
           }
         } else {
           const res = await fetch(`${API_URL}/api/schools/sections?gradeId=${selectedGradeId}`, { headers }).then((r) => r.json()).catch(() => null);
-          if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          if (res?.success && Array.isArray(res.data)) {
             setSections(res.data);
           } else {
-            const allRes = await fetch(`${API_URL}/api/schools/sections`, { headers }).then((r) => r.json()).catch(() => null);
-            if (allRes?.success && Array.isArray(allRes.data)) {
-              setSections(allRes.data);
-            }
+            setSections([]);
           }
         }
       } catch (err) {

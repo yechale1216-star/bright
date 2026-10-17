@@ -304,15 +304,83 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     studentId = await getNextStudentId();
   }
 
-  const gradeName = String(data.grade || '').trim();
-  const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
-  if (!isNaN(gradeNum)) {
-    if (gradeNum >= 11 && !data.stream) {
-      throw new Error(`Stream selection (Natural/Social Science) is required for ${gradeName}.`);
+  // 1. Resolve Grade
+  let gradeId = data.gradeId;
+  let grade: any = null;
+  if (gradeId) {
+    grade = await prisma.grade.findUnique({ where: { id: gradeId } });
+  } else if (data.grade) {
+    const gName = String(data.grade).trim();
+    grade = await prisma.grade.upsert({
+      where: { name: gName },
+      update: {},
+      create: { name: gName },
+    });
+    gradeId = grade.id;
+  }
+  if (!grade) {
+    throw new Error('Grade Level is required.');
+  }
+
+  const gradeName = (grade.name || '').toLowerCase();
+  const isSeniorSecondary = gradeName.includes('11') || gradeName.includes('12');
+
+  // 2. Resolve Stream
+  let streamId: string | null = null;
+  if (isSeniorSecondary) {
+    if (data.streamId) {
+      const st = await prisma.stream.findUnique({ where: { id: data.streamId } });
+      if (!st) throw new Error('Selected academic stream not found.');
+      streamId = st.id;
+    } else if (data.stream) {
+      const stName = String(data.stream).trim();
+      const st = await prisma.stream.upsert({
+        where: { name: stName },
+        update: {},
+        create: { name: stName },
+      });
+      streamId = st.id;
+    } else {
+      throw new Error(`Academic stream (Natural Science or Social Science) is mandatory for ${grade.name}.`);
     }
-    if (gradeNum <= 10) {
-      data.stream = null;
+  } else {
+    streamId = null;
+  }
+
+  // 3. Resolve Section
+  let sectionId = data.sectionId;
+  let section: any = null;
+  if (sectionId) {
+    section = await prisma.section.findUnique({ where: { id: sectionId } });
+    if (!section) throw new Error('Selected section not found.');
+    if (section.gradeId !== grade.id) {
+      throw new Error(`Section "${section.name}" does not belong to ${grade.name}.`);
     }
+    if (isSeniorSecondary && section.streamId && streamId && section.streamId !== streamId) {
+      throw new Error('Section does not belong to the selected stream.');
+    }
+  } else if (data.section) {
+    const secName = String(data.section).trim();
+    section = await prisma.section.findFirst({
+      where: {
+        gradeId: grade.id,
+        streamId,
+        name: { equals: secName, mode: 'insensitive' },
+      },
+    });
+    if (!section) {
+      section = await prisma.section.create({
+        data: {
+          name: secName,
+          gradeId: grade.id,
+          streamId,
+        },
+      });
+    }
+    sectionId = section.id;
+  }
+  if (!sectionId || !section) {
+    throw new Error('Section is mandatory for student registration.');
   }
 
   const newStudent = await prisma.student.create({
@@ -324,24 +392,9 @@ export const createStudent = async (data: any, _schoolId?: string) => {
       parent_name: data.parent_name || "",
       gender: data.gender,
       date_of_birth: data.date_of_birth,
-      grade: {
-        connectOrCreate: {
-          where: { name: data.grade },
-          create: { name: data.grade }
-        }
-      },
-      section: {
-        connectOrCreate: {
-          where: { name: data.section },
-          create: { name: data.section }
-        }
-      },
-      stream: data.stream ? {
-        connectOrCreate: {
-          where: { name: data.stream },
-          create: { name: data.stream }
-        }
-      } : undefined
+      gradeId: grade.id,
+      sectionId: section.id,
+      streamId: streamId,
     },
     include: {
       grade: true,
@@ -498,13 +551,7 @@ export const bulkUpsertStudents = async (students: any[], _schoolId?: string) =>
         create: { name: data.grade }
       });
 
-      const section = await prisma.section.upsert({
-        where: { name: data.section },
-        update: {},
-        create: { name: data.section }
-      });
-
-      let streamId: string | undefined = undefined;
+      let streamId: string | null = null;
       if (data.stream) {
         const stream = await prisma.stream.upsert({
           where: { name: data.stream },
@@ -512,6 +559,24 @@ export const bulkUpsertStudents = async (students: any[], _schoolId?: string) =>
           create: { name: data.stream }
         });
         streamId = stream.id;
+      }
+
+      const secName = (data.section || 'A').trim();
+      let section = await prisma.section.findFirst({
+        where: {
+          gradeId: grade.id,
+          streamId: streamId,
+          name: { equals: secName, mode: 'insensitive' }
+        }
+      });
+      if (!section) {
+        section = await prisma.section.create({
+          data: {
+            name: secName,
+            gradeId: grade.id,
+            streamId: streamId
+          }
+        });
       }
 
       const existingStudent = await prisma.student.findUnique({
@@ -655,38 +720,77 @@ export const updateStudent = async (id: string, data: any, _schoolId?: string) =
   if (data.date_of_birth) updateData.date_of_birth = data.date_of_birth;
   if (data.address) updateData.address = data.address;
 
-  if (data.grade) {
-    updateData.grade = {
-      connectOrCreate: {
-        where: { name: data.grade },
-        create: { name: data.grade }
-      }
-    };
-  }
-  if (data.section) {
-    updateData.section = {
-      connectOrCreate: {
-        where: { name: data.section },
-        create: { name: data.section }
-      }
-    };
+  const existingStudent = await prisma.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true } });
+  if (!existingStudent) throw new Error('Student not found');
+
+  let targetGradeId = data.gradeId || existingStudent.gradeId;
+  let targetGrade: any = null;
+  if (data.gradeId) {
+    targetGrade = await prisma.grade.findUnique({ where: { id: data.gradeId } });
+  } else if (data.grade) {
+    targetGrade = await prisma.grade.upsert({
+      where: { name: String(data.grade).trim() },
+      update: {},
+      create: { name: String(data.grade).trim() },
+    });
+    targetGradeId = targetGrade.id;
+  } else {
+    targetGrade = await prisma.grade.findUnique({ where: { id: targetGradeId } });
   }
 
-  const gradeName = String(data.grade || '').trim();
-  const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
+  const gradeName = (targetGrade?.name || '').toLowerCase();
+  const isSeniorSecondary = gradeName.includes('11') || gradeName.includes('12');
 
-  if (!isNaN(gradeNum) && gradeNum <= 10) {
-    updateData.stream = { disconnect: true };
-  } else if (data.stream) {
-    updateData.stream = {
-      connectOrCreate: {
-        where: { name: data.stream },
-        create: { name: data.stream }
-      }
-    };
-  } else if ('stream' in data && !data.stream) {
-    updateData.stream = { disconnect: true };
+  let targetStreamId = existingStudent.streamId;
+  if (isSeniorSecondary) {
+    if (data.streamId) {
+      targetStreamId = data.streamId;
+    } else if (data.stream) {
+      const st = await prisma.stream.upsert({
+        where: { name: String(data.stream).trim() },
+        update: {},
+        create: { name: String(data.stream).trim() },
+      });
+      targetStreamId = st.id;
+    }
+    if (!targetStreamId) {
+      throw new Error(`Stream selection is mandatory for Grade 11 and 12.`);
+    }
+  } else {
+    targetStreamId = null;
   }
+
+  let targetSectionId = data.sectionId || existingStudent.sectionId;
+  if (data.sectionId) {
+    const sec = await prisma.section.findUnique({ where: { id: data.sectionId } });
+    if (!sec || sec.gradeId !== targetGradeId || (isSeniorSecondary && sec.streamId && sec.streamId !== targetStreamId)) {
+      throw new Error('Selected section does not match the target grade and stream.');
+    }
+    targetSectionId = sec.id;
+  } else if (data.section) {
+    const secName = String(data.section).trim();
+    let sec = await prisma.section.findFirst({
+      where: {
+        gradeId: targetGradeId,
+        streamId: targetStreamId,
+        name: { equals: secName, mode: 'insensitive' },
+      },
+    });
+    if (!sec) {
+      sec = await prisma.section.create({
+        data: {
+          name: secName,
+          gradeId: targetGradeId,
+          streamId: targetStreamId,
+        },
+      });
+    }
+    targetSectionId = sec.id;
+  }
+
+  updateData.gradeId = targetGradeId;
+  updateData.sectionId = targetSectionId;
+  updateData.streamId = targetStreamId;
 
   const updatedStudent = await prisma.student.update({ 
     where: { id }, 

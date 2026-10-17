@@ -370,7 +370,10 @@ export default function TeacherGradebookPage() {
           }).then((r) => r.json());
           if (res?.success && Array.isArray(res.data)) {
             setSections(res.data);
-            if (res.data.length > 0) setSelectedSectionId(res.data[0].id);
+            setSelectedSectionId(res.data.length > 0 ? res.data[0].id : '');
+          } else {
+            setSections([]);
+            setSelectedSectionId('');
           }
         } catch {}
       };

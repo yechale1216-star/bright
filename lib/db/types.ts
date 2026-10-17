@@ -52,11 +52,20 @@ export interface TeacherAssignment {
   section?: string
   stream?: string
   subject?: string
+  gradeId?: string
+  sectionId?: string
+  streamId?: string
+  subjectId?: string
+  role?: string
   schoolId?: string
+  gradeObj?: any
+  sectionObj?: any
+  streamObj?: any
   teacher?: {
     id: string
     full_name: string
     email: string
+    profile_photo?: string
   }
   class?: {
     id: string

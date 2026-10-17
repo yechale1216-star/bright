@@ -274,21 +274,6 @@ class StudentDatabase {
     );
   }
 
-  // ─── TIMETABLE ───────────────────────────────────────────────────────────────
-
-  async getTimetable(): Promise<any> {
-    return queryCache.fetch(
-      "student_weekly_timetable",
-      async () => {
-        const res = await apiFetch<{ success: boolean; data: any }>(
-          `${API_URL}/api/student/timetable`,
-          { headers: this.getHeaders() }
-        );
-        return res.data;
-      },
-      { staleTime: 60_000, persist: false }
-    );
-  }
 
   // ─── ANNOUNCEMENTS ───────────────────────────────────────────────────────────
 
@@ -344,6 +329,22 @@ class StudentDatabase {
         return res.data || [];
       },
       { staleTime: 30_000, persist: false }
+    );
+  }
+
+  // ─── TIMETABLE ───────────────────────────────────────────────────────────────
+
+  async getTimetable(): Promise<any> {
+    return queryCache.fetch(
+      "student_published_timetable",
+      async () => {
+        const res = await apiFetch<{ success: boolean; data: any }>(
+          `${API_URL}/api/student/timetable`,
+          { headers: this.getHeaders() }
+        );
+        return res.data || null;
+      },
+      { staleTime: 60_000, persist: true }
     );
   }
 }

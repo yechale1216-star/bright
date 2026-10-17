@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User, Menu, GraduationCap, Sun, Moon, Search, CalendarDays } from "lucide-react"
+import { LogOut, User, Menu, GraduationCap, Sun, Moon, Search, CalendarDays, Download } from "lucide-react"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils/utils"
@@ -22,6 +22,7 @@ import { useTheme } from "@/components/theme-provider"
 import { CommandPalette } from "@/components/ui/command-palette"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { AcademicYearBadge } from "@/components/school/academic-year-badge"
+import { usePWAInstall } from "@/components/system/pwa-install"
 
 interface TopNavProps {
   onMenuClick?: () => void
@@ -40,6 +41,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
   const [cachedLogo, setCachedLogo] = React.useState<string | null>(null)
   const { theme, setTheme } = useTheme()
   const { calendarPreference, setCalendarPreference } = useCalendar()
+  const { canInstall, isStandalone, triggerInstall } = usePWAInstall()
 
   // Portal-specific search prompt and profile destination
   const portalInfo = React.useMemo(() => {
@@ -93,7 +95,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-xs pt-safe">
+      <header className="sticky top-0 z-40 w-full border-b border-border bg-background/90 backdrop-blur-md shadow-xs pt-safe">
         <div className="w-full flex h-16 items-center px-3 sm:px-4 md:px-8 gap-2 sm:gap-4 max-w-full box-border">
           {showMenuButton && (
             <Button
@@ -132,22 +134,34 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
           <div className="hidden md:flex items-center flex-1 max-w-sm">
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-muted-foreground bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-xl transition-all shadow-2xs group"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-muted-foreground bg-muted hover:bg-muted/80 border border-border rounded-xl transition-all shadow-2xs group"
             >
-              <Search className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors shrink-0" />
+              <Search className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
               <span className="truncate">{portalInfo.searchLabel}</span>
             </button>
           </div>
 
           <div className="flex items-center gap-1 md:gap-3 shrink-0">
+            {/* Install PWA Button (when eligible and not running standalone) */}
+            {canInstall && !isStandalone && (
+              <button
+                onClick={triggerInstall}
+                title="Install Bright Path App"
+                className="hidden lg:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[11px] font-bold border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-all shadow-2xs"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Install</span>
+              </button>
+            )}
+
             {/* Calendar Mode Toggle */}
             <button
               onClick={() => setCalendarPreference(calendarPreference === 'ethiopian' ? 'gregorian' : 'ethiopian')}
               title={`Switch to ${calendarPreference === 'ethiopian' ? 'Gregorian' : 'Ethiopian'} Calendar`}
-              className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-border/60 bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all shadow-2xs"
+              className="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider border border-border bg-muted/80 text-foreground hover:bg-muted hover:text-primary hover:border-primary/50 transition-all shadow-2xs group"
             >
-              <CalendarDays className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{calendarPreference === 'ethiopian' ? 'EC' : 'GC'}</span>
+              <CalendarDays className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="hidden md:inline font-black">{calendarPreference === 'ethiopian' ? 'EC' : 'GC'}</span>
             </button>
 
             {/* Academic Year Badge */}
@@ -159,7 +173,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-9 w-9 md:h-10 md:w-10 rounded-full p-0 border border-border/50 hover:border-primary/30 transition-all shadow-2xs">
+                <Button variant="ghost" className="h-9 w-9 md:h-10 md:w-10 rounded-full p-0 border border-border bg-muted/40 hover:border-primary/50 transition-all shadow-2xs">
                   <Avatar className="h-8 w-8 md:h-9 md:w-9">
                     <AvatarImage src={user?.profile_photo || undefined} />
                     <AvatarFallback className="text-[10px] md:text-xs font-bold bg-primary/10 text-primary">{initials}</AvatarFallback>
@@ -180,6 +194,15 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
                   <User className="h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
+                {!isStandalone && (
+                  <DropdownMenuItem
+                    className="rounded-xl h-10 gap-2 font-semibold cursor-pointer text-primary focus:text-primary"
+                    onClick={triggerInstall}
+                  >
+                    <Download className="h-4 w-4 text-primary" />
+                    <span>Install App</span>
+                  </DropdownMenuItem>
+                )}
                 {mounted && (
                   <>
                     <DropdownMenuSeparator className="opacity-50 sm:hidden" />

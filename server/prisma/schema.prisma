@@ -189,11 +189,18 @@ model Grade {
   assessmentSchemeAssignments AssessmentSchemeAssignment[]
   assessmentSubmissions      AssessmentSubmissionRecord[]
   gradeSubjects              GradeSubject[]
+  sections                   Section[]
 }
 
 model Section {
   id                         String                      @id @default(uuid())
-  name                       String                      @unique
+  name                       String
+  gradeId                    String
+  streamId                   String?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @default(now()) @updatedAt
+  grade                      Grade                       @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  stream                     Stream?                     @relation(fields: [streamId], references: [id], onDelete: SetNull)
   students                   Student[]
   studentAcademicYearRecords StudentAcademicYearRecord[]
   fromPromotions             StudentPromotion[]          @relation("FromSection")
@@ -207,11 +214,16 @@ model Section {
   homeworkTasks              Assignment[]
   assessmentSubmissions      AssessmentSubmissionRecord[]
   gradeSubjects              GradeSubject[]
+
+  @@unique([gradeId, streamId, name])
+  @@index([gradeId])
+  @@index([streamId])
 }
 
 model Stream {
   id                         String                      @id @default(uuid())
   name                       String                      @unique
+  sections                   Section[]
   students                   Student[]
   studentAcademicYearRecords StudentAcademicYearRecord[]
   fromPromotions             StudentPromotion[]          @relation("FromStream")

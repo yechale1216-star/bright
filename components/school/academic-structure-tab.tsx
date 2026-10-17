@@ -51,6 +51,10 @@ interface Grade {
 interface Section {
   id: string
   name: string
+  gradeId?: string
+  streamId?: string | null
+  grade?: { id: string; name: string }
+  stream?: { id: string; name: string } | null
 }
 
 interface Stream {
@@ -286,18 +290,34 @@ function GradesSection() {
 
 function SectionsSection() {
   const [sections, setSections] = useState<Section[]>([])
+  const [grades, setGrades] = useState<Grade[]>([])
+  const [streams, setStreams] = useState<Stream[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
   const [editingSection, setEditingSection] = useState<Section | null>(null)
+
+  // Form fields
+  const [formGradeId, setFormGradeId] = useState("")
+  const [formStreamId, setFormStreamId] = useState("")
   const [formName, setFormName] = useState("")
+
+  // Filter
+  const [filterGradeId, setFilterGradeId] = useState<string>("all")
+
   const [isSaving, setIsSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setIsLoading(true)
     try {
-      const data = await db.getSections()
-      setSections(data || [])
+      const [secData, gData, strData] = await Promise.all([
+        db.getSections(),
+        db.getGrades(),
+        db.getStreams(),
+      ])
+      setSections(secData || [])
+      setGrades(gData || [])
+      setStreams(strData || [])
     } catch (e: any) {
       notifications.error("Error", e.message)
     } finally {
@@ -307,19 +327,85 @@ function SectionsSection() {
 
   useEffect(() => { load() }, [load])
 
-  const openCreate = () => { setEditingSection(null); setFormName(""); setIsOpen(true) }
-  const openEdit = (s: Section) => { setEditingSection(s); setFormName(s.name); setIsOpen(true) }
+  const openCreate = () => {
+    setEditingSection(null)
+    setFormGradeId(grades.length > 0 ? grades[0].id : "")
+    setFormStreamId("")
+    setFormName("")
+    setIsOpen(true)
+  }
+
+  const openEdit = (s: Section) => {
+    setEditingSection(s)
+    setFormGradeId(s.gradeId || "")
+    setFormStreamId(s.streamId || "")
+    setFormName(s.name)
+    setIsOpen(true)
+  }
+
+  const selectedFormGrade = grades.find((g) => g.id === formGradeId)
+  const isFormGrade11or12 = selectedFormGrade
+    ? /\b(11|12)\b/.test(selectedFormGrade.name) ||
+      selectedFormGrade.name.includes("11") ||
+      selectedFormGrade.name.includes("12")
+    : false
+
+  const handleGradeChange = (newGradeId: string) => {
+    setFormGradeId(newGradeId)
+    setFormStreamId("") // reset stream when grade changes
+  }
 
   const handleSave = async () => {
-    if (!formName.trim()) { notifications.error("Validation", "Section name is required"); return }
+    if (!formGradeId) {
+      notifications.error("Validation Error", "Please select a grade for this section.")
+      return
+    }
+
+    if (isFormGrade11or12 && !formStreamId) {
+      notifications.error(
+        "Validation Error",
+        "Stream selection (Natural Science or Social Science) is mandatory for Grades 11 and 12."
+      )
+      return
+    }
+
+    const trimmedName = formName.trim()
+    if (!trimmedName) {
+      notifications.error("Validation Error", "Section name is required (e.g. A, B, C).")
+      return
+    }
+
+    // Duplicate check within same grade & stream
+    const isDuplicate = sections.some((s) => {
+      if (editingSection && s.id === editingSection.id) return false
+      const sameGrade = s.gradeId === formGradeId
+      const sameStream = isFormGrade11or12 ? s.streamId === formStreamId : true
+      const sameName = s.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      return sameGrade && sameStream && sameName
+    })
+
+    if (isDuplicate) {
+      notifications.error(
+        "Duplicate Section",
+        `Section "${trimmedName}" already exists for this grade and stream configuration.`
+      )
+      return
+    }
+
     try {
       setIsSaving(true)
+      const payload = {
+        name: trimmedName,
+        gradeId: formGradeId,
+        streamId: isFormGrade11or12 ? formStreamId : null,
+      }
+
       if (editingSection) {
-        await db.updateSection(editingSection.id, { name: formName.trim() })
-        notifications.success("Updated", `Section "${formName.trim()}" updated.`)
+        await db.updateSection(editingSection.id, payload)
+        notifications.success("Updated", `Section "${trimmedName}" updated.`)
       } else {
-        await db.createSection({ name: formName.trim() })
-        notifications.success("Created", `Section "${formName.trim()}" added.`)
+        await db.createSection(payload)
+        notifications.success("Created", `Section "${trimmedName}" added.`)
       }
       setIsOpen(false)
       await load()
@@ -344,66 +430,250 @@ function SectionsSection() {
     }
   }
 
+  // Filter sections by grade
+  const filteredSections = useMemo(() => {
+    if (filterGradeId === "all") return sections
+    return sections.filter((s) => s.gradeId === filterGradeId)
+  }, [sections, filterGradeId])
+
+  // Group sections by Grade
+  const groupedByGrade = useMemo(() => {
+    const groups: {
+      grade: Grade | undefined
+      gradeName: string
+      sections: Section[]
+    }[] = []
+
+    const gradeMap = new Map<string, Section[]>()
+    for (const s of filteredSections) {
+      const gId = s.gradeId || "unassigned"
+      if (!gradeMap.has(gId)) gradeMap.set(gId, [])
+      gradeMap.get(gId)!.push(s)
+    }
+
+    // Sort by grade list order
+    for (const g of grades) {
+      if (gradeMap.has(g.id)) {
+        groups.push({
+          grade: g,
+          gradeName: g.name,
+          sections: gradeMap.get(g.id)!,
+        })
+        gradeMap.delete(g.id)
+      }
+    }
+
+    // Any remaining
+    gradeMap.forEach((secs, gId) => {
+      groups.push({
+        grade: undefined,
+        gradeName: gId === "unassigned" ? "General / Unassigned" : "Other Grade",
+        sections: secs,
+      })
+    })
+
+    return groups
+  }, [filteredSections, grades])
+
   return (
     <>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
             <LayoutGrid className="w-4 h-4" />
           </div>
           <div>
-            <div className="font-bold text-sm text-foreground">Sections</div>
-            <div className="text-[11px] text-muted-foreground">{sections.length} section{sections.length !== 1 ? "s" : ""}</div>
+            <div className="font-bold text-sm text-foreground">Grade Sections</div>
+            <div className="text-[11px] text-muted-foreground">
+              {sections.length} section{sections.length !== 1 ? "s" : ""} across {grades.length} grades
+            </div>
           </div>
         </div>
-        <Button onClick={openCreate} size="sm" className="rounded-xl h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
-          <Plus className="w-3.5 h-3.5" /> Add Section
-        </Button>
+
+        <div className="flex items-center gap-2">
+          {/* Grade filter */}
+          <select
+            value={filterGradeId}
+            onChange={(e) => setFilterGradeId(e.target.value)}
+            className="text-xs h-8 px-2.5 rounded-xl border border-border bg-background font-medium"
+          >
+            <option value="all">All Grades ({sections.length})</option>
+            {grades.map((g) => {
+              const count = sections.filter((s) => s.gradeId === g.id).length
+              return (
+                <option key={g.id} value={g.id}>
+                  {g.name} ({count})
+                </option>
+              )
+            })}
+          </select>
+
+          <Button onClick={openCreate} size="sm" className="rounded-xl h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
+            <Plus className="w-3.5 h-3.5" /> Add Section
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="py-8 flex justify-center"><Spinner className="w-5 h-5 text-emerald-500" /></div>
       ) : sections.length === 0 ? (
-        <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-2xl">
-          No sections defined yet. Sections are shared across all grades (e.g. A, B, C).
+        <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-2xl p-6">
+          <AlertCircle className="w-6 h-6 mx-auto mb-2 text-muted-foreground/60" />
+          <p className="font-semibold text-foreground">No sections created yet.</p>
+          <p className="mt-1">Sections belong to specific grades (and streams for Grades 11-12).</p>
+          <Button onClick={openCreate} size="sm" className="mt-3 rounded-xl h-8 text-xs bg-emerald-600 text-white">
+            <Plus className="w-3.5 h-3.5 mr-1" /> Create First Section
+          </Button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {sections.map((s) => (
-            <div key={s.id} className={cn(deletingId === s.id ? "opacity-40 pointer-events-none" : "")}>
-              <SimpleItemRow
-                name={s.name}
-                onEdit={() => openEdit(s)}
-                onDelete={() => handleDelete(s.id, s.name)}
-              />
+        <div className="space-y-4">
+          {groupedByGrade.map((group) => (
+            <div key={group.gradeName} className="rounded-2xl border border-border/70 bg-card/60 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-xs text-foreground">{group.gradeName}</span>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-bold text-muted-foreground">
+                    {group.sections.length} {group.sections.length === 1 ? "Section" : "Sections"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {group.sections.map((s) => (
+                  <div
+                    key={s.id}
+                    className={cn(
+                      "flex items-center justify-between p-2.5 rounded-xl border border-border/50 bg-background/80 hover:bg-accent/40 transition-all",
+                      deletingId === s.id && "opacity-40 pointer-events-none"
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-foreground">
+                          {s.name.toLowerCase().startsWith("section") ? s.name : `Section ${s.name}`}
+                        </span>
+                        {s.stream?.name && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-bold bg-violet-500/10 text-violet-700 dark:text-violet-300 border-none">
+                            {s.stream.name}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {group.gradeName}
+                        {s.stream?.name ? ` • ${s.stream.name}` : ""}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openEdit(s)}
+                        className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(s.id, s.name)}
+                        className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Create / Edit Section Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[360px] rounded-3xl p-6">
+        <DialogContent className="sm:max-w-[420px] rounded-3xl p-6">
           <DialogHeader>
-            <DialogTitle className="font-bold">{editingSection ? "Edit Section" : "Add Section"}</DialogTitle>
-            <DialogDescription className="text-xs">Sections are shared across all grades.</DialogDescription>
+            <DialogTitle className="font-bold">{editingSection ? "Edit Section" : "Add Section to Grade"}</DialogTitle>
+            <DialogDescription className="text-xs">
+              Every section belongs to a specific grade. For Grades 11 &amp; 12, stream selection is required.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 mt-2">
+
+          <div className="space-y-4 mt-2">
+            {/* 1. Grade (Required First) */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Section Name *</Label>
+              <Label className="text-xs font-semibold">
+                1. Grade <span className="text-destructive">*</span>
+              </Label>
+              <select
+                value={formGradeId}
+                onChange={(e) => handleGradeChange(e.target.value)}
+                className="w-full text-xs h-10 px-3 rounded-xl border border-input bg-background font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+              >
+                <option value="">-- Choose Grade First --</option>
+                {grades.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Stream (Required for Grade 11 & 12, hidden otherwise) */}
+            {isFormGrade11or12 && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">
+                    2. Stream <span className="text-destructive">* (Required for Grades 11-12)</span>
+                  </Label>
+                </div>
+                <select
+                  value={formStreamId}
+                  onChange={(e) => setFormStreamId(e.target.value)}
+                  className={cn(
+                    "w-full text-xs h-10 px-3 rounded-xl border bg-background font-medium focus:ring-2 focus:ring-primary focus:outline-none",
+                    !formStreamId ? "border-amber-400 focus:ring-amber-500/20" : "border-input"
+                  )}
+                >
+                  <option value="">-- Choose Stream (Natural / Social) --</option>
+                  {streams.map((str) => (
+                    <option key={str.id} value={str.id}>
+                      {str.name} Stream
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* 3. Section Name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                {isFormGrade11or12 ? "3. Section Name *" : "2. Section Name *"}
+              </Label>
               <Input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. A, B, C, Red, Blue"
-                className="rounded-xl"
+                placeholder="e.g. A, B, C, 1, 2"
+                disabled={!formGradeId || (isFormGrade11or12 && !formStreamId)}
+                className="rounded-xl h-10 text-xs font-bold"
                 onKeyDown={(e) => e.key === "Enter" && handleSave()}
               />
+              <p className="text-[10px] text-muted-foreground">
+                Duplicate names within the same grade &amp; stream are prevented.
+              </p>
             </div>
           </div>
-          <DialogFooter className="pt-4">
+
+          <DialogFooter className="pt-4 gap-2">
             <Button variant="outline" onClick={() => setIsOpen(false)} className="rounded-xl">Cancel</Button>
-            <Button disabled={isSaving} onClick={handleSave} className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white">
+            <Button
+              disabled={isSaving || !formGradeId || (isFormGrade11or12 && !formStreamId) || !formName.trim()}
+              onClick={handleSave}
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+            >
               {isSaving ? <Spinner className="w-3.5 h-3.5 mr-1.5" /> : null}
-              {editingSection ? "Save Changes" : "Add Section"}
+              {editingSection ? "Save Changes" : "Create Section"}
             </Button>
           </DialogFooter>
         </DialogContent>

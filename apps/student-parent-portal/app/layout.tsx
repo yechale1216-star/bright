@@ -38,11 +38,20 @@ export const metadata: Metadata = {
     template: "%s | Bright Path Student & Parent Portal",
   },
   description: "Official Student and Parent Portal for Bright Path. Access grades, attendance, timetables, and communication.",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/bright-path-logo.png", sizes: "any", type: "image/png" },
     ],
+    apple: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Bright Path",
   },
   robots: {
     index: false,

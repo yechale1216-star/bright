@@ -655,13 +655,18 @@ class Database extends BaseDatabase {
     queryCache.invalidate(/^grades_/)
   }
 
-  async getSections(): Promise<any[]> {
+  async getSections(gradeId?: string, streamId?: string): Promise<any[]> {
     const schoolId = this.getSchoolId() || "default"
+    const cacheKey = `sections_${schoolId}_${gradeId || "all"}_${streamId || "all"}`
     return queryCache.fetch(
-      `sections_${schoolId}`,
+      cacheKey,
       async () => {
+        const params = new URLSearchParams()
+        if (gradeId) params.append("gradeId", gradeId)
+        if (streamId) params.append("streamId", streamId)
+        const qs = params.toString() ? `?${params.toString()}` : ""
         const result = await apiFetch<{ success: boolean; data: any[] }>(
-          `${API_URL}/api/schools/me/sections`,
+          `${API_URL}/api/schools/me/sections${qs}`,
           { headers: this.getApiHeaders() }
         )
         return result.data
@@ -670,7 +675,7 @@ class Database extends BaseDatabase {
     )
   }
 
-  async createSection(data: { name: string }): Promise<any> {
+  async createSection(data: { name: string; gradeId: string; streamId?: string | null }): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/schools/me/sections`,
       {
@@ -683,7 +688,7 @@ class Database extends BaseDatabase {
     return result.data
   }
 
-  async updateSection(id: string, data: { name?: string }): Promise<any> {
+  async updateSection(id: string, data: { name?: string; gradeId?: string; streamId?: string | null }): Promise<any> {
     const result = await apiFetch<{ success: boolean; data: any }>(
       `${API_URL}/api/schools/me/sections/${id}`,
       {

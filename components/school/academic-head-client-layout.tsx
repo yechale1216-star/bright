@@ -77,7 +77,7 @@ function AcademicNavItem({
             'w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-semibold group cursor-pointer text-left',
             isParentActive || expanded
               ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-400'
+              : 'text-foreground/70 hover:bg-violet-500/10 hover:text-foreground'
           )}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -135,7 +135,7 @@ function AcademicNavItem({
         isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
         isParentActive
           ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
-          : 'text-slate-600 dark:text-slate-300 hover:bg-violet-500/5 hover:text-violet-600 dark:hover:text-violet-400'
+          : 'text-foreground/70 hover:bg-violet-500/10 hover:text-foreground'
       )}>
         <item.icon className={cn(
           "w-5 h-5 flex-shrink-0 transition-colors",
@@ -238,7 +238,7 @@ export default function AcademicHeadClientLayout({ children }: { children: React
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className={cn('p-2 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors', isCollapsed && 'mx-auto mt-2')}
+              className={cn('p-2 rounded-xl text-muted-foreground hover:bg-muted transition-colors', isCollapsed && 'mx-auto mt-2')}
             >
               <ChevronRight className={cn('w-4 h-4 transition-transform', !isCollapsed && 'rotate-180')} />
             </button>

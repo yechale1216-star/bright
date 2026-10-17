@@ -1,5 +1,6 @@
 "use client"
 
+import { isGrade11or12Grade } from "@/components/school/grade-stream-section-selector";
 import type React from "react"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
@@ -76,6 +77,19 @@ export function StudentManagement() {
   const [error, setError] = useState<string | null>(null)
 
   // Form state
+  const [academicGrades, setAcademicGrades] = useState<any[]>([]);
+  const [academicSections, setAcademicSections] = useState<any[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      db.getGrades().catch(() => []),
+      db.getSections().catch(() => []),
+    ]).then(([gList, sList]) => {
+      setAcademicGrades(gList || []);
+      setAcademicSections(sList || []);
+    });
+  }, []);
+
   const [formData, setFormData] = useState({
     name: "",
     student_id: "",
@@ -93,6 +107,52 @@ export function StudentManagement() {
     date_of_birth: "",
     address: "",
   })
+
+const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
+
+  const availableSectionsForStudentForm = useMemo(() => {
+    if (!formData.grade) return [];
+    const is11or12 = isGrade11or12Grade(formData.grade);
+    const gObj = academicGrades.find(
+      (g) => g.name.toLowerCase() === formData.grade.toLowerCase()
+    );
+    const gId = gObj?.id;
+
+    const matchingFromDb = academicSections.filter((s: any) => {
+      const matchGrade =
+        (s.gradeId && gId && s.gradeId === gId) ||
+        (s.grade?.name && s.grade.name.toLowerCase() === formData.grade.toLowerCase());
+      if (!matchGrade) return false;
+      if (is11or12) {
+        if (!formData.stream) return false;
+        const streamLower = formData.stream.toLowerCase();
+        return (
+          (s.stream?.name && s.stream.name.toLowerCase().includes(streamLower)) ||
+          s.streamId === formData.stream
+        );
+      }
+      return true;
+    });
+
+    if (matchingFromDb.length > 0) {
+      return [...new Set(matchingFromDb.map((s: any) => s.name))];
+    }
+
+    // Fallback to sections discovered in students matching this grade/stream
+    const fromStudents = students
+      .filter((s) => {
+        const gMatch = s.grade?.toLowerCase() === formData.grade.toLowerCase();
+        if (!gMatch) return false;
+        if (is11or12) {
+          return s.stream?.toLowerCase() === formData.stream.toLowerCase();
+        }
+        return true;
+      })
+      .map((s) => s.section)
+      .filter((sec): sec is string => !!sec);
+
+    return [...new Set(fromStudents)];
+  }, [formData.grade, formData.stream, academicGrades, academicSections, students]);
 
   type ParentLookupState = 'idle' | 'searching' | 'found' | 'not_found' | 'error';
   const [parentLookupState, setParentLookupState] = useState<ParentLookupState>('idle')
@@ -476,17 +536,21 @@ export function StudentManagement() {
   }
 
   const handleGradeChange = (gradeValue: string) => {
-    const gradeNum = parseInt(gradeValue.replace(/[^\d]/g, ""), 10);
-    setFormData((prev) => {
-      const updated = { ...prev, grade: gradeValue };
-      if (isNaN(gradeNum) || gradeNum < 11) {
-        updated.stream = "";
-      } else if (prev.stream === "" || !prev.stream) {
-        updated.stream = "";
-      }
-      return updated;
-    });
-  }
+    setFormData((prev) => ({
+      ...prev,
+      grade: gradeValue,
+      stream: "",
+      section: "",
+    }));
+  };
+
+  const handleStreamChange = (streamValue: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      stream: streamValue,
+      section: "",
+    }));
+  };
 
   const handleEdit = (student: Student) => {
     setEditingStudent(student)
@@ -804,12 +868,56 @@ export function StudentManagement() {
   }
 
   const { grades, streams, sections } = useMemo(() => {
-    return {
-      grades: [...new Set(students.map((s) => s.grade))].filter((g): g is string => !!g),
-      streams: [...new Set(students.map((s) => s.stream))].filter((s): s is string => !!s),
-      sections: [...new Set(students.map((s) => s.section))].filter((s): s is string => !!s),
+    const isFilter11or12 = gradeFilter !== "All Grades" && isGrade11or12Grade(gradeFilter);
+
+    // Grades
+    const discoveredGrades = [...new Set(students.map((s) => s.grade))].filter((g): g is string => !!g);
+
+    // Streams
+    let discoveredStreams: string[] = [];
+    if (gradeFilter === "All Grades") {
+      discoveredStreams = ["Natural Science", "Social Science"];
+    } else if (isFilter11or12) {
+      discoveredStreams = ["Natural Science", "Social Science"];
     }
-  }, [students])
+
+    // Sections: filtered by gradeFilter and streamFilter
+    let candidateStudents = students;
+    if (gradeFilter !== "All Grades") {
+      candidateStudents = candidateStudents.filter(
+        (s) => s.grade?.toLowerCase() === gradeFilter.toLowerCase()
+      );
+    }
+    if (streamFilter !== "All Streams") {
+      candidateStudents = candidateStudents.filter(
+        (s) => s.stream?.toLowerCase() === streamFilter.toLowerCase()
+      );
+    }
+    const studentSecs = candidateStudents.map((s) => s.section).filter((sec): sec is string => !!sec);
+
+    // Also include academicSections that match grade and stream
+    const dbSecs = academicSections
+      .filter((s) => {
+        if (gradeFilter !== "All Grades") {
+          const gMatch = s.grade?.name?.toLowerCase() === gradeFilter.toLowerCase();
+          if (!gMatch) return false;
+        }
+        if (streamFilter !== "All Streams") {
+          const strMatch = s.stream?.name?.toLowerCase() === streamFilter.toLowerCase();
+          if (!strMatch) return false;
+        }
+        return true;
+      })
+      .map((s) => s.name);
+
+    const mergedSections = [...new Set([...studentSecs, ...dbSecs])].sort();
+
+    return {
+      grades: discoveredGrades.length > 0 ? discoveredGrades.sort() : academicGrades.map(g => g.name),
+      streams: discoveredStreams,
+      sections: mergedSections,
+    };
+  }, [students, gradeFilter, streamFilter, academicGrades, academicSections])
 
   return (
     <>
@@ -952,13 +1060,13 @@ export function StudentManagement() {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="grade" className="typography-label">Grade *</Label>
+                            <Label htmlFor="grade" className="typography-label">1. Grade *</Label>
                             <Select
                               value={formData.grade}
                               onValueChange={handleGradeChange}
                             >
                               <SelectTrigger className="typography-body h-11 rounded-xl bg-background/50 border-slate-200 dark:border-slate-800">
-                                <SelectValue placeholder="Select Grade" />
+                                <SelectValue placeholder="Select Grade *" />
                               </SelectTrigger>
                               <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="KG1">KG1</SelectItem>
@@ -970,60 +1078,83 @@ export function StudentManagement() {
                               </SelectContent>
                             </Select>
                           </div>
+
                           <div className="space-y-2">
-                            <Label htmlFor="stream" className="typography-label">Stream</Label>
+                            <Label htmlFor="stream" className="typography-label">
+                              2. Stream {isFormGrade11or12 && <span className="text-destructive">*</span>}
+                            </Label>
                             {!formData.grade ? (
-                            <Input
-                              id="stream"
-                              value={formData.stream || ""}
-                              placeholder="Select grade first"
-                              readOnly
-                              disabled
-                              className="typography-body h-11 rounded-xl bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-70 cursor-not-allowed"
-                            />
-                          ) : (
-                            (() => {
-                              const noStreamGrades = ['KG1', 'KG2', 'Prep'];
-                              const gradeNum = parseInt(formData.grade.replace(/[^\d]/g, ""), 10);
-                              if (noStreamGrades.includes(formData.grade) || (!isNaN(gradeNum) && gradeNum < 11)) {
-                                return (
-                                  <Input
-                                    id="stream"
-                                    value="N/A"
-                                    readOnly
-                                    className="typography-body h-11 rounded-xl bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-70 cursor-not-allowed"
-                                  />
-                                );
-                                } else {
-                                  return (
-                                    <Select
-                                      value={formData.stream || ""}
-                                      onValueChange={(value) => setFormData((prev) => ({ ...prev, stream: value }))}
-                                    >
-                                      <SelectTrigger className="typography-body h-11 rounded-xl bg-background/50 border-slate-200 dark:border-slate-800">
-                                        <SelectValue placeholder="Select Stream" />
-                                      </SelectTrigger>
-                                      <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                                        <SelectItem value="Natural">Natural Science</SelectItem>
-                                        <SelectItem value="Social">Social Science</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  );
-                                }
-                              })()
+                              <Input
+                                id="stream"
+                                value=""
+                                placeholder="Select grade first"
+                                readOnly
+                                disabled
+                                className="typography-body h-11 rounded-xl bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-70 cursor-not-allowed"
+                              />
+                            ) : !isFormGrade11or12 ? (
+                              <Input
+                                id="stream"
+                                value="Standard / N/A"
+                                readOnly
+                                disabled
+                                className="typography-body h-11 rounded-xl bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-70 cursor-not-allowed"
+                              />
+                            ) : (
+                              <Select
+                                value={formData.stream || ""}
+                                onValueChange={handleStreamChange}
+                              >
+                                <SelectTrigger className="typography-body h-11 rounded-xl bg-background/50 border-slate-200 dark:border-slate-800">
+                                  <SelectValue placeholder="Select Stream *" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                  <SelectItem value="Natural Science">Natural Science</SelectItem>
+                                  <SelectItem value="Social Science">Social Science</SelectItem>
+                                </SelectContent>
+                              </Select>
                             )}
                           </div>
+
                           <div className="space-y-2">
-                            <Label htmlFor="section" className="typography-label">Section *</Label>
-                            <Input
-                              id="section"
-                              placeholder={formData.grade ? "e.g. A" : "Select grade first"}
+                            <Label htmlFor="section" className="typography-label">
+                              {isFormGrade11or12 ? "3. Section *" : "2. Section *"}
+                            </Label>
+                            <Select
                               value={formData.section || ""}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, section: e.target.value.toUpperCase() }))}
-                              disabled={!formData.grade}
-                              required
-                              className="typography-body h-11 rounded-xl bg-background/50 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                            />
+                              onValueChange={(val) => setFormData((prev) => ({ ...prev, section: val }))}
+                              disabled={!formData.grade || (isFormGrade11or12 && !formData.stream)}
+                            >
+                              <SelectTrigger className="typography-body h-11 rounded-xl bg-background/50 border-slate-200 dark:border-slate-800">
+                                <SelectValue
+                                  placeholder={
+                                    !formData.grade
+                                      ? "Select Grade first"
+                                      : isFormGrade11or12 && !formData.stream
+                                      ? "Select Stream first"
+                                      : "Select Section *"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                {availableSectionsForStudentForm.length === 0 ? (
+                                  <SelectItem value="none" disabled>
+                                    No sections registered
+                                  </SelectItem>
+                                ) : (
+                                  availableSectionsForStudentForm.map((sec) => (
+                                    <SelectItem key={sec} value={sec}>
+                                      {sec.toLowerCase().startsWith("section") ? sec : `Section ${sec}`}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                            {formData.grade && (!isFormGrade11or12 || formData.stream) && availableSectionsForStudentForm.length === 0 && (
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
+                                No sections found. Please configure in Academic Structure.
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -1385,7 +1516,11 @@ export function StudentManagement() {
 
         {!isTeacher && (
           <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
-            <Select value={gradeFilter} onValueChange={setGradeFilter}>
+            <Select value={gradeFilter} onValueChange={(val) => {
+              setGradeFilter(val);
+              setStreamFilter("All Streams");
+              setSectionFilter("All Sections");
+            }}>
               <SelectTrigger className="typography-label h-12 w-[140px] rounded-xl bg-background/50 border-border/50">
                 <SelectValue placeholder="Grade" />
               </SelectTrigger>
@@ -1397,7 +1532,10 @@ export function StudentManagement() {
               </SelectContent>
             </Select>
 
-            <Select value={streamFilter} onValueChange={setStreamFilter}>
+            <Select value={streamFilter} onValueChange={(val) => {
+              setStreamFilter(val);
+              setSectionFilter("All Sections");
+            }}>
               <SelectTrigger className="typography-label h-12 w-[140px] rounded-xl bg-background/50 border-border/50">
                 <SelectValue placeholder="Stream" />
               </SelectTrigger>

@@ -47,7 +47,7 @@ async function runAttendanceTests() {
     let section = await prisma.section.findFirst();
     if (!section) {
       section = await prisma.section.create({
-        data: { name: 'A' }
+        data: { name: 'A', gradeId: grade.id }
       });
     }
 

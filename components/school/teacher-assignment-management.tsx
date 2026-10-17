@@ -198,6 +198,18 @@ export function TeacherAssignmentManagement() {
     return /\b(11|12)\b/.test(name) || name.includes("11") || name.includes("12")
   }, [selectedGradeObj])
 
+  const filteredSectionsForAssignment = useMemo(() => {
+    if (!selectedGrade) return []
+    return availableSections.filter((s: any) => {
+      if (s.gradeId && s.gradeId !== selectedGrade) return false
+      if (isGrade11or12) {
+        if (!selectedStream) return false
+        return s.streamId === selectedStream
+      }
+      return !s.streamId || s.gradeId === selectedGrade
+    })
+  }, [availableSections, selectedGrade, selectedStream, isGrade11or12])
+
   const subjectsForSelectedClass = useMemo(() => {
     if (!selectedGrade) return []
     if (isGrade11or12 && !selectedStream) return []
@@ -517,6 +529,7 @@ export function TeacherAssignmentManagement() {
                     onChange={(e) => {
                       setSelectedGrade(e.target.value)
                       setSelectedStream("")
+                      setSelectedSection("")
                       setSelectedSubject("")
                     }}
                     className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
@@ -545,6 +558,7 @@ export function TeacherAssignmentManagement() {
                       value={selectedStream}
                       onChange={(e) => {
                         setSelectedStream(e.target.value)
+                        setSelectedSection("")
                         setSelectedSubject("")
                       }}
                       className={cn(
@@ -580,9 +594,9 @@ export function TeacherAssignmentManagement() {
                     className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 font-medium"
                   >
                     <option value="">-- Select Class / Section --</option>
-                    {availableSections.map((s) => (
+                    {filteredSectionsForAssignment.map((s: any) => (
                       <option key={s.id} value={s.id}>
-                        Section {s.name}
+                        {s.name.toLowerCase().startsWith("section") ? s.name : `Section ${s.name}`}
                       </option>
                     ))}
                   </select>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, LogOut, User, CheckSquare, BarChart2, BookOpen, 
-  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, Layers
+  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, Layers, CalendarDays
 } from 'lucide-react'
 import { useAuth } from '@/lib/context/auth-context'
 import { useSchool } from '@/lib/context/school-context'
@@ -74,6 +74,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
 
   const navItems = [
     { href: "/school/teacher", icon: <LayoutDashboard className="w-5 h-5" />, label: "Dashboard" },
+    { href: "/school/teacher/schedule", icon: <CalendarDays className="w-5 h-5" />, label: "My Schedule" },
     { href: "/school/teacher/classes", icon: <Layers className="w-5 h-5" />, label: "Classes" },
     { href: "/school/teacher/gradebook", icon: <GraduationCap className="w-5 h-5" />, label: "Gradebook" },
     ...(isHomeroomTeacher

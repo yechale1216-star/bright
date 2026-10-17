@@ -135,7 +135,10 @@ export default function AdminReportCardsPage() {
           }).then((r) => r.json());
           if (res?.success && Array.isArray(res.data)) {
             setSections(res.data);
-            if (res.data.length > 0) setSelectedSectionId(res.data[0].id);
+            setSelectedSectionId(res.data.length > 0 ? res.data[0].id : '');
+          } else {
+            setSections([]);
+            setSelectedSectionId('');
           }
         } catch {}
       };
@@ -405,7 +408,7 @@ export default function AdminReportCardsPage() {
             variant="outline"
             onClick={handleOpenBatchPrint}
             disabled={studentRows.length === 0}
-            className="gap-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="gap-2 border-border text-foreground hover:bg-muted"
           >
             <Layers className="w-4 h-4" />
             Batch Print Class (A4)
@@ -424,7 +427,7 @@ export default function AdminReportCardsPage() {
       </div>
 
       {/* Filter Toolbar (Hidden in Print) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-xs print:hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden">
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Academic Year
@@ -432,7 +435,7 @@ export default function AdminReportCardsPage() {
           <select
             value={selectedYearId}
             onChange={(e) => setSelectedYearId(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
           >
             {academicYears.map((ay) => (
               <option key={ay.id} value={ay.id}>
@@ -449,7 +452,7 @@ export default function AdminReportCardsPage() {
           <select
             value={selectedTermId}
             onChange={(e) => setSelectedTermId(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm font-medium"
+            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring/40"
           >
             <option value="annual">★ Annual / Full Year (Cumulative 4-Period)</option>
             {currentTerms.map((t: any) => (
@@ -467,7 +470,7 @@ export default function AdminReportCardsPage() {
           <select
             value={selectedGradeId}
             onChange={(e) => setSelectedGradeId(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
           >
             {grades.map((g) => (
               <option key={g.id} value={g.id}>
@@ -484,7 +487,7 @@ export default function AdminReportCardsPage() {
           <select
             value={selectedSectionId}
             onChange={(e) => setSelectedSectionId(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
+            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
           >
             {sections.map((s) => (
               <option key={s.id} value={s.id}>
@@ -591,7 +594,7 @@ export default function AdminReportCardsPage() {
                 filteredRows.map((row) => (
                   <tr key={row.studentId} className="hover:bg-muted/30 transition-colors">
                     <td className="py-3 px-4 text-center font-bold">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-black text-slate-800 dark:text-slate-200">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-muted border border-border text-xs font-black text-foreground">
                         {row.rank}
                       </span>
                     </td>
@@ -624,11 +627,11 @@ export default function AdminReportCardsPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center font-semibold text-xs">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+                      <span className="px-2 py-0.5 rounded-md bg-muted border border-border text-foreground">
                         {row.conduct}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-center text-xs font-medium text-slate-600 dark:text-slate-400">
+                    <td className="py-3 px-4 text-center text-xs font-medium text-muted-foreground">
                       {row.absence}
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -679,7 +682,7 @@ export default function AdminReportCardsPage() {
       {/* 1. SINGLE OFFICIAL REPORT CARD MODAL */}
       {/* ==================================================== */}
       <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[94vh] overflow-y-auto p-0 border border-slate-300">
+        <DialogContent className="sm:max-w-4xl max-h-[94vh] overflow-y-auto p-0 border border-border">
           <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
@@ -702,16 +705,16 @@ export default function AdminReportCardsPage() {
             </div>
           </div>
 
-          <div ref={printSingleRef} className="p-2 sm:p-6 bg-slate-100 flex justify-center">
+          <div ref={printSingleRef} className="p-2 sm:p-6 bg-muted/60 flex justify-center">
             {previewLoading ? (
-              <div className="py-24 text-center text-slate-500">
+              <div className="py-24 text-center text-muted-foreground">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
                 Generating official grade report...
               </div>
             ) : comprehensiveCard ? (
               <StudentReportCard card={comprehensiveCard} />
             ) : (
-              <div className="py-12 text-center text-slate-500">Failed to render card.</div>
+              <div className="py-12 text-center text-muted-foreground">Failed to render card.</div>
             )}
           </div>
         </DialogContent>
@@ -721,7 +724,7 @@ export default function AdminReportCardsPage() {
       {/* 2. BATCH PRINT MODAL (ENTIRE CLASS A4) */}
       {/* ==================================================== */}
       <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[94vh] overflow-y-auto p-0 border border-slate-300">
+        <DialogContent className="sm:max-w-5xl max-h-[94vh] overflow-y-auto p-0 border border-border">
           <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
             <div>
               <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
@@ -748,9 +751,9 @@ export default function AdminReportCardsPage() {
             </div>
           </div>
 
-          <div ref={printBatchRef} className="p-2 sm:p-6 bg-slate-100 space-y-6">
+          <div ref={printBatchRef} className="p-2 sm:p-6 bg-muted/60 space-y-6">
             {batchLoading ? (
-              <div className="py-24 text-center text-slate-500">
+              <div className="py-24 text-center text-muted-foreground">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
                 Compiling all report cards for printing...
               </div>
@@ -761,7 +764,7 @@ export default function AdminReportCardsPage() {
                 </div>
               ))
             ) : (
-              <div className="py-12 text-center text-slate-500">No cards to display.</div>
+              <div className="py-12 text-center text-muted-foreground">No cards to display.</div>
             )}
           </div>
         </DialogContent>
@@ -789,7 +792,7 @@ export default function AdminReportCardsPage() {
               <select
                 value={editConduct}
                 onChange={(e) => setEditConduct(e.target.value)}
-                className="w-full h-10 px-3 mt-1 rounded-md border border-input bg-background text-sm font-semibold"
+                className="w-full h-10 px-3 mt-1 rounded-md border border-input bg-background text-foreground text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-ring/40"
               >
                 <option value="A+">A+ (Distinguished)</option>
                 <option value="A">A (Excellent)</option>

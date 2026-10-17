@@ -1,13 +1,17 @@
 {
+  "id": "/",
   "name": "Bright Path — Digital School Management Platform",
   "short_name": "Bright Path",
   "description": "Digital School Management and Communication Platform developed by Yechale — student and staff biometric attendance, discipline management, and parent communication.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "dir": "ltr",
+  "lang": "en",
   "background_color": "#070d1a",
   "theme_color": "#1a3a6b",
-  "orientation": "portrait-primary",
-  "scope": "/",
   "categories": ["education", "productivity", "business"],
   "prefer_related_applications": false,
   "icons": [
@@ -38,10 +42,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Mark Attendance",
-      "short_name": "Attendance",
-      "description": "Quickly mark student and staff attendance",
-      "url": "/?tab=attendance",
+      "name": "School Portal",
+      "short_name": "Portal",
+      "description": "Open School Management Console",
+      "url": "/",
       "icons": [
         {
           "src": "/icon-192.png",

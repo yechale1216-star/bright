@@ -18,7 +18,7 @@ interface FiltersProps {
 
 export function AttendanceFilters({ onFilterChange, initialFilters = {}, attendanceMode = 'session_based', hideSession = false }: FiltersProps) {
   const [grades, setGrades] = useState<string[]>([])
-  const [sections, setSections] = useState<string[]>([])
+  const [allStudents, setAllStudents] = useState<any[]>([])
   const [streams, setStreams] = useState<string[]>([])
   const [academicYears, setAcademicYears] = useState<string[]>([])
   
@@ -46,8 +46,8 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
         .filter(s => s && !/^general$/i.test(s.toString().trim()))
         .sort() as string[]
       
+      setAllStudents(students)
       setGrades(uniqueGrades as string[])
-      setSections(uniqueSections as string[])
       setStreams(uniqueStreams as string[])
       
       const currentYear = new Date().getFullYear()
@@ -57,6 +57,17 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
     }
   }
 
+  const filteredSections = (allStudents.length > 0 ? (() => {
+    let list = allStudents;
+    if (filters.grade !== 'all') {
+      list = list.filter((s: any) => s.grade === filters.grade);
+    }
+    if (filters.stream !== 'all') {
+      list = list.filter((s: any) => s.stream === filters.stream);
+    }
+    return [...new Set(list.map((s: any) => s.section))].filter(Boolean).sort() as string[];
+  })() : []);
+
   const handleFilterChange = (key: string, value: any) => {
     let newFilters = { ...filters, [key]: value }
     
@@ -65,12 +76,16 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
       newFilters.section = 'all'
       newFilters.stream = 'all'
       
-      // If Grade 11 or 12 is selected, pick first stream if mandatory
+      // If Grade 11 or 12 is selected, pick first stream if available
       if (value === 'Grade 11' || value === 'Grade 12') {
         if (streams.length > 0) {
           newFilters.stream = streams[0]
         }
       }
+    }
+
+    if (key === 'stream') {
+      newFilters.section = 'all'
     }
     
     setFilters(newFilters)
@@ -139,7 +154,7 @@ export function AttendanceFilters({ onFilterChange, initialFilters = {}, attenda
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sections</SelectItem>
-            {sections.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {filteredSections.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
 

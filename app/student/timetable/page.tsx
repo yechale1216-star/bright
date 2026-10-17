@@ -85,13 +85,65 @@ export default function StudentTimetablePage() {
     },
   };
 
+  const DAY_MAP: Record<string, string> = {
+    Mon: "MONDAY",
+    Tue: "TUESDAY",
+    Wed: "WEDNESDAY",
+    Thu: "THURSDAY",
+    Fri: "FRIDAY",
+    Sat: "SATURDAY",
+  };
+
+  const getSlot = (day: string, periodId: number) => {
+    const fullDay = DAY_MAP[day];
+    const liveSlots = timetableData?.schedule?.[fullDay];
+    if (Array.isArray(liveSlots) && liveSlots.length > 0) {
+      const match = liveSlots.find((s: any) => s.periodNumber === periodId);
+      if (match) {
+        return {
+          subject: match.subject,
+          teacher: match.teacher || "TBA",
+          room: match.room || "TBA",
+          time: match.startTime && match.endTime ? `${match.startTime} - ${match.endTime}` : null,
+          customColor: match.subjectColor || null,
+          color: "",
+          isLive: true,
+        };
+      }
+    }
+    const fallback = defaultSchedule[day]?.[periodId];
+    if (fallback) {
+      return {
+        ...fallback,
+        customColor: null,
+        time: null,
+        isLive: false,
+      };
+    }
+    return null;
+  };
+
+  const hasLiveSchedule = timetableData?.schedule && Object.values(timetableData.schedule).some((s: any) => Array.isArray(s) && s.length > 0);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-            Weekly Timetable
-          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+              Weekly Timetable
+            </h2>
+            {timetableData?.grade && (
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 font-bold text-xs">
+                {timetableData.grade}{timetableData.section ? ` - ${timetableData.section}` : ""}
+              </Badge>
+            )}
+            {hasLiveSchedule && (
+              <Badge className="bg-emerald-600 text-white font-semibold text-[10px]">
+                Live Schedule
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Active class schedule, period times, subject classrooms, and assigned teachers
           </p>
@@ -132,11 +184,26 @@ export default function StudentTimetablePage() {
                       <span className="text-[10px] text-slate-400 font-sans font-normal">{period.name}</span>
                     </td>
                     {DAYS.map((day) => {
-                      const item = defaultSchedule[day]?.[period.id];
+                      const item = getSlot(day, period.id);
                       return (
                         <td key={`${day}-${period.id}`} className="py-3 px-2">
                           {item ? (
-                            <div className={`p-2.5 rounded-xl border text-center transition-all hover:scale-[1.02] shadow-2xs ${item.color}`}>
+                            <div
+                              className={`p-2.5 rounded-xl border text-center transition-all hover:scale-[1.02] shadow-2xs ${
+                                item.customColor
+                                  ? ""
+                                  : item.color || "bg-purple-100 text-purple-900 border-purple-200"
+                              }`}
+                              style={
+                                item.customColor
+                                  ? {
+                                      backgroundColor: `${item.customColor}15`,
+                                      borderColor: `${item.customColor}40`,
+                                      color: item.customColor,
+                                    }
+                                  : undefined
+                              }
+                            >
                               <p className="font-extrabold text-xs leading-none">{item.subject}</p>
                               <p className="text-[10px] opacity-80 mt-1 font-medium leading-none truncate">{item.teacher}</p>
                               <span className="inline-block text-[9px] font-bold opacity-75 mt-0.5">Room {item.room}</span>
@@ -178,17 +245,24 @@ export default function StudentTimetablePage() {
         {/* Schedule cards for selected day */}
         <div className="space-y-2.5">
           {PERIODS.map((period) => {
-            const item = defaultSchedule[selectedMobileDay]?.[period.id];
+            const item = getSlot(selectedMobileDay, period.id);
             if (!item) return null;
+
+            const timeLabel = item.time || period.time;
+            const accentColor = item.customColor || "#6d28d9";
 
             return (
               <div
                 key={`mob-${period.id}`}
                 className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between gap-3"
+                style={item.customColor ? { borderLeftColor: item.customColor, borderLeftWidth: 3 } : undefined}
               >
                 <div className="flex items-center gap-3">
-                  <div className="text-left font-mono font-bold text-[11px] text-purple-700 bg-purple-50 px-2 py-1 rounded-lg">
-                    {period.time}
+                  <div
+                    className="text-left font-mono font-bold text-[11px] px-2 py-1 rounded-lg"
+                    style={{ color: accentColor, backgroundColor: `${accentColor}15` }}
+                  >
+                    {timeLabel}
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">{item.subject}</h4>
@@ -202,6 +276,11 @@ export default function StudentTimetablePage() {
               </div>
             );
           })}
+          {PERIODS.every((p) => !getSlot(selectedMobileDay, p.id)) && (
+            <div className="text-center py-10 text-slate-400 text-sm">
+              No classes scheduled for this day.
+            </div>
+          )}
         </div>
       </div>
     </div>

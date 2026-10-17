@@ -76,6 +76,12 @@ export function SubjectTeacherDashboard() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <Link href="/school/teacher/schedule">
+              <Button variant="outline" className="rounded-xl h-10 px-4 text-xs font-bold gap-2 border-slate-300/80 dark:border-white/15 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md hover:bg-white dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs">
+                <Calendar className="w-4 h-4 text-emerald-500" />
+                My Schedule
+              </Button>
+            </Link>
             <Link href="/school/teacher/staff-attendance">
               <Button variant="outline" className="rounded-xl h-10 px-4 text-xs font-bold gap-2 border-slate-300/80 dark:border-white/15 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md hover:bg-white dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs">
                 <UserCheck className="w-4 h-4 text-primary" />

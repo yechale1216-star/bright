@@ -200,7 +200,7 @@ export default function SchoolAdminClientLayout({
 
   return (
     <AuthGuard allowedRoles={allowedAdminRoles}>
-      <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
+      <div className="flex h-screen bg-background flex-col md:flex-row relative overflow-hidden">
               <div className="absolute inset-0 pointer-events-none z-0">
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[120px] animate-pulse" />
                 <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[120px] animate-pulse" />
@@ -250,7 +250,7 @@ export default function SchoolAdminClientLayout({
                           <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
                             <div className={cn(
                               "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group",
-                              isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
+                            isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
                             )}>
                               <span className={cn(
                                 "transition-colors flex-shrink-0",
@@ -293,7 +293,7 @@ export default function SchoolAdminClientLayout({
               </aside>
 
               <aside className={cn(
-                "hidden md:flex border-r border-border bg-card/80 dark:bg-slate-900/80 backdrop-blur-xl flex-col relative z-20 transition-all duration-300 ease-in-out",
+                "hidden md:flex border-r border-border bg-card/80 backdrop-blur-xl flex-col relative z-20 transition-all duration-300 ease-in-out",
                 isCollapsed ? "w-20" : "w-64"
               )}>
                 <div className="h-16 px-4 border-b border-border flex items-center justify-between">
@@ -314,7 +314,7 @@ export default function SchoolAdminClientLayout({
                   <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     className={cn(
-                      "p-1.5 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                      "p-1.5 rounded-xl text-muted-foreground hover:bg-muted transition-colors",
                       isCollapsed && "mx-auto mt-2"
                     )}
                     title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -437,7 +437,7 @@ function NavLink({
             isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
             active || (hasChildren && expanded)
               ? 'bg-primary/15 text-primary shadow-2xs font-bold'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
+              : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
           )}
         >
           <span

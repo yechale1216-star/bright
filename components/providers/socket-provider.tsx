@@ -183,9 +183,9 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           Notification.requestPermission().catch(err => console.warn('[SocketProvider] Notification permission error:', err));
         }
 
-        // Register Firebase Service Worker
+        // Register PWA Service Worker (includes Firebase messaging)
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/firebase-messaging-sw.js')
+          navigator.serviceWorker.register('/sw.js')
             .then((reg) => {
               console.log('[SocketProvider] Service Worker registered:', reg.scope);
             })

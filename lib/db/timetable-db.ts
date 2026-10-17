@@ -23,6 +23,8 @@ export interface TimetableSlotData {
   substituteTeacher?: { id: string; name: string } | null;
   classroom?: { id: string; name: string; building?: string | null } | null;
   period?: { id: string; name: string; startTime: string; endTime: string; isBreak?: boolean } | null;
+  grade?: { id: string; name: string } | null;
+  section?: { id: string; name: string } | null;
 }
 
 export interface TimetableHeader {
@@ -33,7 +35,7 @@ export interface TimetableHeader {
   streamId?: string | null;
   academicYearId?: string | null;
   termId?: string | null;
-  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  status: "DRAFT" | "VALIDATED" | "PUBLISHED" | "ARCHIVED";
   version: number;
   effectiveStartDate?: string | null;
   effectiveEndDate?: string | null;
@@ -74,10 +76,37 @@ export interface Classroom {
 
 export interface ConflictCheckResult {
   hasConflict: boolean;
+  hasCriticalConflict?: boolean;
   conflicts: Array<{
-    type: "TEACHER" | "CLASSROOM" | "SECTION";
+    type: "TEACHER" | "CLASSROOM" | "SECTION" | "SUBJECT_MISMATCH" | "TEACHER_ASSIGNMENT";
+    severity?: "CRITICAL" | "WARNING";
     message: string;
     existingSlot?: any;
+  }>;
+}
+
+export interface TimetableValidationResult {
+  isValid: boolean;
+  canPublish: boolean;
+  totalWeeklyPeriods: number;
+  scheduledCount: number;
+  unscheduledCount: number;
+  completenessScore: number;
+  criticalConflicts: Array<{
+    type: string;
+    severity?: string;
+    message: string;
+  }>;
+  warnings: Array<{
+    type: string;
+    severity?: string;
+    message: string;
+  }>;
+  subjectDistribution: Array<{
+    subjectId: string;
+    name: string;
+    color: string;
+    count: number;
   }>;
 }
 
@@ -111,10 +140,10 @@ class TimetableDatabase {
   }): Promise<TimetableHeader[]> {
     try {
       const params = new URLSearchParams();
-      if (filters?.gradeId) params.set("gradeId", filters.gradeId);
-      if (filters?.sectionId) params.set("sectionId", filters.sectionId);
-      if (filters?.academicYearId) params.set("academicYearId", filters.academicYearId);
-      if (filters?.status) params.set("status", filters.status);
+      if (filters?.gradeId && filters.gradeId !== "all") params.set("gradeId", filters.gradeId);
+      if (filters?.sectionId && filters.sectionId !== "all") params.set("sectionId", filters.sectionId);
+      if (filters?.academicYearId && filters.academicYearId !== "all") params.set("academicYearId", filters.academicYearId);
+      if (filters?.status && filters.status !== "all") params.set("status", filters.status);
 
       const res = await apiFetch<{ success: boolean; data: TimetableHeader[] }>(
         `${API_URL}/api/timetables?${params.toString()}`,
@@ -191,13 +220,13 @@ class TimetableDatabase {
     id: string,
     data: {
       title?: string;
-      status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+      status?: "DRAFT" | "VALIDATED" | "PUBLISHED" | "ARCHIVED";
       effectiveStartDate?: string;
       effectiveEndDate?: string;
     }
   ): Promise<any> {
     try {
-      const res = await apiFetch<{ success: boolean; data: any }>(
+      const res = await apiFetch<{ success: boolean; data: any; message?: string }>(
         `${API_URL}/api/timetables/${id}`,
         {
           method: "PUT",
@@ -206,7 +235,11 @@ class TimetableDatabase {
         }
       );
       if (res?.success) return res.data;
-    } catch (err) {
+      if (res?.message) throw new Error(res.message);
+    } catch (err: any) {
+      if (err.message?.includes("Cannot publish")) {
+        throw err;
+      }
       console.warn("[TimetableDB] API update error, updating local state:", err);
     }
 
@@ -219,14 +252,61 @@ class TimetableDatabase {
     return { success: true };
   }
 
+  async validateTimetable(id: string): Promise<TimetableValidationResult> {
+    try {
+      const res = await apiFetch<{ success: boolean; data: TimetableValidationResult }>(
+        `${API_URL}/api/timetables/${id}/validate`,
+        {
+          method: "POST",
+          headers: this.getHeaders(),
+        }
+      );
+      if (res?.success && res.data) return res.data;
+    } catch (err) {
+      console.warn("[TimetableDB] Validate API fallback:", err);
+    }
+
+    // Local validation fallback
+    const detail = await this.getTimetableById(id);
+    const slots = detail?.slots || [];
+    return {
+      isValid: true,
+      canPublish: slots.length > 0,
+      totalWeeklyPeriods: 35,
+      scheduledCount: slots.length,
+      unscheduledCount: Math.max(0, 35 - slots.length),
+      completenessScore: Math.round((slots.length / 35) * 100),
+      criticalConflicts: [],
+      warnings: [],
+      subjectDistribution: [],
+    };
+  }
+
+  async duplicateTimetable(id: string, targetSectionId: string, title?: string): Promise<TimetableDetail> {
+    const res = await apiFetch<{ success: boolean; data: TimetableDetail; message?: string }>(
+      `${API_URL}/api/timetables/${id}/duplicate`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify({ targetSectionId, title }),
+      }
+    );
+    if (res?.success && res.data) {
+      return res.data;
+    }
+    throw new Error(res?.message || "Failed to duplicate timetable.");
+  }
+
   async checkConflict(params: {
     timetableId?: string;
     dayOfWeek: string;
     periodNumber: number;
+    subjectId?: string;
     teacherId?: string | null;
     classroomId?: string | null;
     gradeId?: string;
     sectionId?: string;
+    streamId?: string | null;
     excludeSlotId?: string;
   }): Promise<ConflictCheckResult> {
     try {
@@ -242,7 +322,7 @@ class TimetableDatabase {
     } catch (err) {
       console.warn("[TimetableDB] Conflict check API error:", err);
     }
-    return { hasConflict: false, conflicts: [] };
+    return { hasConflict: false, hasCriticalConflict: false, conflicts: [] };
   }
 
   async upsertSlot(
@@ -276,7 +356,7 @@ class TimetableDatabase {
       );
       if (res?.success && res.data) return res.data;
     } catch (err: any) {
-      if (err.status === 409 || err.message?.includes("conflict")) {
+      if (err.status === 409 || err.message?.includes("conflict") || err.message?.includes("clash")) {
         throw err;
       }
       console.warn("[TimetableDB] Fallback slot upsert:", err);
@@ -294,9 +374,33 @@ class TimetableDatabase {
       classroomId: data.classroomId || null,
       gradeId: data.gradeId,
       sectionId: data.sectionId,
+      streamId: data.streamId || null,
       notes: data.notes || null,
       substituteTeacherId: data.substituteTeacherId || null,
     };
+  }
+
+  async copyOrMoveSlot(
+    timetableId: string,
+    data: {
+      slotId: string;
+      targetDayOfWeek: string;
+      targetPeriodNumber: number;
+      isMove?: boolean;
+    }
+  ): Promise<TimetableSlotData> {
+    const res = await apiFetch<{ success: boolean; data: TimetableSlotData; message?: string }>(
+      `${API_URL}/api/timetables/${timetableId}/slots/move-copy`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+      }
+    );
+    if (res?.success && res.data) {
+      return res.data;
+    }
+    throw new Error(res?.message || "Failed to move or copy slot.");
   }
 
   async deleteSlot(timetableId: string, slotId: string): Promise<boolean> {
@@ -338,6 +442,18 @@ class TimetableDatabase {
     ];
   }
 
+  async updatePeriods(periods: TimetablePeriod[]): Promise<TimetablePeriod[]> {
+    const res = await apiFetch<{ success: boolean; data: TimetablePeriod[] }>(
+      `${API_URL}/api/timetables/periods`,
+      {
+        method: "PUT",
+        headers: this.getHeaders(),
+        body: JSON.stringify({ periods }),
+      }
+    );
+    return res.data;
+  }
+
   async getClassrooms(): Promise<Classroom[]> {
     try {
       const res = await apiFetch<{ success: boolean; data: Classroom[] }>(
@@ -360,7 +476,40 @@ class TimetableDatabase {
     ];
   }
 
+  async getTeacherSchedule(teacherId: string): Promise<any[]> {
+    try {
+      const res = await apiFetch<{ success: boolean; data: any[] }>(
+        `${API_URL}/api/timetables/teacher/${teacherId}`,
+        { headers: this.getHeaders() }
+      );
+      if (res?.success && Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("[TimetableDB] Teacher schedule fetch failed:", err);
+    }
+    return [];
+  }
+
   // ─── Local Storage Cache Helpers ───────────────────────────────────────────
+  async getMySchedule(): Promise<Record<string, TimetableSlotData[]>> {
+    const res = await apiFetch<{ success: boolean; data: Record<string, TimetableSlotData[]> }>(
+      `${API_URL}/api/timetables/my-schedule`,
+      { headers: this.getHeaders() }
+    );
+    if (res?.success && res.data) return res.data;
+    return {};
+  }
+
+  async getTeacherScheduleById(teacherId: string): Promise<Record<string, TimetableSlotData[]>> {
+    const res = await apiFetch<{ success: boolean; data: Record<string, TimetableSlotData[]> }>(
+      `${API_URL}/api/timetables/teacher/${teacherId}`,
+      { headers: this.getHeaders() }
+    );
+    if (res?.success && res.data) return res.data;
+    return {};
+  }
+
   private getCachedTimetables(): TimetableHeader[] {
     if (typeof window === "undefined") return [];
     try {
@@ -379,104 +528,51 @@ class TimetableDatabase {
         publishedAt: "2026-09-15T08:00:00Z",
         createdAt: "2026-09-10T08:00:00Z",
         updatedAt: "2026-09-15T08:00:00Z",
-        grade: { id: "g12", name: "Grade 12" },
-        section: { id: "sec-a", name: "Section A" },
-        stream: { id: "stream-nat", name: "Natural" },
-        _count: { slots: 25 },
+        _count: { slots: 28 },
       },
       {
         id: "tt-sample-2",
-        title: "Grade 11 Social - Section B (2026/27)",
-        gradeId: "g11",
+        title: "Grade 10 - Section B (2026/27)",
+        gradeId: "g10",
         sectionId: "sec-b",
-        streamId: "stream-soc",
         status: "DRAFT",
-        version: 2,
-        createdAt: "2026-10-01T08:00:00Z",
-        updatedAt: "2026-10-08T08:00:00Z",
-        grade: { id: "g11", name: "Grade 11" },
-        section: { id: "sec-b", name: "Section B" },
-        stream: { id: "stream-soc", name: "Social" },
-        _count: { slots: 18 },
+        version: 1,
+        createdAt: "2026-09-18T08:00:00Z",
+        updatedAt: "2026-09-18T08:00:00Z",
+        _count: { slots: 14 },
       },
     ];
+  }
+
+  private getCachedTimetableDetail(id: string): TimetableDetail | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(`attendance_cached_timetable_${id}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+
+    const list = this.getCachedTimetables();
+    const found = list.find((t) => t.id === id);
+    if (!found) return null;
+
+    return {
+      ...found,
+      slots: [],
+    };
   }
 
   private saveCachedTimetable(record: TimetableHeader) {
     if (typeof window === "undefined") return;
     try {
       const list = this.getCachedTimetables();
-      list.unshift(record);
+      const existing = list.findIndex((t) => t.id === record.id);
+      if (existing !== -1) {
+        list[existing] = record;
+      } else {
+        list.unshift(record);
+      }
       localStorage.setItem("attendance_cached_timetables", JSON.stringify(list));
     } catch {}
-  }
-
-  private getCachedTimetableDetail(id: string): TimetableDetail | null {
-    const list = this.getCachedTimetables();
-    const item = list.find((t) => t.id === id) || list[0];
-    if (!item) return null;
-
-    return {
-      ...item,
-      slots: [
-        {
-          id: "s-1",
-          timetableId: item.id,
-          dayOfWeek: "MONDAY",
-          periodNumber: 1,
-          startTime: "08:30",
-          endTime: "09:15",
-          subjectId: "sub-math",
-          subject: { id: "sub-math", name: "Mathematics", code: "MATH12", color: "#f59e0b" },
-          teacher: { id: "t-1", name: "W/ro. Sara Yimer" },
-          classroom: { id: "c1", name: "Room 102" },
-          gradeId: item.gradeId,
-          sectionId: item.sectionId || "sec-a",
-        },
-        {
-          id: "s-2",
-          timetableId: item.id,
-          dayOfWeek: "MONDAY",
-          periodNumber: 2,
-          startTime: "09:20",
-          endTime: "10:05",
-          subjectId: "sub-phys",
-          subject: { id: "sub-phys", name: "Physics", code: "PHYS12", color: "#3b82f6" },
-          teacher: { id: "t-2", name: "Ato Abebe Kebede" },
-          classroom: { id: "c1", name: "Room 102" },
-          gradeId: item.gradeId,
-          sectionId: item.sectionId || "sec-a",
-        },
-        {
-          id: "s-3",
-          timetableId: item.id,
-          dayOfWeek: "MONDAY",
-          periodNumber: 4,
-          startTime: "10:30",
-          endTime: "11:15",
-          subjectId: "sub-eng",
-          subject: { id: "sub-eng", name: "English", code: "ENG12", color: "#ef4444" },
-          teacher: { id: "t-3", name: "W/ro. Selam Bekele" },
-          classroom: { id: "c2", name: "Room 101" },
-          gradeId: item.gradeId,
-          sectionId: item.sectionId || "sec-a",
-        },
-        {
-          id: "s-4",
-          timetableId: item.id,
-          dayOfWeek: "MONDAY",
-          periodNumber: 5,
-          startTime: "11:20",
-          endTime: "12:05",
-          subjectId: "sub-chem",
-          subject: { id: "sub-chem", name: "Chemistry", code: "CHEM12", color: "#06b6d4" },
-          teacher: { id: "t-4", name: "W/ro. Mihret Alem" },
-          classroom: { id: "c6", name: "Science Lab 1" },
-          gradeId: item.gradeId,
-          sectionId: item.sectionId || "sec-a",
-        },
-      ],
-    };
   }
 }
 
