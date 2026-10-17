@@ -79,7 +79,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const hasUser = typeof window !== 'undefined' ? (!!localStorage.getItem('attendance_current_user') && !!localStorage.getItem('attendance_token')) : false;
 
     const socketInstance = ClientIO(socketUrl, {
-      transports: ['websocket'],       // Never fall back to polling
+      // Start with polling so the connection succeeds even on Render cold starts
+      // or behind proxies that block WebSocket upgrades. Socket.IO will automatically
+      // upgrade to WebSocket once the initial handshake completes.
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: Infinity,  // Never give up — Telegram doesn't give up
       reconnectionDelay: 1000,         // Start at 1s

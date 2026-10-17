@@ -23,7 +23,7 @@ services:
       - key: PORT
         value: 5000
       - key: JWT_SECRET
-        generateValue: true
+        sync: false  # Set a permanent secret in the Render dashboard — do NOT use generateValue (it rotates on every deploy and invalidates all user tokens)
       - key: APP_URL
         value: https://zetime-backend-dmlv.onrender.com
       - key: FRONTEND_URL

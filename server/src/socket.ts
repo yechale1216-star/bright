@@ -422,7 +422,9 @@ export const initSocket = (server: HttpServer) => {
     cors: { origin: '*', methods: ['GET', 'POST'] },
     pingInterval: 25000,
     pingTimeout: 60000,
-    transports: ['websocket'],
+    // Allow polling as a fallback for Render cold starts and restrictive reverse proxies.
+    // Socket.IO will upgrade to WebSocket automatically once the connection is established.
+    transports: ['polling', 'websocket'],
   });
 
   if (isRedisAvailable()) {
