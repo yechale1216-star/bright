@@ -144,14 +144,6 @@ function PortalLoginContent() {
         <div className="absolute top-[40%] left-[50%] w-[30%] h-[30%] rounded-full bg-pink-600/5 blur-[100px]" />
       </div>
 
-      <header className="relative z-10 border-b border-white/5 bg-[#0a1224]/80 backdrop-blur-md px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Logo size="md" withText={true} href="/" />
-          <div className="text-xs text-purple-400 font-semibold tracking-wide uppercase">
-            Student &amp; Parent Portal
-          </div>
-        </div>
-      </header>
 
       <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
