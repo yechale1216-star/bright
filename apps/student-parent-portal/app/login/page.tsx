@@ -153,7 +153,6 @@ function PortalLoginContent() {
             <div className="px-8 pt-8 pb-6 text-center border-b border-white/5">
               <Logo size="xl" withText={true} href="/" className="mb-4 justify-center" />
               <h1 className="text-2xl font-black text-white tracking-tight">Student &amp; Parent Portal</h1>
-              <p className="text-xs text-slate-400 mt-1 font-medium">Access your grades, attendance, and announcements</p>
 
               {/* Segmented Tab Switcher */}
               <div className="mt-6 flex p-1 bg-white/5 rounded-2xl border border-white/10 gap-1">
@@ -257,18 +256,6 @@ function PortalLoginContent() {
                 </form>
               )}
 
-              <p className="text-[11px] text-slate-500 text-center font-medium pt-2">
-                For registered Bright Path students and parents
-              </p>
-
-              <div className="pt-3 border-t border-white/5 text-center">
-                <a
-                  href="http://localhost:3000/login"
-                  className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-semibold transition-colors"
-                >
-                  School Staff? Sign in to School Management Portal &rarr;
-                </a>
-              </div>
             </div>
           </div>
 
