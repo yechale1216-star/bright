@@ -208,11 +208,20 @@ function TeacherMaterialGridCard({
       {/* Visual Thumbnail or Icon Hero */}
       <div className="relative aspect-video max-h-52 sm:max-h-none w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
         {meta.thumbnailUrl ? (
-          <img
-            src={meta.thumbnailUrl}
-            alt={m.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
+          <div className="relative w-full h-full">
+            <img
+              src={meta.thumbnailUrl}
+              alt={m.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            {isVideo && (
+              <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 group-hover:scale-110 transition-transform">
+                  <Play className="w-4 h-4 ml-0.5 fill-current" />
+                </div>
+              </div>
+            )}
+          </div>
         ) : isVideo && getYouTubeThumbnailUrl(m.fileUrl) ? (
           <div className="relative w-full h-full">
             <img
@@ -807,54 +816,54 @@ export function TeacherSharedMaterials({
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden sm:overflow-visible">
-      {/* ─── HEADER & CLASS CONTEXT CARD ─── */}
-      <div className="rounded-3xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-white dark:via-slate-900 to-indigo-500/10 p-4 sm:p-5 md:p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+      {/* ─── HEADER & CLASS CONTEXT CARD (Mobile First) ─── */}
+      <div className="rounded-2xl sm:rounded-3xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-white dark:via-slate-900 to-indigo-500/10 p-3 sm:p-5 md:p-6 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4">
           <div className="space-y-1 sm:space-y-1.5">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-wider bg-purple-600 text-white shadow-xs">
-                <BookOpen className="w-3.5 h-3.5" />
+            <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider bg-purple-600 text-white shadow-xs">
+                <BookOpen className="w-3 h-3" />
                 Shared Materials
               </span>
 
               {currentContext.gradeName && (
-                <Badge variant="outline" className="rounded-full border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs bg-purple-50 dark:bg-purple-950/40">
+                <Badge variant="outline" className="rounded-full border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-[10px] sm:text-xs bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5">
                   {currentContext.gradeName} {currentContext.sectionName ? `• ${currentContext.sectionName}` : ""}
                 </Badge>
               )}
 
               {currentContext.subjectName && (
-                <Badge variant="outline" className="rounded-full border-indigo-300 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs bg-indigo-50 dark:bg-indigo-950/40">
+                <Badge variant="outline" className="rounded-full border-indigo-300 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] sm:text-xs bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5">
                   {currentContext.subjectName}
                 </Badge>
               )}
 
               {currentContext.academicYearName && (
-                <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
+                <span className="text-[10px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1">
+                  <Calendar className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   {currentContext.academicYearName}
                 </span>
               )}
             </div>
 
-            <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               Class Educational Resources
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
               Publish video lessons, lecture slides, worksheets, and study links directly to enrolled students.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto shrink-0 pt-1 sm:pt-0">
+          <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 w-full md:w-auto shrink-0 pt-0.5 sm:pt-0">
             {availableClasses && availableClasses.length > 1 && (
               <Select
                 value={String(activeClassIndex)}
                 onValueChange={(val) => setActiveClassIndex(Number(val))}
               >
-                <SelectTrigger className="w-full sm:w-[200px] rounded-2xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-xs font-semibold h-10">
+                <SelectTrigger className="w-full xs:w-[180px] sm:w-[200px] rounded-xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-xs font-semibold h-9 sm:h-10">
                   <SelectValue placeholder="Select Class" />
                 </SelectTrigger>
-                <SelectContent className="rounded-2xl">
+                <SelectContent className="rounded-xl">
                   {availableClasses.map((c, idx) => (
                     <SelectItem key={`${c.gradeId}-${c.subjectId}-${idx}`} value={String(idx)} className="text-xs">
                       {c.gradeName} {c.sectionName ? `(${c.sectionName})` : ""} — {c.subjectName}
@@ -869,7 +878,7 @@ export function TeacherSharedMaterials({
                 resetForm()
                 setIsFormOpen(true)
               }}
-              className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 px-4 shadow-md shadow-purple-600/25 transition-transform active:scale-95 w-full sm:w-auto justify-center h-10 text-xs"
+              className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-1.5 px-3.5 shadow-md shadow-purple-600/25 transition-transform active:scale-95 w-full xs:w-auto justify-center h-9 sm:h-10 text-xs"
             >
               <Plus className="w-4 h-4" />
               <span>Share Material</span>
@@ -879,20 +888,20 @@ export function TeacherSharedMaterials({
       </div>
 
       {/* ─── CONTROLS: CATEGORY TABS & SEARCH / SORT / VIEW ─── */}
-      <div className="flex flex-col gap-2.5 sm:gap-3">
-        {/* Material Type Pills (Horizontally scrollable on mobile) */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-border/60 overflow-x-auto no-scrollbar touch-pan-x overscroll-x-contain -mx-1 px-1 sm:mx-0">
+      <div className="flex flex-col gap-2 sm:gap-2.5">
+        {/* Material Type Pills (Horizontally scrollable with smooth touch pan on mobile) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-xl sm:rounded-2xl border border-border/60 overflow-x-auto no-scrollbar scroll-smooth touch-pan-x overscroll-x-contain -mx-1 px-1 sm:mx-0">
           <button
             type="button"
             onClick={() => setSelectedCategory("ALL")}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
+              "px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "ALL"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
-            <FolderOpen className="w-3.5 h-3.5" />
+            <FolderOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             <span>All ({counts.all})</span>
           </button>
 
@@ -900,13 +909,13 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("VIDEOS")}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
+              "px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "VIDEOS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
-            <Video className="w-3.5 h-3.5 text-purple-400" />
+            <Video className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-400" />
             <span>Videos ({counts.videos})</span>
           </button>
 
@@ -914,13 +923,13 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("DOCUMENTS")}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
+              "px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "DOCUMENTS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
-            <FileText className="w-3.5 h-3.5 text-blue-400" />
+            <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-400" />
             <span>Documents ({counts.documents})</span>
           </button>
 
@@ -928,13 +937,13 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("PRESENTATIONS")}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
+              "px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "PRESENTATIONS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
-            <Presentation className="w-3.5 h-3.5 text-amber-400" />
+            <Presentation className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
             <span>Presentations ({counts.presentations})</span>
           </button>
 
@@ -942,26 +951,26 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("LINKS")}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
+              "px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "LINKS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
-            <LinkIcon className="w-3.5 h-3.5 text-emerald-400" />
+            <LinkIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
             <span>Links ({counts.links})</span>
           </button>
         </div>
 
-        {/* Search, Sort, View Toggle (Mobile responsive row layout) */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 w-full">
+        {/* Search, Sort, View Toggle (Mobile First: stacked search + controls row) */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 w-full">
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <Input
               placeholder="Search title, topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-8 h-10 sm:h-9 text-xs rounded-xl border-border bg-background w-full"
+              className="pl-8 sm:pl-9 pr-8 h-9 text-xs rounded-xl border-border bg-background w-full"
             />
             {searchQuery && (
               <button
@@ -974,9 +983,9 @@ export function TeacherSharedMaterials({
             )}
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-              <SelectTrigger className="h-10 sm:h-9 min-w-[130px] flex-1 sm:flex-initial rounded-xl text-xs font-semibold border-border bg-background">
+              <SelectTrigger className="h-9 min-w-[120px] flex-1 sm:flex-initial rounded-xl text-xs font-semibold border-border bg-background">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -987,24 +996,24 @@ export function TeacherSharedMaterials({
               </SelectContent>
             </Select>
 
-            <div className="flex items-center border border-border rounded-xl p-0.5 bg-background shrink-0 h-10 sm:h-9">
+            <div className="flex items-center border border-border rounded-xl p-0.5 bg-background shrink-0 h-9">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => setViewMode("grid")}
-                className={cn("w-8 h-8 sm:w-7 sm:h-7 rounded-lg", viewMode === "grid" ? "bg-muted text-purple-600" : "text-muted-foreground")}
+                className={cn("w-7 h-7 rounded-lg", viewMode === "grid" ? "bg-muted text-purple-600" : "text-muted-foreground")}
               >
-                <LayoutGrid className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                <LayoutGrid className="w-3.5 h-3.5" />
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => setViewMode("list")}
-                className={cn("w-8 h-8 sm:w-7 sm:h-7 rounded-lg", viewMode === "list" ? "bg-muted text-purple-600" : "text-muted-foreground")}
+                className={cn("w-7 h-7 rounded-lg", viewMode === "list" ? "bg-muted text-purple-600" : "text-muted-foreground")}
               >
-                <List className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                <List className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
@@ -1036,7 +1045,7 @@ export function TeacherSharedMaterials({
         </Card>
       ) : viewMode === "grid" ? (
         /* ─── GRID VIEW (Responsive Columns) ─── */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
           {filteredMaterials.map((item) => (
             <TeacherMaterialGridCard
               key={item.material.id}
@@ -1073,9 +1082,24 @@ export function TeacherSharedMaterials({
                 onClick={() => openPreview(m, cleanDescription, meta)}
               >
                 <div className="flex items-start sm:items-center gap-3 min-w-0">
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", iconBg)}>
-                    {isVideo ? <Play className="w-4 h-4 fill-current" /> : isSlides ? <Presentation className="w-5 h-5" /> : isLink ? <Globe className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
-                  </div>
+                  {meta.thumbnailUrl || (isVideo && getYouTubeThumbnailUrl(m.fileUrl)) ? (
+                    <div className="w-12 h-10 sm:w-14 sm:h-11 rounded-xl overflow-hidden shrink-0 relative bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+                      <img
+                        src={meta.thumbnailUrl || getYouTubeThumbnailUrl(m.fileUrl)!}
+                        alt={m.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {isVideo && (
+                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                          <Play className="w-3.5 h-3.5 text-white fill-current" />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", iconBg)}>
+                      {isVideo ? <Play className="w-4 h-4 fill-current" /> : isSlides ? <Presentation className="w-5 h-5" /> : isLink ? <Globe className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                    </div>
+                  )}
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">

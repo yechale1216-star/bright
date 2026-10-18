@@ -478,15 +478,15 @@ export function TeacherPortal() {
     return (
       <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
         {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white p-4 sm:p-6 md:p-10 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white p-3.5 sm:p-6 md:p-10 shadow-xl">
           <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/15 backdrop-blur-md text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-white border border-white/20">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-6">
+            <div className="space-y-1 sm:space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/15 backdrop-blur-md text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-white border border-white/20">
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300" />
                 <span>Subject Teacher Workspace</span>
               </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
+              <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
                 My Assigned Classes &amp; Subjects
               </h1>
               <p className="text-blue-100 max-w-xl text-xs sm:text-sm md:text-base leading-relaxed">
@@ -495,51 +495,51 @@ export function TeacherPortal() {
             </div>
 
             {currentYear && (
-              <div className="flex items-center gap-2.5 sm:gap-3 bg-white/10 backdrop-blur-md px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl border border-white/20 self-start md:self-auto shrink-0">
-                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-200" />
+              <div className="flex items-center gap-2 sm:gap-3 bg-white/10 backdrop-blur-md px-3 py-2 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl border border-white/20 self-start md:self-auto shrink-0">
+                <Calendar className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-200" />
                 <div>
-                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-blue-200 font-semibold">Active Year</div>
+                  <div className="text-[9px] sm:text-[11px] uppercase tracking-wider text-blue-200 font-semibold">Active Year</div>
                   <div className="font-bold text-white text-xs sm:text-sm">{currentYear.name}</div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Quick Metrics Bar */}
-          <div className="mt-5 sm:mt-8 pt-4 sm:pt-6 border-t border-white/15 grid grid-cols-3 gap-2 sm:gap-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 sm:p-3 border border-white/10 text-center sm:text-left">
-              <div className="text-[10px] sm:text-xs text-blue-200 font-medium">Total Classes</div>
-              <div className="text-lg sm:text-2xl font-black mt-0.5">{assignments.length}</div>
+          {/* Quick Metrics Bar — Mobile First: compact 3-column metrics */}
+          <div className="mt-3.5 sm:mt-8 pt-3 sm:pt-6 border-t border-white/15 grid grid-cols-3 gap-1.5 sm:gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 border border-white/10 text-center sm:text-left">
+              <div className="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Total Classes</div>
+              <div className="text-base sm:text-2xl font-black mt-0.5">{assignments.length}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 sm:p-3 border border-white/10 text-center sm:text-left">
-              <div className="text-[10px] sm:text-xs text-blue-200 font-medium">Subject Roles</div>
-              <div className="text-lg sm:text-2xl font-black mt-0.5">{subjectTeacherCount}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 border border-white/10 text-center sm:text-left">
+              <div className="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Subject Roles</div>
+              <div className="text-base sm:text-2xl font-black mt-0.5">{subjectTeacherCount}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 sm:p-3 border border-white/10 text-center sm:text-left">
-              <div className="text-[10px] sm:text-xs text-blue-200 font-medium">Homeroom</div>
-              <div className="text-lg sm:text-2xl font-black mt-0.5">{homeroomCount}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 border border-white/10 text-center sm:text-left">
+              <div className="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Homeroom</div>
+              <div className="text-base sm:text-2xl font-black mt-0.5">{homeroomCount}</div>
             </div>
           </div>
         </div>
 
         {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 items-stretch sm:items-center justify-between">
           <div className="relative flex-1 w-full sm:max-w-md">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Search by grade, section, or subject..."
-              className="pl-10 h-10 sm:h-11 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border-slate-300/80 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-indigo-500 rounded-xl shadow-xs text-xs sm:text-sm w-full"
+              className="pl-9 h-9 sm:h-11 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border-slate-300/80 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-indigo-500 rounded-xl shadow-xs text-xs sm:text-sm w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar touch-pan-x pb-0.5 sm:pb-0 -mx-1 px-1 sm:mx-0 shrink-0">
             <Button
               variant={roleFilter === "ALL" ? "default" : "outline"}
               size="sm"
               onClick={() => setRoleFilter("ALL")}
-              className="rounded-xl font-medium text-xs h-9 px-3 shrink-0 whitespace-nowrap active:scale-95"
+              className="rounded-xl font-medium text-xs h-8 sm:h-9 px-2.5 sm:px-3 shrink-0 whitespace-nowrap active:scale-95"
             >
               All ({assignments.length})
             </Button>
@@ -547,16 +547,19 @@ export function TeacherPortal() {
               variant={roleFilter === "SUBJECT_TEACHER" ? "default" : "outline"}
               size="sm"
               onClick={() => setRoleFilter("SUBJECT_TEACHER")}
-              className="rounded-xl font-medium text-xs h-9 px-3 gap-1.5 shrink-0 whitespace-nowrap active:scale-95"
+              className="rounded-xl font-medium text-xs h-8 sm:h-9 px-2.5 sm:px-3 gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95"
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>Subject Teacher ({subjectTeacherCount})</span>
+              <span>
+                <span className="sm:hidden">Subject ({subjectTeacherCount})</span>
+                <span className="hidden sm:inline">Subject Teacher ({subjectTeacherCount})</span>
+              </span>
             </Button>
             <Button
               variant={roleFilter === "HOMEROOM_TEACHER" ? "default" : "outline"}
               size="sm"
               onClick={() => setRoleFilter("HOMEROOM_TEACHER")}
-              className="rounded-xl font-medium text-xs h-9 px-3 gap-1.5 shrink-0 whitespace-nowrap active:scale-95"
+              className="rounded-xl font-medium text-xs h-8 sm:h-9 px-2.5 sm:px-3 gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap active:scale-95"
             >
               <Home className="w-3.5 h-3.5" />
               <span>Homeroom ({homeroomCount})</span>
@@ -711,16 +714,16 @@ export function TeacherPortal() {
           )}
         </div>
 
-        {/* Class Banner Card */}
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-6 md:p-8 shadow-xl border border-indigo-500/20">
+        {/* Class Banner Card — Mobile First: compact padding and clean responsive typography */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 sm:p-6 md:p-8 shadow-xl border border-indigo-500/20">
           <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col gap-4 sm:gap-6">
-            <div className="space-y-2">
+          <div className="relative z-10 flex flex-col gap-3 sm:gap-6">
+            <div className="space-y-1.5 sm:space-y-2">
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <Badge
                   className={cn(
-                    "rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 font-semibold text-[11px] sm:text-xs border gap-1 sm:gap-1.5",
+                    "rounded-full px-2 py-0.5 sm:px-3 sm:py-1 font-semibold text-[10px] sm:text-xs border gap-1 sm:gap-1.5",
                     isSelectedHomeroom
                       ? "bg-violet-500/20 text-violet-300 border-violet-400/30"
                       : "bg-blue-500/20 text-blue-300 border-blue-400/30"
@@ -730,13 +733,13 @@ export function TeacherPortal() {
                   {isSelectedHomeroom ? "Homeroom" : "Subject Teacher"}
                 </Badge>
                 {selectedAssignment.academicYear && (
-                  <Badge variant="outline" className="text-[10px] sm:text-xs border-white/20 text-indigo-200">
+                  <Badge variant="outline" className="text-[9px] sm:text-xs border-white/20 text-indigo-200 px-2 py-0.5">
                     {selectedAssignment.academicYear.name}
                   </Badge>
                 )}
               </div>
 
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-extrabold tracking-tight">
                 {selectedAssignment.grade?.name} — Section {selectedAssignment.section?.name}
               </h1>
 
@@ -751,33 +754,42 @@ export function TeacherPortal() {
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Quick Actions — Mobile First: 3 equal, neatly aligned touch targets on mobile, flex on desktop */}
+            <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto pt-1 sm:pt-0">
               <Button
                 onClick={() => setIsHomeworkOpen(true)}
                 size="sm"
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white shadow-lg shadow-indigo-600/30 gap-1.5 text-xs h-9"
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white shadow-lg shadow-indigo-600/30 gap-1 sm:gap-1.5 text-[11px] sm:text-xs h-9 px-1 xs:px-2.5 sm:px-3 justify-center"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Post Homework
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  <span className="inline sm:hidden">Homework</span>
+                  <span className="hidden sm:inline">Post Homework</span>
+                </span>
               </Button>
               <Button
                 onClick={() => setIsMaterialOpen(true)}
                 size="sm"
                 variant="outline"
-                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 active:scale-95 text-white gap-1.5 text-xs h-9"
+                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 active:scale-95 text-white gap-1 sm:gap-1.5 text-[11px] sm:text-xs h-9 px-1 xs:px-2.5 sm:px-3 justify-center"
               >
-                <FolderOpen className="w-3.5 h-3.5" />
-                Share Material
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  <span className="inline sm:hidden">Material</span>
+                  <span className="hidden sm:inline">Share Material</span>
+                </span>
               </Button>
               <Button
                 onClick={() => setIsAssessmentOpen(true)}
                 size="sm"
                 variant="outline"
-                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 active:scale-95 text-white gap-1.5 text-xs h-9"
+                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 active:scale-95 text-white gap-1 sm:gap-1.5 text-[11px] sm:text-xs h-9 px-1 xs:px-2.5 sm:px-3 justify-center"
               >
-                <Award className="w-3.5 h-3.5" />
-                New Assessment
+                <Award className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  <span className="inline sm:hidden">Assess</span>
+                  <span className="hidden sm:inline">New Assessment</span>
+                </span>
               </Button>
             </div>
           </div>
@@ -792,26 +804,26 @@ export function TeacherPortal() {
         </div>
       ) : classDetails ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-          {/* Horizontally scrollable tab bar on mobile */}
-          <div className="overflow-x-auto no-scrollbar -mx-1 px-1 sm:mx-0">
-            <TabsList className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto flex gap-0.5 sm:gap-1 border border-white/60 dark:border-white/10 shadow-md shadow-black/5 dark:shadow-black/20 w-max min-w-full">
-              <TabsTrigger value="overview" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+          {/* Horizontally scrollable tab bar on mobile with smooth touch pan and snap */}
+          <div className="overflow-x-auto no-scrollbar scroll-smooth touch-pan-x overscroll-x-contain -mx-2 px-2 sm:mx-0 sm:px-0">
+            <TabsList className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl p-1 rounded-xl sm:rounded-2xl h-auto flex gap-1 border border-white/60 dark:border-white/10 shadow-sm w-max min-w-full">
+              <TabsTrigger value="overview" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap active:scale-95">
                 <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="students" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+              <TabsTrigger value="students" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap active:scale-95">
                 <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Students ({classDetails.students?.length || 0})
               </TabsTrigger>
-              <TabsTrigger value="homework" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+              <TabsTrigger value="homework" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap active:scale-95">
                 <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Homework ({classDetails.homework?.length || 0})
               </TabsTrigger>
-              <TabsTrigger value="materials" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+              <TabsTrigger value="materials" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap active:scale-95">
                 <FolderOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Materials ({classDetails.materials?.length || 0})
               </TabsTrigger>
-              <TabsTrigger value="gradebook" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+              <TabsTrigger value="gradebook" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap active:scale-95">
                 <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Gradebook ({classDetails.assessments?.length || 0})
               </TabsTrigger>
@@ -820,49 +832,49 @@ export function TeacherPortal() {
 
           {/* TAB 1: OVERVIEW */}
           <TabsContent value="overview" className="space-y-4 sm:space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-blue-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Class Roster</div>
-                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                    <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-blue-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium truncate">Class Roster</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
+                    <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.students?.length || 0}</div>
-                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Active students</div>
+                <div className="mt-1.5 sm:mt-3 text-xl sm:text-3xl font-black text-foreground">{classDetails.students?.length || 0}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">Active students</div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-indigo-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Assignments</div>
-                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
-                    <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-indigo-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium truncate">Assignments</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.homework?.length || 0}</div>
-                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Homework tasks</div>
+                <div className="mt-1.5 sm:mt-3 text-xl sm:text-3xl font-black text-foreground">{classDetails.homework?.length || 0}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">Homework tasks</div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-emerald-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Materials</div>
-                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                    <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-emerald-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium truncate">Materials</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                    <FolderOpen className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.materials?.length || 0}</div>
-                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Study resources</div>
+                <div className="mt-1.5 sm:mt-3 text-xl sm:text-3xl font-black text-foreground">{classDetails.materials?.length || 0}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">Study resources</div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-amber-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Assessments</div>
-                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                    <Award className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-amber-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium truncate">Assessments</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                    <Award className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.assessments?.length || 0}</div>
-                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Gradebook tests</div>
+                <div className="mt-1.5 sm:mt-3 text-xl sm:text-3xl font-black text-foreground">{classDetails.assessments?.length || 0}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">Gradebook tests</div>
               </div>
             </div>
 
