@@ -255,7 +255,7 @@ export function UnifiedTeacherDashboard() {
             No subject teaching assignments assigned.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subjectAssignments.map((a) => {
               const gradeName = a.grade?.name || 'Grade'
               const secName = a.section?.name || 'Section'
@@ -265,7 +265,7 @@ export function UnifiedTeacherDashboard() {
               return (
                 <div
                   key={a.id}
-                  className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20 group overflow-hidden flex flex-col justify-between w-full max-w-xl mx-auto sm:max-w-none"
+                  className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20 group overflow-hidden flex flex-col justify-between"
                 >
                   <div className="p-5 pb-3">
                     <div className="flex items-start justify-between gap-2">

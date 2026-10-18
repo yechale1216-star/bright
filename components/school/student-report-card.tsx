@@ -57,7 +57,7 @@ export function StudentReportCardFront({
 
   return (
     <div
-      className={`report-card-front relative bg-white text-slate-900 font-sans p-3.5 sm:p-6 md:p-8 w-full max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text border border-slate-300 print:border-none ${className}`}
+      className={`report-card-front relative bg-white text-slate-900 font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text border border-slate-300 print:border-none ${className}`}
       style={{
         boxSizing: 'border-box',
         minHeight: '290mm',
@@ -87,47 +87,29 @@ export function StudentReportCardFront({
         {/* 1. OFFICIAL HEADER SECTION */}
         {/* ==================================================== */}
         <div className="border-b border-slate-800 pb-3">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 text-center sm:text-left">
-            {/* Mobile Top Row / Desktop Left Logo */}
-            <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-3">
-              {/* Left School Logo Emblem */}
-              <div className="flex-shrink-0 pt-0.5">
-                <div className="relative w-14 h-14 sm:w-20 sm:h-20 rounded-full overflow-hidden border border-slate-300 bg-white shadow-2xs">
-                  <Image
-                    src={school.logo || '/addis-hiwot-logo.png'}
-                    alt={school.name}
-                    fill
-                    className="object-contain p-1"
-                    priority
-                  />
-                </div>
-              </div>
-
-              {/* Mobile QR Verification Badge */}
-              <div className="flex sm:hidden flex-col items-center justify-center pt-0.5">
-                <div className="p-1 bg-white border border-slate-400 rounded-sm shadow-2xs">
-                  <QRCodeSVG
-                    value={qrVerificationUrl}
-                    size={46}
-                    level="M"
-                    includeMargin={false}
-                  />
-                </div>
-                <span className="text-[8px] font-mono text-slate-500 mt-0.5 tracking-tighter">
-                  {reportCardId ? reportCardId.substring(0, 10) : 'VERIFIED'}
-                </span>
+          <div className="flex items-start justify-between gap-3">
+            {/* Left School Logo Emblem */}
+            <div className="flex-shrink-0 pt-0.5">
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border border-slate-300 bg-white">
+                <Image
+                  src={school.logo || '/addis-hiwot-logo.png'}
+                  alt={school.name}
+                  fill
+                  className="object-contain p-1"
+                  priority
+                />
               </div>
             </div>
 
             {/* Center School Titles & Contact */}
-            <div className="flex-1 text-center px-1 sm:px-2">
-              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 leading-tight">
+            <div className="flex-1 text-center px-2">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-tight">
                 {school.amharicName || 'አዲስ ሕይወት ት/ቤት'} ::
               </h1>
-              <h2 className="text-base sm:text-xl font-bold tracking-wide text-slate-800 mt-0.5 font-serif italic">
+              <h2 className="text-lg sm:text-xl font-bold tracking-wide text-slate-800 mt-0.5 font-serif italic">
                 {school.name || 'Bright Path School'}
               </h2>
-              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-[10px] sm:text-xs text-slate-600 font-medium mt-1">
+              <div className="flex items-center justify-center gap-3 text-[11px] sm:text-xs text-slate-600 font-medium mt-1">
                 <span>{school.address || 'Dire Dawa'}</span>
                 <span>•</span>
                 <span>☎ {school.phone || '0251 - 11 41 87'}</span>
@@ -135,14 +117,14 @@ export function StudentReportCardFront({
                 <span>✉ 1838</span>
               </div>
               <div className="mt-1.5">
-                <span className="inline-block text-[11px] sm:text-sm font-bold tracking-wider text-slate-900 border-b border-slate-700 pb-0.5 uppercase">
+                <span className="inline-block text-xs sm:text-sm font-bold tracking-wider text-slate-900 border-b border-slate-700 pb-0.5 uppercase">
                   Student&apos;s Grade Report • የውጤት መግለጫ (ገጽ 1)
                 </span>
               </div>
             </div>
 
-            {/* Desktop Right Side: QR Code Verification Badge */}
-            <div className="hidden sm:flex flex-shrink-0 flex-col items-center justify-center pt-0.5">
+            {/* Right Side: QR Code Verification Badge */}
+            <div className="flex-shrink-0 flex flex-col items-center justify-center pt-0.5">
               <div className="p-1 bg-white border border-slate-400 rounded-sm shadow-2xs">
                 <QRCodeSVG
                   value={qrVerificationUrl}
@@ -161,8 +143,8 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 2. STUDENT & CLASS INFORMATION BAR */}
         {/* ==================================================== */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 py-2 px-2.5 sm:px-3 bg-slate-50 border border-slate-300 rounded-sm text-[11px] sm:text-[13px]">
-          <div className="flex-1 space-y-1.5 w-full">
+        <div className="flex items-center justify-between gap-4 py-2 px-3 bg-slate-50 border border-slate-300 rounded-sm text-xs sm:text-[13px]">
+          <div className="flex-1 space-y-1.5">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <div>
                 <span className="font-semibold text-slate-600">Home-room Teacher&apos;s Name : </span>
@@ -172,10 +154,10 @@ export function StudentReportCardFront({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-1 text-slate-800">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-slate-800">
               <div>
                 <span className="font-semibold text-slate-600">Student&apos;s Name : </span>
-                <span className="font-black text-slate-900 text-xs sm:text-sm">{student.fullName}</span>
+                <span className="font-black text-slate-900 text-sm">{student.fullName}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-600">Gender : </span>
@@ -187,7 +169,7 @@ export function StudentReportCardFront({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-1 text-slate-800">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-slate-800">
               <div>
                 <span className="font-semibold text-slate-600">Grade : </span>
                 <span className="font-bold text-slate-900">{academic.gradeName}</span>
@@ -208,8 +190,8 @@ export function StudentReportCardFront({
           </div>
 
           {/* Student Photo */}
-          <div className="flex-shrink-0 self-center sm:self-start">
-            <div className="w-14 h-18 sm:w-18 sm:h-22 rounded-sm border-2 border-slate-400 bg-emerald-700 overflow-hidden relative flex items-center justify-center shadow-2xs">
+          <div className="flex-shrink-0">
+            <div className="w-16 h-20 sm:w-18 sm:h-22 rounded-sm border-2 border-slate-400 bg-emerald-700 overflow-hidden relative flex items-center justify-center shadow-2xs">
               {student.photo ? (
                 <Image
                   src={student.photo}
@@ -219,10 +201,10 @@ export function StudentReportCardFront({
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-white p-1 text-center">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 flex items-center justify-center mb-1">
+                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-1">
                     <span className="text-xs font-bold">{student.fullName?.charAt(0) || 'S'}</span>
                   </div>
-                  <span className="text-[8px] sm:text-[9px] font-semibold leading-tight text-white/90">PHOTO</span>
+                  <span className="text-[9px] font-semibold leading-tight text-white/90">PHOTO</span>
                 </div>
               )}
             </div>
@@ -232,230 +214,222 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 3. DYNAMIC SUBJECT RESULT TABLE */}
         {/* ==================================================== */}
-        <div>
-          <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1 px-0.5 sm:hidden">
-            <span className="font-semibold text-slate-700">Official Results</span>
-            <span>↔ Scroll to view all terms</span>
-          </div>
-          <div className="overflow-x-auto w-full border border-slate-900 scrollbar-thin">
-            <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[540px] sm:min-w-full">
-              <thead>
-                <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center text-[10px] sm:text-xs">
-                  <th className="py-1.5 px-2.5 sm:px-3 text-left border-r border-slate-900 w-32 sm:w-44 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Subject
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse border border-slate-900">
+            <thead>
+              <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center text-[11px] sm:text-xs">
+                <th className="py-1.5 px-3 text-left border-r border-slate-900 w-36 sm:w-44">Subject</th>
+                <th className="py-1.5 px-2 border-r border-slate-900 w-16">Weight</th>
+                {periods.map((period) => (
+                  <th key={period.id} className="py-1.5 px-2 border-r border-slate-900 w-20">
+                    {period.label}
                   </th>
-                  <th className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 w-14 sm:w-16">Weight</th>
-                  {periods.map((period) => (
-                    <th key={period.id} className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 w-16 sm:w-20">
-                      {period.label}
-                    </th>
-                  ))}
-                  <th className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 w-16 sm:w-18">Total</th>
-                  <th className="py-1.5 px-1.5 sm:px-2 w-16 sm:w-20">Average</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-400">
-                {subjectRows.map((row) => (
-                  <tr key={row.subjectId} className="hover:bg-slate-50/70 transition-colors group">
-                    <td className="py-1 px-2.5 sm:px-3 text-left font-semibold text-slate-900 border-r border-slate-900 whitespace-nowrap sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-[1px_0_0_0_#0f172a]">
-                      {row.subjectName}
-                    </td>
-                    <td className="py-1 px-1.5 sm:px-2 text-center text-slate-800 border-r border-slate-900 font-medium">
-                      {row.weight}%
-                    </td>
-                    {periods.map((period) => {
-                      const score = row.scores[period.id];
-                      const hasScore = score !== undefined && score !== null;
-                      return (
-                        <td
-                          key={period.id}
-                          className="py-1 px-1.5 sm:px-2 text-center font-bold text-slate-900 border-r border-slate-900"
-                        >
-                          {hasScore ? score : '—'}
-                        </td>
-                      );
-                    })}
-                    <td className="py-1 px-1.5 sm:px-2 text-center font-extrabold text-slate-900 border-r border-slate-900 bg-slate-50/50">
-                      {row.total}
-                    </td>
-                    <td className="py-1 px-1.5 sm:px-2 text-center font-black text-slate-900 bg-slate-50/50">
-                      {row.average}
-                    </td>
-                  </tr>
                 ))}
-
-                {/* ==================================================== */}
-                {/* SUMMARY ROWS AT BOTTOM */}
-                {/* ==================================================== */}
-                {/* TOTAL ROW */}
-                <tr className="bg-slate-100/80 font-bold border-t-2 border-slate-900 text-center">
-                  <td className="py-1.5 px-2.5 sm:px-3 text-left font-black text-slate-900 border-r border-slate-900 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Total
+                <th className="py-1.5 px-2 border-r border-slate-900 w-18">Total</th>
+                <th className="py-1.5 px-2 w-20">Average</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-400">
+              {subjectRows.map((row) => (
+                <tr key={row.subjectId} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-1 px-3 text-left font-semibold text-slate-900 border-r border-slate-900 whitespace-nowrap">
+                    {row.subjectName}
                   </td>
-                  <td className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 font-bold text-slate-900">
-                    {summary.totalRow.weight}
+                  <td className="py-1 px-2 text-center text-slate-800 border-r border-slate-900 font-medium">
+                    {row.weight}%
                   </td>
                   {periods.map((period) => {
-                    const pSum = summary.totalRow.periodSums[period.id];
+                    const score = row.scores[period.id];
+                    const hasScore = score !== undefined && score !== null;
                     return (
                       <td
                         key={period.id}
-                        className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 font-black text-slate-900"
+                        className="py-1 px-2 text-center font-bold text-slate-900 border-r border-slate-900"
                       >
-                        {pSum !== null && pSum !== undefined ? pSum : '—'}
+                        {hasScore ? score : '—'}
                       </td>
                     );
                   })}
-                  <td className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 font-black text-slate-900 bg-slate-200/50">
-                    {summary.totalRow.total}
+                  <td className="py-1 px-2 text-center font-extrabold text-slate-900 border-r border-slate-900 bg-slate-50/50">
+                    {row.total}
                   </td>
-                  <td className="py-1.5 px-1.5 sm:px-2 font-black text-slate-900 bg-slate-200/50">
-                    {summary.totalRow.average}
-                  </td>
-                </tr>
-
-                {/* AVERAGE ROW */}
-                <tr className="bg-slate-50 font-bold border-t border-slate-900 text-center">
-                  <td className="py-1.5 px-2.5 sm:px-3 text-left font-black text-slate-900 border-r border-slate-900 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Average
-                  </td>
-                  <td className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  {periods.map((period) => {
-                    const pAvg = summary.averageRow.periodAverages[period.id];
-                    return (
-                      <td
-                        key={period.id}
-                        className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 font-black text-slate-900"
-                      >
-                        {pAvg !== null && pAvg !== undefined ? `${pAvg}%` : '—'}
-                      </td>
-                    );
-                  })}
-                  <td className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  <td className="py-1.5 px-1.5 sm:px-2 font-black text-blue-900 bg-blue-50/40">
-                    {summary.averageRow.overallAverage}%
+                  <td className="py-1 px-2 text-center font-black text-slate-900 bg-slate-50/50">
+                    {row.average}
                   </td>
                 </tr>
+              ))}
 
-                {/* RANK ROW */}
-                <tr className="border-t border-slate-900 text-center">
-                  <td className="py-1.5 px-2.5 sm:px-3 text-left font-black text-slate-900 border-r border-slate-900 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Rank
-                  </td>
-                  <td className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  {periods.map((period) => (
+              {/* ==================================================== */}
+              {/* SUMMARY ROWS AT BOTTOM */}
+              {/* ==================================================== */}
+              {/* TOTAL ROW */}
+              <tr className="bg-slate-100/80 font-bold border-t-2 border-slate-900 text-center">
+                <td className="py-1.5 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+                  Total
+                </td>
+                <td className="py-1.5 px-2 border-r border-slate-900 font-bold text-slate-900">
+                  {summary.totalRow.weight}
+                </td>
+                {periods.map((period) => {
+                  const pSum = summary.totalRow.periodSums[period.id];
+                  return (
                     <td
                       key={period.id}
-                      className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 font-black text-slate-900"
+                      className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
                     >
-                      {summary.rank}
+                      {pSum !== null && pSum !== undefined ? pSum : '—'}
                     </td>
-                  ))}
-                  <td className="py-1.5 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  <td className="py-1.5 px-1.5 sm:px-2 font-black text-slate-900 bg-amber-50/40">
+                  );
+                })}
+                <td className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900 bg-slate-200/50">
+                  {summary.totalRow.total}
+                </td>
+                <td className="py-1.5 px-2 font-black text-slate-900 bg-slate-200/50">
+                  {summary.totalRow.average}
+                </td>
+              </tr>
+
+              {/* AVERAGE ROW */}
+              <tr className="bg-slate-50 font-bold border-t border-slate-900 text-center">
+                <td className="py-1.5 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+                  Average
+                </td>
+                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                {periods.map((period) => {
+                  const pAvg = summary.averageRow.periodAverages[period.id];
+                  return (
+                    <td
+                      key={period.id}
+                      className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                    >
+                      {pAvg !== null && pAvg !== undefined ? `${pAvg}%` : '—'}
+                    </td>
+                  );
+                })}
+                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td className="py-1.5 px-2 font-black text-blue-900 bg-blue-50/40">
+                  {summary.averageRow.overallAverage}%
+                </td>
+              </tr>
+
+              {/* RANK ROW */}
+              <tr className="border-t border-slate-900 text-center">
+                <td className="py-1.5 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+                  Rank
+                </td>
+                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                {periods.map((period) => (
+                  <td
+                    key={period.id}
+                    className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                  >
                     {summary.rank}
                   </td>
-                </tr>
+                ))}
+                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td className="py-1.5 px-2 font-black text-slate-900 bg-amber-50/40">
+                  {summary.rank}
+                </td>
+              </tr>
 
-                {/* CONDUCT ROW */}
-                <tr className="border-t border-slate-900 text-center">
-                  <td className="py-1 px-2.5 sm:px-3 text-left font-black text-slate-900 border-r border-slate-900 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Conduct
+              {/* CONDUCT ROW */}
+              <tr className="border-t border-slate-900 text-center">
+                <td className="py-1 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+                  Conduct
+                </td>
+                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                {periods.map((period) => (
+                  <td
+                    key={period.id}
+                    className="py-1 px-2 border-r border-slate-900 font-bold text-slate-900"
+                  >
+                    {summary.conduct || 'A-'}
                   </td>
-                  <td className="py-1 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  {periods.map((period) => (
-                    <td
-                      key={period.id}
-                      className="py-1 px-1.5 sm:px-2 border-r border-slate-900 font-bold text-slate-900"
-                    >
-                      {summary.conduct || 'A-'}
-                    </td>
-                  ))}
-                  <td className="py-1 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  <td className="py-1 px-1.5 sm:px-2 font-bold text-slate-900">{summary.conduct || 'A-'}</td>
-                </tr>
+                ))}
+                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td className="py-1 px-2 font-bold text-slate-900">{summary.conduct || 'A-'}</td>
+              </tr>
 
-                {/* ABSENCE ROW */}
-                <tr className="border-t border-slate-900 text-center">
-                  <td className="py-1 px-2.5 sm:px-3 text-left font-black text-slate-900 border-r border-slate-900 sticky left-0 bg-white z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Absence
-                  </td>
-                  <td className="py-1 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  {periods.map((period) => (
-                    <td
-                      key={period.id}
-                      className="py-1 px-1.5 sm:px-2 border-r border-slate-900 font-semibold text-slate-800 text-[10px] sm:text-[11px]"
-                    >
-                      {summary.absence || '0 Day'}
-                    </td>
-                  ))}
-                  <td className="py-1 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  <td className="py-1 px-1.5 sm:px-2 font-semibold text-slate-800 text-[10px] sm:text-[11px]">
+              {/* ABSENCE ROW */}
+              <tr className="border-t border-slate-900 text-center">
+                <td className="py-1 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+                  Absence
+                </td>
+                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                {periods.map((period) => (
+                  <td
+                    key={period.id}
+                    className="py-1 px-2 border-r border-slate-900 font-semibold text-slate-800 text-[11px]"
+                  >
                     {summary.absence || '0 Day'}
                   </td>
-                </tr>
+                ))}
+                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td className="py-1 px-2 font-semibold text-slate-800 text-[11px]">
+                  {summary.absence || '0 Day'}
+                </td>
+              </tr>
 
-                {/* REMARK ROW WITH BADGE */}
-                <tr className="border-t border-slate-900 text-center bg-slate-50/50">
-                  <td className="py-2 px-2.5 sm:px-3 text-left font-black text-slate-900 border-r border-slate-900 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_#0f172a]">
-                    Remark
-                  </td>
-                  <td className="py-2 px-1.5 sm:px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                  <td
-                    colSpan={periods.length + 2}
-                    className="py-2 px-3 sm:px-4 text-left font-bold text-slate-900"
-                  >
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                      <span className="inline-block px-3 sm:px-5 py-0.5 sm:py-1 border-2 border-slate-900 rounded-sm font-black text-[10px] sm:text-xs uppercase tracking-wider text-slate-900 bg-white">
-                        {summary.remarkBadge || 'Passed'}
+              {/* REMARK ROW WITH BADGE */}
+              <tr className="border-t border-slate-900 text-center bg-slate-50/50">
+                <td className="py-2 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+                  Remark
+                </td>
+                <td className="py-2 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td
+                  colSpan={periods.length + 2}
+                  className="py-2 px-4 text-left font-bold text-slate-900"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="inline-block px-5 py-1 border-2 border-slate-900 rounded-sm font-black text-xs uppercase tracking-wider text-slate-900 bg-white">
+                      {summary.remarkBadge || 'Passed'}
+                    </span>
+                    {summary.teacherComment && (
+                      <span className="text-[11px] italic text-slate-700 font-normal">
+                        &ldquo;{summary.teacherComment}&rdquo;
                       </span>
-                      {summary.teacherComment && (
-                        <span className="text-[10px] sm:text-[11px] italic text-slate-700 font-normal">
-                          &ldquo;{summary.teacherComment}&rdquo;
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {/* ==================================================== */}
         {/* 4. OFFICIAL SIGNATURES & INSTITUTIONAL SEALS */}
         {/* ==================================================== */}
-        <div className="pt-3 sm:pt-4 border-t border-slate-400 text-[10px] sm:text-xs text-slate-800">
-          <div className="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 items-end text-center">
+        <div className="pt-4 border-t border-slate-400 text-xs text-slate-800">
+          <div className="grid grid-cols-3 gap-8 items-end text-center">
             {/* Homeroom Teacher */}
             <div>
-              <div className="h-8 sm:h-10 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-serif italic text-[10px] sm:text-xs text-slate-700 truncate max-w-full px-1">
+              <div className="h-10 border-b border-slate-800 flex items-end justify-center pb-1">
+                <span className="font-serif italic text-xs text-slate-700">
                   {academic.homeroomTeacherName}
                 </span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 leading-tight">Home-room Teacher</span>
+              <span className="mt-1 block font-bold text-slate-900">Home-room Teacher</span>
             </div>
 
             {/* Principal Signature */}
             <div>
-              <div className="h-8 sm:h-10 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-serif italic text-[10px] sm:text-xs text-slate-700">Official Sign</span>
+              <div className="h-10 border-b border-slate-800 flex items-end justify-center pb-1">
+                <span className="font-serif italic text-xs text-slate-700">Official Sign</span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 leading-tight">Principal Signature</span>
+              <span className="mt-1 block font-bold text-slate-900">Principal Signature</span>
             </div>
 
             {/* School Stamp Seal */}
             <div className="flex flex-col items-center">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center text-[8px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-tight text-center p-0.5 sm:p-1">
-                School Seal
+              <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center text-[10px] text-slate-500 font-bold uppercase tracking-tight text-center p-1">
+                School Seal / Stamp
               </div>
-              <span className="mt-1 block font-bold text-slate-900 leading-tight">Date: {issueDate}</span>
+              <span className="mt-1 block font-bold text-slate-900">Date: {issueDate}</span>
             </div>
           </div>
 
           {/* Footer Card Verification Note */}
-          <div className="mt-3 sm:mt-4 pt-2 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-1 sm:gap-2 text-[9px] sm:text-[10px] text-slate-500">
+          <div className="mt-4 pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
             <span>
               Report Card ID: <strong className="font-mono text-slate-700">{reportCardId}</strong>
             </span>
@@ -531,7 +505,7 @@ export function StudentReportCardBack({
 
   return (
     <div
-      className={`report-card-back relative bg-white text-slate-900 font-sans p-3.5 sm:p-6 md:p-8 w-full max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text border border-slate-300 print:border-none ${className}`}
+      className={`report-card-back relative bg-white text-slate-900 font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text border border-slate-300 print:border-none ${className}`}
       style={{
         boxSizing: 'border-box',
         minHeight: '290mm',
@@ -558,9 +532,9 @@ export function StudentReportCardBack({
         {/* 1. BACK HEADER SECTION */}
         {/* ==================================================== */}
         <div className="border-b border-slate-800 pb-2.5">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-2.5">
-            <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-slate-300 bg-white flex-shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-slate-300 bg-white flex-shrink-0">
                 <Image
                   src={school.logo || '/addis-hiwot-logo.png'}
                   alt={school.name}
@@ -569,17 +543,17 @@ export function StudentReportCardBack({
                 />
               </div>
               <div>
-                <h2 className="text-xs sm:text-base font-black tracking-tight text-slate-900">
+                <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900">
                   {school.amharicName || 'አዲስ ሕይወት ት/ቤት'} • {school.name}
                 </h2>
-                <p className="text-[9px] sm:text-[10px] text-slate-600 font-medium">
-                  {school.address} • Tel: {school.phone || '0251 - 11 41 87'} • Official Evaluation
+                <p className="text-[10px] text-slate-600 font-medium">
+                  {school.address} • Tel: {school.phone || '0251 - 11 41 87'} • Official Academic Evaluation System
                 </p>
               </div>
             </div>
 
-            <div className="self-end sm:self-center">
-              <span className="inline-block text-[10px] sm:text-[11px] font-black uppercase tracking-wider px-2 py-0.5 sm:px-2.5 sm:py-1 bg-slate-900 text-white rounded-xs">
+            <div className="text-right">
+              <span className="inline-block text-[11px] font-black uppercase tracking-wider px-2.5 py-1 bg-slate-900 text-white rounded-xs">
                 Page 2 • ገጽ 2 (Back)
               </span>
             </div>
@@ -589,14 +563,14 @@ export function StudentReportCardBack({
             <h1 className="text-xs sm:text-sm font-black tracking-wide text-slate-900 uppercase">
               Academic Grading Scale, Conduct Evaluation & Promotion Regulations
             </h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-slate-700">
+            <p className="text-[10px] font-bold text-slate-700">
               የደረጃ አሰጣጥ መለኪያ፣ የስነ-ምግባር መመዘኛ እና የትምህርት ደንብ
             </p>
           </div>
         </div>
 
         {/* Quick Student Identification Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5 px-2.5 sm:px-3 bg-slate-50 border border-slate-300 rounded-xs text-[10px] sm:text-xs text-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xs text-[11px] sm:text-xs text-slate-800">
           <div>
             <span className="font-semibold text-slate-600">Student: </span>
             <span className="font-bold text-slate-900">{student.fullName}</span>
@@ -624,14 +598,14 @@ export function StudentReportCardBack({
               <span className="w-2 h-2 bg-slate-900 rounded-full inline-block" />
               1. Grading Scale & Evaluation Key (የደረጃ አሰጣጥ መለኪያ)
             </h3>
-            <span className="text-[10px] text-slate-600 font-medium hidden sm:inline">Secondary Education Standard</span>
+            <span className="text-[10px] text-slate-600 font-medium">Secondary Education Standard</span>
           </div>
 
-          <div className="overflow-x-auto w-full border border-slate-900 scrollbar-thin">
-            <table className="w-full text-xs border-collapse min-w-[500px] sm:min-w-full">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse border border-slate-900">
               <thead>
                 <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center text-[10px] sm:text-[11px]">
-                  <th className="py-1 px-2 border-r border-slate-900 w-14 sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_#0f172a]">Grade</th>
+                  <th className="py-1 px-2 border-r border-slate-900 w-14">Grade</th>
                   <th className="py-1 px-2 border-r border-slate-900 w-24">Mark Range (%)</th>
                   <th className="py-1 px-2 border-r border-slate-900 w-16">GPA Points</th>
                   <th className="py-1 px-3 text-left border-r border-slate-900 w-36">Description (English)</th>
@@ -642,7 +616,7 @@ export function StudentReportCardBack({
               <tbody className="divide-y divide-slate-400 text-[10px] sm:text-[11px]">
                 {gradingScales.map((scale) => (
                   <tr key={scale.grade} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-1 px-2 text-center font-black text-slate-900 border-r border-slate-900 bg-slate-50/60 sticky left-0 z-10 shadow-[1px_0_0_0_#0f172a]">
+                    <td className="py-1 px-2 text-center font-black text-slate-900 border-r border-slate-900 bg-slate-50/60">
                       {scale.grade}
                     </td>
                     <td className="py-1 px-2 text-center font-bold text-slate-900 border-r border-slate-900">
@@ -729,7 +703,7 @@ export function StudentReportCardBack({
 
             {/* Homeroom Teacher's Holistic Evaluation Note */}
             <div className="pt-2 border-t border-slate-200">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 sm:gap-2">
+              <div className="flex items-start justify-between gap-2">
                 <span className="font-bold text-slate-800">Homeroom Teacher&apos;s Guidance & Remarks (የክፍል ኃላፊ መምህር አጠቃላይ አስተያየት):</span>
                 <span className="font-serif italic text-slate-700 text-[11px]">{academic.homeroomTeacherName}</span>
               </div>
@@ -778,35 +752,35 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         {/* 6. BOTTOM OFFICIAL CERTIFICATION & SEALS */}
         {/* ==================================================== */}
-        <div className="pt-3 border-t-2 border-slate-800 text-[10px] sm:text-xs text-slate-800">
-          <div className="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 items-end text-center">
+        <div className="pt-3 border-t-2 border-slate-800 text-xs text-slate-800">
+          <div className="grid grid-cols-3 gap-8 items-end text-center">
             {/* Academic Director / Registrar */}
             <div>
-              <div className="h-8 sm:h-9 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-serif italic text-[10px] sm:text-xs text-slate-700">Official Sign</span>
+              <div className="h-9 border-b border-slate-800 flex items-end justify-center pb-1">
+                <span className="font-serif italic text-xs text-slate-700">Official Sign</span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[10px] sm:text-[11px]">Academic Registrar / Director</span>
+              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Academic Registrar / Director</span>
             </div>
 
             {/* School Seal / Stamp */}
             <div className="flex flex-col items-center">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center text-[8px] sm:text-[9px] text-slate-500 font-bold uppercase tracking-tight text-center p-0.5 sm:p-1">
-                Official Seal
+              <div className="w-14 h-14 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center text-[9px] text-slate-500 font-bold uppercase tracking-tight text-center p-1">
+                Official Seal / Stamp
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[10px] sm:text-[11px]">Date: {issueDate}</span>
+              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Date: {issueDate}</span>
             </div>
 
             {/* Academic Year Verification */}
             <div>
-              <div className="h-8 sm:h-9 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-mono font-bold text-[10px] sm:text-xs text-slate-900">{academic.academicYearName}</span>
+              <div className="h-9 border-b border-slate-800 flex items-end justify-center pb-1">
+                <span className="font-mono font-bold text-xs text-slate-900">{academic.academicYearName}</span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[10px] sm:text-[11px]">Curriculum Approved</span>
+              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Curriculum Year Approved</span>
             </div>
           </div>
 
           {/* Footer note */}
-          <div className="mt-3 pt-1.5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-1 text-[9px] sm:text-[10px] text-slate-500">
+          <div className="mt-3 pt-1.5 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
             <span>
               Card ID: <strong className="font-mono text-slate-700">{reportCardId}</strong>
             </span>
@@ -832,43 +806,45 @@ export function StudentReportCard({
   const [activeSide, setActiveSide] = useState<ReportCardSide>(defaultSide);
 
   return (
-    <div className={`report-card-wrapper w-full max-w-full overflow-x-auto ${className}`}>
+    <div className={`report-card-wrapper w-full ${className}`}>
       {/* Interactive Page View Selector (Hidden during printing) */}
       {allowSideToggle && (
-        <div className="mb-4 flex flex-wrap items-center justify-center gap-1.5 p-1 bg-slate-200/90 dark:bg-slate-800/80 rounded-xl max-w-full print:hidden">
-          <button
-            type="button"
-            onClick={() => setActiveSide('both')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors ${
-              activeSide === 'both'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Both Pages (Print Ready • 2-Sided)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSide('front')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors ${
-              activeSide === 'front'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Front Page (ገጽ 1)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSide('back')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold transition-colors ${
-              activeSide === 'back'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Back Page (ገጽ 2)
-          </button>
+        <div className="mb-4 flex items-center justify-center gap-2 print:hidden">
+          <div className="bg-slate-200 p-1 rounded-md flex items-center gap-1 shadow-inner text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveSide('both')}
+              className={`px-3 py-1.5 rounded transition-colors ${
+                activeSide === 'both'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Both Pages (Print Ready • 2-Sided)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSide('front')}
+              className={`px-3 py-1.5 rounded transition-colors ${
+                activeSide === 'front'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Front Page Only (ገጽ 1)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSide('back')}
+              className={`px-3 py-1.5 rounded transition-colors ${
+                activeSide === 'back'
+                  ? 'bg-white text-slate-900 shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Back Page Only (ገጽ 2)
+            </button>
+          </div>
         </div>
       )}
 

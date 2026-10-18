@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { BookOpen, TrendingUp, AlertCircle, FileText, Printer, RefreshCw } from "lucide-react";
+import { BookOpen, TrendingUp, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -12,8 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { studentDb } from "@/lib/db/student-db";
-import { gradebookService, ComprehensiveReportCardData } from "@/lib/gradebook-service";
-import { StudentReportCard } from "@/components/school/student-report-card";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,213 +119,60 @@ export default function StudentMarksPage() {
     return subjects.map((s) => ({ id: s.subjectId, name: s.subjectName }));
   }, [subjects]);
 
-  const [activeTab, setActiveTab] = useState<"breakdown" | "reportCard">("breakdown");
-  const [reportCardTerm, setReportCardTerm] = useState<string>("annual");
-  const [comprehensiveCard, setComprehensiveCard] = useState<ComprehensiveReportCardData | null>(null);
-  const [cardLoading, setCardLoading] = useState(false);
-  const [cardError, setCardError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (activeTab !== "reportCard") return;
-
-    let isMounted = true;
-    const loadReportCard = async () => {
-      setCardLoading(true);
-      setCardError(null);
-      try {
-        let studentId = marksData?.student?.id || marksData?.studentId;
-        if (!studentId) {
-          try {
-            const userStr = typeof window !== "undefined" ? localStorage.getItem("attendance_current_user") : null;
-            if (userStr) {
-              const u = JSON.parse(userStr);
-              studentId = u?.studentId || u?.id || u?.student_id;
-            }
-          } catch {}
-        }
-        if (!studentId) {
-          try {
-            const prof = await studentDb.getProfile();
-            studentId = prof?.basicInfo?.id || prof?.id || prof?.student?.id || prof?.basicInfo?.studentId;
-          } catch {}
-        }
-
-        const card = await gradebookService.getComprehensiveReportCard(
-          studentId || "default",
-          undefined,
-          reportCardTerm !== "annual" ? reportCardTerm : undefined
-        );
-        if (isMounted) {
-          setComprehensiveCard(card);
-        }
-      } catch (err: any) {
-        console.warn("[Student Report Card] Failed to load:", err);
-        if (isMounted) {
-          setCardError(err?.message || "Failed to load comprehensive report card.");
-        }
-      } finally {
-        if (isMounted) {
-          setCardLoading(false);
-        }
-      }
-    };
-
-    loadReportCard();
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab, reportCardTerm, marksData]);
-
   const isEmpty = !loading && subjects.length === 0;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            Marks / Results
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Published academic scores, term assessments, and official grading reports
-          </p>
-        </div>
-
-        {/* View Switcher Tabs (Responsive) */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl w-full sm:w-fit border border-slate-200/60 dark:border-slate-700/60 print:hidden">
-          <button
-            onClick={() => setActiveTab("breakdown")}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              activeTab === "breakdown"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <span>Marks Breakdown</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("reportCard")}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              activeTab === "reportCard"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Official Report Card</span>
-          </button>
-        </div>
+      <div>
+        <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+          Marks / Results
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          Published academic scores, term assessments, and official grading reports
+        </p>
       </div>
 
-      {activeTab === "reportCard" ? (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm print:hidden">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="text-xs font-semibold text-slate-500 mr-1 hidden sm:inline">Evaluation Period:</span>
-              {[
-                { id: "annual", label: "Full Year (Annual)" },
-                { id: "sem1", label: "Semester 1" },
-                { id: "sem2", label: "Semester 2" },
-              ].map((t) => (
-                <Button
-                  key={t.id}
-                  variant={reportCardTerm === t.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setReportCardTerm(t.id)}
-                  className={`text-xs h-8 rounded-xl font-medium ${
-                    reportCardTerm === t.id ? "bg-purple-600 hover:bg-purple-700 text-white" : ""
-                  }`}
-                >
-                  {t.label}
-                </Button>
-              ))}
-            </div>
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={academicYear} onValueChange={setAcademicYear}>
+          <SelectTrigger className="w-36 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100">
+            <SelectValue placeholder="Academic Year" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="all">All Years</SelectItem>
+            <SelectItem value="2026/27">2026/27 (Active)</SelectItem>
+            <SelectItem value="2025/26">2025/26</SelectItem>
+            <SelectItem value="2024/25">2024/25</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <Button
-              onClick={() => window.print()}
-              size="sm"
-              variant="outline"
-              className="gap-1.5 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 shrink-0"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print A4 Report</span>
-            </Button>
-          </div>
+        <Select value={term} onValueChange={setTerm}>
+          <SelectTrigger className="w-32 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100">
+            <SelectValue placeholder="Term" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="all">All Terms</SelectItem>
+            <SelectItem value="term1">Term 1</SelectItem>
+            <SelectItem value="term2">Term 2</SelectItem>
+            <SelectItem value="term3">Term 3</SelectItem>
+          </SelectContent>
+        </Select>
 
-          {cardLoading ? (
-            <div className="flex items-center justify-center py-20 text-slate-400 text-sm gap-2 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
-              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              <span>Generating official report card...</span>
-            </div>
-          ) : cardError ? (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{cardError}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setReportCardTerm(reportCardTerm)}
-                className="text-xs font-bold shrink-0 hover:bg-amber-500/20"
-              >
-                <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry
-              </Button>
-            </div>
-          ) : comprehensiveCard ? (
-            <div className="flex justify-center p-1 sm:p-4 md:p-6 bg-slate-100/60 dark:bg-slate-900/50 rounded-2xl border border-border/80 overflow-x-auto w-full max-w-full">
-              <StudentReportCard card={comprehensiveCard} />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
-              <FileText className="w-10 h-10 opacity-40" />
-              <p className="text-sm font-medium">No official report card issued yet for this period.</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3">
-            <Select value={academicYear} onValueChange={setAcademicYear}>
-              <SelectTrigger className="w-36 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100">
-                <SelectValue placeholder="Academic Year" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="all">All Years</SelectItem>
-                <SelectItem value="2026/27">2026/27 (Active)</SelectItem>
-                <SelectItem value="2025/26">2025/26</SelectItem>
-                <SelectItem value="2024/25">2024/25</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={term} onValueChange={setTerm}>
-              <SelectTrigger className="w-32 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100">
-                <SelectValue placeholder="Term" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="all">All Terms</SelectItem>
-                <SelectItem value="term1">Term 1</SelectItem>
-                <SelectItem value="term2">Term 2</SelectItem>
-                <SelectItem value="term3">Term 3</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={subject} onValueChange={setSubject}>
-              <SelectTrigger className="w-36 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100">
-                <SelectValue placeholder="Subject" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="all">All Subjects</SelectItem>
-                {subjectOptions.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Select value={subject} onValueChange={setSubject}>
+          <SelectTrigger className="w-36 h-9 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100">
+            <SelectValue placeholder="Subject" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="all">All Subjects</SelectItem>
+            {subjectOptions.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Error Alert */}
       {error && (
@@ -479,9 +323,6 @@ export default function StudentMarksPage() {
           )}
         </CardContent>
       </Card>
-      </>
-      )}
     </div>
   );
 }
-

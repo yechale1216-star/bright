@@ -72,11 +72,11 @@ export default function MyClassesPage() {
 
         {/* Tab 1: Current Subjects (Screen 4 in UI reference) */}
         <TabsContent value="subjects" className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {displayClasses.map((sub) => (
               <Card
                 key={sub.id}
-                className="rounded-2xl border-slate-200/80 shadow-sm bg-white hover:border-purple-200 transition-all hover:shadow-md w-full max-w-xl mx-auto sm:max-w-none"
+                className="rounded-2xl border-slate-200/80 shadow-sm bg-white hover:border-purple-200 transition-all hover:shadow-md"
               >
                 <CardContent className="p-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5">
@@ -115,9 +115,9 @@ export default function MyClassesPage() {
 
         {/* Tab 2: Assigned Teachers */}
         <TabsContent value="teachers" className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {displayClasses.map((sub) => (
-              <Card key={`teacher-${sub.id}`} className="rounded-2xl border-slate-200/80 shadow-sm bg-white p-5 w-full max-w-xl mx-auto sm:max-w-none">
+              <Card key={`teacher-${sub.id}`} className="rounded-2xl border-slate-200/80 shadow-sm bg-white p-5">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-12 h-12 ring-2 ring-purple-500/20">
                     <AvatarFallback className="bg-purple-100 text-purple-800 font-bold text-sm">

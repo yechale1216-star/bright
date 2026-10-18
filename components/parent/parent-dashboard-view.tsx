@@ -867,10 +867,12 @@ export function ParentDashboardView() {
                   {materialsList.slice(0, 4).map((m) => {
                     const isVideo = (m.fileType || "").toUpperCase() === "VIDEO";
                     return (
-                      <Link
+                      <a
                         key={m.id}
-                        href="/parent/materials"
-                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-3 transition-colors group cursor-pointer"
+                        href={m.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-3 transition-colors group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
@@ -892,8 +894,8 @@ export function ParentDashboardView() {
                             </span>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                      </Link>
+                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 shrink-0" />
+                      </a>
                     );
                   })}
                 </div>

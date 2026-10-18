@@ -476,70 +476,70 @@ export function TeacherPortal() {
     const homeroomCount = assignments.filter((a) => a.role === "HOMEROOM_TEACHER").length
 
     return (
-      <div className="space-y-8 animate-in fade-in duration-300">
+      <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
         {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white p-6 md:p-10 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white p-4 sm:p-6 md:p-10 shadow-xl">
           <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold uppercase tracking-wider text-white border border-white/20">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+            <div className="space-y-1.5 sm:space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/15 backdrop-blur-md text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-white border border-white/20">
+                <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300" />
                 <span>Subject Teacher Workspace</span>
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-                My Assigned Classes & Subjects
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
+                My Assigned Classes &amp; Subjects
               </h1>
-              <p className="text-blue-100 max-w-xl text-sm md:text-base">
+              <p className="text-blue-100 max-w-xl text-xs sm:text-sm md:text-base leading-relaxed">
                 Welcome back{currentUser?.name ? `, ${currentUser.name}` : ""}. Select an assigned class to post homework, upload materials, record grades, and track student submissions.
               </p>
             </div>
 
             {currentYear && (
-              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20 self-start md:self-auto">
-                <Calendar className="w-5 h-5 text-blue-200" />
+              <div className="flex items-center gap-2.5 sm:gap-3 bg-white/10 backdrop-blur-md px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl border border-white/20 self-start md:self-auto shrink-0">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-200" />
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider text-blue-200 font-semibold">Active Year</div>
-                  <div className="font-bold text-white text-sm">{currentYear.name}</div>
+                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-blue-200 font-semibold">Active Year</div>
+                  <div className="font-bold text-white text-xs sm:text-sm">{currentYear.name}</div>
                 </div>
               </div>
             )}
           </div>
 
           {/* Quick Metrics Bar */}
-          <div className="mt-8 pt-6 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
-              <div className="text-xs text-blue-200">Total Classes</div>
-              <div className="text-2xl font-black">{assignments.length}</div>
+          <div className="mt-5 sm:mt-8 pt-4 sm:pt-6 border-t border-white/15 grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 sm:p-3 border border-white/10 text-center sm:text-left">
+              <div className="text-[10px] sm:text-xs text-blue-200 font-medium">Total Classes</div>
+              <div className="text-lg sm:text-2xl font-black mt-0.5">{assignments.length}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
-              <div className="text-xs text-blue-200">Subject Roles</div>
-              <div className="text-2xl font-black">{subjectTeacherCount}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 sm:p-3 border border-white/10 text-center sm:text-left">
+              <div className="text-[10px] sm:text-xs text-blue-200 font-medium">Subject Roles</div>
+              <div className="text-lg sm:text-2xl font-black mt-0.5">{subjectTeacherCount}</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10 col-span-2 sm:col-span-1">
-              <div className="text-xs text-blue-200">Homeroom Roles</div>
-              <div className="text-2xl font-black">{homeroomCount}</div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 sm:p-3 border border-white/10 text-center sm:text-left">
+              <div className="text-[10px] sm:text-xs text-blue-200 font-medium">Homeroom</div>
+              <div className="text-lg sm:text-2xl font-black mt-0.5">{homeroomCount}</div>
             </div>
           </div>
         </div>
 
         {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-between">
+          <div className="relative flex-1 w-full sm:max-w-md">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Search by grade, section, or subject..."
-              className="pl-10 h-11 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border-slate-300/80 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-indigo-500 rounded-xl shadow-xs"
+              className="pl-10 h-10 sm:h-11 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border-slate-300/80 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus-visible:ring-indigo-500 rounded-xl shadow-xs text-xs sm:text-sm w-full"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar touch-pan-x pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 shrink-0">
             <Button
               variant={roleFilter === "ALL" ? "default" : "outline"}
               size="sm"
               onClick={() => setRoleFilter("ALL")}
-              className="rounded-xl font-medium"
+              className="rounded-xl font-medium text-xs h-9 px-3 shrink-0 whitespace-nowrap active:scale-95"
             >
               All ({assignments.length})
             </Button>
@@ -547,31 +547,31 @@ export function TeacherPortal() {
               variant={roleFilter === "SUBJECT_TEACHER" ? "default" : "outline"}
               size="sm"
               onClick={() => setRoleFilter("SUBJECT_TEACHER")}
-              className="rounded-xl font-medium gap-1.5"
+              className="rounded-xl font-medium text-xs h-9 px-3 gap-1.5 shrink-0 whitespace-nowrap active:scale-95"
             >
               <BookOpen className="w-3.5 h-3.5" />
-              Subject Teacher ({subjectTeacherCount})
+              <span>Subject Teacher ({subjectTeacherCount})</span>
             </Button>
             <Button
               variant={roleFilter === "HOMEROOM_TEACHER" ? "default" : "outline"}
               size="sm"
               onClick={() => setRoleFilter("HOMEROOM_TEACHER")}
-              className="rounded-xl font-medium gap-1.5"
+              className="rounded-xl font-medium text-xs h-9 px-3 gap-1.5 shrink-0 whitespace-nowrap active:scale-95"
             >
               <Home className="w-3.5 h-3.5" />
-              Homeroom ({homeroomCount})
+              <span>Homeroom ({homeroomCount})</span>
             </Button>
           </div>
         </div>
 
         {/* Classes Grid */}
         {filteredAssignments.length === 0 ? (
-          <div className="border border-dashed border-slate-300/80 dark:border-white/10 p-12 text-center rounded-3xl bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl shadow-md">
-            <div className="w-16 h-16 rounded-3xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md mx-auto flex items-center justify-center text-muted-foreground mb-4 shadow-xs">
-              <BookOpen className="w-8 h-8" />
+          <div className="border border-dashed border-slate-300/80 dark:border-white/10 p-8 sm:p-12 text-center rounded-2xl sm:rounded-3xl bg-white/40 dark:bg-slate-900/30 backdrop-blur-xl shadow-md">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md mx-auto flex items-center justify-center text-muted-foreground mb-3 sm:mb-4 shadow-xs">
+              <BookOpen className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <h3 className="text-lg font-semibold text-foreground">No assigned classes found</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-1">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">No assigned classes found</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-sm mx-auto mt-1">
               {searchQuery
                 ? "No classes match your current search query."
                 : "You do not have any teaching assignments assigned for this academic year yet. Please contact your school administrator."}
@@ -587,9 +587,9 @@ export function TeacherPortal() {
                 <div
                   key={assignment.id}
                   onClick={() => handleSelectClass(assignment)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-white/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl hover:border-indigo-500/50 dark:hover:border-indigo-500/40 hover:bg-white/90 dark:hover:bg-slate-900/70 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20 w-full max-w-xl mx-auto sm:max-w-none"
+                  className="group relative cursor-pointer overflow-hidden rounded-2xl sm:rounded-3xl border border-white/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl active:scale-[0.98] hover:border-indigo-500/50 dark:hover:border-indigo-500/40 hover:bg-white/90 dark:hover:bg-slate-900/70 hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20"
                 >
-                  {/* Subtle top role accent bar */}
+                  {/* Role accent bar */}
                   <div
                     className={cn(
                       "h-1.5 w-full",
@@ -599,44 +599,44 @@ export function TeacherPortal() {
                     )}
                   />
 
-                  <div className="p-5 pb-3">
+                  <div className="p-4 sm:p-5 pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "rounded-full px-3 py-1 font-semibold text-xs gap-1.5 border shadow-xs backdrop-blur-sm",
+                          "rounded-full px-2.5 sm:px-3 py-0.5 sm:py-1 font-semibold text-[11px] sm:text-xs gap-1 sm:gap-1.5 border shadow-xs backdrop-blur-sm",
                           isHomeroom
                             ? "bg-violet-500/10 text-violet-700 border-violet-300/60 dark:text-violet-300 dark:border-violet-700/40"
                             : "bg-blue-500/10 text-blue-700 border-blue-300/60 dark:text-blue-300 dark:border-blue-700/40"
                         )}
                       >
-                        {isHomeroom ? <Home className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
-                        {isHomeroom ? "Homeroom Teacher" : "Subject Teacher"}
+                        {isHomeroom ? <Home className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+                        {isHomeroom ? "Homeroom" : "Subject Teacher"}
                       </Badge>
 
                       {assignment.academicYear && (
-                        <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-sm">
+                        <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 backdrop-blur-sm shrink-0">
                           {assignment.academicYear.name}
                         </span>
                       )}
                     </div>
 
-                    <h3 className="text-xl font-bold mt-3 text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                      {assignment.grade?.name} - Section {assignment.section?.name}
+                    <h3 className="text-base sm:text-xl font-bold mt-2.5 sm:mt-3 text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      {assignment.grade?.name} — Sec {assignment.section?.name}
                     </h3>
                     {assignment.stream && (
-                      <p className="text-xs text-muted-foreground font-medium">Stream: {assignment.stream.name}</p>
+                      <p className="text-xs text-muted-foreground font-medium mt-0.5">Stream: {assignment.stream.name}</p>
                     )}
                   </div>
 
-                  <div className="px-5 pb-5 space-y-4">
-                    <div className="flex items-center gap-2 p-3 rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 shadow-2xs">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                        <BookMarked className="w-4 h-4" />
+                  <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-3 sm:space-y-4">
+                    <div className="flex items-center gap-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 shadow-2xs">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                        <BookMarked className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Subject</div>
-                        <div className="text-sm font-semibold truncate text-foreground">{subjectName}</div>
+                        <div className="text-[10px] sm:text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Subject</div>
+                        <div className="text-xs sm:text-sm font-semibold truncate text-foreground">{subjectName}</div>
                       </div>
                     </div>
 
@@ -645,7 +645,7 @@ export function TeacherPortal() {
                         <Users className="w-3.5 h-3.5 text-indigo-500" />
                         Students Roster
                       </span>
-                      <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold group-hover:translate-x-1 transition-transform">
+                      <span className="inline-flex items-center gap-0.5 sm:gap-1 text-indigo-600 dark:text-indigo-400 font-semibold group-hover:translate-x-1 transition-transform">
                         Open Portal
                         <ChevronRight className="w-4 h-4" />
                       </span>
@@ -668,10 +668,10 @@ export function TeacherPortal() {
     (isSelectedHomeroom ? "Homeroom Class" : "Subject")
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300">
       {/* Top Navigation & Workspace Header */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -679,16 +679,16 @@ export function TeacherPortal() {
               setSelectedAssignment(null)
               setClassDetails(null)
             }}
-            className="rounded-xl gap-2 font-semibold text-muted-foreground hover:text-foreground -ml-2"
+            className="rounded-xl gap-1.5 sm:gap-2 font-semibold text-muted-foreground hover:text-foreground -ml-2 text-xs sm:text-sm active:scale-95"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to All Classes
+            <span className="hidden xs:inline">Back to</span> All Classes
           </Button>
 
           {/* Quick Class Switcher Dropdown */}
           {assignments.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground hidden sm:inline">Switch Class:</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-xs text-muted-foreground hidden sm:inline">Switch:</span>
               <Select
                 value={selectedAssignment.id}
                 onValueChange={(val) => {
@@ -696,7 +696,7 @@ export function TeacherPortal() {
                   if (target) handleSelectClass(target)
                 }}
               >
-                <SelectTrigger className="h-9 text-xs rounded-xl border border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md max-w-[220px]">
+                <SelectTrigger className="h-8 sm:h-9 text-xs rounded-xl border border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur-md max-w-[160px] sm:max-w-[220px]">
                   <SelectValue placeholder="Switch class" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-xl">
@@ -712,73 +712,71 @@ export function TeacherPortal() {
         </div>
 
         {/* Class Banner Card */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 md:p-8 shadow-xl border border-indigo-500/20">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 sm:p-6 md:p-8 shadow-xl border border-indigo-500/20">
           <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+
+          <div className="relative z-10 flex flex-col gap-4 sm:gap-6">
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <Badge
                   className={cn(
-                    "rounded-full px-3 py-1 font-semibold text-xs border gap-1.5",
+                    "rounded-full px-2.5 py-0.5 sm:px-3 sm:py-1 font-semibold text-[11px] sm:text-xs border gap-1 sm:gap-1.5",
                     isSelectedHomeroom
                       ? "bg-violet-500/20 text-violet-300 border-violet-400/30"
                       : "bg-blue-500/20 text-blue-300 border-blue-400/30"
                   )}
                 >
-                  {isSelectedHomeroom ? <Home className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
-                  {isSelectedHomeroom ? "Homeroom Teacher" : "Subject Teacher"}
+                  {isSelectedHomeroom ? <Home className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+                  {isSelectedHomeroom ? "Homeroom" : "Subject Teacher"}
                 </Badge>
                 {selectedAssignment.academicYear && (
-                  <Badge variant="outline" className="text-xs border-white/20 text-indigo-200">
+                  <Badge variant="outline" className="text-[10px] sm:text-xs border-white/20 text-indigo-200">
                     {selectedAssignment.academicYear.name}
                   </Badge>
                 )}
               </div>
 
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                {selectedAssignment.grade?.name} - Section {selectedAssignment.section?.name}
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight">
+                {selectedAssignment.grade?.name} — Section {selectedAssignment.section?.name}
               </h1>
 
-              <div className="flex items-center gap-3 text-indigo-200 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-indigo-200 text-xs sm:text-sm">
                 <span className="font-semibold text-white flex items-center gap-1.5">
-                  <BookMarked className="w-4 h-4 text-indigo-400" />
+                  <BookMarked className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
                   {currentSubjectName}
                 </span>
                 {selectedAssignment.stream && (
-                  <>
-                                        <span>Stream: {selectedAssignment.stream.name}</span>
-                  </>
+                  <span className="text-indigo-300">• Stream: {selectedAssignment.stream.name}</span>
                 )}
               </div>
             </div>
 
-            {/* Quick Actions in Header */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            {/* Quick Actions */}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 onClick={() => setIsHomeworkOpen(true)}
                 size="sm"
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 gap-1.5"
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white shadow-lg shadow-indigo-600/30 gap-1.5 text-xs h-9"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 Post Homework
               </Button>
               <Button
                 onClick={() => setIsMaterialOpen(true)}
                 size="sm"
                 variant="outline"
-                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 text-white gap-1.5"
+                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 active:scale-95 text-white gap-1.5 text-xs h-9"
               >
-                <FolderOpen className="w-4 h-4" />
+                <FolderOpen className="w-3.5 h-3.5" />
                 Share Material
               </Button>
               <Button
                 onClick={() => setIsAssessmentOpen(true)}
                 size="sm"
                 variant="outline"
-                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 text-white gap-1.5"
+                className="rounded-xl border-white/20 bg-white/10 hover:bg-white/20 active:scale-95 text-white gap-1.5 text-xs h-9"
               >
-                <Award className="w-4 h-4" />
+                <Award className="w-3.5 h-3.5" />
                 New Assessment
               </Button>
             </div>
@@ -788,123 +786,128 @@ export function TeacherPortal() {
 
       {/* Main Workspace Tabs */}
       {isLoadingDetails ? (
-        <div className="p-12 text-center">
+        <div className="p-8 sm:p-12 text-center">
           <Spinner className="w-8 h-8 text-indigo-600 mx-auto" />
-          <p className="text-sm text-muted-foreground mt-3">Loading class records and content...</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-3">Loading class records and content...</p>
         </div>
       ) : classDetails ? (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-1.5 rounded-2xl h-auto flex flex-wrap gap-1 border border-white/60 dark:border-white/10 shadow-md shadow-black/5 dark:shadow-black/20">
-            <TabsTrigger value="overview" className="rounded-xl text-xs md:text-sm font-medium gap-1.5 py-2">
-              <BarChart3 className="w-4 h-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="students" className="rounded-xl text-xs md:text-sm font-medium gap-1.5 py-2">
-              <Users className="w-4 h-4" />
-              Students ({classDetails.students?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="homework" className="rounded-xl text-xs md:text-sm font-medium gap-1.5 py-2">
-              <BookOpen className="w-4 h-4" />
-              Assignments & Homework ({classDetails.homework?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="materials" className="rounded-xl text-xs md:text-sm font-medium gap-1.5 py-2">
-              <FolderOpen className="w-4 h-4" />
-              Learning Materials ({classDetails.materials?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="gradebook" className="rounded-xl text-xs md:text-sm font-medium gap-1.5 py-2">
-              <GraduationCap className="w-4 h-4" />
-              Gradebook ({classDetails.assessments?.length || 0})
-            </TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+          {/* Horizontally scrollable tab bar on mobile */}
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1 sm:mx-0">
+            <TabsList className="bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-1 sm:p-1.5 rounded-xl sm:rounded-2xl h-auto flex gap-0.5 sm:gap-1 border border-white/60 dark:border-white/10 shadow-md shadow-black/5 dark:shadow-black/20 w-max min-w-full">
+              <TabsTrigger value="overview" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+                <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="students" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Students ({classDetails.students?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="homework" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Homework ({classDetails.homework?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="materials" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+                <FolderOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Materials ({classDetails.materials?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="gradebook" className="rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-medium gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-2.5 sm:px-3 shrink-0 whitespace-nowrap">
+                <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Gradebook ({classDetails.assessments?.length || 0})
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* TAB 1: OVERVIEW */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-blue-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+          <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-blue-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground font-medium">Class Roster</div>
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                    <Users className="w-5 h-5" />
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Class Roster</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-3 text-3xl font-black text-foreground">{classDetails.students?.length || 0}</div>
-                <div className="text-xs text-muted-foreground mt-1">Active registered students</div>
+                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.students?.length || 0}</div>
+                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Active students</div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-indigo-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-indigo-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground font-medium">Assignments</div>
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
-                    <BookOpen className="w-5 h-5" />
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Assignments</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
+                    <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-3 text-3xl font-black text-foreground">{classDetails.homework?.length || 0}</div>
-                <div className="text-xs text-muted-foreground mt-1">Posted homework tasks</div>
+                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.homework?.length || 0}</div>
+                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Homework tasks</div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-emerald-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-emerald-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground font-medium">Learning Materials</div>
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                    <FolderOpen className="w-5 h-5" />
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Materials</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                    <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-3 text-3xl font-black text-foreground">{classDetails.materials?.length || 0}</div>
-                <div className="text-xs text-muted-foreground mt-1">Shared study resources</div>
+                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.materials?.length || 0}</div>
+                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Study resources</div>
               </div>
 
-              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-amber-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
+              <div className="rounded-2xl border border-white/60 dark:border-white/10 p-3.5 sm:p-5 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 hover:border-amber-500/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground font-medium">Assessments</div>
-                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                    <Award className="w-5 h-5" />
+                  <div className="text-xs sm:text-sm text-muted-foreground font-medium">Assessments</div>
+                  <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                    <Award className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                 </div>
-                <div className="mt-3 text-3xl font-black text-foreground">{classDetails.assessments?.length || 0}</div>
-                <div className="text-xs text-muted-foreground mt-1">Recorded gradebook tests</div>
+                <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-black text-foreground">{classDetails.assessments?.length || 0}</div>
+                <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Gradebook tests</div>
               </div>
             </div>
 
             {/* Quick Preview Sections */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Recent Homework */}
-              <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
-                <div className="flex flex-row items-center justify-between p-5 pb-3">
+              <div className="rounded-2xl sm:rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
+                <div className="flex flex-row items-center justify-between p-4 sm:p-5 pb-3">
                   <div>
-                    <h3 className="text-base font-bold text-foreground">Recent Homework &amp; Tasks</h3>
-                    <p className="text-xs text-muted-foreground">Latest assignments posted to this class</p>
+                    <h3 className="text-sm sm:text-base font-bold text-foreground">Recent Homework &amp; Tasks</h3>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">Latest assignments posted to this class</p>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setActiveTab("homework")} className="text-xs text-indigo-600">
+                  <Button variant="ghost" size="sm" onClick={() => setActiveTab("homework")} className="text-xs text-indigo-600 font-semibold p-1.5 h-auto">
                     View All &rarr;
                   </Button>
                 </div>
-                <div className="px-5 pb-5 space-y-3">
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-2.5 sm:space-y-3">
                   {classDetails.homework?.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
+                    <div className="text-center py-6 sm:py-8 text-xs sm:text-sm text-muted-foreground">
                       No assignments posted yet. Click "Post Homework" to get started.
                     </div>
                   ) : (
                     classDetails.homework.slice(0, 3).map((hw) => (
                       <div
                         key={hw.id}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800/80 transition-all shadow-2xs"
+                        className="flex items-center justify-between p-3 rounded-xl sm:rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800/80 transition-all shadow-2xs gap-2"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-sm truncate text-foreground">{hw.title}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
-                            <Clock className="w-3.5 h-3.5" />
-                            Due {new Date(hw.dueDate).toLocaleDateString()}
-                                                        <span>Max {hw.maxScore} pts</span>
+                          <div className="font-semibold text-xs sm:text-sm truncate text-foreground">{hw.title}</div>
+                          <div className="text-[11px] sm:text-xs text-muted-foreground flex flex-wrap items-center gap-1.5 sm:gap-2 mt-0.5">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-muted-foreground" />
+                              Due {new Date(hw.dueDate).toLocaleDateString()}
+                            </span>
+                            <span>• Max {hw.maxScore} pts</span>
                           </div>
                         </div>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleOpenSubmissions(hw)}
-                          className="rounded-xl text-xs gap-1 ml-3"
+                          className="rounded-xl text-[11px] sm:text-xs gap-1 shrink-0 h-8 px-2.5 font-semibold"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          Submissions ({hw._count?.submissions || hw.submissions?.length || 0})
+                          <span className="hidden xs:inline">Submissions</span> ({hw._count?.submissions || hw.submissions?.length || 0})
                         </Button>
                       </div>
                     ))
@@ -912,30 +915,30 @@ export function TeacherPortal() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
-                <div className="flex flex-row items-center justify-between p-5 pb-3">
+              <div className="rounded-2xl sm:rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
+                <div className="flex flex-row items-center justify-between p-4 sm:p-5 pb-3">
                   <div>
-                    <h3 className="text-base font-bold text-foreground">Shared Learning Materials</h3>
-                    <p className="text-xs text-muted-foreground">Class notes, slides, and study links</p>
+                    <h3 className="text-sm sm:text-base font-bold text-foreground">Shared Learning Materials</h3>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground">Class notes, slides, and study links</p>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setActiveTab("materials")} className="text-xs text-indigo-600">
+                  <Button variant="ghost" size="sm" onClick={() => setActiveTab("materials")} className="text-xs text-indigo-600 font-semibold p-1.5 h-auto">
                     View All &rarr;
                   </Button>
                 </div>
-                <div className="px-5 pb-5 space-y-3">
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-2.5 sm:space-y-3">
                   {classDetails.materials?.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
+                    <div className="text-center py-6 sm:py-8 text-xs sm:text-sm text-muted-foreground">
                       No materials shared yet. Click "Share Material" to upload notes.
                     </div>
                   ) : (
                     classDetails.materials.slice(0, 3).map((mat) => (
                       <div
                         key={mat.id}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800/80 transition-all shadow-2xs"
+                        className="flex items-center justify-between p-3 rounded-xl sm:rounded-2xl bg-white/80 dark:bg-slate-800/60 backdrop-blur-md border border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-slate-800/80 transition-all shadow-2xs gap-2"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-sm truncate text-foreground">{mat.title}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                          <div className="font-semibold text-xs sm:text-sm truncate text-foreground">{mat.title}</div>
+                          <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                             {mat.description || mat.fileType || "Resource"}
                           </div>
                         </div>
@@ -944,7 +947,7 @@ export function TeacherPortal() {
                             href={mat.fileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline ml-3"
+                            className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-indigo-600 hover:underline shrink-0"
                           >
                             Open <ExternalLink className="w-3 h-3" />
                           </a>
@@ -959,26 +962,50 @@ export function TeacherPortal() {
 
           {/* TAB 2: STUDENTS */}
           <TabsContent value="students" className="space-y-4">
-            <div className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden">
-              <div className="flex flex-row items-center justify-between p-5 pb-4 border-b border-slate-200/60 dark:border-white/10">
+            <div className="rounded-2xl sm:rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20 overflow-hidden">
+              <div className="flex flex-row items-center justify-between p-4 sm:p-5 pb-3 sm:pb-4 border-b border-slate-200/60 dark:border-white/10">
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">Students Roster</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-foreground">Students Roster</h3>
                   <p className="text-xs text-muted-foreground">
-                    Enrolled students in {selectedAssignment.grade?.name} - Section {selectedAssignment.section?.name}
+                    {selectedAssignment.grade?.name} — Section {selectedAssignment.section?.name}
                   </p>
                 </div>
-                <Badge variant="outline" className="rounded-full px-3 py-1 font-semibold text-xs">
+                <Badge variant="outline" className="rounded-full px-2.5 sm:px-3 py-0.5 sm:py-1 font-semibold text-xs shrink-0">
                   {classDetails.students?.length || 0} Students
                 </Badge>
               </div>
 
-              <div className="overflow-x-auto">
-                {classDetails.students?.length === 0 ? (
-                  <div className="p-12 text-center text-muted-foreground text-sm">
-                    No active students enrolled in this section.
+              {classDetails.students?.length === 0 ? (
+                <div className="p-8 sm:p-12 text-center text-muted-foreground text-xs sm:text-sm">
+                  No active students enrolled in this section.
+                </div>
+              ) : (
+                <>
+                  {/* Mobile: Card list */}
+                  <div className="divide-y divide-border/40 sm:hidden">
+                    {classDetails.students.map((student, idx) => (
+                      <div key={student.id} className="flex items-center gap-3 p-4">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                          {student.fullName?.charAt(0)?.toUpperCase() || "S"}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-sm text-foreground truncate">{student.fullName}</div>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                            <span className="font-mono text-[11px] text-muted-foreground">{student.student_id || "—"}</span>
+                            {student.gender && <Badge variant="secondary" className="rounded-md font-medium text-[10px] py-0 px-1.5">{student.gender}</Badge>}
+                          </div>
+                          {student.parent_phone && (
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              {student.parent_name || "Parent"} · {student.parent_phone}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{idx + 1}</span>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <div className="divide-y divide-border/40 overflow-x-auto">
+                  {/* Desktop: Table */}
+                  <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-sm text-left">
                       <thead className="bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         <tr>
@@ -1001,17 +1028,9 @@ export function TeacherPortal() {
                                 <div className="font-semibold text-foreground">{student.fullName}</div>
                               </div>
                             </td>
-                            <td className="px-6 py-4 font-mono text-xs text-muted-foreground">
-                              {student.student_id || "-"}
-                            </td>
+                            <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{student.student_id || "—"}</td>
                             <td className="px-6 py-4 text-xs">
-                              {student.gender ? (
-                                <Badge variant="secondary" className="rounded-md font-medium text-[11px]">
-                                  {student.gender}
-                                </Badge>
-                              ) : (
-                                "-"
-                              )}
+                              {student.gender ? <Badge variant="secondary" className="rounded-md font-medium text-[11px]">{student.gender}</Badge> : "—"}
                             </td>
                             <td className="px-6 py-4 text-xs text-muted-foreground">
                               {student.parent_phone ? (
@@ -1019,31 +1038,29 @@ export function TeacherPortal() {
                                   <div className="text-foreground">{student.parent_name || "Parent"}</div>
                                   <div className="text-[11px]">{student.parent_phone}</div>
                                 </div>
-                              ) : (
-                                "-"
-                              )}
+                              ) : "—"}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </TabsContent>
 
           {/* TAB 3: HOMEWORK & ASSIGNMENTS */}
           <TabsContent value="homework" className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-foreground">Homework & Assignments</h3>
+                <h3 className="text-base sm:text-lg font-bold text-foreground">Homework &amp; Assignments</h3>
                 <p className="text-xs text-muted-foreground">Create assignments, track submissions, and grade work</p>
               </div>
               <Button
                 onClick={() => setIsHomeworkOpen(true)}
                 size="sm"
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5 shadow-md shadow-indigo-600/20"
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white gap-1.5 shadow-md shadow-indigo-600/20 w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 Post Homework
@@ -1066,41 +1083,41 @@ export function TeacherPortal() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {classDetails.homework.map((hw) => {
                   const submissionCount = hw._count?.submissions ?? hw.submissions?.length ?? 0
                   return (
                     <div
                       key={hw.id}
-                      className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 space-y-4 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all"
+                      className="rounded-2xl sm:rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-4 sm:p-5 space-y-3 sm:space-y-4 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <h4 className="font-bold text-base text-foreground leading-snug">{hw.title}</h4>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1 min-w-0">
+                          <h4 className="font-bold text-sm sm:text-base text-foreground leading-snug truncate">{hw.title}</h4>
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-muted-foreground">
                             <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold">
                               <Calendar className="w-3.5 h-3.5" />
                               Due {new Date(hw.dueDate).toLocaleDateString()}
                             </span>
-                                                        <span>Max {hw.maxScore} Pts</span>
+                            <span>• Max {hw.maxScore} Pts</span>
                           </div>
                         </div>
 
                         <Badge
                           variant={hw.status === "PUBLISHED" ? "default" : "secondary"}
-                          className="rounded-full text-[11px] font-semibold"
+                          className="rounded-full text-[10px] sm:text-[11px] font-semibold shrink-0"
                         >
                           {hw.status}
                         </Badge>
                       </div>
 
                       {hw.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed bg-muted/30 p-2.5 rounded-xl border border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-slate-800/40">
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed p-2.5 rounded-xl border border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-slate-800/40">
                           {hw.description}
                         </p>
                       )}
 
-                      <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between">
+                      <div className="pt-2.5 border-t border-slate-200/60 dark:border-white/10 flex flex-col xs:flex-row xs:items-center justify-between gap-2">
                         <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-indigo-500" />
                           <span>{submissionCount} Submissions</span>
@@ -1110,10 +1127,10 @@ export function TeacherPortal() {
                           size="sm"
                           variant="outline"
                           onClick={() => handleOpenSubmissions(hw)}
-                          className="rounded-xl text-xs gap-1.5 font-semibold hover:bg-indigo-500 hover:text-white transition-colors"
+                          className="rounded-xl text-xs gap-1.5 font-semibold hover:bg-indigo-500 hover:text-white transition-colors w-full xs:w-auto active:scale-95"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          View & Grade Submissions
+                          Submissions
                         </Button>
                       </div>
                     </div>
@@ -1144,15 +1161,15 @@ export function TeacherPortal() {
 
           {/* TAB 5: GRADEBOOK */}
           <TabsContent value="gradebook" className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-foreground">Gradebook & Assessments</h3>
+                <h3 className="text-base sm:text-lg font-bold text-foreground">Gradebook &amp; Assessments</h3>
                 <p className="text-xs text-muted-foreground">Record quiz, test, and exam scores for students</p>
               </div>
               <Button
                 onClick={() => setIsAssessmentOpen(true)}
                 size="sm"
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5 shadow-md shadow-indigo-600/20"
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white gap-1.5 shadow-md shadow-indigo-600/20 w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 New Assessment
@@ -1160,9 +1177,9 @@ export function TeacherPortal() {
             </div>
 
             {classDetails.assessments?.length === 0 ? (
-              <div className="p-12 text-center rounded-3xl border border-dashed border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
-                <Award className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                <h4 className="font-semibold text-foreground">No assessments recorded yet</h4>
+              <div className="p-8 sm:p-12 text-center rounded-2xl sm:rounded-3xl border border-dashed border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl shadow-md shadow-black/5 dark:shadow-black/20">
+                <Award className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground mx-auto mb-3" />
+                <h4 className="font-semibold text-sm sm:text-base text-foreground">No assessments recorded yet</h4>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
                   Create an assessment to record test marks, midterm scores, or class projects.
                 </p>
@@ -1175,43 +1192,43 @@ export function TeacherPortal() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {classDetails.assessments.map((as) => {
                   const marksCount = (as as any)._count?.marks ?? (as as any).marks?.length ?? 0
                   return (
                     <div
                       key={as.id}
-                      className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-5 space-y-4 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all"
+                      className="rounded-2xl sm:rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl p-4 sm:p-5 space-y-3 sm:space-y-4 shadow-md shadow-black/5 dark:shadow-black/20 hover:shadow-lg transition-all"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <h4 className="font-bold text-base text-foreground">{as.title}</h4>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="secondary" className="rounded-md font-semibold text-[11px]">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1 min-w-0">
+                          <h4 className="font-bold text-sm sm:text-base text-foreground truncate">{as.title}</h4>
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-muted-foreground">
+                            <Badge variant="secondary" className="rounded-md font-semibold text-[10px] sm:text-[11px] px-1.5 py-0">
                               {as.type}
                             </Badge>
-                                                        <span>Max: {as.maxScore} Pts</span>
-                                                        <span>Weightage: {as.weightage}%</span>
+                            <span>• Max: {as.maxScore} Pts</span>
+                            <span>• Wt: {as.weightage}%</span>
                           </div>
                         </div>
 
                         {as.date && (
-                          <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/50 dark:border-white/10">
+                          <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/50 dark:border-white/10 shrink-0">
                             {new Date(as.date).toLocaleDateString()}
                           </span>
                         )}
                       </div>
 
-                      <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between">
+                      <div className="pt-2.5 border-t border-slate-200/60 dark:border-white/10 flex flex-col xs:flex-row xs:items-center justify-between gap-2">
                         <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>{marksCount} Students Graded</span>
+                          <span>{marksCount} Graded</span>
                         </div>
 
                         <Button
                           size="sm"
                           onClick={() => handleOpenMarksSheet(as)}
-                          className="rounded-xl text-xs gap-1.5 font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
+                          className="rounded-xl text-xs gap-1.5 font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm w-full xs:w-auto active:scale-95"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                           Enter / Edit Marks
@@ -1228,7 +1245,7 @@ export function TeacherPortal() {
 
       {/* -”€-”€-”€ MODAL 1: Create Homework -”€-”€-”€ */}
       <Dialog open={isHomeworkOpen} onOpenChange={setIsHomeworkOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-[500px] rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Post New Homework</DialogTitle>
             <DialogDescription className="text-xs">
@@ -1321,7 +1338,7 @@ export function TeacherPortal() {
 
       {/* -”€-”€-”€ MODAL 2: View Submissions & Grade -”€-”€-”€ */}
       <Dialog open={isSubmissionsModalOpen} onOpenChange={setIsSubmissionsModalOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-[700px] max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Eye className="w-5 h-5 text-indigo-600" />
@@ -1442,7 +1459,7 @@ export function TeacherPortal() {
 
       {/* -”€-”€-”€ MODAL 3: Share Learning Material -”€-”€-”€ */}
       <Dialog open={isMaterialOpen} onOpenChange={setIsMaterialOpen}>
-        <DialogContent className="sm:max-w-[480px] rounded-3xl p-6">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-[480px] rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Share Learning Material</DialogTitle>
             <DialogDescription className="text-xs">
@@ -1601,7 +1618,7 @@ export function TeacherPortal() {
 
       {/* -”€-”€-”€ MODAL 4: Create Assessment -”€-”€-”€ */}
       <Dialog open={isAssessmentOpen} onOpenChange={setIsAssessmentOpen}>
-        <DialogContent className="sm:max-w-[480px] rounded-3xl p-6">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-[480px] rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">New Assessment</DialogTitle>
             <DialogDescription className="text-xs">
@@ -1700,7 +1717,7 @@ export function TeacherPortal() {
 
       {/* -”€-”€-”€ MODAL 5: Marks Sheet (Enter/Edit Marks) -”€-”€-”€ */}
       <Dialog open={isMarksSheetOpen} onOpenChange={setIsMarksSheetOpen}>
-        <DialogContent className="sm:max-w-[760px] max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+        <DialogContent className="w-[95vw] sm:w-full sm:max-w-[760px] max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <GraduationCap className="w-5 h-5 text-indigo-600" />
@@ -1721,26 +1738,26 @@ export function TeacherPortal() {
               No students found in this class section.
             </div>
           ) : (
-            <div className="my-2 border rounded-2xl overflow-hidden divide-y divide-border/40">
-              <table className="w-full text-xs text-left">
+            <div className="my-2 border rounded-2xl overflow-x-auto divide-y divide-border/40">
+              <table className="w-full min-w-[480px] text-xs text-left">
                 <thead className="bg-muted/50 font-semibold text-muted-foreground uppercase tracking-wider">
                   <tr>
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Student</th>
-                    <th className="px-4 py-3 w-28">Score</th>
-                    <th className="px-4 py-3 w-24 text-center">Absent?</th>
-                    <th className="px-4 py-3">Remarks</th>
+                    <th className="px-3 sm:px-4 py-3">#</th>
+                    <th className="px-3 sm:px-4 py-3">Student</th>
+                    <th className="px-3 sm:px-4 py-3 w-28">Score</th>
+                    <th className="px-3 sm:px-4 py-3 w-24 text-center">Absent?</th>
+                    <th className="px-3 sm:px-4 py-3">Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40 font-medium">
                   {marksSheetRows.map((row, idx) => (
                     <tr key={row.student.id} className="hover:bg-muted/20">
-                      <td className="px-4 py-3 text-muted-foreground">{idx + 1}</td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-foreground">{row.student.fullName}</div>
+                      <td className="px-3 sm:px-4 py-3 text-muted-foreground">{idx + 1}</td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <div className="font-semibold text-foreground truncate max-w-[140px] sm:max-w-none">{row.student.fullName}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">{row.student.student_id}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-3">
                         <Input
                           type="number"
                           min="0"
@@ -1755,7 +1772,7 @@ export function TeacherPortal() {
                           className="h-8 text-xs rounded-lg"
                         />
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 sm:px-4 py-3 text-center">
                         <input
                           type="checkbox"
                           checked={row.isAbsent}
@@ -1765,10 +1782,10 @@ export function TeacherPortal() {
                               score: e.target.checked ? null : row.score,
                             })
                           }
-                          className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                          className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
                         />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-3">
                         <Input
                           placeholder="Remarks..."
                           value={row.remarks || ""}
@@ -1785,19 +1802,19 @@ export function TeacherPortal() {
             </div>
           )}
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="pt-2 flex flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsMarksSheetOpen(false)}
-              className="rounded-xl"
+              className="rounded-xl w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSaveBulkMarks}
               disabled={isSavingBulkMarks || marksSheetRows.length === 0}
-              className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
+              className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5 w-full sm:w-auto"
             >
               {isSavingBulkMarks ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
               Save All Marks

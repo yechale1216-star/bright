@@ -191,7 +191,7 @@ export function SubjectTeacherDashboard() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {assignments.map((assignment) => {
               const gradeName = assignment.grade?.name || 'Grade'
               const sectionName = assignment.section?.name || 'Section'
@@ -202,7 +202,7 @@ export function SubjectTeacherDashboard() {
               return (
                 <div
                   key={assignment.id}
-                  className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20 flex flex-col justify-between overflow-hidden w-full max-w-xl mx-auto sm:max-w-none"
+                  className="rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl hover:border-primary/40 hover:bg-white/80 dark:hover:bg-slate-900/60 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20 flex flex-col justify-between overflow-hidden"
                 >
                   <div className="p-5 pb-3">
                     <div className="flex items-start justify-between gap-3">
