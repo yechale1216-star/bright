@@ -261,7 +261,7 @@ function StudentActivateForm() {
               </Button>
 
               <div className="text-center pt-2">
-                <Link href="/student/login" className="text-xs text-purple-700 font-semibold hover:text-purple-900 transition-colors">
+                <Link href="/login" className="text-xs text-purple-700 font-semibold hover:text-purple-900 transition-colors">
                   ← Back to Sign In
                 </Link>
               </div>
@@ -298,7 +298,7 @@ function StudentActivateForm() {
         <div className="relative z-10 mt-2 text-center">
           <p className="text-xs text-purple-200/80">
             Already activated your account?{" "}
-            <Link href="/student/login" className="text-white font-semibold hover:underline">Sign in</Link>
+            <Link href="/login" className="text-white font-semibold hover:underline">Sign in</Link>
           </p>
         </div>
       )}

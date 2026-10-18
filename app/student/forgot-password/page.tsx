@@ -274,7 +274,7 @@ export default function StudentForgotPasswordPage() {
 
               <div className="text-center pt-2">
                 <Link
-                  href="/student/login"
+                  href="/login"
                   className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors inline-flex items-center gap-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
@@ -474,7 +474,7 @@ export default function StudentForgotPasswordPage() {
 
               <div className="pt-2">
                 <Button
-                  onClick={() => router.push("/student/login")}
+                  onClick={() => router.push("/login")}
                   className="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs rounded-xl shadow-lg shadow-purple-700/25"
                 >
                   Go to Login

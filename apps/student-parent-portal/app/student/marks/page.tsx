@@ -183,7 +183,7 @@ export default function StudentMarksPage() {
           </div>
           {error.includes("permission") && (
             <a
-              href="/student/login"
+              href="/login"
               className="font-bold underline shrink-0 hover:opacity-80"
             >
               Sign In as Student
