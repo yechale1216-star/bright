@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Phone, Lock, Eye, EyeOff, ArrowRight, User, Loader2, Users } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, ArrowRight, User, Loader2, GraduationCap, Users } from "lucide-react";
 import { authService } from "@/lib/auth/auth";
 import { authStorage } from "@/lib/auth/auth-storage";
 import { useAuth } from "@/lib/context/auth-context";
