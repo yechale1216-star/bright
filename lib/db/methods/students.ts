@@ -108,3 +108,16 @@ export async function deleteStudent(headers: any, id: string): Promise<void> {
   )
   notifyStudentDataChanged()
 }
+
+export async function generateActivationCode(headers: any, id: string): Promise<any> {
+  const result = await apiFetch<{ success: boolean; data: any }>(
+    `${API_URL}/api/students/${id}/generate-activation-code`,
+    {
+      method: "POST",
+      headers,
+    }
+  )
+  notifyStudentDataChanged()
+  return result.data
+}
+

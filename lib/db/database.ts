@@ -52,6 +52,11 @@ class Database extends BaseDatabase {
     return students.deleteStudent(this.getApiHeaders(), id)
   }
 
+  async generateStudentActivationCode(id: string): Promise<any> {
+    return students.generateActivationCode(this.getApiHeaders(), id)
+  }
+
+
   async checkParentsBatch(phones: string[]): Promise<boolean[]> {
     const result = await apiFetch<{ success: boolean; data: boolean[] }>(
       `${API_URL}/api/parent/check-batch`,

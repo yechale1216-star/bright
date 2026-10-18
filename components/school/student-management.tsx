@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, CheckCircle2, Clock, ShieldCheck, Eye, X, Calendar, Mail, Phone, GraduationCap, UploadCloud, RefreshCw, ChevronLeft, ChevronRight, XCircle } from "lucide-react"
+import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, CheckCircle2, Clock, ShieldCheck, Eye, EyeOff, X, Calendar, Mail, Phone, GraduationCap, UploadCloud, RefreshCw, ChevronLeft, ChevronRight, XCircle, KeyRound, Printer, Copy, Check } from "lucide-react"
 import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { db, type Student } from "@/lib/db/database"
 import { StudentImportPreview } from "./student-import-preview"
@@ -75,6 +75,120 @@ export function StudentManagement() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [registrationConfirmation, setRegistrationConfirmation] = useState<any>(null)
+  const [showConfirmationPassword, setShowConfirmationPassword] = useState(false)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [isRegeneratingCode, setIsRegeneratingCode] = useState(false)
+
+  const copyToClipboard = (text: string, key: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedKey(key)
+        setTimeout(() => setCopiedKey(null), 2000)
+      })
+    }
+  }
+
+  const handleRegenerateCode = async (studentId: string) => {
+    setIsRegeneratingCode(true)
+    try {
+      const slip = await db.generateStudentActivationCode(studentId)
+      notifications.success("Activation Code Regenerated", `New activation code: ${slip.activationCode}`)
+      if (selectedStudent && selectedStudent.id === studentId) {
+        setSelectedStudent({
+          ...selectedStudent,
+          activation_code: slip.activationCode,
+          activation_code_expires: slip.expiresAt,
+          accountStatus: 'PENDING_ACTIVATION',
+        })
+      }
+      await loadStudents(false, true)
+    } catch (err: any) {
+      notifications.error("Error", err.message || "Failed to regenerate activation code")
+    } finally {
+      setIsRegeneratingCode(false)
+    }
+  }
+
+  const printActivationSlip = (slip: { student_id: string; fullName?: string; name?: string; grade?: string; section?: string; activationCode: string; initialPassword?: string; expiresAt?: string | Date }) => {
+    const win = window.open("", "_blank")
+    if (!win) return
+    const sName = slip.fullName || slip.name || "Student"
+    const expiryStr = slip.expiresAt
+      ? new Date(slip.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : "30 days"
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Activation Slip - ${slip.student_id}</title>
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+            body { background: #f8fafc; padding: 32px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+            .slip { background: white; border: 2px dashed #9333ea; border-radius: 20px; padding: 28px; max-width: 460px; width: 100%; box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.1); }
+            .slip-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 1.5px solid #f3e8ff; padding-bottom: 16px; }
+            .slip-brand { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #7e22ce; }
+            .slip-name { font-size: 18px; font-weight: 900; color: #0f172a; margin: 6px 0 2px; }
+            .slip-meta { font-size: 12px; color: #64748b; font-weight: 600; }
+            .slip-expires { font-size: 10px; color: #64748b; text-align: right; background: #fdf4ff; padding: 6px 10px; border-radius: 8px; border: 1px solid #fae8ff; }
+            .code-box { background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border: 2px solid #d8b4fe; border-radius: 16px; padding: 18px; text-align: center; margin: 18px 0; }
+            .code-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: #7e22ce; font-weight: 800; margin-bottom: 6px; }
+            .code { font-size: 30px; font-weight: 900; letter-spacing: 0.3em; color: #581c87; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px; }
+            .info-row { display: flex; justify-content: space-between; align-items: center; }
+            .info-label { color: #64748b; font-weight: 500; }
+            .info-value { font-weight: 800; color: #0f172a; font-family: ui-monospace, monospace; background: white; padding: 2px 8px; border-radius: 6px; border: 1px solid #cbd5e1; }
+            .steps-box { background: #fdf4ff; border: 1px solid #f0abfc; border-radius: 12px; padding: 14px; font-size: 11px; color: #475569; line-height: 1.6; }
+            .steps-title { font-weight: 800; color: #7e22ce; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+            .steps-box ol { padding-left: 18px; margin: 0; }
+            .steps-box li { margin-bottom: 2px; }
+            .steps-box strong { color: #581c87; }
+            @media print {
+              body { background: white; padding: 0; }
+              .slip { box-shadow: none; max-width: 100%; border-width: 2px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="slip">
+            <div class="slip-header">
+              <div>
+                <div class="slip-brand">Bright Path · Student Portal</div>
+                <div class="slip-name">${sName}</div>
+                <div class="slip-meta">${slip.student_id} · Grade ${slip.grade || "—"} - Section ${slip.section || "—"}</div>
+              </div>
+              <div class="slip-expires">
+                <div style="font-weight: 700; color: #7e22ce;">Expires</div>
+                <div>${expiryStr}</div>
+              </div>
+            </div>
+            <div class="code-box">
+              <div class="code-label">One-Time Activation Code</div>
+              <div class="code">${slip.activationCode}</div>
+            </div>
+            ${slip.initialPassword ? `
+            <div class="info-box">
+              <div class="info-row">
+                <span class="info-label">Initial Password:</span>
+                <span class="info-value">${slip.initialPassword}</span>
+              </div>
+            </div>
+            ` : ''}
+            <div class="steps-box">
+              <div class="steps-title">Activation Instructions:</div>
+              <ol>
+                <li>Visit <strong>brightpath.edu.et/student/activate</strong></li>
+                <li>Enter Student ID: <strong>${slip.student_id}</strong> and the Activation Code above</li>
+                <li>Set your personal permanent password to complete portal activation</li>
+              </ol>
+            </div>
+          </div>
+        </body>
+      </html>
+    `)
+    win.document.close()
+    setTimeout(() => { win.print(); win.close(); }, 350)
+  }
 
   // Form state
   const [academicGrades, setAcademicGrades] = useState<any[]>([]);
@@ -516,16 +630,13 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
         setIsAddModalOpen(false)
         resetForm()
       } else {
-        await db.addStudent(formData)
-        notifications.success("Student Enrolled Successfully", "New student has been added to the system.")
+        const result = await db.addStudent(formData)
+        notifications.success("Student Enrolled Successfully", "Student account created with activation credentials.")
 
         await loadStudents(false, true)
-        setShowSuccess(true)
-        setTimeout(() => {
-          setIsAddModalOpen(false)
-          setShowSuccess(false)
-          resetForm()
-        }, 2500)
+        setIsAddModalOpen(false)
+        resetForm()
+        setRegistrationConfirmation(result)
       }
     } catch (error: any) {
       notifications.error("Error", error.message || "Failed to save student")
@@ -1644,28 +1755,42 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                         )}
                       </TableCell>
                       <TableCell>
-                        {(() => {
-                          const status = (student.status || 'ACTIVE').toUpperCase()
-                          if (status === 'GRADUATED') {
+                        <div className="flex flex-col gap-1 items-start">
+                          {(() => {
+                            const status = (student.status || 'ACTIVE').toUpperCase()
+                            if (status === 'GRADUATED') {
+                              return (
+                                <Badge variant="outline" className="text-xs font-bold text-teal-700 dark:text-teal-400 bg-teal-50/60 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/60">
+                                  Graduated
+                                </Badge>
+                              )
+                            }
+                            if (status === 'INACTIVE' || status === 'SUSPENDED') {
+                              return (
+                                <Badge variant="outline" className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60">
+                                  {status}
+                                </Badge>
+                              )
+                            }
                             return (
-                              <Badge variant="outline" className="text-xs font-bold text-teal-700 dark:text-teal-400 bg-teal-50/60 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/60">
-                                Graduated
+                              <Badge variant="outline" className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
+                                Active
                               </Badge>
                             )
-                          }
-                          if (status === 'INACTIVE' || status === 'SUSPENDED') {
-                            return (
-                              <Badge variant="outline" className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60">
-                                {status}
-                              </Badge>
-                            )
-                          }
-                          return (
-                            <Badge variant="outline" className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
-                              Active
+                          })()}
+
+                          {student.accountStatus === 'PENDING_ACTIVATION' ? (
+                            <Badge variant="outline" className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50/60 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/60">
+                              <KeyRound className="w-2.5 h-2.5 mr-1 text-purple-500" />
+                              Pending Activation
                             </Badge>
-                          )
-                        })()}
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800">
+                              <CheckCircle2 className="w-2.5 h-2.5 mr-1 text-emerald-500" />
+                              Portal Active
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
@@ -1751,9 +1876,20 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
                       {/* Status */}
                       <td className="px-2 py-2.5">
-                        <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
-                          {student.status || 'ACTIVE'}
-                        </Badge>
+                        <div className="flex flex-col gap-1 items-start">
+                          <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
+                            {student.status || 'ACTIVE'}
+                          </Badge>
+                          {student.accountStatus === 'PENDING_ACTIVATION' ? (
+                            <span className="text-[8px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-0.5">
+                              <KeyRound className="w-2.5 h-2.5" /> Pending
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Active
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}
@@ -1958,6 +2094,119 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                 </div>
               </div>
 
+              {/* Student Portal Account & Activation */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Student Portal Account</p>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] font-bold",
+                      selectedStudent.accountStatus === 'ACTIVE'
+                        ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300"
+                        : "text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-300"
+                    )}
+                  >
+                    {selectedStudent.accountStatus === 'ACTIVE' ? (
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        Activated
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-purple-500" />
+                        Pending Activation
+                      </span>
+                    )}
+                  </Badge>
+                </div>
+
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-900 p-4 bg-slate-50/60 dark:bg-slate-900/40 space-y-3">
+                  {selectedStudent.accountStatus === 'ACTIVE' ? (
+                    <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-slate-800 dark:text-slate-200">Account Activated & Verified</p>
+                        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
+                          The student has established their permanent login credentials and has active access to the student portal.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedStudent.activation_code ? (
+                        <div className="space-y-2">
+                          <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-purple-200 dark:border-purple-800/60 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 block">Activation Code</span>
+                              <span className="text-xl font-black font-mono tracking-widest text-slate-900 dark:text-slate-100">
+                                {selectedStudent.activation_code}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyToClipboard(selectedStudent.activation_code!, 'modal-code')}
+                              className="h-8 gap-1.5 text-xs border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-950"
+                            >
+                              {copiedKey === 'modal-code' ? (
+                                <><Check className="w-3.5 h-3.5 text-emerald-600" /> Copied</>
+                              ) : (
+                                <><Copy className="w-3.5 h-3.5" /> Copy</>
+                              )}
+                            </Button>
+                          </div>
+
+                          {selectedStudent.activation_code_expires && (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center">
+                              Expires: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(selectedStudent.activation_code_expires).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 text-center py-1">
+                          No active code currently assigned.
+                        </p>
+                      )}
+
+                      <div className="flex gap-2 pt-1">
+                        {selectedStudent.activation_code && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => printActivationSlip({
+                              student_id: selectedStudent.student_id || '',
+                              fullName: selectedStudent.name,
+                              grade: selectedStudent.grade,
+                              section: selectedStudent.section,
+                              activationCode: selectedStudent.activation_code!,
+                              expiresAt: selectedStudent.activation_code_expires || undefined,
+                            })}
+                            className="flex-1 h-9 rounded-xl border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold gap-1.5 hover:bg-purple-50 dark:hover:bg-purple-950"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            Print Slip
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isRegeneratingCode}
+                          onClick={() => handleRegenerateCode(selectedStudent.id)}
+                          className="flex-1 h-9 rounded-xl border-slate-200 dark:border-slate-800 text-xs font-bold gap-1.5"
+                        >
+                          {isRegeneratingCode ? (
+                            <><Spinner size="sm" /> Generating...</>
+                          ) : (
+                            <><RefreshCw className="w-3.5 h-3.5" /> {selectedStudent.activation_code ? 'Regenerate Code' : 'Generate Code'}</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Discipline Record Summary */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
@@ -2036,6 +2285,142 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
               Confirm Delete
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Registration Confirmation Dialog */}
+      <Dialog open={!!registrationConfirmation} onOpenChange={(open) => !open && setRegistrationConfirmation(null)}>
+        <DialogContent className="sm:max-w-[480px] rounded-3xl p-6 overflow-hidden">
+          <DialogHeader className="text-center sm:text-center pb-2">
+            <div className="mx-auto w-14 h-14 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-purple-500/25">
+              <CheckCircle2 className="w-8 h-8 text-white" />
+            </div>
+            <DialogTitle className="text-xl font-black text-slate-900 dark:text-slate-100">
+              Student Registered Successfully!
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Portal account has been created. Provide the activation details below to the student.
+            </DialogDescription>
+          </DialogHeader>
+
+          {registrationConfirmation && (
+            <div className="space-y-4 pt-2">
+              {/* Student Summary Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Student</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {registrationConfirmation.name || registrationConfirmation.fullName}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Grade {registrationConfirmation.grade} - Section {registrationConfirmation.section}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Student ID</p>
+                  <code className="text-xs font-mono font-bold text-purple-700 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950/60 px-2 py-0.5 rounded-md">
+                    {registrationConfirmation.student_id}
+                  </code>
+                </div>
+              </div>
+
+              {/* Activation Code Box */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50 via-purple-50/50 to-indigo-50/50 dark:from-purple-950/40 dark:via-purple-950/20 dark:to-indigo-950/30 border-2 border-purple-200 dark:border-purple-800/60 text-center space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                    One-Time Activation Code
+                  </span>
+                  <Badge variant="outline" className="text-[9px] text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 border-purple-200">
+                    Valid for 30 Days
+                  </Badge>
+                </div>
+
+                <div className="py-2 px-3 bg-white dark:bg-slate-950 rounded-xl border border-purple-100 dark:border-purple-900 flex items-center justify-center gap-3">
+                  <span className="text-2xl font-black font-mono tracking-[0.25em] text-purple-900 dark:text-purple-100 pl-2">
+                    {registrationConfirmation.activationCode || registrationConfirmation.activation_code || '—'}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => copyToClipboard(registrationConfirmation.activationCode || registrationConfirmation.activation_code || '', 'confirm-code')}
+                    className="h-8 px-2 text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
+                  >
+                    {copiedKey === 'confirm-code' ? (
+                      <Check className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Initial Password Box */}
+              {registrationConfirmation.initialPassword && (
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Initial Password
+                    </span>
+                    <span className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100">
+                      {showConfirmationPassword ? registrationConfirmation.initialPassword : "••••••••••••"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowConfirmationPassword(!showConfirmationPassword)}
+                      className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                    >
+                      {showConfirmationPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(registrationConfirmation.initialPassword, 'confirm-pwd')}
+                      className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                    >
+                      {copiedKey === 'confirm-pwd' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions */}
+              <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                <p className="font-bold text-purple-900 dark:text-purple-200">Instructions for the student:</p>
+                <p className="leading-relaxed text-[11px]">
+                  Instruct the student to visit <strong className="text-purple-700 dark:text-purple-300">brightpath.edu.et/student/activate</strong>, enter their Student ID (<code className="font-mono text-purple-800 dark:text-purple-200">{registrationConfirmation.student_id}</code>) and activation code to activate their account and choose a personal password.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2.5 pt-2">
+                <Button
+                  onClick={() => printActivationSlip({
+                    student_id: registrationConfirmation.student_id,
+                    fullName: registrationConfirmation.name || registrationConfirmation.fullName,
+                    grade: registrationConfirmation.grade,
+                    section: registrationConfirmation.section,
+                    activationCode: registrationConfirmation.activationCode || registrationConfirmation.activation_code,
+                    initialPassword: registrationConfirmation.initialPassword,
+                    expiresAt: registrationConfirmation.activation_code_expires || registrationConfirmation.activationSlip?.expiresAt,
+                  })}
+                  className="flex-1 h-11 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs gap-2 shadow-lg shadow-purple-700/20"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print Activation Slip
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setRegistrationConfirmation(null)}
+                  className="h-11 px-5 rounded-xl border-slate-200 dark:border-slate-800 font-bold text-xs"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
       {/* Mobile Floating Action Button */}

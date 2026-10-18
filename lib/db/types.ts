@@ -23,6 +23,11 @@ export interface Student {
   relationshipType?: string
   parent_address?: string
   parent_password?: string
+  accountStatus?: string
+  activation_code?: string | null
+  activation_code_expires?: string | Date | null
+  initialPassword?: string | null
+  activationSlip?: any
 }
 
 export interface AttendanceRecord {

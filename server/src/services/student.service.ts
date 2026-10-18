@@ -1,6 +1,8 @@
 import prisma from '../config/db';
 import * as parentService from './parent.service';
 import { academicYearService } from './academic-year.service';
+import { generateCompliantPassword } from '../utils/password-validator';
+import bcrypt from 'bcryptjs';
 
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student: any) => {
@@ -245,10 +247,15 @@ export const getNextStudentId = async (_schoolId?: string) => {
 export const generateActivationCode = async (studentId: string) => {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    include: { grade: true, section: true },
+    include: { grade: true, section: true, user: true },
   }) as any;
 
   if (!student) throw new Error('Student not found.');
+
+  // Prevent regenerating code for already activated accounts
+  if (student.accountStatus === 'ACTIVE') {
+    throw new Error('This student account is already active. Activation codes cannot be regenerated for active accounts.');
+  }
 
   // Generate a random 8-char uppercase alphanumeric code
   const { randomBytes } = await import('crypto');
@@ -258,12 +265,35 @@ export const generateActivationCode = async (studentId: string) => {
 
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
+  // Ensure student portal User account exists
+  let userId = student.user_id;
+  if (!userId) {
+    const portalEmail = `student-${student.student_id.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
+    const initialPassword = generateCompliantPassword(10);
+    const hashedPassword = await bcrypt.hash(initialPassword, 10);
+    let user = await prisma.user.findUnique({ where: { email: portalEmail } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: portalEmail,
+          password_hash: hashedPassword,
+          full_name: student.fullName,
+          role: 'student',
+          is_active: true,
+          is_verified: false,
+        },
+      });
+    }
+    userId = user.id;
+  }
+
   await (prisma.student as any).update({
     where: { id: studentId },
     data: {
       activation_code: code,
       activation_code_expires: expires,
       accountStatus: 'PENDING_ACTIVATION',
+      user_id: userId,
     },
   });
 
@@ -383,24 +413,80 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     throw new Error('Section is mandatory for student registration.');
   }
 
-  const newStudent = await prisma.student.create({
-    data: {
-      fullName: data.name,
-      student_id: studentId,
-      parent_email: data.parent_email || "",
-      parent_phone: data.parent_phone || "",
-      parent_name: data.parent_name || "",
-      gender: data.gender,
-      date_of_birth: data.date_of_birth,
-      gradeId: grade.id,
-      sectionId: section.id,
-      streamId: streamId,
-    },
-    include: {
-      grade: true,
-      section: true,
-      stream: true
+  // Prevent duplicate student ID registrations
+  const existingStudent = await prisma.student.findUnique({
+    where: { student_id: studentId },
+  });
+  if (existingStudent) {
+    throw new Error(`A student with Student ID "${studentId}" already exists.`);
+  }
+
+  // Automatically generate compliant initial password (min 8 chars, uppercase, lowercase, numbers)
+  const initialPassword = generateCompliantPassword(10);
+  const hashedPassword = await bcrypt.hash(initialPassword, 10);
+
+  // Generate unique 8-char activation code
+  const { randomBytes } = await import('crypto');
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(8);
+  const activationCode = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+  const activationExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  const portalEmail = `student-${studentId.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
+
+  // Create portal user and student atomically
+  const { newStudent } = await prisma.$transaction(async (tx) => {
+    let user = await tx.user.findUnique({ where: { email: portalEmail } });
+    if (!user) {
+      user = await tx.user.create({
+        data: {
+          email: portalEmail,
+          password_hash: hashedPassword,
+          full_name: data.name,
+          role: 'student',
+          is_active: true,
+          is_verified: false,
+        },
+      });
+    } else {
+      user = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          password_hash: hashedPassword,
+          full_name: data.name,
+          role: 'student',
+          is_active: true,
+          is_verified: false,
+        },
+      });
     }
+
+    const created = await tx.student.create({
+      data: {
+        fullName: data.name,
+        student_id: studentId,
+        parent_email: data.parent_email || "",
+        parent_phone: data.parent_phone || "",
+        parent_name: data.parent_name || "",
+        gender: data.gender,
+        date_of_birth: data.date_of_birth,
+        address: data.address || null,
+        gradeId: grade.id,
+        sectionId: section.id,
+        streamId: streamId,
+        accountStatus: 'PENDING_ACTIVATION',
+        activation_code: activationCode,
+        activation_code_expires: activationExpires,
+        user_id: user.id,
+      },
+      include: {
+        grade: true,
+        section: true,
+        stream: true,
+      },
+    });
+
+    return { newStudent: created, user };
   });
 
   try {
@@ -483,17 +569,24 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     console.error('[StudentService] Failed to send admin notification for new student:', notifErr);
   }
 
-  let activationSlip: any = null;
-  try {
-    activationSlip = await generateActivationCode(newStudent.id);
-  } catch (actErr) {
-    console.error('[StudentService] Failed to auto-generate activation code for new student:', actErr);
-  }
+  const activationSlip = {
+    student_id: newStudent.student_id,
+    fullName: newStudent.fullName,
+    grade: newStudent.grade?.name || '',
+    section: newStudent.section?.name || '',
+    activationCode,
+    initialPassword,
+    expiresAt: activationExpires,
+  };
 
   return {
     ...mapStudentToFlat(newStudent),
     relationshipType: data.relationshipType || linkRecord?.relationshipType || 'Guardian',
-    activationCode: activationSlip?.activationCode || null,
+    accountStatus: 'PENDING_ACTIVATION',
+    initialPassword,
+    activationCode,
+    activation_code: activationCode,
+    activation_code_expires: activationExpires,
     activationSlip,
   };
 };
@@ -616,6 +709,41 @@ export const bulkUpsertStudents = async (students: any[], _schoolId?: string) =>
         results.updated++;
       } else {
         results.created++;
+        try {
+          const tempPassword = generateCompliantPassword(10);
+          const hashedTempPassword = await bcrypt.hash(tempPassword, 10);
+          const bulkPortalEmail = `student-${studentId.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
+          const { randomBytes } = await import('crypto');
+          const bChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          const bBytes = randomBytes(8);
+          const bCode = Array.from(bBytes).map((b) => bChars[b % bChars.length]).join('');
+          const bExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+          let bulkUser = await prisma.user.findUnique({ where: { email: bulkPortalEmail } });
+          if (!bulkUser) {
+            bulkUser = await prisma.user.create({
+              data: {
+                email: bulkPortalEmail,
+                password_hash: hashedTempPassword,
+                full_name: data.name,
+                role: 'student',
+                is_active: true,
+                is_verified: false,
+              },
+            });
+          }
+          await (prisma.student as any).update({
+            where: { id: student.id },
+            data: {
+              accountStatus: 'PENDING_ACTIVATION',
+              activation_code: bCode,
+              activation_code_expires: bExpires,
+              user_id: bulkUser.id,
+            },
+          });
+        } catch (actErr) {
+          console.error(`[StudentService] Failed to auto-generate activation for bulk student ${student.id}:`, actErr);
+        }
       }
 
       try {

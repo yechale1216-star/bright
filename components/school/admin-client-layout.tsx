@@ -131,16 +131,7 @@ export default function SchoolAdminClientLayout({
       title: '',
       items: [
         { href: '/school/admin',                 icon: <LayoutDashboard className="w-5 h-5" />,  label: 'Dashboard' },
-        {
-          href: '/school/admin/students',
-          icon: <Users className="w-5 h-5" />,
-          label: 'Students',
-          roles: ['admin', 'school_admin', 'super_admin', 'registrar'],
-          children: [
-            { href: '/school/admin/students', label: 'All Students' },
-            { href: '/school/admin/students/activation', label: 'Account Activation' },
-          ],
-        },
+        { href: '/school/admin/students',                 icon: <Users className="w-5 h-5" />,           label: 'Students',          roles: ['admin', 'school_admin', 'super_admin', 'registrar'] },
         { href: '/school/admin/teachers',         icon: <UserCheck className="w-5 h-5" />,       label: 'Teachers & Staff',  roles: ['admin', 'school_admin', 'super_admin', 'academic_head', 'staff_attendance_officer', 'hr_officer'] },
         { href: '/school/admin/academic-structure', icon: <Layers className="w-5 h-5" />,        label: 'Academics',         roles: ['admin', 'school_admin', 'super_admin', 'academic_head', 'registrar'] },
         { href: '/school/admin/timetables',         icon: <CalendarDays className="w-5 h-5" />,   label: 'Timetables',        roles: ['admin', 'school_admin', 'super_admin', 'academic_head'] },

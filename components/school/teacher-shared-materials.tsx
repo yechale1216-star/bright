@@ -169,6 +169,237 @@ export interface TeacherSharedMaterialsProps {
   }>
 }
 
+interface TeacherMaterialGridCardProps {
+  item: {
+    material: LearningMaterial
+    cleanDescription: string
+    meta: MaterialMetadata
+    category: FilterCategory
+  }
+  viewCount: number
+  onPreview: () => void
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function TeacherMaterialGridCard({
+  item,
+  viewCount,
+  onPreview,
+  onEdit,
+  onDelete,
+}: TeacherMaterialGridCardProps) {
+  const { material: m, cleanDescription, meta, category } = item
+  const isVideo = category === "VIDEOS"
+  const isDoc = category === "DOCUMENTS"
+  const isSlides = category === "PRESENTATIONS"
+  const isLink = category === "LINKS"
+  const isDraft = meta.status === "DRAFT"
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-border/70 bg-card hover:border-purple-400/60 hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer relative",
+        isDraft && "opacity-90 border-dashed border-amber-400/50"
+      )}
+      onClick={onPreview}
+    >
+      {/* Visual Thumbnail or Icon Hero */}
+      <div className="relative aspect-video max-h-52 sm:max-h-none w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
+        {meta.thumbnailUrl ? (
+          <img
+            src={meta.thumbnailUrl}
+            alt={m.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : isVideo && getYouTubeThumbnailUrl(m.fileUrl) ? (
+          <div className="relative w-full h-full">
+            <img
+              src={getYouTubeThumbnailUrl(m.fileUrl)!}
+              alt={m.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 group-hover:scale-110 transition-transform">
+                <Play className="w-4 h-4 ml-0.5 fill-current" />
+              </div>
+            </div>
+          </div>
+        ) : isVideo ? (
+          <div className="w-full h-full bg-gradient-to-br from-purple-900/40 via-purple-700/20 to-slate-900 flex flex-col items-center justify-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 group-hover:scale-110 transition-transform">
+              <Play className="w-4 h-4 ml-0.5 fill-current" />
+            </div>
+          </div>
+        ) : isSlides ? (
+          <div className="w-full h-full bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-slate-900 flex flex-col items-center justify-center gap-1.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+              <Presentation className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+          </div>
+        ) : isLink ? (
+          <div className="w-full h-full bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-slate-900 flex flex-col items-center justify-center gap-1.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+              <Globe className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-blue-500/15 via-indigo-500/10 to-slate-900 flex flex-col items-center justify-center gap-1.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        )}
+
+        {/* Type Badge top-left */}
+        <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
+          <span
+            className={cn(
+              "text-[10px] font-bold px-2 py-0.5 rounded-md tracking-wide shadow-xs",
+              isVideo && "bg-purple-100 text-purple-700 dark:bg-purple-900/70 dark:text-purple-300",
+              isDoc && "bg-blue-100 text-blue-700 dark:bg-blue-900/70 dark:text-blue-300",
+              isSlides && "bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-300",
+              isLink && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/70 dark:text-emerald-300"
+            )}
+          >
+            {isVideo ? "Video" : isSlides ? "Slides" : isLink ? "Link" : "Document"}
+          </span>
+          {isDraft && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
+              Draft
+            </span>
+          )}
+        </div>
+
+        {/* Duration badge */}
+        {meta.duration && (
+          <div className="absolute bottom-2 right-2 z-10">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/75 text-white flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5" />
+              {meta.duration}
+            </span>
+          </div>
+        )}
+
+        {/* CC badge */}
+        {meta.subtitleUrl && (
+          <div className="absolute bottom-2 left-2 z-10">
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-600 text-white">
+              CC
+            </span>
+          </div>
+        )}
+
+        {/* Three-dot Action Menu — top right */}
+        <div
+          className="absolute top-2 right-2 z-20"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Options"
+              className="w-7 h-7 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center bg-black/60 hover:bg-black/80 text-white backdrop-blur-md shadow-sm transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 active:scale-95"
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </button>
+
+            {menuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-8 z-40 w-44 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl py-1 text-xs">
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-950/30 text-foreground hover:text-purple-700 transition-colors"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onEdit()
+                    }}
+                  >
+                    <Edit3 className="w-3.5 h-3.5" /> Edit material
+                  </button>
+
+                  {m.fileUrl && (
+                    <a
+                      href={m.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={m.fileUrl.startsWith("data:") ? m.title : undefined}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-foreground hover:text-blue-700 transition-colors"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      {m.fileUrl.startsWith("data:") ? (
+                        <Download className="w-3.5 h-3.5" />
+                      ) : (
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      )}
+                      {m.fileUrl.startsWith("data:") ? "Download file" : "Open link"}
+                    </a>
+                  )}
+
+                  <div className="border-t border-border/50 my-1" />
+
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 hover:text-red-700 transition-colors"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onDelete()
+                    }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Card Body */}
+      <div className="p-3 sm:p-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
+        <h3 className="font-semibold text-sm text-foreground line-clamp-1 group-hover:text-purple-600 transition-colors">
+          {m.title}
+        </h3>
+
+        {cleanDescription && (
+          <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+            {cleanDescription}
+          </p>
+        )}
+
+        {/* Card Footer: Date, Views, Size */}
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-auto pt-2.5 border-t border-border/50 gap-2">
+          <span className="flex items-center gap-1 shrink-0 font-medium">
+            <Calendar className="w-3 h-3 text-muted-foreground" />
+            {new Date(m.createdAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="inline-flex items-center gap-1 font-semibold text-purple-700 dark:text-purple-300 bg-purple-100/80 dark:bg-purple-950/60 px-2 py-0.5 rounded-md text-[10px]">
+              <Eye className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+              {viewCount.toLocaleString()} views
+            </span>
+            {m.fileSize && (
+              <span className="text-[10px] font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                {formatBytes(m.fileSize)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TeacherSharedMaterials({
   materials,
   onRefresh,
@@ -575,13 +806,13 @@ export function TeacherSharedMaterials({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden sm:overflow-visible">
       {/* ─── HEADER & CLASS CONTEXT CARD ─── */}
-      <div className="rounded-3xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-white dark:via-slate-900 to-indigo-500/10 p-5 md:p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-purple-600 text-white shadow-xs">
+      <div className="rounded-3xl border border-purple-200/70 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-white dark:via-slate-900 to-indigo-500/10 p-4 sm:p-5 md:p-6 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+          <div className="space-y-1 sm:space-y-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-wider bg-purple-600 text-white shadow-xs">
                 <BookOpen className="w-3.5 h-3.5" />
                 Shared Materials
               </span>
@@ -606,21 +837,21 @@ export function TeacherSharedMaterials({
               )}
             </div>
 
-            <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               Class Educational Resources
             </h2>
-            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
               Publish video lessons, lecture slides, worksheets, and study links directly to enrolled students.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto shrink-0 pt-1 sm:pt-0">
             {availableClasses && availableClasses.length > 1 && (
               <Select
                 value={String(activeClassIndex)}
                 onValueChange={(val) => setActiveClassIndex(Number(val))}
               >
-                <SelectTrigger className="w-full sm:w-[200px] rounded-2xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-xs font-semibold">
+                <SelectTrigger className="w-full sm:w-[200px] rounded-2xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-xs font-semibold h-10">
                   <SelectValue placeholder="Select Class" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl">
@@ -638,7 +869,7 @@ export function TeacherSharedMaterials({
                 resetForm()
                 setIsFormOpen(true)
               }}
-              className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 px-4 shadow-md shadow-purple-600/25 transition-transform active:scale-95 w-full sm:w-auto justify-center h-10"
+              className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 px-4 shadow-md shadow-purple-600/25 transition-transform active:scale-95 w-full sm:w-auto justify-center h-10 text-xs"
             >
               <Plus className="w-4 h-4" />
               <span>Share Material</span>
@@ -648,14 +879,14 @@ export function TeacherSharedMaterials({
       </div>
 
       {/* ─── CONTROLS: CATEGORY TABS & SEARCH / SORT / VIEW ─── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        {/* Material Type Pills */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-border/60 overflow-x-auto no-scrollbar touch-pan-x -mx-1 px-1 sm:mx-0">
+      <div className="flex flex-col gap-2.5 sm:gap-3">
+        {/* Material Type Pills (Horizontally scrollable on mobile) */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-border/60 overflow-x-auto no-scrollbar touch-pan-x overscroll-x-contain -mx-1 px-1 sm:mx-0">
           <button
             type="button"
             onClick={() => setSelectedCategory("ALL")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
+              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "ALL"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
@@ -669,7 +900,7 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("VIDEOS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
+              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "VIDEOS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
@@ -683,7 +914,7 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("DOCUMENTS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
+              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "DOCUMENTS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
@@ -697,7 +928,7 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("PRESENTATIONS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
+              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "PRESENTATIONS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
@@ -711,7 +942,7 @@ export function TeacherSharedMaterials({
             type="button"
             onClick={() => setSelectedCategory("LINKS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
+              "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95",
               selectedCategory === "LINKS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
@@ -722,69 +953,71 @@ export function TeacherSharedMaterials({
           </button>
         </div>
 
-        {/* Search, Sort, View Toggle */}
-        <div className="flex items-center gap-2 w-full lg:w-auto">
-          <div className="relative flex-1 sm:w-56 sm:flex-initial">
+        {/* Search, Sort, View Toggle (Mobile responsive row layout) */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 w-full">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <Input
               placeholder="Search title, topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-8 h-9 text-xs rounded-xl border-border bg-background w-full"
+              className="pl-9 pr-8 h-10 sm:h-9 text-xs rounded-xl border-border bg-background w-full"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-            <SelectTrigger className="h-9 w-[115px] sm:w-[130px] shrink-0 rounded-xl text-xs font-semibold border-border bg-background">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="newest" className="text-xs">Newest Added</SelectItem>
-              <SelectItem value="oldest" className="text-xs">Oldest First</SelectItem>
-              <SelectItem value="title" className="text-xs">Title (A - Z)</SelectItem>
-              <SelectItem value="size" className="text-xs">File Size</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+            <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+              <SelectTrigger className="h-10 sm:h-9 min-w-[130px] flex-1 sm:flex-initial rounded-xl text-xs font-semibold border-border bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="newest" className="text-xs">Newest Added</SelectItem>
+                <SelectItem value="oldest" className="text-xs">Oldest First</SelectItem>
+                <SelectItem value="title" className="text-xs">Title (A - Z)</SelectItem>
+                <SelectItem value="size" className="text-xs">File Size</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <div className="flex items-center border border-border rounded-xl p-0.5 bg-background shrink-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setViewMode("grid")}
-              className={cn("w-7 h-7 rounded-lg", viewMode === "grid" ? "bg-muted text-purple-600" : "text-muted-foreground")}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setViewMode("list")}
-              className={cn("w-7 h-7 rounded-lg", viewMode === "list" ? "bg-muted text-purple-600" : "text-muted-foreground")}
-            >
-              <List className="w-3.5 h-3.5" />
-            </Button>
+            <div className="flex items-center border border-border rounded-xl p-0.5 bg-background shrink-0 h-10 sm:h-9">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setViewMode("grid")}
+                className={cn("w-8 h-8 sm:w-7 sm:h-7 rounded-lg", viewMode === "grid" ? "bg-muted text-purple-600" : "text-muted-foreground")}
+              >
+                <LayoutGrid className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setViewMode("list")}
+                className={cn("w-8 h-8 sm:w-7 sm:h-7 rounded-lg", viewMode === "list" ? "bg-muted text-purple-600" : "text-muted-foreground")}
+              >
+                <List className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ─── MATERIALS LISTING / EMPTY STATE ─── */}
       {filteredMaterials.length === 0 ? (
-        <Card className="rounded-3xl border-2 border-dashed border-purple-200/60 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/10 p-12 text-center">
-          <div className="w-16 h-16 rounded-3xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto mb-4">
-            <FolderOpen className="w-8 h-8" />
+        <Card className="rounded-3xl border-2 border-dashed border-purple-200/60 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/10 p-6 sm:p-12 text-center">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <FolderOpen className="w-7 h-7 sm:w-8 sm:h-8" />
           </div>
-          <h3 className="text-lg font-bold text-foreground">No Materials Found</h3>
+          <h3 className="text-base sm:text-lg font-bold text-foreground">No Materials Found</h3>
           <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 leading-relaxed">
             {searchQuery
               ? `No resources matching "${searchQuery}" in this category.`
@@ -795,212 +1028,28 @@ export function TeacherSharedMaterials({
               resetForm()
               setIsFormOpen(true)
             }}
-            className="mt-5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 text-xs"
+            className="mt-4 sm:mt-5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 text-xs"
           >
             <Plus className="w-4 h-4" />
             Share Your First Resource
           </Button>
         </Card>
       ) : viewMode === "grid" ? (
-        /* ─── GRID VIEW ─── */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {filteredMaterials.map(({ material: m, cleanDescription, meta, category }) => {
-            const isVideo = category === "VIDEOS"
-            const isDoc = category === "DOCUMENTS"
-            const isSlides = category === "PRESENTATIONS"
-            const isLink = category === "LINKS"
-            const isDraft = meta.status === "DRAFT"
-            const [menuOpen, setMenuOpen] = useState(false)
-
-            return (
-              <div
-                key={m.id}
-                className={cn(
-                  "rounded-2xl border border-border/60 bg-card hover:border-purple-400/60 hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer relative",
-                  isDraft && "opacity-85 border-dashed border-amber-400/50"
-                )}
-                onClick={() => openPreview(m, cleanDescription, meta)}
-              >
-                {/* Visual Thumbnail or Icon Hero */}
-                <div className="relative aspect-video w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
-                  {meta.thumbnailUrl ? (
-                    <img
-                      src={meta.thumbnailUrl}
-                      alt={m.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : isVideo && getYouTubeThumbnailUrl(m.fileUrl) ? (
-                    <div className="relative w-full h-full">
-                      <img
-                        src={getYouTubeThumbnailUrl(m.fileUrl)!}
-                        alt={m.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30">
-                          <Play className="w-4 h-4 ml-0.5 fill-current" />
-                        </div>
-                      </div>
-                    </div>
-                  ) : isVideo ? (
-                    <div className="w-full h-full bg-gradient-to-br from-purple-900/40 via-purple-700/20 to-slate-900 flex flex-col items-center justify-center gap-2">
-                      <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30">
-                        <Play className="w-4 h-4 ml-0.5 fill-current" />
-                      </div>
-                    </div>
-                  ) : isSlides ? (
-                    <div className="w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-slate-900 flex flex-col items-center justify-center gap-1.5">
-                      <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-                        <Presentation className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                      </div>
-                    </div>
-                  ) : isLink ? (
-                    <div className="w-full h-full bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-slate-900 flex flex-col items-center justify-center gap-1.5">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                        <Globe className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-red-50 to-pink-50 dark:from-blue-950/30 dark:to-slate-900 flex flex-col items-center justify-center gap-1.5">
-                      <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-blue-900/40 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-red-500 dark:text-blue-400" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Type Badge top-left */}
-                  <div className="absolute top-2 left-2">
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-md tracking-wide",
-                        isVideo && "bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300",
-                        isDoc && "bg-red-100 text-red-700 dark:bg-blue-900/60 dark:text-blue-300",
-                        isSlides && "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300",
-                        isLink && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"
-                      )}
-                    >
-                      {isVideo ? "Video" : isSlides ? "Document" : isLink ? "Link" : "Document"}
-                    </span>
-                    {isDraft && (
-                      <span className="ml-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                        Draft
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Duration badge */}
-                  {meta.duration && (
-                    <div className="absolute bottom-2 right-2">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/70 text-white flex items-center gap-1">
-                        <Clock className="w-2.5 h-2.5" />
-                        {meta.duration}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* CC badge */}
-                  {meta.subtitleUrl && (
-                    <div className="absolute bottom-2 left-2">
-                      <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-600 text-white">
-                        CC
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Three-dot menu — top right */}
-                  <div
-                    className="absolute top-2 right-2 z-10"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setMenuOpen((v) => !v)}
-                        className="w-6 h-6 rounded-md flex items-center justify-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 shadow-xs transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <MoreVertical className="w-3.5 h-3.5" />
-                      </button>
-
-                      {menuOpen && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-10"
-                            onClick={() => setMenuOpen(false)}
-                          />
-                          <div className="absolute right-0 top-7 z-20 w-40 rounded-xl border border-border bg-white dark:bg-slate-900 shadow-lg py-1 text-xs">
-                            <button
-                              type="button"
-                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-950/30 text-foreground hover:text-purple-700"
-                              onClick={() => { setMenuOpen(false); handleOpenEdit(m) }}
-                            >
-                              <Edit3 className="w-3.5 h-3.5" /> Edit material
-                            </button>
-
-                            {m.fileUrl && (
-                              <a
-                                href={m.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download={m.fileUrl.startsWith("data:") ? m.title : undefined}
-                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-foreground hover:text-blue-700"
-                                onClick={() => setMenuOpen(false)}
-                              >
-                                {m.fileUrl.startsWith("data:") ? <Download className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
-                                {m.fileUrl.startsWith("data:") ? "Download" : "Open link"}
-                              </a>
-                            )}
-
-                            <div className="border-t border-border/50 my-0.5" />
-
-                            <button
-                              type="button"
-                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 hover:text-red-700"
-                              onClick={() => { setMenuOpen(false); handleDelete(m.id, m.title) }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" /> Delete
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Content */}
-                <div className="p-3 flex-1 flex flex-col gap-1.5">
-                  <h3 className="font-semibold text-sm text-foreground line-clamp-1 group-hover:text-purple-600 transition-colors">
-                    {m.title}
-                  </h3>
-
-                  {cleanDescription && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                      {cleanDescription}
-                    </p>
-                  )}
-
-                  {/* Metadata footer */}
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-auto pt-2">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(m.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 font-semibold text-purple-700 dark:text-purple-300 bg-purple-100/80 dark:bg-purple-950/60 px-2 py-0.5 rounded-md text-[10px]">
-                        <Eye className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                        {(localViewCounts[m.id] ?? m.viewCount ?? 0).toLocaleString()} views
-                      </span>
-                      {m.fileSize && (
-                        <span className="font-medium">{formatBytes(m.fileSize)}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+        /* ─── GRID VIEW (Responsive Columns) ─── */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          {filteredMaterials.map((item) => (
+            <TeacherMaterialGridCard
+              key={item.material.id}
+              item={item}
+              viewCount={localViewCounts[item.material.id] ?? item.material.viewCount ?? 0}
+              onPreview={() => openPreview(item.material, item.cleanDescription, item.meta)}
+              onEdit={() => handleOpenEdit(item.material)}
+              onDelete={() => handleDelete(item.material.id, item.material.title)}
+            />
+          ))}
         </div>
       ) : (
-        /* ─── LIST VIEW ─── */
+        /* ─── LIST VIEW (Mobile Wrapped) ─── */
         <div className="space-y-2">
           {filteredMaterials.map(({ material: m, cleanDescription, meta, category }) => {
             const isVideo = category === "VIDEOS"
@@ -1015,21 +1064,21 @@ export function TeacherSharedMaterials({
               ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
               : isLink
               ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-              : "bg-red-100 dark:bg-blue-900/30 text-red-500 dark:text-blue-400"
+              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
 
             return (
               <div
                 key={m.id}
-                className="p-3.5 rounded-2xl border border-border/60 bg-card hover:border-purple-400/50 hover:bg-purple-50/20 dark:hover:bg-purple-950/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group cursor-pointer"
+                className="p-3 sm:p-3.5 rounded-2xl border border-border/70 bg-card hover:border-purple-400/50 hover:bg-purple-50/20 dark:hover:bg-purple-950/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group cursor-pointer"
                 onClick={() => openPreview(m, cleanDescription, meta)}
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-start sm:items-center gap-3 min-w-0">
                   <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", iconBg)}>
                     {isVideo ? <Play className="w-4 h-4 fill-current" /> : isSlides ? <Presentation className="w-5 h-5" /> : isLink ? <Globe className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <h4 className="font-semibold text-sm text-foreground truncate group-hover:text-purple-600 transition-colors">
                         {m.title}
                       </h4>
@@ -1037,17 +1086,17 @@ export function TeacherSharedMaterials({
                         {isVideo ? "Video" : isSlides ? "Slides" : isLink ? "Link" : "Document"}
                       </Badge>
                       {isDraft && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 shrink-0">
                           Draft
                         </span>
                       )}
                       {meta.subtitleUrl && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 flex items-center gap-0.5">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 flex items-center gap-0.5 shrink-0">
                           <Subtitles className="w-2.5 h-2.5" /> CC
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground mt-1">
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(m.createdAt).toLocaleDateString()}</span>
                       {meta.duration && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{meta.duration}</span>}
                       {m.fileSize && <span>• {formatBytes(m.fileSize)}</span>}
@@ -1060,7 +1109,7 @@ export function TeacherSharedMaterials({
                   </div>
                 </div>
 
-                {/* Actions – stop propagation so they don't trigger preview */}
+                {/* Actions */}
                 <div
                   className="flex items-center gap-1.5 shrink-0 self-end sm:self-center"
                   onClick={(e) => e.stopPropagation()}
@@ -1144,7 +1193,7 @@ export function TeacherSharedMaterials({
             {/* Type Selector (Pill tabs) */}
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-foreground">Material Type</Label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: "DOC", label: "Document", icon: FileText, color: "text-blue-500" },
                   { id: "VIDEO", label: "Video Lesson", icon: Video, color: "text-purple-500" },
@@ -1330,7 +1379,7 @@ export function TeacherSharedMaterials({
                 )}
 
                 {/* Duration & Thumbnail Input Row */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-semibold text-foreground">Video Duration</Label>
                     <Input
