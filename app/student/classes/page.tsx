@@ -34,14 +34,24 @@ export default function MyClassesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const displayClasses = classes.length > 0 ? classes : [
-    { id: "1", name: "Mathematics", code: "MATH", color: "#f59e0b", teacher: "W/ro. Sara Y.", materialsCount: 12 },
-    { id: "2", name: "Physics", code: "PHYS", color: "#3b82f6", teacher: "Ato Abebe K.", materialsCount: 9 },
-    { id: "3", name: "Chemistry", code: "CHEM", color: "#10b981", teacher: "W/ro. Mihret A.", materialsCount: 8 },
-    { id: "4", name: "Biology", code: "BIO", color: "#059669", teacher: "Ato Getachew T.", materialsCount: 7 },
-    { id: "5", name: "English", code: "ENG", color: "#ef4444", teacher: "W/ro. Selam B.", materialsCount: 10 },
-    { id: "6", name: "Geography", code: "GEO", color: "#8b5cf6", teacher: "Ato Daniel F.", materialsCount: 4 },
+  const FALLBACK_CLASSES = [
+    { id: "1", subject: "Mathematics", subjectCode: "MATH", subjectColor: "#f59e0b", teacher: "W/ro. Sara Y.", materialsCount: 12 },
+    { id: "2", subject: "Physics", subjectCode: "PHYS", subjectColor: "#3b82f6", teacher: "Ato Abebe K.", materialsCount: 9 },
+    { id: "3", subject: "Chemistry", subjectCode: "CHEM", subjectColor: "#10b981", teacher: "W/ro. Mihret A.", materialsCount: 8 },
+    { id: "4", subject: "Biology", subjectCode: "BIO", subjectColor: "#059669", teacher: "Ato Getachew T.", materialsCount: 7 },
+    { id: "5", subject: "English", subjectCode: "ENG", subjectColor: "#ef4444", teacher: "W/ro. Selam B.", materialsCount: 10 },
+    { id: "6", subject: "Geography", subjectCode: "GEO", subjectColor: "#8b5cf6", teacher: "Ato Daniel F.", materialsCount: 4 },
   ];
+
+  const rawList = classes.length > 0 ? classes : (!loading ? FALLBACK_CLASSES : []);
+  const displayClasses = (rawList.length > 0 ? rawList : FALLBACK_CLASSES).map((item: any, idx: number) => ({
+    id: item.subjectId || item.id || `cls-${idx}`,
+    name: item.subject || item.subjectName || item.name || "Subject",
+    code: item.subjectCode || item.code || "",
+    color: item.subjectColor || item.color || "#8B2CF5",
+    teacher: item.teacher || item.teacherName || "TBA",
+    materialsCount: item.materialsCount ?? 8,
+  }));
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
@@ -88,11 +98,18 @@ export default function MyClassesPage() {
                       <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-foreground leading-tight truncate">
-                        {sub.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-foreground leading-tight truncate">
+                          {sub.name}
+                        </h4>
+                        {sub.code && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-border text-muted-foreground font-mono">
+                            {sub.code}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mt-0.5 truncate">
-                        Teacher: {sub.teacher}
+                        Teacher: <span className="text-foreground/90 font-semibold">{sub.teacher}</span>
                       </p>
                     </div>
                   </div>
@@ -121,7 +138,7 @@ export default function MyClassesPage() {
                 <div className="flex items-center gap-3">
                   <Avatar className="w-12 h-12 ring-2 ring-primary/20">
                     <AvatarFallback className="bg-primary/15 text-primary font-bold text-sm">
-                      {sub.teacher.slice(0, 2).toUpperCase()}
+                      {(sub.teacher || "T").slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
