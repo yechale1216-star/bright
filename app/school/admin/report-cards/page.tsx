@@ -682,15 +682,22 @@ export default function AdminReportCardsPage() {
       {/* 1. SINGLE OFFICIAL REPORT CARD MODAL */}
       {/* ==================================================== */}
       <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[94vh] overflow-y-auto p-0 border border-border">
-          <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
+        <DialogContent className="w-[98vw] max-w-[98vw] sm:max-w-4xl max-h-[94vh] overflow-y-auto p-0 border border-border">
+          <div className="p-3 sm:p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
             <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              <DialogTitle className="text-base sm:text-lg font-bold">
-                Official Bright Path Grade Report
-              </DialogTitle>
+              <FileText className="w-5 h-5 text-primary shrink-0" />
+              <div>
+                <DialogTitle className="text-sm sm:text-lg font-bold">
+                  Official Bright Path Grade Report
+                </DialogTitle>
+                {comprehensiveCard && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {comprehensiveCard.student.fullName} • Grade {comprehensiveCard.academic.gradeName} &ldquo;{comprehensiveCard.academic.sectionName}&rdquo;
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               <Button
                 onClick={handlePrint}
                 size="sm"
@@ -705,7 +712,7 @@ export default function AdminReportCardsPage() {
             </div>
           </div>
 
-          <div ref={printSingleRef} className="p-2 sm:p-6 bg-muted/60 flex justify-center">
+          <div ref={printSingleRef} className="p-1 sm:p-4 md:p-6 bg-muted/60 flex justify-center overflow-x-auto w-full max-w-full">
             {previewLoading ? (
               <div className="py-24 text-center text-muted-foreground">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
@@ -724,18 +731,18 @@ export default function AdminReportCardsPage() {
       {/* 2. BATCH PRINT MODAL (ENTIRE CLASS A4) */}
       {/* ==================================================== */}
       <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[94vh] overflow-y-auto p-0 border border-border">
-          <div className="p-3 sm:p-4 border-b border-border flex items-center justify-between bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
+        <DialogContent className="w-[98vw] max-w-[98vw] sm:max-w-5xl max-h-[94vh] overflow-y-auto p-0 border border-border">
+          <div className="p-3 sm:p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 sticky top-0 backdrop-blur-md z-20 print:hidden">
             <div>
-              <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-primary" />
+              <DialogTitle className="text-sm sm:text-lg font-bold flex items-center gap-2">
+                <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
                 Batch Print Class Report Cards ({batchCards.length} Students)
               </DialogTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Every report card will be printed on a separate standard A4 page.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               <Button
                 onClick={handlePrint}
                 disabled={batchLoading || batchCards.length === 0}
@@ -751,7 +758,7 @@ export default function AdminReportCardsPage() {
             </div>
           </div>
 
-          <div ref={printBatchRef} className="p-2 sm:p-6 bg-muted/60 space-y-6">
+          <div ref={printBatchRef} className="p-1 sm:p-4 md:p-6 bg-muted/60 space-y-6 overflow-x-auto w-full max-w-full">
             {batchLoading ? (
               <div className="py-24 text-center text-muted-foreground">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
