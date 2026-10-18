@@ -181,19 +181,19 @@ function TodaySnapshot({ notifications, language }: { notifications: ParentNotif
 function SignedOutWall() {
   const router = useRouter()
   return (
-    <div className="min-h-screen bg-[#060c18] flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center px-6">
       <div className="flex flex-col items-center text-center gap-6 max-w-xs w-full">
         <div className="relative">
-          <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/8 flex items-center justify-center shadow-2xl">
-            <UserX className="h-9 w-9 text-slate-500" />
+          <div className="h-20 w-20 rounded-3xl bg-card border border-border flex items-center justify-center shadow-lg">
+            <UserX className="h-9 w-9 text-muted-foreground" />
           </div>
           <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-            <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
+            <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
           </div>
         </div>
         <div className="space-y-1.5">
-          <h2 className="text-lg font-bold text-white">You're signed out</h2>
-          <p className="text-sm text-slate-500 leading-relaxed">
+          <h2 className="text-lg font-bold text-foreground">You're signed out</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
             Sign in to see your attendance alerts and notifications.
           </p>
         </div>
@@ -458,14 +458,14 @@ export default function ParentNotifications() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#060c18] text-slate-100 relative overflow-x-hidden rounded-3xl">
+    <div className="min-h-screen bg-background text-foreground relative overflow-x-hidden rounded-3xl transition-colors duration-200">
 
       {/* Ambient glows */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[500px] h-[280px] bg-violet-600/5 rounded-full blur-[90px] pointer-events-none" />
       <div className="fixed bottom-0 right-0 w-[260px] h-[260px] bg-indigo-600/6 rounded-full blur-[80px] pointer-events-none" />
 
       {/* ── Sticky Header ───────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-[#060c18]/85 backdrop-blur-2xl border-b border-white/[0.06]">
+      <div className="sticky top-0 z-30 bg-background/90 dark:bg-slate-950/90 backdrop-blur-2xl border-b border-border">
         <div className="px-4 pt-4 pb-3 max-w-2xl mx-auto">
 
           {/* Title row */}
@@ -474,20 +474,20 @@ export default function ParentNotifications() {
               {/* Back arrow */}
               <button
                 onClick={() => router.back()}
-                className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white active:scale-90 transition-all shrink-0"
+                className="w-9 h-9 rounded-xl bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-90 transition-all shrink-0"
                 aria-label="Go back"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/25 to-indigo-500/15 border border-violet-500/20 flex items-center justify-center shrink-0">
-                <Bell className="w-4 h-4 text-violet-400" />
+                <Bell className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <h1 className="text-[17px] font-black text-white tracking-tight leading-none">Notifications</h1>
+                <h1 className="text-[17px] font-black text-foreground tracking-tight leading-none">Notifications</h1>
                 <p className="text-[11px] mt-0.5">
                   {unreadCount > 0
-                    ? <span className="text-violet-400 font-semibold">{unreadCount} unread · {totalCount} total</span>
-                    : <span className="text-slate-500">All caught up</span>
+                    ? <span className="text-violet-600 dark:text-violet-400 font-semibold">{unreadCount} unread · {totalCount} total</span>
+                    : <span className="text-muted-foreground">All caught up</span>
                   }
                 </p>
               </div>
@@ -659,9 +659,9 @@ export default function ParentNotifications() {
         const cfg = getTypeConfig(selectedNotif.type)
         const { title, message } = localizeNotification(selectedNotif)
         return (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
             {/* Bottom sheet on mobile, centered modal on sm+ */}
-            <div className="bg-[#0d1527] border border-white/10 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-250 relative overflow-hidden">
+            <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-250 relative overflow-hidden">
 
               {/* Coloured header strip */}
               <div className={`h-1 w-full ${cfg.accentColor} opacity-60`} />
@@ -670,7 +670,7 @@ export default function ParentNotifications() {
                 {/* Close */}
                 <button
                   onClick={() => setSelectedNotif(null)}
-                  className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/[0.06] hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  className="absolute top-4 right-4 h-8 w-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>

@@ -80,8 +80,8 @@ export default function SchoolRootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-[#070d1a] text-slate-100`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground transition-colors duration-200`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

@@ -81,12 +81,12 @@ export const metadata: Metadata = {
  */
 export default function Page() {
   return (
-    <div className="min-h-screen bg-[#070d1a] text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between selection:bg-blue-600 selection:text-white transition-colors duration-200">
       {/* Client-side automatic router for active users */}
       <HomeRedirect />
 
       {/* Semantic Crawlable Header & Main Content for Search Engines & AI Crawlers */}
-      <header className="border-b border-slate-800/80 bg-[#0a1224]/80 backdrop-blur-md px-4 sm:px-8 py-4">
+      <header className="border-b border-border bg-card/90 backdrop-blur-md px-4 sm:px-8 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image
@@ -94,15 +94,15 @@ export default function Page() {
               alt="Bright Path Official Logo"
               width={44}
               height={44}
-              className="rounded-xl shadow-md border border-slate-700/50"
+              className="rounded-xl shadow-xs border border-border"
               priority
             />
             <div>
-              <div className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+              <div className="text-base font-extrabold tracking-tight text-foreground flex items-center gap-2">
                 <span>{SCHOOL_FULL_NAME}</span>
-                <span className="text-xs font-semibold text-blue-400">({SCHOOL_AMHARIC_NAME})</span>
+                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">({SCHOOL_AMHARIC_NAME})</span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">{DEVELOPER_ATTRIBUTION}</p>
+              <p className="text-[11px] text-muted-foreground font-medium">{DEVELOPER_ATTRIBUTION}</p>
             </div>
           </div>
           <nav aria-label="Quick Access" className="flex items-center gap-2">
@@ -119,15 +119,15 @@ export default function Page() {
       <main className="max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-16 space-y-12">
         {/* Executive Hero Statement */}
         <section className="space-y-4 text-center sm:text-left max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold uppercase tracking-wider">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider">
             Enterprise Educational Management Suite
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground leading-tight">
             Bright Path Digital School Management & Communication Platform
           </h1>
-          <p className="text-base sm:text-lg text-slate-300 font-normal leading-relaxed">
+          <p className="text-base sm:text-lg text-muted-foreground font-normal leading-relaxed">
             Bright Path is a comprehensive, purpose-built educational administration platform developed by{" "}
-            <strong className="text-white font-bold">{DEVELOPER_NAME}</strong>. It eliminates paper friction and unifies
+            <strong className="text-foreground font-bold">{DEVELOPER_NAME}</strong>. It eliminates paper friction and unifies
             student attendance tracking, AI face biometric staff attendance, student discipline workflows, parent-teacher
             communication, and academic record management into a secure, centralized digital hub for modern schools.
           </p>
@@ -135,79 +135,79 @@ export default function Page() {
 
         {/* Platform Pillars Grid */}
         <section aria-labelledby="core-capabilities" className="space-y-6">
-          <h2 id="core-capabilities" className="text-xl sm:text-2xl font-black text-white tracking-tight border-b border-slate-800 pb-3">
+          <h2 id="core-capabilities" className="text-xl sm:text-2xl font-black text-foreground tracking-tight border-b border-border pb-3">
             Core Modules & Major Platform Capabilities
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Pillar 1 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-blue-400">1. Student Attendance Management</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-blue-600 dark:text-blue-400">1. Student Attendance Management</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Homeroom and subject roll-calls with instant multi-session tracking (Morning & Afternoon). Supports 1-tap bulk marking, automated status classifications (Present, Absent, Late, Excused), and real-time parent alert triggers.
               </p>
             </article>
 
             {/* Pillar 2 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-emerald-400">2. Staff Biometric Face Self-Attendance</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-emerald-600 dark:text-emerald-400">2. Staff Biometric Face Self-Attendance</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Sub-second AI neural face vector verification combined with school GPS geofencing. Enforces authentic on-premise check-in and check-out from staff mobile devices with total biometric privacy and zero raw photo storage.
               </p>
             </article>
 
             {/* Pillar 3 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-rose-400">3. Student Discipline & Conduct Tracking</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-rose-600 dark:text-rose-400">3. Student Discipline & Conduct Tracking</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Centralized behavioral incident reporting with digital evidence attachments, tiered severity matrices (Low to Critical), formal hearing logs, corrective action assignments, and mandatory parent digital acknowledgments.
               </p>
             </article>
 
             {/* Pillar 4 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-purple-400">4. Parent-School Real-Time Communication</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-purple-600 dark:text-purple-400">4. Parent-School Real-Time Communication</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Instant Firebase Cloud Messaging (FCM) push notifications, in-app direct messaging between parents and teachers, high-priority automated absence notifications, and VoIP direct contact.
               </p>
             </article>
 
             {/* Pillar 5 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-amber-400">5. Student & Staff Lifecycle Management</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-amber-600 dark:text-amber-400">5. Student & Staff Lifecycle Management</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Automated sequential student ID generation, sibling auto-linking, smart phone parent lookups, class roster distribution, staff role assignments, and 1-click batch annual cohort promotions.
               </p>
             </article>
 
             {/* Pillar 6 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-cyan-400">6. School Executive & Role-Based Portals</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-cyan-600 dark:text-cyan-400">6. School Executive & Role-Based Portals</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Tailored workflows and dedicated dashboards for Super Admins, Principals, Vice Principals, Registrars, Discipline Officers, Homeroom Teachers, Subject Teachers, Support Staff, and Parents.
               </p>
             </article>
 
             {/* Pillar 7 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-indigo-400">7. Bilingual English & Amharic Engine</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-indigo-600 dark:text-indigo-400">7. Bilingual English & Amharic Engine</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Complete bilingual interface switching between English and Amharic (አማርኛ), with native Ethiopian Calendar (E.C.) and Gregorian Calendar (G.C.) dual conversions, schedule pickers, and localized formatting.
               </p>
             </article>
 
             {/* Pillar 8 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-teal-400">8. Offline-First Synchronization Architecture</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-teal-600 dark:text-teal-400">8. Offline-First Synchronization Architecture</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Progressive Web App (PWA) with client-side IndexedDB caching and an automated background synchronization queue, allowing teachers to record attendance during connectivity outages and auto-sync when online.
               </p>
             </article>
 
             {/* Pillar 9 */}
-            <article className="p-5 rounded-2xl bg-[#0d172e] border border-slate-800/80 shadow-lg space-y-2.5">
-              <h3 className="text-base font-bold text-sky-400">9. Secure, Centralized Digital Governance</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+            <article className="p-5 rounded-2xl bg-card border border-border shadow-xs space-y-2.5">
+              <h3 className="text-base font-bold text-sky-600 dark:text-sky-400">9. Secure, Centralized Digital Governance</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Enterprise security with JWT authentication, role-based authorization guards, comprehensive audit logging, multi-session management, and full data protection across web and mobile platforms.
               </p>
             </article>
@@ -216,26 +216,26 @@ export default function Page() {
 
         {/* Structured Q&A for Search & AI Discoverability */}
         <section aria-labelledby="platform-faq" className="space-y-6">
-          <h2 id="platform-faq" className="text-xl sm:text-2xl font-black text-white tracking-tight border-b border-slate-800 pb-3">
+          <h2 id="platform-faq" className="text-xl sm:text-2xl font-black text-foreground tracking-tight border-b border-border pb-3">
             Frequently Asked Questions & Platform Overview
           </h2>
           <div className="space-y-4 text-xs sm:text-sm">
-            <details className="p-4 rounded-xl bg-[#0d172e] border border-slate-800/70 open:bg-[#101c38]">
-              <summary className="font-bold text-slate-100 cursor-pointer">What is the Bright Path platform?</summary>
-              <p className="mt-2 text-slate-300 leading-relaxed">
+            <details className="p-4 rounded-xl bg-card border border-border open:bg-muted/50">
+              <summary className="font-bold text-foreground cursor-pointer">What is the Bright Path platform?</summary>
+              <p className="mt-2 text-muted-foreground leading-relaxed">
                 Bright Path is a modern digital school management and communication platform developed by {DEVELOPER_NAME}. It serves as the all-in-one administrative hub, managing student attendance, staff biometric verification, disciplinary incidents, parent communication, and academic promotions.
               </p>
             </details>
-            <details className="p-4 rounded-xl bg-[#0d172e] border border-slate-800/70 open:bg-[#101c38]">
-              <summary className="font-bold text-slate-100 cursor-pointer">Who is the developer of Bright Path?</summary>
-              <p className="mt-2 text-slate-300 leading-relaxed">
+            <details className="p-4 rounded-xl bg-card border border-border open:bg-muted/50">
+              <summary className="font-bold text-foreground cursor-pointer">Who is the developer of Bright Path?</summary>
+              <p className="mt-2 text-muted-foreground leading-relaxed">
                 Bright Path was designed, engineered, and developed by {DEVELOPER_NAME} ({DEVELOPER_ATTRIBUTION}).
               </p>
             </details>
-            <details className="p-4 rounded-xl bg-[#0d172e] border border-slate-800/70 open:bg-[#101c38]">
-              <summary className="font-bold text-slate-100 cursor-pointer">How do parents and staff access the platform?</summary>
-              <p className="mt-2 text-slate-300 leading-relaxed">
-                Users can log into their dedicated portal via <Link href="/login" className="text-blue-400 underline font-semibold">ahs.pro.et/login</Link> using their assigned credentials. Parents can view attendance, behavior records, and notifications, while staff and teachers can mark rolls and manage classroom workflows.
+            <details className="p-4 rounded-xl bg-card border border-border open:bg-muted/50">
+              <summary className="font-bold text-foreground cursor-pointer">How do parents and staff access the platform?</summary>
+              <p className="mt-2 text-muted-foreground leading-relaxed">
+                Users can log into their dedicated portal via <Link href="/login" className="text-blue-600 dark:text-blue-400 underline font-semibold">ahs.pro.et/login</Link> using their assigned credentials. Parents can view attendance, behavior records, and notifications, while staff and teachers can mark rolls and manage classroom workflows.
               </p>
             </details>
           </div>
@@ -243,8 +243,8 @@ export default function Page() {
       </main>
 
       {/* Semantic Footer */}
-      <footer className="border-t border-slate-800/80 bg-[#0a1224] px-4 sm:px-8 py-6 text-center text-xs text-slate-400 space-y-2">
-        <p className="font-medium text-slate-300">
+      <footer className="border-t border-border bg-card px-4 sm:px-8 py-6 text-center text-xs text-muted-foreground space-y-2">
+        <p className="font-medium text-foreground">
           &copy; {new Date().getFullYear()} {SCHOOL_FULL_NAME} ({SCHOOL_AMHARIC_NAME}) &bull; All Rights Reserved.
         </p>
         <p className="font-bold tracking-wide text-[#FF8000]">

@@ -337,15 +337,15 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
   const linkFiles = safeMediaItems.filter(m => m?.content && (typeof m.content === 'string' && (m.content.includes('http://') || m.content.includes('https://'))));
 
   return (
-    <div className="w-full md:w-[380px] lg:w-[420px] h-full border-l border-slate-800 bg-[#0c131d] text-slate-100 flex flex-col select-none animate-in slide-in-from-right duration-250 fixed inset-0 md:relative overflow-hidden z-50">
+    <div className="w-full md:w-[380px] lg:w-[420px] h-full border-l border-border bg-card text-foreground flex flex-col select-none animate-in slide-in-from-right duration-250 fixed inset-0 md:relative overflow-hidden z-50">
       
       {/* ── 1. Top Header Bar (Fixed at top) ────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between bg-[#111a28] shrink-0">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/40 shrink-0">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={onClose} 
-          className="h-9 w-9 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
+          className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -355,7 +355,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
             variant="ghost" 
             size="icon" 
             onClick={() => setShowPrivacyModal(true)} 
-            className="h-9 w-9 rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+            className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
             title="Privacy & Encryption"
           >
             <Key className="h-4.5 w-4.5" />
@@ -366,7 +366,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
               variant="ghost" 
               size="icon" 
               onClick={handleOpenAddMembers} 
-              className="h-9 w-9 rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+              className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
               title="Add Members"
             >
               <UserPlus className="h-4.5 w-4.5" />
@@ -379,18 +379,18 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
             onClick={() => setIsStarred(!isStarred)} 
             className={cn(
               "h-9 w-9 rounded-full transition-colors",
-              isStarred ? "text-amber-400 hover:bg-amber-400/10" : "text-slate-400 hover:text-white hover:bg-slate-800"
+              isStarred ? "text-amber-500 hover:bg-amber-500/10" : "text-muted-foreground hover:text-foreground hover:bg-accent"
             )}
             title={isStarred ? "Starred Group" : "Star Group"}
           >
-            <Star className={cn("h-4.5 w-4.5", isStarred && "fill-amber-400")} />
+            <Star className={cn("h-4.5 w-4.5", isStarred && "fill-amber-500 text-amber-500")} />
           </Button>
 
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => setShowInfoSheet(true)} 
-            className="h-9 w-9 rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+            className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
             title="Group Information"
           >
             <ClipboardList className="h-4.5 w-4.5" />
@@ -401,7 +401,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
               variant="ghost" 
               size="icon" 
               onClick={() => setShowEditModal(true)} 
-              className="h-9 w-9 rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+              className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
               title="Edit Group Details"
             >
               <Edit className="h-4.5 w-4.5" />
@@ -413,30 +413,30 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-9 w-9 rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+                className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent"
               >
                 <MoreVertical className="h-4.5 w-4.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 bg-[#172232] border-slate-800 text-slate-200 rounded-2xl shadow-2xl p-1.5">
+            <DropdownMenuContent align="end" className="w-52 bg-popover border-border text-popover-foreground rounded-2xl shadow-xl p-1.5">
               {isAdminOrOwner && (
-                <DropdownMenuItem onClick={() => setShowEditModal(true)} className="rounded-xl gap-2.5 cursor-pointer hover:bg-slate-800 focus:bg-slate-800">
-                  <Edit className="h-4 w-4 text-emerald-400" />
+                <DropdownMenuItem onClick={() => setShowEditModal(true)} className="rounded-xl gap-2.5 cursor-pointer hover:bg-accent focus:bg-accent">
+                  <Edit className="h-4 w-4 text-emerald-500" />
                   Edit Group Details
                 </DropdownMenuItem>
               )}
               {isAdminOrOwner && (
-                <DropdownMenuItem onClick={handleOpenAddMembers} className="rounded-xl gap-2.5 cursor-pointer hover:bg-slate-800 focus:bg-slate-800">
-                  <UserPlus className="h-4 w-4 text-blue-400" />
+                <DropdownMenuItem onClick={handleOpenAddMembers} className="rounded-xl gap-2.5 cursor-pointer hover:bg-accent focus:bg-accent">
+                  <UserPlus className="h-4 w-4 text-blue-500" />
                   Add Members
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={handleToggleMuteInternal} className="rounded-xl gap-2.5 cursor-pointer hover:bg-slate-800 focus:bg-slate-800">
-                {isMuted ? <Volume2 className="h-4 w-4 text-emerald-400" /> : <VolumeX className="h-4 w-4 text-amber-400" />}
+              <DropdownMenuItem onClick={handleToggleMuteInternal} className="rounded-xl gap-2.5 cursor-pointer hover:bg-accent focus:bg-accent">
+                {isMuted ? <Volume2 className="h-4 w-4 text-emerald-500" /> : <VolumeX className="h-4 w-4 text-amber-500" />}
                 {isMuted ? 'Unmute Notifications' : 'Mute Notifications'}
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-800 my-1" />
-              <DropdownMenuItem onClick={() => setShowLeaveDialog(true)} className="rounded-xl gap-2.5 cursor-pointer text-red-400 hover:bg-red-500/10 hover:text-red-300 focus:bg-red-500/10">
+              <DropdownMenuSeparator className="bg-border my-1" />
+              <DropdownMenuItem onClick={() => setShowLeaveDialog(true)} className="rounded-xl gap-2.5 cursor-pointer text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10">
                 <LogOut className="h-4 w-4" />
                 Leave Group
               </DropdownMenuItem>
@@ -445,17 +445,17 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-16 scrollbar-thin scrollbar-thumb-slate-700/50">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-16 scrollbar-thin scrollbar-thumb-border">
         
         {/* ── 2. Hero Profile Header Section ──────────────────────────────── */}
         <div className="p-6 flex flex-col items-center text-center space-y-3 relative">
           <div className="relative group cursor-pointer">
             <Avatar
-              className="h-32 w-32 border-4 border-[#172436] shadow-2xl ring-4 ring-emerald-500/10 transition-all duration-300 group-hover:ring-emerald-500/30"
+              className="h-32 w-32 border-4 border-background shadow-xl ring-4 ring-emerald-500/10 transition-all duration-300 group-hover:ring-emerald-500/30"
               onClick={() => isAdminOrOwner && setShowEditModal(true)}
             >
               <AvatarImage src={group?.avatar} className="object-cover" />
-              <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-3xl font-black">
+              <AvatarFallback className="bg-gradient-to-br from-slate-200 to-slate-300 text-slate-800 dark:from-slate-700 dark:to-slate-900 dark:text-white text-3xl font-black">
                 {group?.name?.slice(0, 2).toUpperCase() || 'GR'}
               </AvatarFallback>
             </Avatar>
@@ -465,7 +465,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
                   disabled={isUploadingAvatar}
-                  className="absolute bottom-1 right-1 bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-[#0c131d] opacity-90 hover:bg-emerald-500 group-hover:scale-110 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="absolute bottom-1 right-1 bg-emerald-600 text-white p-2 rounded-full shadow-lg border-2 border-background opacity-90 hover:bg-emerald-500 group-hover:scale-110 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
                   title="Change group photo"
                 >
                   {isUploadingAvatar
@@ -484,42 +484,42 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
           </div>
 
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-wide text-white drop-shadow-sm flex items-center justify-center gap-1.5">
+            <h2 className="text-2xl font-bold tracking-wide text-foreground drop-shadow-sm flex items-center justify-center gap-1.5">
               {group?.name || 'Group Name'}
             </h2>
-            <div className="flex flex-col items-center gap-0.5 text-xs text-slate-400 font-medium">
+            <div className="flex flex-col items-center gap-0.5 text-xs text-muted-foreground font-medium">
               <span>{members.length} members</span>
-              <span className="text-slate-400/80 italic font-mono text-[11px]">
-                Owner: <strong className="text-slate-200 font-semibold">{ownerName}</strong>
+              <span className="text-muted-foreground/80 italic font-mono text-[11px]">
+                Owner: <strong className="text-foreground font-semibold">{ownerName}</strong>
               </span>
             </div>
           </div>
 
-          {/* ── 3. Quick Action Buttons Row (3 Rounded Dark Pills) ───────── */}
+          {/* ── 3. Quick Action Buttons Row (3 Rounded Pills) ───────── */}
           <div className="grid grid-cols-3 gap-3 w-full pt-3">
             <button
               onClick={() => {
                 if (onSendMessage) onSendMessage();
                 onClose();
               }}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-[#172232] hover:bg-[#1f2d42] active:scale-95 text-slate-200 transition-all border border-slate-800/60 shadow-lg"
+              className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-muted/60 hover:bg-muted active:scale-95 text-foreground transition-all border border-border shadow-sm"
             >
-              <MessageSquare className="h-5 w-5 text-emerald-400" />
+              <MessageSquare className="h-5 w-5 text-emerald-500" />
               <span className="text-[11px] font-semibold tracking-wide">Message</span>
             </button>
 
             <button
               onClick={handleToggleMuteInternal}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-[#172232] hover:bg-[#1f2d42] active:scale-95 text-slate-200 transition-all border border-slate-800/60 shadow-lg"
+              className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-muted/60 hover:bg-muted active:scale-95 text-foreground transition-all border border-border shadow-sm"
             >
               {isMuted ? (
                 <>
-                  <Volume2 className="h-5 w-5 text-emerald-400" />
+                  <Volume2 className="h-5 w-5 text-emerald-500" />
                   <span className="text-[11px] font-semibold tracking-wide">Unmute</span>
                 </>
               ) : (
                 <>
-                  <VolumeX className="h-5 w-5 text-amber-400" />
+                  <VolumeX className="h-5 w-5 text-amber-500" />
                   <span className="text-[11px] font-semibold tracking-wide">Mute</span>
                 </>
               )}
@@ -527,38 +527,38 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
             <button
               onClick={() => setShowLeaveDialog(true)}
-              className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-[#172232] hover:bg-red-500/20 active:scale-95 text-slate-200 hover:text-red-300 transition-all border border-slate-800/60 shadow-lg"
+              className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-muted/60 hover:bg-destructive/15 active:scale-95 text-destructive transition-all border border-border shadow-sm"
             >
-              <LogOut className="h-5 w-5 text-red-400" />
+              <LogOut className="h-5 w-5 text-destructive" />
               <span className="text-[11px] font-semibold tracking-wide">Leave</span>
             </button>
           </div>
         </div>
 
         {/* ── 4. Group Action & Filter Rows ──────────────────────────────── */}
-        <div className="px-4 py-2 space-y-2 border-t border-slate-800/50">
-          <div className="flex items-center justify-between text-slate-300">
+        <div className="px-4 py-2 space-y-2 border-t border-border">
+          <div className="flex items-center justify-between text-foreground">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 text-xs font-semibold hover:text-white transition-colors py-2 px-1">
-                  <Sliders className="h-4 w-4 text-emerald-400" />
+                <button className="flex items-center gap-2 text-xs font-semibold hover:text-foreground text-muted-foreground transition-colors py-2 px-1">
+                  <Sliders className="h-4 w-4 text-emerald-500" />
                   <span>Members filter</span>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40 bg-[#172232] border-slate-800 text-slate-200 rounded-xl">
-                <DropdownMenuItem onClick={() => setMemberFilter('all')} className={cn("text-xs gap-2 rounded-lg cursor-pointer", memberFilter === 'all' && "bg-slate-800 font-bold text-emerald-400")}>
+              <DropdownMenuContent align="start" className="w-40 bg-popover border-border text-popover-foreground rounded-xl">
+                <DropdownMenuItem onClick={() => setMemberFilter('all')} className={cn("text-xs gap-2 rounded-lg cursor-pointer", memberFilter === 'all' && "bg-accent font-bold text-emerald-600 dark:text-emerald-400")}>
                   {memberFilter === 'all' && <Check className="h-3.5 w-3.5" />} All Members
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setMemberFilter('admins')} className={cn("text-xs gap-2 rounded-lg cursor-pointer", memberFilter === 'admins' && "bg-slate-800 font-bold text-emerald-400")}>
+                <DropdownMenuItem onClick={() => setMemberFilter('admins')} className={cn("text-xs gap-2 rounded-lg cursor-pointer", memberFilter === 'admins' && "bg-accent font-bold text-emerald-600 dark:text-emerald-400")}>
                   {memberFilter === 'admins' && <Check className="h-3.5 w-3.5" />} Admins Only
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setMemberFilter('online')} className={cn("text-xs gap-2 rounded-lg cursor-pointer", memberFilter === 'online' && "bg-slate-800 font-bold text-emerald-400")}>
+                <DropdownMenuItem onClick={() => setMemberFilter('online')} className={cn("text-xs gap-2 rounded-lg cursor-pointer", memberFilter === 'online' && "bg-accent font-bold text-emerald-600 dark:text-emerald-400")}>
                   {memberFilter === 'online' && <Check className="h-3.5 w-3.5" />} Online Now
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <span className="text-xs text-slate-400 capitalize font-medium">
+            <span className="text-xs text-muted-foreground capitalize font-medium">
               {memberFilter === 'all' ? 'All' : memberFilter}
             </span>
           </div>
@@ -566,9 +566,9 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
           {isAdminOrOwner && (
             <button
               onClick={handleOpenAddMembers}
-              className="flex items-center gap-3 w-full py-2.5 px-2 text-xs font-semibold text-slate-200 hover:text-emerald-400 hover:bg-slate-800/40 rounded-xl transition-all"
+              className="flex items-center gap-3 w-full py-2.5 px-2 text-xs font-semibold text-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-accent rounded-xl transition-all"
             >
-              <UserPlus className="h-5 w-5 text-emerald-400" />
+              <UserPlus className="h-5 w-5 text-emerald-500" />
               <span>Add Members</span>
             </button>
           )}
@@ -577,20 +577,20 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
         {/* ── 5. Tabbed Section ────────────────────────────────────────────── */}
         <div className="px-3 pt-2 pb-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full flex items-center justify-between p-1 bg-[#15202e] rounded-2xl border border-slate-800/60">
-              <TabsTrigger value="members" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-slate-400 data-[state=active]:bg-[#202e42] data-[state=active]:text-emerald-400 data-[state=active]:shadow-md transition-all">
+            <TabsList className="w-full flex items-center justify-between p-1 bg-muted/60 rounded-2xl border border-border">
+              <TabsTrigger value="members" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm transition-all">
                 Members
               </TabsTrigger>
-              <TabsTrigger value="media" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-slate-400 data-[state=active]:bg-[#202e42] data-[state=active]:text-emerald-400 data-[state=active]:shadow-md transition-all">
+              <TabsTrigger value="media" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm transition-all">
                 Media
               </TabsTrigger>
-              <TabsTrigger value="saved" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-slate-400 data-[state=active]:bg-[#202e42] data-[state=active]:text-emerald-400 data-[state=active]:shadow-md transition-all">
+              <TabsTrigger value="saved" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm transition-all">
                 Saved
               </TabsTrigger>
-              <TabsTrigger value="files" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-slate-400 data-[state=active]:bg-[#202e42] data-[state=active]:text-emerald-400 data-[state=active]:shadow-md transition-all">
+              <TabsTrigger value="files" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm transition-all">
                 Files
               </TabsTrigger>
-              <TabsTrigger value="links" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-slate-400 data-[state=active]:bg-[#202e42] data-[state=active]:text-emerald-400 data-[state=active]:shadow-md transition-all">
+              <TabsTrigger value="links" className="flex-1 rounded-xl text-[11px] font-bold py-1.5 text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm transition-all">
                 Links
               </TabsTrigger>
             </TabsList>
@@ -598,7 +598,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
             {/* ── Members Tab Content ────────────────────────────────────── */}
             <TabsContent value="members" className="mt-3 space-y-1.5">
               {filteredMembers.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500">
+                <div className="py-8 text-center text-xs text-muted-foreground">
                   No members match this filter.
                 </div>
               ) : (
@@ -609,28 +609,28 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
                   return (
                     <div 
                       key={m.userId} 
-                      className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#162232] group transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-accent/60 group transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="relative">
-                          <Avatar className="h-10 w-10 border border-slate-700/60">
+                          <Avatar className="h-10 w-10 border border-border">
                             <AvatarImage src={m.user?.profile_photo} className="object-cover" />
-                            <AvatarFallback className="bg-slate-800 text-slate-300 font-bold text-xs">
+                            <AvatarFallback className="bg-muted text-muted-foreground font-bold text-xs">
                               {m.user?.full_name?.slice(0, 2).toUpperCase() || 'U'}
                             </AvatarFallback>
                           </Avatar>
                           {isOnline && (
-                            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 border-2 border-[#0c131d]" />
+                            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 border-2 border-background" />
                           )}
                         </div>
 
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-semibold text-slate-200 truncate">
+                            <span className="text-xs font-semibold text-foreground truncate">
                               {m.user?.full_name || 'Member'}
                             </span>
                           </div>
-                          <span className={cn("text-[11px] font-medium truncate", isOnline ? "text-emerald-400" : "text-slate-500")}>
+                          <span className={cn("text-[11px] font-medium truncate", isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
                             {statusText}
                           </span>
                         </div>
@@ -638,12 +638,12 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
                       <div className="flex items-center gap-2 shrink-0">
                         {m.role === 'OWNER' && (
-                          <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 text-[10px] font-bold border border-purple-500/30">
                             Owner
                           </span>
                         )}
                         {m.role === 'ADMIN' && (
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
                             Admin
                           </span>
                         )}
@@ -651,25 +651,25 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
                         {isAdminOrOwner && m.userId !== currentUser?.id && m.role !== 'OWNER' && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-slate-400 hover:text-white hover:bg-slate-700/50">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent">
                                 <MoreVertical className="h-3.5 w-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 bg-[#172232] border-slate-800 text-slate-200 rounded-xl p-1">
+                            <DropdownMenuContent align="end" className="w-48 bg-popover border-border text-popover-foreground rounded-xl p-1">
                               {onUpdateRole && (
                                 <DropdownMenuItem 
                                   onClick={() => onUpdateRole(m.userId, m.role === 'ADMIN' ? 'MEMBER' : 'ADMIN')}
-                                  className="text-xs rounded-lg gap-2 cursor-pointer hover:bg-slate-800"
+                                  className="text-xs rounded-lg gap-2 cursor-pointer hover:bg-accent"
                                 >
-                                  <Shield className="h-3.5 w-3.5 text-blue-400" />
+                                  <Shield className="h-3.5 w-3.5 text-blue-500" />
                                   {m.role === 'ADMIN' ? 'Demote to Member' : 'Promote to Admin'}
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuSeparator className="bg-slate-800" />
+                              <DropdownMenuSeparator className="bg-border" />
                               {onRemoveMember && (
                                 <DropdownMenuItem 
                                   onClick={() => onRemoveMember(m.userId)}
-                                  className="text-xs rounded-lg gap-2 cursor-pointer text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                  className="text-xs rounded-lg gap-2 cursor-pointer text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                   Remove from Group
@@ -710,45 +710,45 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
       {/* 1. Edit Group Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="bg-[#141f2d] border-slate-800 text-slate-100 rounded-3xl max-w-md">
+        <DialogContent className="bg-card border-border text-foreground rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <Edit className="h-5 w-5 text-emerald-400" />
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <Edit className="h-5 w-5 text-emerald-500" />
               Edit Group Details
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Group Name</label>
+              <label className="text-xs font-semibold text-foreground">Group Name</label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Enter group name..."
-                className="bg-[#0c131d] border-slate-800 text-white rounded-xl focus:border-emerald-500"
+                className="bg-background border-input text-foreground rounded-xl focus:border-emerald-500"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Group Avatar URL</label>
+              <label className="text-xs font-semibold text-foreground">Group Avatar URL</label>
               <Input
                 value={editAvatar}
                 onChange={(e) => setEditAvatar(e.target.value)}
                 placeholder="https://..."
-                className="bg-[#0c131d] border-slate-800 text-white rounded-xl focus:border-emerald-500"
+                className="bg-background border-input text-foreground rounded-xl focus:border-emerald-500"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Description</label>
+              <label className="text-xs font-semibold text-foreground">Description</label>
               <Textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="What is this group about?"
                 rows={3}
-                className="bg-[#0c131d] border-slate-800 text-white rounded-xl focus:border-emerald-500 resize-none"
+                className="bg-background border-input text-foreground rounded-xl focus:border-emerald-500 resize-none"
               />
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setShowEditModal(false)} className="rounded-xl border border-slate-800 text-slate-300">
+            <Button variant="ghost" onClick={() => setShowEditModal(false)} className="rounded-xl border border-border text-foreground hover:bg-accent">
               Cancel
             </Button>
             <Button onClick={handleSaveEdit} disabled={isSavingEdit} className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold">
@@ -761,32 +761,32 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
       {/* 2. Add Members Modal */}
       <Dialog open={showAddMemberModal} onOpenChange={setShowAddMemberModal}>
-        <DialogContent className="bg-[#141f2d] border-slate-800 text-slate-100 rounded-3xl max-w-md">
+        <DialogContent className="bg-card border-border text-foreground rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-emerald-400" />
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-emerald-500" />
               Add Group Members
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={searchContact}
                 onChange={(e) => setSearchContact(e.target.value)}
                 placeholder="Search contacts..."
-                className="pl-9 bg-[#0c131d] border-slate-800 text-white rounded-xl text-xs"
+                className="pl-9 bg-background border-input text-foreground rounded-xl text-xs"
               />
             </div>
 
             <ScrollArea className="h-60 pr-2">
               {isLoadingContacts ? (
-                <div className="py-10 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-                  <Spinner size="sm" className="text-emerald-400" /> Loading contacts...
+                <div className="py-10 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Spinner size="sm" className="text-emerald-500" /> Loading contacts...
                 </div>
               ) : contacts.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500">
+                <div className="py-10 text-center text-xs text-muted-foreground">
                   No new contacts available to add.
                 </div>
               ) : (
@@ -804,19 +804,19 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
                         }}
                         className={cn(
                           "flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors mb-1",
-                          isSelected ? "bg-emerald-500/10 border border-emerald-500/30" : "hover:bg-slate-800/50"
+                          isSelected ? "bg-emerald-500/10 border border-emerald-500/30" : "hover:bg-accent/60"
                         )}
                       >
                         <div className="flex items-center gap-2.5">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={c.profile_photo} />
-                            <AvatarFallback className="bg-slate-800 text-xs text-slate-300 font-bold">
+                            <AvatarFallback className="bg-muted text-xs text-muted-foreground font-bold">
                               {c.full_name?.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-xs font-semibold text-slate-200">{c.full_name}</span>
+                          <span className="text-xs font-semibold text-foreground">{c.full_name}</span>
                         </div>
-                        <div className={cn("h-5 w-5 rounded-md border flex items-center justify-center", isSelected ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-700")}>
+                        <div className={cn("h-5 w-5 rounded-md border flex items-center justify-center", isSelected ? "bg-emerald-500 border-emerald-500 text-white" : "border-border")}>
                           {isSelected && <Check className="h-3.5 w-3.5" />}
                         </div>
                       </div>
@@ -827,7 +827,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setShowAddMemberModal(false)} className="rounded-xl border border-slate-800 text-slate-300">
+            <Button variant="ghost" onClick={() => setShowAddMemberModal(false)} className="rounded-xl border border-border text-foreground hover:bg-accent">
               Cancel
             </Button>
             <Button 
@@ -844,21 +844,21 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
       {/* 3. Leave Group Dialog */}
       <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <DialogContent className="bg-[#141f2d] border-slate-800 text-slate-100 rounded-3xl max-w-sm">
+        <DialogContent className="bg-card border-border text-foreground rounded-3xl max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <LogOut className="h-5 w-5 text-red-400" />
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <LogOut className="h-5 w-5 text-destructive" />
               Leave Group?
             </DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs pt-1">
+            <DialogDescription className="text-muted-foreground text-xs pt-1">
               Are you sure you want to leave <strong>{group?.name}</strong>? You will no longer receive messages or updates from this group.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setShowLeaveDialog(false)} className="rounded-xl border border-slate-800 text-slate-300">
+            <Button variant="ghost" onClick={() => setShowLeaveDialog(false)} className="rounded-xl border border-border text-foreground hover:bg-accent">
               Cancel
             </Button>
-            <Button onClick={handleLeaveGroupInternal} className="bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold">
+            <Button onClick={handleLeaveGroupInternal} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl font-bold">
               Leave Group
             </Button>
           </DialogFooter>
@@ -867,37 +867,37 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
       {/* 4. Group Description Info Sheet */}
       <Dialog open={showInfoSheet} onOpenChange={setShowInfoSheet}>
-        <DialogContent className="bg-[#141f2d] border-slate-800 text-slate-100 rounded-3xl max-w-md">
+        <DialogContent className="bg-card border-border text-foreground rounded-3xl max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-emerald-400" />
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-emerald-500" />
               Group Information
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
             <div>
-              <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Group Name</span>
-              <p className="text-slate-200 font-semibold text-sm mt-0.5">{group?.name}</p>
+              <span className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">Group Name</span>
+              <p className="text-foreground font-semibold text-sm mt-0.5">{group?.name}</p>
             </div>
             <div>
-              <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Description</span>
-              <p className="text-slate-300 mt-0.5 bg-[#0c131d] p-3 rounded-xl border border-slate-800">
+              <span className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">Description</span>
+              <p className="text-foreground mt-0.5 bg-muted/40 p-3 rounded-xl border border-border">
                 {group?.description || 'No description provided.'}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
               <div>
-                <span className="text-slate-400 text-[10px] font-bold uppercase">Total Members</span>
-                <p className="text-slate-200 font-bold">{members.length}</p>
+                <span className="text-muted-foreground text-[10px] font-bold uppercase">Total Members</span>
+                <p className="text-foreground font-bold">{members.length}</p>
               </div>
               <div>
-                <span className="text-slate-400 text-[10px] font-bold uppercase">Group Type</span>
-                <p className="text-slate-200 font-bold">{group?.groupType || 'CUSTOM'}</p>
+                <span className="text-muted-foreground text-[10px] font-bold uppercase">Group Type</span>
+                <p className="text-foreground font-bold">{group?.groupType || 'CUSTOM'}</p>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setShowInfoSheet(false)} className="bg-slate-800 hover:bg-slate-700 text-white rounded-xl w-full">
+            <Button onClick={() => setShowInfoSheet(false)} className="bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-xl w-full">
               Close
             </Button>
           </DialogFooter>
@@ -906,13 +906,13 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
       {/* 5. Privacy & Key Information Modal */}
       <Dialog open={showPrivacyModal} onOpenChange={setShowPrivacyModal}>
-        <DialogContent className="bg-[#141f2d] border-slate-800 text-slate-100 rounded-3xl max-w-sm">
+        <DialogContent className="bg-card border-border text-foreground rounded-3xl max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <Key className="h-5 w-5 text-emerald-400" />
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <Key className="h-5 w-5 text-emerald-500" />
               Encrypted Group
             </DialogTitle>
-            <DialogDescription className="text-slate-300 text-xs pt-2 leading-relaxed">
+            <DialogDescription className="text-muted-foreground text-xs pt-2 leading-relaxed">
               Messages and calls in <strong>{group?.name}</strong> are secured within your school network. Only verified school members can join or view messages.
             </DialogDescription>
           </DialogHeader>

@@ -25,22 +25,43 @@ export function ThemeProvider({
     const savedTheme = localStorage.getItem(storageKey) || defaultTheme
     setTheme(savedTheme)
     setMounted(true)
+
+    // Listen to changes from other tabs or windows
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === storageKey && e.newValue) {
+        setTheme(e.newValue)
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
   }, [defaultTheme, storageKey])
 
   React.useEffect(() => {
     if (!mounted) return
 
     const root = window.document.documentElement
-    root.classList.remove("light", "dark")
+    
+    const applyTheme = () => {
+      root.classList.remove("light", "dark")
+      let resolvedTheme = theme
 
-    if (theme === "system" && enableSystem) {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-      root.classList.add(systemTheme)
-    } else {
-      root.classList.add(theme)
+      if (theme === "system" && enableSystem) {
+        resolvedTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+      }
+
+      root.classList.add(resolvedTheme)
+      root.style.colorScheme = resolvedTheme
     }
 
+    applyTheme()
     localStorage.setItem(storageKey, theme)
+
+    if (theme === "system" && enableSystem) {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+      const handleChange = () => applyTheme()
+      mediaQuery.addEventListener("change", handleChange)
+      return () => mediaQuery.removeEventListener("change", handleChange)
+    }
   }, [theme, mounted, enableSystem, storageKey])
 
   return (

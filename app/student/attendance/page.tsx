@@ -74,23 +74,23 @@ export default function StudentAttendancePage() {
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
             Attendance
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Real-time daily presence, monthly rates, and official verification
           </p>
         </div>
 
         {/* Mode Switch: Daily vs Session-based (Screen 6 in UI reference) */}
-        <div className="bg-slate-100 p-1 rounded-2xl inline-flex self-start sm:self-auto">
+        <div className="bg-muted p-1 rounded-2xl inline-flex self-start sm:self-auto border border-border">
           <button
             type="button"
             onClick={() => setMode("daily")}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
               mode === "daily"
                 ? "bg-purple-700 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Daily
@@ -101,7 +101,7 @@ export default function StudentAttendancePage() {
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
               mode === "session"
                 ? "bg-purple-700 text-white shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Session-based
@@ -112,40 +112,40 @@ export default function StudentAttendancePage() {
       {/* 3 Metric Cards (Screen 6 in UI reference) */}
       <div className="grid grid-cols-3 gap-3 md:gap-4">
         {/* Present Card */}
-        <Card className="rounded-2xl border-slate-200/80 shadow-sm bg-white p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1">
+        <Card className="rounded-2xl border-border shadow-sm bg-card p-4">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Present
           </div>
-          <p className="text-2xl md:text-3xl font-black text-slate-900">
+          <p className="text-2xl md:text-3xl font-black text-foreground">
             {summary.presentPercentage}%
           </p>
-          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
             {summary.presentDays} days
           </p>
         </Card>
 
         {/* Absent Card */}
-        <Card className="rounded-2xl border-slate-200/80 shadow-sm bg-white p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1">
+        <Card className="rounded-2xl border-border shadow-sm bg-card p-4">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Absent
           </div>
-          <p className="text-2xl md:text-3xl font-black text-slate-900">
+          <p className="text-2xl md:text-3xl font-black text-foreground">
             {summary.absentPercentage}%
           </p>
-          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
             {summary.absentDays} day
           </p>
         </Card>
 
         {/* Late Card */}
-        <Card className="rounded-2xl border-slate-200/80 shadow-sm bg-white p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1">
+        <Card className="rounded-2xl border-border shadow-sm bg-card p-4">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Late
           </div>
-          <p className="text-2xl md:text-3xl font-black text-slate-900">
+          <p className="text-2xl md:text-3xl font-black text-foreground">
             {summary.latePercentage}%
           </p>
-          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
             {summary.lateDays} day
           </p>
         </Card>
@@ -154,9 +154,9 @@ export default function StudentAttendancePage() {
       {/* 2-Column: Monthly Calendar + Recent Records (Screen 6 in UI reference) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Calendar Card (8 cols on lg) */}
-        <Card className="lg:col-span-8 rounded-3xl border-slate-200/80 shadow-sm bg-white p-5 md:p-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
-            <span className="font-bold text-sm text-slate-900">
+        <Card className="lg:col-span-8 rounded-3xl border-border shadow-sm bg-card p-5 md:p-6">
+          <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
+            <span className="font-bold text-sm text-foreground">
               {monthNames[currentMonth - 1]} {currentYear}
             </span>
             <div className="flex items-center gap-1">
@@ -180,7 +180,7 @@ export default function StudentAttendancePage() {
           </div>
 
           {/* Days of week header */}
-          <div className="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400 mb-2">
+          <div className="grid grid-cols-7 text-center text-[11px] font-bold text-muted-foreground mb-2">
             <span>Sun</span>
             <span>Mon</span>
             <span>Tue</span>
@@ -211,14 +211,14 @@ export default function StudentAttendancePage() {
                   key={day}
                   className={`h-10 md:h-12 rounded-xl flex flex-col items-center justify-center p-1 border transition-all ${
                     day === 9
-                      ? "border-purple-600 bg-purple-50/50 font-bold"
-                      : "border-slate-100 hover:border-slate-200 bg-slate-50/30"
+                      ? "border-purple-600 bg-purple-500/15 font-bold"
+                      : "border-border hover:border-border/80 bg-muted/40"
                   }`}
                 >
                   <span
                     className={`text-xs ${
-                      isWeekend ? "text-slate-300" : "text-slate-700"
-                    } ${day === 9 ? "text-purple-700 font-black" : ""}`}
+                      isWeekend ? "text-muted-foreground/40" : "text-foreground font-medium"
+                    } ${day === 9 ? "text-purple-700 dark:text-purple-300 font-black" : ""}`}
                   >
                     {day}
                   </span>
@@ -231,7 +231,7 @@ export default function StudentAttendancePage() {
           </div>
 
           {/* Legend */}
-          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-6 text-xs text-slate-500">
+          <div className="mt-6 pt-4 border-t border-border flex items-center justify-center gap-6 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5 font-medium">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Present
             </span>
@@ -246,8 +246,8 @@ export default function StudentAttendancePage() {
 
         {/* Recent Records Column (4 cols on lg) */}
         <div className="lg:col-span-4 space-y-4">
-          <Card className="rounded-3xl border-slate-200/80 shadow-sm bg-white p-5">
-            <CardTitle className="text-xs font-bold text-slate-700 mb-4">
+          <Card className="rounded-3xl border-border shadow-sm bg-card p-5">
+            <CardTitle className="text-xs font-bold text-foreground mb-4">
               Recent Records
             </CardTitle>
 
@@ -258,9 +258,9 @@ export default function StudentAttendancePage() {
                 return (
                   <div
                     key={rec.id || idx}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/80 border border-slate-100"
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-muted/50 border border-border"
                   >
-                    <span className="text-xs font-bold text-slate-800 font-mono">
+                    <span className="text-xs font-bold text-foreground font-mono">
                       {typeof rec.date === "string" && rec.date.includes("T")
                         ? new Date(rec.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                         : rec.date}
@@ -268,10 +268,10 @@ export default function StudentAttendancePage() {
                     <Badge
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                         isPres
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                          ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30"
                           : isLate
-                          ? "bg-amber-100 text-amber-800 border-amber-200"
-                          : "bg-red-100 text-red-800 border-red-200"
+                          ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30"
+                          : "bg-destructive/15 text-destructive border-destructive/30"
                       }`}
                     >
                       {isPres ? "Present" : isLate ? "Late" : "Absent"}
@@ -281,8 +281,8 @@ export default function StudentAttendancePage() {
               })}
             </div>
 
-            <div className="mt-5 pt-3 border-t border-slate-100 text-center">
-              <p className="text-[11px] text-slate-400 font-medium">
+            <div className="mt-5 pt-3 border-t border-border text-center">
+              <p className="text-[11px] text-muted-foreground font-medium">
                 Verified by Bright Path Attendance Records
               </p>
             </div>

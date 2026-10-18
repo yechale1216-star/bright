@@ -831,21 +831,21 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             }}
             role="button"
             tabIndex={0}
-            className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/20 select-none"
+            className="bg-card border border-border rounded-2xl p-4 md:p-5 flex flex-col gap-3 shadow-sm transition-all duration-200 group hover:shadow-md hover:border-primary/40 cursor-pointer active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary/20 select-none"
           >
             {/* Top row: icon + label */}
             <div className="flex items-center gap-2.5">
               <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", item.iconBg, item.iconColor)}>
                 <item.icon className="h-4 w-4" />
               </div>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-tight">
+              <p className="text-xs font-semibold text-muted-foreground leading-tight">
                 {item.label}
               </p>
             </div>
             {/* Value */}
             <div className={cn("text-2xl font-black tracking-tight leading-none", item.valColor)}>
               {isLoading ? (
-                <span className="inline-block w-14 h-7 bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+                <span className="inline-block w-14 h-7 bg-muted animate-pulse rounded-lg" />
               ) : (
                 item.value
               )}
@@ -853,7 +853,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             {/* Sub-text */}
             <p className="text-[10px] font-medium text-muted-foreground/70 leading-snug -mt-1.5">
               {isLoading ? (
-                <span className="inline-block w-20 h-2.5 bg-slate-100 dark:bg-slate-800 animate-pulse rounded" />
+                <span className="inline-block w-20 h-2.5 bg-muted animate-pulse rounded" />
               ) : (
                 item.sub
               )}
@@ -867,8 +867,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         className={cn(
           "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-3.5 rounded-2xl border shadow-sm transition-all",
           pendingRequestsCount > 0 || openDisciplineCasesCount > 0
-            ? "bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50"
-            : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
+            ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
+            : "bg-muted/50 border-border"
         )}
       >
         <div className="flex items-center gap-2.5">
@@ -930,9 +930,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </h3>
           </div>
 
-          <div className="h-[310px] w-full p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden flex items-center justify-center">
+          <div className="h-[310px] w-full p-5 bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex items-center justify-center">
             {isLoading ? (
-              <div className="w-full h-full bg-slate-100/80 dark:bg-slate-800/30 animate-pulse rounded-xl" />
+              <div className="w-full h-full bg-muted/60 animate-pulse rounded-xl" />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={gradeChartData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
@@ -953,7 +953,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </div>
 
         {/* Right Column (1 Col): Today's Status Donut */}
-        <Card className="border-none shadow-sm bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-slate-800">
+        <Card className="shadow-sm bg-card rounded-2xl border border-border">
           <CardHeader className="pb-0 border-none">
             <div className="flex items-center justify-between">
               <CardTitle className="typography-card-title flex items-center gap-2">
@@ -984,9 +984,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-[220px] w-full mt-4 bg-slate-100 dark:bg-slate-800/20 animate-pulse rounded-2xl" />
+              <div className="h-[220px] w-full mt-4 bg-muted/60 animate-pulse rounded-2xl" />
             ) : (totalStudents ?? 0) > 0 ? (
-              <div className="h-[250px] w-full mt-3 p-2 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="h-[250px] w-full mt-3 p-2 bg-muted/30 rounded-xl border border-border">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -1036,10 +1036,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       {/* 5. SCHOOL OPERATIONS & SERVICES (LIBRARY & TRANSPORT FLEET) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Library Desk Snapshot */}
-        <Card className="rounded-2xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <Card className="rounded-2xl border border-border bg-card shadow-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                 <BookOpen className="w-4 h-4" />
               </div>
               <div>
@@ -1059,15 +1059,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </CardHeader>
           <CardContent className="pt-2">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Titles</p>
                 <p className="text-lg font-black text-foreground mt-0.5">{libraryStats?.totalBooks ?? '—'}</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">On Loan</p>
                 <p className="text-lg font-black text-blue-600 dark:text-blue-400 mt-0.5">{libraryStats?.borrowedBooks ?? '—'}</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Overdue</p>
                 <p className={cn("text-lg font-black mt-0.5", (libraryStats?.overdueBooks || 0) > 0 ? "text-rose-600" : "text-emerald-600")}>
                   {libraryStats?.overdueBooks ?? 0}
@@ -1078,10 +1078,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </Card>
 
         {/* Transport Fleet Snapshot */}
-        <Card className="rounded-2xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <Card className="rounded-2xl border border-border bg-card shadow-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                 <Bus className="w-4 h-4" />
               </div>
               <div>
@@ -1101,15 +1101,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </CardHeader>
           <CardContent className="pt-2">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Fleet Buses</p>
                 <p className="text-lg font-black text-foreground mt-0.5">{transportStats?.totalVehicles ?? '—'}</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Routes</p>
                 <p className="text-lg font-black text-amber-600 dark:text-amber-400 mt-0.5">{transportStats?.totalRoutes ?? '—'}</p>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+              <div className="p-2.5 rounded-xl bg-muted/50 border border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase">Riders</p>
                 <p className="text-lg font-black text-foreground mt-0.5">{transportStats?.assignedStudents ?? '—'}</p>
               </div>
@@ -1234,11 +1234,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Card 1: Academic Cycle Card */}
-            <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
+            <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 font-bold border border-purple-500/20">
+                    <div className="h-9 w-9 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
                       <Calendar className="w-4 h-4" />
                     </div>
                     <div>
@@ -1246,7 +1246,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <p className="text-[10px] font-semibold text-muted-foreground">{activeAcademicYearName}</p>
                     </div>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-950/40 border-purple-200">
+                  <Badge variant="outline" className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/15 border-purple-500/30">
                     {activeTerm}
                   </Badge>
                 </div>
@@ -1257,11 +1257,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </Card>
 
             {/* Card 2: Student Registration Stream */}
-            <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
+            <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold border border-blue-500/20">
+                    <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
                       <GraduationCap className="w-4 h-4" />
                     </div>
                     <div>
@@ -1269,7 +1269,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <p className="text-[10px] font-semibold text-muted-foreground">{totalStudents} Enrolled</p>
                     </div>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 border-blue-200">
+                  <Badge variant="outline" className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-500/15 border-blue-500/30">
                     Active
                   </Badge>
                 </div>
@@ -1284,11 +1284,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </Card>
 
             {/* Card 3: Conduct & Safety Stream */}
-            <Card className="border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
+            <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-600 font-bold border border-rose-500/20">
+                    <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-600 dark:text-rose-400 font-bold border border-rose-500/20">
                       <ShieldCheck className="w-4 h-4" />
                     </div>
                     <div>
@@ -1301,8 +1301,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     className={cn(
                       "text-[10px] font-bold",
                       casesRequiringAttention.length > 0
-                        ? "text-rose-600 bg-rose-50 border-rose-200"
-                        : "text-emerald-600 bg-emerald-50 border-emerald-200"
+                        ? "text-destructive bg-destructive/15 border-destructive/30"
+                        : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border-emerald-500/30"
                     )}
                   >
                     {casesRequiringAttentionCount > 0 ? "Review Required" : "Stable"}

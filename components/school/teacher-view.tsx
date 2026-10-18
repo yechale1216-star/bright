@@ -251,7 +251,7 @@ export function TeacherView() {
                     "group relative overflow-hidden p-6 rounded-[32px] border-2 transition-all duration-500 cursor-pointer active:scale-[0.98]",
                     isSelected 
                       ? "bg-primary border-primary shadow-2xl shadow-primary/30" 
-                      : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-primary/30"
+                      : "bg-card border-border hover:border-primary/40"
                   )}
                   onClick={() => setSelectedAssignment(assignment)}
                 >
@@ -339,7 +339,7 @@ export function TeacherView() {
                       {displayedStudents.map((student) => (
                         <div 
                           key={student.id} 
-                          className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[28px] shadow-sm active:scale-[0.97] transition-all hover:shadow-md cursor-pointer group"
+                          className="p-4 bg-card border border-border rounded-[28px] shadow-sm active:scale-[0.97] transition-all hover:shadow-md cursor-pointer group"
                           onClick={() => setSelectedStudentProfile(student)}
                         >
                           <div className="flex items-center gap-4">
@@ -385,10 +385,10 @@ export function TeacherView() {
                     </div>
 
                     {/* Desktop Student Table */}
-                    <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[32px] overflow-hidden shadow-sm">
+                    <div className="hidden md:block bg-card border border-border rounded-[32px] overflow-hidden shadow-sm">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                          <tr className="bg-muted/50 border-b border-border">
                             <th className="px-8 py-5 text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.2em]">Student</th>
                             <th className="px-8 py-5 text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.2em]">ID & Gender</th>
                             <th className="px-8 py-5 text-[10px] font-black text-muted-foreground/60 uppercase tracking-[0.2em]">Contact</th>
@@ -519,31 +519,31 @@ export function TeacherView() {
                 {/* Info Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Personal Info */}
-                  <div className="p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+                  <div className="p-5 bg-muted/40 rounded-3xl border border-border space-y-4">
                     <h4 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
                       <UserIcon className="w-4 h-4 text-primary" /> Personal Information
                     </h4>
                     <div className="space-y-2.5 text-xs">
-                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                      <div className="flex justify-between py-1 border-b border-border">
                         <span className="text-muted-foreground font-medium">Student ID</span>
                         <span className="font-bold text-foreground font-mono">{selectedStudentProfile.student_id || "N/A"}</span>
                       </div>
-                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                      <div className="flex justify-between py-1 border-b border-border">
                         <span className="text-muted-foreground font-medium">Grade & Section</span>
                         <span className="font-bold text-foreground">Grade {selectedStudentProfile.grade} ({selectedStudentProfile.section})</span>
                       </div>
                       {selectedStudentProfile.stream && (
-                        <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <div className="flex justify-between py-1 border-b border-border">
                           <span className="text-muted-foreground font-medium">Academic Stream</span>
                           <span className="font-bold text-foreground">{selectedStudentProfile.stream}</span>
                         </div>
                       )}
-                      <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                      <div className="flex justify-between py-1 border-b border-border">
                         <span className="text-muted-foreground font-medium">Gender</span>
                         <span className="font-bold text-foreground capitalize">{selectedStudentProfile.gender || "—"}</span>
                       </div>
                       {selectedStudentProfile.date_of_birth && (
-                        <div className="flex justify-between py-1 border-b border-slate-200/50 dark:border-slate-700/50">
+                        <div className="flex justify-between py-1 border-b border-border">
                           <span className="text-muted-foreground font-medium">Date of Birth</span>
                           <span className="font-bold text-foreground">{formatDate(selectedStudentProfile.date_of_birth)}</span>
                         </div>
@@ -558,7 +558,7 @@ export function TeacherView() {
                   </div>
 
                   {/* Guardian Info */}
-                  <div className="p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 space-y-4">
+                  <div className="p-5 bg-muted/40 rounded-3xl border border-border space-y-4">
                     <h4 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
                       <Contact className="w-4 h-4 text-emerald-500" /> Guardian / Parent
                     </h4>
