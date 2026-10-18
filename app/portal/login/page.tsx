@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Phone, Lock, Eye, EyeOff, ArrowRight, User, Loader2, GraduationCap, Users } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, ArrowRight, User, Loader2, Users } from "lucide-react";
 import { authService } from "@/lib/auth/auth";
 import { authStorage } from "@/lib/auth/auth-storage";
 import { useAuth } from "@/lib/context/auth-context";
@@ -125,13 +125,6 @@ function PortalLoginContent() {
       {/* Main */}
       <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
-          {/* Badge */}
-          <div className="flex justify-center mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold uppercase tracking-wider">
-              <GraduationCap className="w-3.5 h-3.5" />
-              Student &amp; Parent Portal
-            </div>
-          </div>
 
           {/* Card */}
           <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl shadow-black/40 overflow-hidden">
