@@ -72,26 +72,26 @@ export default function MyClassesPage() {
 
         {/* Tab 1: Current Subjects (Screen 4 in UI reference) */}
         <TabsContent value="subjects" className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-3.5">
             {displayClasses.map((sub) => (
               <Card
                 key={sub.id}
-                className="rounded-2xl border-slate-200/80 shadow-sm bg-white hover:border-purple-200 transition-all hover:shadow-md"
+                className="rounded-2xl border-slate-200/80 shadow-xs bg-white hover:border-purple-200 transition-all hover:shadow-md"
               >
-                <CardContent className="p-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
+                <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+                  <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                     {/* Subject color icon */}
                     <div
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0"
                       style={{ backgroundColor: sub.color || "#6366f1" }}
                     >
-                      <BookOpen className="w-5 h-5 text-white" />
+                      <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 leading-tight">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
                         {sub.name}
                       </h4>
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
                         Teacher: {sub.teacher}
                       </p>
                     </div>
@@ -101,7 +101,7 @@ export default function MyClassesPage() {
                     variant="outline"
                     size="sm"
                     asChild
-                    className="rounded-xl text-xs font-semibold text-purple-700 border-purple-200 hover:bg-purple-50 shrink-0"
+                    className="rounded-xl text-[11px] sm:text-xs font-semibold text-purple-700 border-purple-200 hover:bg-purple-50 shrink-0 h-8 px-2.5 sm:px-3"
                   >
                     <Link href={`/student/materials?subjectId=${sub.id}`}>
                       View Materials
