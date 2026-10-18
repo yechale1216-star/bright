@@ -46,52 +46,52 @@ export default function MyClassesPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
       <div>
-        <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+        <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
           My Classes
         </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           Enrolled subjects, assigned teachers, and class learning resources
         </p>
       </div>
 
       <Tabs defaultValue="subjects" className="w-full">
-        <TabsList className="bg-slate-100 p-1 rounded-2xl w-full sm:w-auto grid grid-cols-2 sm:inline-flex mb-4">
+        <TabsList className="bg-card/80 border border-border p-1 rounded-2xl w-full sm:w-auto grid grid-cols-2 sm:inline-flex mb-4">
           <TabsTrigger
             value="subjects"
-            className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+            className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
           >
             Current Subjects
           </TabsTrigger>
           <TabsTrigger
             value="teachers"
-            className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+            className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
           >
             Teachers
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Current Subjects (Screen 4 in UI reference) */}
+        {/* Tab 1: Current Subjects */}
         <TabsContent value="subjects" className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-3.5">
             {displayClasses.map((sub) => (
               <Card
                 key={sub.id}
-                className="rounded-2xl border-slate-200/80 shadow-xs bg-white hover:border-purple-200 transition-all hover:shadow-md"
+                className="rounded-2xl border-border shadow-xs bg-card hover:border-primary/40 transition-all hover:shadow-md"
               >
                 <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2.5 sm:gap-3 min-w-0">
                   <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                     {/* Subject color icon */}
                     <div
                       className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0"
-                      style={{ backgroundColor: sub.color || "#6366f1" }}
+                      style={{ backgroundColor: sub.color || "#8B2CF5" }}
                     >
                       <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
+                      <h4 className="text-xs sm:text-sm font-bold text-foreground leading-tight truncate">
                         {sub.name}
                       </h4>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
+                      <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mt-0.5 truncate">
                         Teacher: {sub.teacher}
                       </p>
                     </div>
@@ -101,7 +101,7 @@ export default function MyClassesPage() {
                     variant="outline"
                     size="sm"
                     asChild
-                    className="rounded-xl text-[11px] sm:text-xs font-semibold text-purple-700 border-purple-200 hover:bg-purple-50 shrink-0 h-8 px-2.5 sm:px-3"
+                    className="rounded-xl text-[11px] sm:text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10 shrink-0 h-8 px-2.5 sm:px-3"
                   >
                     <Link href={`/student/materials?subjectId=${sub.id}`}>
                       View Materials
@@ -117,23 +117,23 @@ export default function MyClassesPage() {
         <TabsContent value="teachers" className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {displayClasses.map((sub) => (
-              <Card key={`teacher-${sub.id}`} className="rounded-2xl border-slate-200/80 shadow-sm bg-white p-5">
+              <Card key={`teacher-${sub.id}`} className="rounded-2xl border-border shadow-sm bg-card p-5">
                 <div className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12 ring-2 ring-purple-500/20">
-                    <AvatarFallback className="bg-purple-100 text-purple-800 font-bold text-sm">
+                  <Avatar className="w-12 h-12 ring-2 ring-primary/20">
+                    <AvatarFallback className="bg-primary/15 text-primary font-bold text-sm">
                       {sub.teacher.slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">{sub.teacher}</h4>
-                    <p className="text-[11px] font-semibold text-purple-700">{sub.name} Teacher</p>
-                    <span className="text-[10px] text-slate-400">Bright Path Faculty</span>
+                    <h4 className="text-xs font-bold text-foreground">{sub.teacher}</h4>
+                    <p className="text-[11px] font-semibold text-primary">{sub.name} Teacher</p>
+                    <span className="text-[10px] text-muted-foreground">Bright Path Faculty</span>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">{sub.materialsCount || 8} files uploaded</span>
-                  <Button variant="ghost" size="sm" asChild className="text-xs text-purple-700 h-7 px-2">
+                <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-medium">{sub.materialsCount || 8} files uploaded</span>
+                  <Button variant="ghost" size="sm" asChild className="text-xs text-primary hover:text-primary hover:bg-primary/10 h-7 px-2">
                     <Link href={`/student/materials?subjectId=${sub.id}`}>
                       Materials
                     </Link>

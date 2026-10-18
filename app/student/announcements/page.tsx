@@ -80,38 +80,38 @@ export default function StudentAnnouncementsPage() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-300">
       <div>
-        <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+        <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
           Announcements
         </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           Official campus notices, academic updates, and school calendar events
         </p>
       </div>
 
-      {/* Tabs Filter (Screen 8 in UI reference) */}
+      {/* Tabs Filter */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-slate-100 p-1 rounded-2xl w-full sm:w-auto grid grid-cols-4 sm:inline-flex mb-4">
+        <TabsList className="bg-card/80 border border-border p-1 rounded-2xl w-full sm:w-auto grid grid-cols-4 sm:inline-flex mb-4">
           <TabsTrigger
             value="all"
-            className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+            className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
           >
             All
           </TabsTrigger>
           <TabsTrigger
             value="school"
-            className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+            className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
           >
             School
           </TabsTrigger>
           <TabsTrigger
             value="academic"
-            className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+            className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
           >
             Academic
           </TabsTrigger>
           <TabsTrigger
             value="general"
-            className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+            className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
           >
             General
           </TabsTrigger>
@@ -125,17 +125,17 @@ export default function StudentAnnouncementsPage() {
             return (
               <Card
                 key={item.id || idx}
-                className="rounded-2xl border-slate-200/80 shadow-sm bg-white hover:border-purple-200 hover:shadow-md transition-all p-4 md:p-5"
+                className="rounded-2xl border-border shadow-sm bg-card hover:border-primary/40 hover:shadow-md transition-all p-4 md:p-5"
               >
                 <div className="flex items-start gap-4">
                   {/* Category icon */}
                   <div
                     className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
                       isSchool
-                        ? "bg-purple-100 text-purple-700"
+                        ? "bg-primary/15 text-primary"
                         : isAcademic
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-emerald-100 text-emerald-700"
+                        ? "bg-blue-500/15 text-blue-400"
+                        : "bg-emerald-500/15 text-emerald-400"
                     }`}
                   >
                     {isSchool ? (
@@ -150,28 +150,28 @@ export default function StudentAnnouncementsPage() {
                   {/* Content */}
                   <div className="flex-1 space-y-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                      <h4 className="text-sm font-bold text-foreground leading-snug">
                         {item.title}
                       </h4>
-                      <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
+                      <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">
                         {typeof item.date === "string" && item.date.includes("T")
                           ? new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                           : item.date}
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-600 leading-relaxed">
+                    <p className="text-xs text-foreground/80 leading-relaxed font-normal">
                       {item.message}
                     </p>
 
                     <div className="pt-1.5 flex items-center gap-2">
                       <Badge
                         variant="secondary"
-                        className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md"
+                        className="text-[10px] font-semibold bg-muted text-foreground/80 px-2 py-0.5 rounded-md border border-border"
                       >
                         {item.category || "General"}
                       </Badge>
-                      <span className="text-[10px] text-slate-400 font-medium">
+                      <span className="text-[10px] text-muted-foreground font-medium">
                         Bright Path Administration
                       </span>
                     </div>

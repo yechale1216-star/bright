@@ -233,7 +233,7 @@ export default function StudentTimetablePage() {
               onClick={() => setSelectedMobileDay(day)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
                 selectedMobileDay === day
-                  ? "bg-purple-700 text-white shadow-sm"
+                  ? "bg-primary text-white shadow-sm"
                   : "bg-card text-muted-foreground hover:text-foreground border border-border"
               }`}
             >

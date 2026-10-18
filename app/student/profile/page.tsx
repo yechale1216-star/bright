@@ -122,29 +122,29 @@ export default function StudentProfilePage() {
             </div>
 
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/60 px-3 py-1.5 rounded-xl border border-border">
-              <Lock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <Lock className="w-3.5 h-3.5 text-primary" />
               <span>Read-Only Academic Record</span>
             </div>
           </div>
 
           {/* Profile Tabs */}
           <Tabs defaultValue="basic" className="w-full mt-6">
-            <TabsList className="bg-muted p-1 rounded-2xl w-full sm:w-auto grid grid-cols-3 sm:inline-flex border border-border">
+            <TabsList className="bg-card/80 border border-border p-1 rounded-2xl w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
               <TabsTrigger
                 value="basic"
-                className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+                className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
               >
                 Basic Info
               </TabsTrigger>
               <TabsTrigger
                 value="history"
-                className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+                className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
               >
                 Academic History
               </TabsTrigger>
               <TabsTrigger
                 value="contact"
-                className="rounded-xl text-xs font-bold data-[state=active]:bg-purple-700 data-[state=active]:text-white transition-all"
+                className="rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
               >
                 Contact Info
               </TabsTrigger>
@@ -153,39 +153,39 @@ export default function StudentProfilePage() {
             {/* Tab 1: Basic Info */}
             <TabsContent value="basic" className="pt-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Full Name</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.fullName}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Student ID</p>
-                  <p className="text-xs font-mono font-bold text-purple-700 dark:text-purple-400 mt-0.5">{basic.studentId}</p>
+                  <p className="text-xs font-mono font-bold text-primary mt-0.5">{basic.studentId}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Current Grade & Section</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">Grade {basic.grade} - Section {basic.section}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Academic Stream</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.stream || "General"}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Academic Year</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.academicYear}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Date of Birth</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.dateOfBirth}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Gender</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.gender}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Phone</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.phone}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border sm:col-span-2">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border sm:col-span-2">
                   <p className="text-[11px] font-semibold text-muted-foreground">Residential Address</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{basic.address}</p>
                 </div>
@@ -194,8 +194,8 @@ export default function StudentProfilePage() {
 
             {/* Tab 2: Academic History */}
             <TabsContent value="history" className="pt-5 space-y-4">
-              <div className="p-4 bg-purple-500/10 rounded-2xl border border-purple-500/20 text-xs text-purple-900 dark:text-purple-200 leading-relaxed mb-3">
-                <span className="font-bold">Academic-Year Architecture:</span> Your complete student records across all academic years are preserved under your single student identity.
+              <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 text-xs text-foreground leading-relaxed mb-3">
+                <span className="font-bold text-primary">Academic-Year Architecture:</span> Your complete student records across all academic years are preserved under your single student identity.
               </div>
 
               <div className="space-y-3">
@@ -210,8 +210,8 @@ export default function StudentProfilePage() {
                         <Badge
                           className={`text-[10px] font-bold px-2 py-0.5 ${
                             item.status === "CURRENT"
-                              ? "bg-purple-500/15 text-purple-800 dark:text-purple-300 border-purple-500/30"
-                              : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30"
+                              ? "bg-primary/15 text-primary border-primary/30"
+                              : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
                           }`}
                         >
                           {item.status}
@@ -234,19 +234,19 @@ export default function StudentProfilePage() {
             {/* Tab 3: Contact Info */}
             <TabsContent value="contact" className="pt-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Parent / Guardian Name</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{contact.parentName}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Parent Contact Phone</p>
-                  <p className="text-xs font-bold text-purple-700 dark:text-purple-400 mt-0.5">{contact.parentPhone}</p>
+                  <p className="text-xs font-bold text-primary mt-0.5">{contact.parentPhone}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Parent Email Address</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{contact.parentEmail}</p>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-muted/50 border border-border">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border">
                   <p className="text-[11px] font-semibold text-muted-foreground">Emergency Address</p>
                   <p className="text-xs font-bold text-foreground mt-0.5">{contact.address}</p>
                 </div>

@@ -122,11 +122,11 @@ export default function StudentTimetablePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
               Weekly Timetable
             </h2>
             {timetableData?.grade && (
-              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 font-bold text-xs">
+              <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 font-bold text-xs">
                 {timetableData.grade}{timetableData.section ? ` - ${timetableData.section}` : ""}
               </Badge>
             )}
@@ -136,42 +136,42 @@ export default function StudentTimetablePage() {
               </Badge>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Active class schedule, period times, subject classrooms, and assigned teachers
           </p>
         </div>
 
         {/* Week Switcher */}
-        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl border border-slate-200/80 shadow-2xs self-start sm:self-auto">
-          <Button variant="ghost" size="icon" className="w-6 h-6 rounded-lg text-slate-500 hover:text-slate-900">
+        <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-2xl border border-border shadow-xs self-start sm:self-auto">
+          <Button variant="ghost" size="icon" className="w-6 h-6 rounded-lg text-muted-foreground hover:text-foreground">
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-xs font-bold text-slate-700">Oct 6 - Oct 12, 2026</span>
-          <Button variant="ghost" size="icon" className="w-6 h-6 rounded-lg text-slate-500 hover:text-slate-900">
+          <span className="text-xs font-bold text-foreground">Oct 6 - Oct 12, 2026</span>
+          <Button variant="ghost" size="icon" className="w-6 h-6 rounded-lg text-muted-foreground hover:text-foreground">
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
       {/* ─── Desktop Weekly Grid ─────────────────────────────────────────── */}
-      <Card className="hidden md:block rounded-3xl border-slate-200/80 shadow-sm bg-white overflow-hidden">
+      <Card className="hidden md:block rounded-3xl border-border shadow-sm bg-card overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-center border-collapse">
               <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-xs font-bold text-slate-500">
-                  <th className="py-3.5 px-4 text-left font-bold text-slate-700 w-36">Time</th>
+                <tr className="bg-muted/70 border-b border-border text-xs font-bold text-muted-foreground">
+                  <th className="py-3.5 px-4 text-left font-bold text-foreground w-36">Time</th>
                   {DAYS.map((day) => (
-                    <th key={day} className="py-3.5 px-3">{day}</th>
+                    <th key={day} className="py-3.5 px-3 text-foreground">{day}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-border text-xs">
                 {PERIODS.map((period) => (
-                  <tr key={period.id} className="hover:bg-slate-50/30 transition-colors">
-                    <td className="py-4 px-4 text-left font-mono font-bold text-slate-700 bg-slate-50/40">
+                  <tr key={period.id} className="hover:bg-accent/40 transition-colors">
+                    <td className="py-4 px-4 text-left font-mono font-bold text-foreground bg-muted/40 border-r border-border/50">
                       <div>{period.time}</div>
-                      <span className="text-[10px] text-slate-400 font-sans font-normal">{period.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-sans font-normal">{period.name}</span>
                     </td>
                     {DAYS.map((day) => {
                       const item = getSlot(day, period.id);
@@ -179,8 +179,10 @@ export default function StudentTimetablePage() {
                         <td key={`${day}-${period.id}`} className="py-3 px-2">
                           {item ? (
                             <div
-                              className={`p-2.5 rounded-xl border text-center transition-all hover:scale-[1.02] shadow-2xs ${
-                                item.customColor ? "" : item.color || "bg-purple-100 text-purple-900 border-purple-200"
+                              className={`p-2.5 rounded-xl border text-center transition-all hover:scale-[1.02] shadow-xs ${
+                                item.customColor
+                                  ? ""
+                                  : item.color || "bg-primary/15 text-foreground border-primary/30"
                               }`}
                               style={
                                 item.customColor
@@ -197,7 +199,7 @@ export default function StudentTimetablePage() {
                               <span className="inline-block text-[9px] font-bold opacity-75 mt-0.5">Room {item.room}</span>
                             </div>
                           ) : (
-                            <span className="text-slate-300 text-xs font-light">—</span>
+                            <span className="text-muted-foreground/40 text-xs font-light">—</span>
                           )}
                         </td>
                       );
@@ -221,8 +223,8 @@ export default function StudentTimetablePage() {
               onClick={() => setSelectedMobileDay(day)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
                 selectedMobileDay === day
-                  ? "bg-purple-700 text-white shadow-sm"
-                  : "bg-white text-slate-600 border border-slate-200"
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-card text-muted-foreground hover:text-foreground border border-border"
               }`}
             >
               {day}
@@ -236,33 +238,33 @@ export default function StudentTimetablePage() {
             const item = getSlot(selectedMobileDay, period.id);
             if (!item) return null;
             const timeLabel = item.time || period.time;
-            const accentColor = item.customColor || "#6d28d9";
+            const accentColor = item.customColor || "#8B2CF5";
             return (
               <div
                 key={`mob-${period.id}`}
-                className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between gap-3"
+                className="p-3.5 rounded-2xl bg-card border border-border shadow-xs flex items-center justify-between gap-3"
                 style={item.customColor ? { borderLeftColor: item.customColor, borderLeftWidth: 3 } : undefined}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className="text-left font-mono font-bold text-[11px] px-2 py-1 rounded-lg shrink-0"
-                    style={{ color: accentColor, backgroundColor: `${accentColor}15` }}
+                    style={{ color: accentColor, backgroundColor: `${accentColor}18` }}
                   >
                     {timeLabel}
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">{item.subject}</h4>
-                    <p className="text-[10px] text-slate-500 font-medium">{item.teacher}</p>
+                    <h4 className="text-xs font-bold text-foreground">{item.subject}</h4>
+                    <p className="text-[10px] text-muted-foreground font-medium">{item.teacher}</p>
                   </div>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-bold border-slate-200 shrink-0">
+                <Badge variant="outline" className="text-[10px] font-bold border-border text-foreground shrink-0">
                   Room {item.room}
                 </Badge>
               </div>
             );
           })}
           {PERIODS.every((p) => !getSlot(selectedMobileDay, p.id)) && (
-            <div className="text-center py-10 text-slate-400 text-sm">
+            <div className="text-center py-10 text-muted-foreground text-sm">
               No classes scheduled for this day.
             </div>
           )}
