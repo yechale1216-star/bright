@@ -50,7 +50,7 @@ export default function StaffHrClientLayout({ children }: { children: React.Reac
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
-            className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -81,7 +81,7 @@ export default function StaffHrClientLayout({ children }: { children: React.Reac
                   'flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold group',
                   isActive(item.href, item.exact)
                     ? 'bg-teal-500/15 text-teal-600 dark:text-teal-400'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    : 'text-foreground/70 hover:bg-secondary/60'
                 )}>
                   <item.icon className="w-5 h-5 flex-shrink-0" />
                   <span className="flex-1">{item.label}</span>
@@ -119,7 +119,7 @@ export default function StaffHrClientLayout({ children }: { children: React.Reac
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className={cn('p-2 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors', isCollapsed && 'mx-auto mt-2')}
+              className={cn('p-2 rounded-xl text-muted-foreground hover:bg-secondary/60 transition-colors', isCollapsed && 'mx-auto mt-2')}
             >
               <ChevronRight className={cn('w-4 h-4 transition-transform', !isCollapsed && 'rotate-180')} />
             </button>
@@ -132,7 +132,7 @@ export default function StaffHrClientLayout({ children }: { children: React.Reac
                   isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
                   isActive(item.href, item.exact)
                     ? 'bg-teal-500/15 text-teal-600 dark:text-teal-400 font-bold'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-teal-500/5 hover:text-teal-600 dark:hover:text-teal-400'
+                    : 'text-foreground/70 hover:bg-teal-500/5 hover:text-teal-600 dark:hover:text-teal-400'
                 )}>
                   <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground group-hover:text-teal-500")} />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}

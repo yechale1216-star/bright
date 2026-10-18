@@ -246,16 +246,16 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
   const filteredStudents = students
 
   return (
-    <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
+    <div className="flex h-screen bg-background flex-col md:flex-row relative overflow-hidden">
       <div className="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px] animate-pulse pointer-events-none z-0" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[120px] animate-pulse pointer-events-none opacity-50 z-0" />
-      <div className="fixed top-[20%] right-[10%] w-[30%] h-[30%] bg-emerald-500/5 rounded-full blur-[100px] animate-pulse pointer-events-none z-0" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px] animate-pulse pointer-events-none opacity-50 z-0" />
+      <div className="fixed top-[20%] right-[10%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px] animate-pulse pointer-events-none z-0" />
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-card/70 dark:bg-slate-900/70 backdrop-blur-xl border-r border-border shrink-0 select-none relative z-20">
+      <aside className="hidden md:flex flex-col w-64 bg-card/80 backdrop-blur-xl border-r border-border shrink-0 select-none relative z-20">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border/80">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Users className="w-5 h-5 text-blue-500" />
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Users className="w-5 h-5 text-primary" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -285,7 +285,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
               "flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold group",
               isActive(link.href)
                 ? "bg-primary/15 text-primary shadow-sm font-bold"
-                : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary"
+                : "text-foreground/70 hover:bg-primary/5 hover:text-primary"
             )}>
               <div className="flex items-center gap-3">
                 <span className={cn(
@@ -301,10 +301,10 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 group cursor-pointer"
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold text-foreground/70 hover:bg-secondary/60 group cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <span className="text-slate-500 group-hover:text-foreground">
+              <span className="text-muted-foreground group-hover:text-foreground">
                 {isDark ? <Moon className="w-5 h-5 animate-in fade-in zoom-in duration-200" /> : <Sun className="w-5 h-5 animate-in fade-in zoom-in duration-200" />}
               </span>
               <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
@@ -319,10 +319,10 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => setLanguage(isAmharic ? 'en' : 'am')}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 group cursor-pointer"
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold text-foreground/70 hover:bg-secondary/60 group cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <span className="text-slate-500 group-hover:text-foreground">
+              <span className="text-muted-foreground group-hover:text-foreground">
                 <Globe className="w-5 h-5" />
               </span>
               <span>{isAmharic ? 'አማርኛ' : 'English'}</span>
@@ -339,15 +339,15 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile Sidebar */}
-      {sidebarOpen && <div className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />}
       <aside className={cn(
-        "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card dark:bg-slate-900 border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
+        "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <Users className="w-5 h-5 text-blue-500" />
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Users className="w-5 h-5 text-primary" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
@@ -364,7 +364,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1">
           {navLinks.map(link => (
             <Link key={link.href} href={link.href} onClick={() => setSidebarOpen(false)}>
-              <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all", isActive(link.href) ? "bg-primary/15 text-primary font-bold" : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary")}>
+              <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all", isActive(link.href) ? "bg-primary/15 text-primary font-bold" : "text-foreground/70 hover:bg-primary/5 hover:text-primary")}>
                 <span className={isActive(link.href) ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{link.icon}</span> <span className="flex-1">{link.label}</span> {isActive(link.href) && <ChevronRight className="w-4 h-4" />}
               </div>
             </Link>
@@ -409,9 +409,9 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
 
         {!isCommunicationPage && (
-          <div className="md:hidden flex items-center justify-between p-2 px-3 sm:px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 w-full max-w-full box-border">
-            <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-white/50 dark:bg-slate-800/50 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm min-w-0 max-w-[75%]">
-              <Avatar className="h-5 w-5 border border-white/20 shrink-0">
+          <div className="md:hidden flex items-center justify-between p-2 px-3 sm:px-4 bg-card/90 backdrop-blur-md border-b border-border w-full max-w-full box-border">
+            <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-muted/50 rounded-full border border-border shadow-sm min-w-0 max-w-[75%]">
+              <Avatar className="h-5 w-5 border border-border shrink-0">
                 {parentPhoto && <AvatarImage src={parentPhoto} alt="Profile" className="object-cover" />}
                 <AvatarFallback className="text-[9px] bg-primary/10 text-primary">{getInitials(selectedStudent.fullName)}</AvatarFallback>
               </Avatar>
@@ -423,7 +423,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
         {studentDropdownOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-card w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="bg-card/95 backdrop-blur-xl border border-border w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
               <div className="p-5 border-b border-border flex justify-between items-center bg-muted/30">
                 <h3 className="font-bold flex items-center gap-2"><GraduationCap className="w-5 h-5 text-primary" /> {t("select_child")}</h3>
                 <button onClick={() => setStudentDropdownOpen(false)} className="p-1.5 hover:bg-muted rounded-full"><X className="w-5 h-5" /></button>

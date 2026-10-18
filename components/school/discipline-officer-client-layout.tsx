@@ -105,7 +105,7 @@ export default function DisciplineOfficerClientLayout({ children }: { children: 
         {!mobile && (
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className={cn('p-1.5 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors', isCollapsed && 'mx-auto mt-2')}
+            className={cn('p-1.5 rounded-xl text-muted-foreground hover:bg-secondary/60 transition-colors', isCollapsed && 'mx-auto mt-2')}
           >
             <ChevronRight className={cn('w-4 h-4 transition-transform duration-300', !isCollapsed && 'rotate-180')} />
           </button>
@@ -131,7 +131,7 @@ export default function DisciplineOfficerClientLayout({ children }: { children: 
                       !mobile && isCollapsed ? 'justify-center p-3' : 'px-3.5 py-2.5',
                       active
                         ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20 shadow-sm'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-foreground'
+                        : 'text-foreground/70 hover:bg-secondary/60 hover:text-foreground'
                     )}
                   >
                     {active && (
@@ -164,7 +164,7 @@ export default function DisciplineOfficerClientLayout({ children }: { children: 
         </div>
 
         {sidebarOpen && (
-          <div className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
         )}
 
         {/* Mobile Drawer Sidebar */}

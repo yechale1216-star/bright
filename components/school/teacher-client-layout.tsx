@@ -91,18 +91,18 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
   return (
     <AuthGuard allowedRoles={['teacher']}>
       <LanguageProvider>
-            <div className="flex h-screen bg-background dark:bg-slate-950 flex-col md:flex-row relative overflow-hidden">
+            <div className="flex h-screen bg-background flex-col md:flex-row relative overflow-hidden">
               
-              <aside className="hidden md:flex w-64 border-r border-border bg-card/70 dark:bg-slate-900/70 backdrop-blur-xl flex-col relative z-20">
+              <aside className="hidden md:flex w-64 border-r border-border bg-card/80 backdrop-blur-xl flex-col relative z-20">
                 <div className="h-16 px-4 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <GraduationCap className="w-5 h-5 text-emerald-500" />
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <GraduationCap className="w-5 h-5 text-primary" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Online" />
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[85px]">{user?.name || 'Teacher'}</p>
@@ -134,13 +134,13 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
 
                   <button
                     onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer group mt-2"
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold text-foreground/70 hover:bg-secondary/60 transition-all cursor-pointer group mt-2"
                   >
                     <div className="flex items-center gap-3">
                       {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-500" />}
                       <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
                     </div>
-                    <div className={cn("w-8 h-4 rounded-full p-0.5 transition-colors", isDark ? "bg-primary" : "bg-slate-300 dark:bg-slate-700")}>
+                    <div className={cn("w-8 h-4 rounded-full p-0.5 transition-colors", isDark ? "bg-primary" : "bg-muted")}>
                       <div className={cn("w-3 h-3 rounded-full bg-white transition-transform", isDark ? "translate-x-4" : "translate-x-0")} />
                     </div>
                   </button>
@@ -151,21 +151,21 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
               </aside>
 
               {sidebarOpen && (
-                <div className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+                <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
               )}
               <aside className={cn(
-                "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card dark:bg-slate-900 border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
+                "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
                 sidebarOpen ? "translate-x-0" : "-translate-x-full"
               )}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <GraduationCap className="w-5 h-5 text-emerald-500" />
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <GraduationCap className="w-5 h-5 text-primary" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Online" />
+                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Online" />
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[90px]">{user?.name || 'Teacher'}</p>
@@ -191,7 +191,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                      <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
                         <div className={cn(
                           "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all",
-                          isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary'
+                          isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
                         )}>
                           <span className={isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'}>{item.icon}</span>
                           <span className="flex-1">{item.label}</span>
@@ -262,7 +262,7 @@ function NavLink({ href, icon, label, active, badge }: { href: string, icon: Rea
     <Link href={href}>
       <div className={cn(
         "flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0 group relative",
-        active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-slate-600 dark:text-slate-300 hover:bg-primary/5 hover:text-primary"
+        active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-foreground/70 hover:bg-primary/5 hover:text-primary"
       )}>
         <div className="flex items-center gap-3">
           <span className={active ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{icon}</span>

@@ -175,7 +175,7 @@ export default function AcademicHeadClientLayout({ children }: { children: React
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
-            className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
         )}

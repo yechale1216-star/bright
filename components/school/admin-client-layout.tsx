@@ -199,20 +199,20 @@ export default function SchoolAdminClientLayout({
 
               {sidebarOpen && (
                 <div
-                  className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
                   onClick={() => setSidebarOpen(false)}
                 />
               )}
 
               <aside
                 className={cn(
-                  "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card dark:bg-slate-900 border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
+                  "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
                   sidebarOpen ? "translate-x-0" : "-translate-x-full"
                 )}
               >
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
                       <ShieldCheck className="w-5 h-5 text-primary" />
                     </div>
                     <div className="min-w-0">
@@ -263,7 +263,7 @@ export default function SchoolAdminClientLayout({
                                   <div className={cn(
                                     "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors block truncate",
                                     pathname === child.href
-                                      ? "bg-blue-600 text-white font-bold shadow-xs"
+                                      ? "bg-primary text-primary-foreground font-bold shadow-xs"
                                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                                   )}>
                                     {child.label}
@@ -289,7 +289,7 @@ export default function SchoolAdminClientLayout({
               )}>
                 <div className="h-16 px-4 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
                       <ShieldCheck className="w-5 h-5 text-primary" />
                     </div>
                     {!isCollapsed && (

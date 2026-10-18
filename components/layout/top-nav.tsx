@@ -95,7 +95,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-border bg-background/90 backdrop-blur-md shadow-xs pt-safe">
+      <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur-xl shadow-xs pt-safe">
         <div className="w-full flex h-16 items-center px-3 sm:px-4 md:px-8 gap-2 sm:gap-4 max-w-full box-border">
           {showMenuButton && (
             <Button
@@ -134,7 +134,7 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
           <div className="hidden md:flex items-center flex-1 max-w-sm">
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-muted-foreground bg-muted hover:bg-muted/80 border border-border rounded-xl transition-all shadow-2xs group"
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-muted-foreground bg-card/60 backdrop-blur-md hover:bg-card/90 border border-border rounded-xl transition-all shadow-2xs group"
             >
               <Search className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
               <span className="truncate">{portalInfo.searchLabel}</span>
