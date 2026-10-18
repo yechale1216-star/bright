@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Phone, Lock, Eye, EyeOff, ArrowRight, User, Loader2, GraduationCap, Users } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, ArrowRight, User, Loader2, GraduationCap, Users, Sparkles } from "lucide-react";
 import { authService } from "@/lib/auth/auth";
 import { authStorage } from "@/lib/auth/auth-storage";
 import { useAuth } from "@/lib/context/auth-context";
@@ -225,6 +225,21 @@ function PortalLoginContent() {
                   <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 h-12 mt-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-900/30 transition-all active:scale-[0.98]">
                     {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" />Signing In...</>) : (<>Sign In as Student<ArrowRight className="w-4 h-4" /></>)}
                   </button>
+
+                  {/* Activation Section */}
+                  <div className="pt-4 border-t border-white/10 text-center space-y-2.5">
+                    <p className="text-xs text-slate-400 font-medium">
+                      First time accessing your account?
+                    </p>
+                    <Link
+                      href="/student/activate"
+                      id="student-activate-account-link"
+                      className="w-full inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-white/15 bg-white/[0.02] hover:bg-white/[0.06] hover:border-purple-400/40 text-slate-200 hover:text-white text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      Activate Account
+                    </Link>
+                  </div>
                 </form>
               )}
 
