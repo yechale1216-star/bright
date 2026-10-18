@@ -67,6 +67,9 @@ export function proxy(request: NextRequest) {
     "/school/login",
     "/portal/login",
     "/student/login",
+    "/activate",
+    "/student/activate",
+    "/student/forgot-password",
     "/forgot-password",
     "/reset-password"
   ]

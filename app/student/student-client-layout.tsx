@@ -8,7 +8,9 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 export function StudentClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage =
-    pathname.startsWith("/student/forgot-password");
+    pathname.startsWith("/student/activate") ||
+    pathname.startsWith("/student/forgot-password") ||
+    pathname.startsWith("/student/login");
 
   if (isAuthPage) {
     return <>{children}</>;
