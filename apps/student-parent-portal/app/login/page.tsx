@@ -152,8 +152,7 @@ function PortalLoginContent() {
           <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl shadow-black/40 overflow-hidden">
             <div className="px-8 pt-8 pb-6 text-center border-b border-white/5">
               <Logo size="xl" withText={true} href="/" className="mb-4 justify-center" />
-              <h1 className="text-2xl font-black text-white tracking-tight">Bright Path</h1>
-              <p className="text-sm font-semibold text-purple-400 mt-1">Student &amp; Parent Portal</p>
+              <h1 className="text-2xl font-black text-white tracking-tight">Student &amp; Parent Portal</h1>
               <p className="text-xs text-slate-400 mt-1 font-medium">Access your grades, attendance, and announcements</p>
 
               {/* Segmented Tab Switcher */}
