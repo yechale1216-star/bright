@@ -67,7 +67,7 @@ export default function TeacherMaterialsPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto">
       <TeacherSharedMaterials
         materials={materials}
         onRefresh={loadMaterials}

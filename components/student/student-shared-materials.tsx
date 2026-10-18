@@ -586,21 +586,21 @@ export function StudentSharedMaterials() {
     <div className="max-w-7xl mx-auto space-y-4 pb-16 animate-in fade-in duration-200">
       {/* ─── 1. TOP APP BAR ─── */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight flex items-center gap-2">
-              <span className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight flex items-center gap-2">
+              <span className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
                 <BookOpen className="w-4 h-4" />
               </span>
-              Learning Materials
+              <span>Learning Materials</span>
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
               Explore lessons, lecture slides, worksheets, and study resources
             </p>
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
             {/* View Mode Toggle: Grid vs List */}
             <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-2xl p-0.5 bg-slate-50 dark:bg-slate-950">
               <button
@@ -1094,11 +1094,11 @@ export function StudentSharedMaterials() {
 
       {/* ─── 7. DOCUMENT IN-APP PREVIEW MODAL ─── */}
       <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] rounded-3xl p-5 overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[92vh] rounded-2xl sm:rounded-3xl p-4 sm:p-6 overflow-y-auto">
           {previewDoc && (
             <div className="space-y-4">
               <DialogHeader className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span
                     className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md text-white"
                     style={{ backgroundColor: previewDoc.material.subjectColor || "#7c3aed" }}
@@ -1114,7 +1114,7 @@ export function StudentSharedMaterials() {
                     </span>
                   )}
                 </div>
-                <DialogTitle className="text-lg font-black text-slate-900 dark:text-slate-50">
+                <DialogTitle className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-50 leading-snug">
                   {previewDoc.material.title}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
@@ -1124,7 +1124,7 @@ export function StudentSharedMaterials() {
               </DialogHeader>
 
               {/* PDF In-App Preview Embed or Fallback */}
-              <div className="rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 h-[50vh] flex items-center justify-center">
+              <div className="rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 h-[42vh] sm:h-[50vh] flex items-center justify-center">
                 {previewDoc.material.fileUrl.startsWith("http") || previewDoc.material.fileUrl.startsWith("data:") ? (
                   <iframe
                     src={previewDoc.material.fileUrl}

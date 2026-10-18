@@ -614,13 +614,13 @@ export function TeacherSharedMaterials({
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto shrink-0">
             {availableClasses && availableClasses.length > 1 && (
               <Select
                 value={String(activeClassIndex)}
                 onValueChange={(val) => setActiveClassIndex(Number(val))}
               >
-                <SelectTrigger className="w-[200px] rounded-2xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-xs font-semibold">
+                <SelectTrigger className="w-full sm:w-[200px] rounded-2xl border-purple-200 dark:border-purple-900 bg-white dark:bg-slate-900 text-xs font-semibold">
                   <SelectValue placeholder="Select Class" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl">
@@ -638,105 +638,105 @@ export function TeacherSharedMaterials({
                 resetForm()
                 setIsFormOpen(true)
               }}
-              className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 px-4 shadow-md shadow-purple-600/25 transition-transform active:scale-95"
+              className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold gap-2 px-4 shadow-md shadow-purple-600/25 transition-transform active:scale-95 w-full sm:w-auto justify-center h-10"
             >
               <Plus className="w-4 h-4" />
-              Share Material
+              <span>Share Material</span>
             </Button>
           </div>
         </div>
       </div>
 
       {/* ─── CONTROLS: CATEGORY TABS & SEARCH / SORT / VIEW ─── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Material Type Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-border/60">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-border/60 overflow-x-auto no-scrollbar touch-pan-x -mx-1 px-1 sm:mx-0">
           <button
             type="button"
             onClick={() => setSelectedCategory("ALL")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
               selectedCategory === "ALL"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            All ({counts.all})
+            <span>All ({counts.all})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedCategory("VIDEOS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
               selectedCategory === "VIDEOS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
             <Video className="w-3.5 h-3.5 text-purple-400" />
-            Videos ({counts.videos})
+            <span>Videos ({counts.videos})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedCategory("DOCUMENTS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
               selectedCategory === "DOCUMENTS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
             <FileText className="w-3.5 h-3.5 text-blue-400" />
-            Documents ({counts.documents})
+            <span>Documents ({counts.documents})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedCategory("PRESENTATIONS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
               selectedCategory === "PRESENTATIONS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
             <Presentation className="w-3.5 h-3.5 text-amber-400" />
-            Presentations ({counts.presentations})
+            <span>Presentations ({counts.presentations})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setSelectedCategory("LINKS")}
             className={cn(
-              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap",
               selectedCategory === "LINKS"
                 ? "bg-purple-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30"
             )}
           >
             <LinkIcon className="w-3.5 h-3.5 text-emerald-400" />
-            Links ({counts.links})
+            <span>Links ({counts.links})</span>
           </button>
         </div>
 
         {/* Search, Sort, View Toggle */}
-        <div className="flex items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
-            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="flex items-center gap-2 w-full lg:w-auto">
+          <div className="relative flex-1 sm:w-56 sm:flex-initial">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <Input
               placeholder="Search title, topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-8 h-9 text-xs rounded-xl border-border bg-background"
+              className="pl-9 pr-8 h-9 text-xs rounded-xl border-border bg-background w-full"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -744,7 +744,7 @@ export function TeacherSharedMaterials({
           </div>
 
           <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-            <SelectTrigger className="h-9 w-[130px] rounded-xl text-xs font-semibold border-border bg-background">
+            <SelectTrigger className="h-9 w-[115px] sm:w-[130px] shrink-0 rounded-xl text-xs font-semibold border-border bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
@@ -755,7 +755,7 @@ export function TeacherSharedMaterials({
             </SelectContent>
           </Select>
 
-          <div className="flex items-center border border-border rounded-xl p-0.5 bg-background">
+          <div className="flex items-center border border-border rounded-xl p-0.5 bg-background shrink-0">
             <Button
               type="button"
               variant="ghost"
@@ -1106,7 +1106,7 @@ export function TeacherSharedMaterials({
 
       {/* ─── MODAL 1: SHARE / EDIT MATERIAL FORM ─── */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-4 sm:p-6">
           <DialogHeader className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center">
@@ -1480,10 +1480,10 @@ export function TeacherSharedMaterials({
 
       {/* ─── MODAL 2: FULL PREVIEW & VIDEO PLAYER ─── */}
       <Dialog open={!!previewMaterial} onOpenChange={(open) => !open && setPreviewMaterial(null)}>
-        <DialogContent className="max-w-3xl rounded-3xl p-6 max-h-[92vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-3xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-h-[92vh] overflow-y-auto">
           {previewMaterial && (
             <div className="space-y-4">
-              <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border pb-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider bg-purple-600 text-white">
