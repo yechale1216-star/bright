@@ -74,63 +74,31 @@ export class StudentPortalService {
       throw new Error('Invalid Student ID or password.');
     }
 
+    if (student.accountStatus === 'PENDING_ACTIVATION') {
+      const err: any = new Error('Your account is pending activation. Please activate your account using your activation code.');
+      err.requiresActivation = true;
+      throw err;
+    }
+
+    if (student.accountStatus !== 'ACTIVE') {
+      throw new Error('Your account is not active. Please contact your school administrator.');
+    }
+
+    if (!student.user || !student.user.password_hash) {
+      const err: any = new Error('Your account has not been activated yet. Please activate your account first.');
+      err.requiresActivation = true;
+      throw err;
+    }
+
     let user = student.user;
 
-    // If student has a linked User account, verify password
-    if (user && user.password_hash) {
-      const isValid = await bcrypt.compare(password, user.password_hash);
-      // Support initial default login (e.g. password matches student_id or default password)
-      const isDefaultMatch = !isValid && (password === student.student_id || password === 'password123' || password === '12345678');
-      
-      if (!isValid && !isDefaultMatch) {
-        throw new Error('Invalid Student ID or password.');
-      }
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      throw new Error('Invalid Student ID or password.');
+    }
 
-      if (isDefaultMatch) {
-        // Upgrade password hash
-        const hashed = await bcrypt.hash(password, 10);
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { password_hash: hashed },
-        });
-      }
-    } else {
-      // Student has no user account yet — support initial sign in with Student ID / default password
-      const isInitialMatch = password === student.student_id || password === 'password123' || password === '12345678';
-      if (!isInitialMatch) {
-        throw new Error('Invalid Student ID or password.');
-      }
-
-      const dummyEmail = `student-${student.student_id.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
-      const hashed = await bcrypt.hash(password, 10);
-
-      // Check if user with email already exists
-      let existingUser = await prisma.user.findUnique({ where: { email: dummyEmail } });
-      if (!existingUser) {
-        existingUser = await prisma.user.create({
-          data: {
-            email: dummyEmail,
-            password_hash: hashed,
-            full_name: student.fullName,
-            role: 'student',
-            phone: student.parent_phone,
-            is_active: true,
-            is_verified: true,
-          },
-        });
-      } else {
-        await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { password_hash: hashed, role: 'student' },
-        });
-      }
-
-      await prisma.student.update({
-        where: { id: student.id },
-        data: { user_id: existingUser.id },
-      });
-
-      user = existingUser;
+    if (!user.is_active) {
+      throw new Error('Your account is inactive. Please contact the school.');
     }
 
     // Single school context

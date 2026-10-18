@@ -40,6 +40,7 @@ exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent
 const db_1 = __importDefault(require("../config/db"));
 const parentService = __importStar(require("./parent.service"));
 const academic_year_service_1 = require("./academic-year.service");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 // Map database relational model to flat frontend model
 const mapStudentToFlat = (student) => {
     if (!student)
@@ -256,20 +257,26 @@ exports.getNextStudentId = getNextStudentId;
 const generateActivationCode = async (studentId) => {
     const student = await db_1.default.student.findUnique({
         where: { id: studentId },
-        include: { grade: true, section: true },
+        include: { grade: true, section: true, user: true },
     });
     if (!student)
         throw new Error('Student not found.');
+    // Prevent regenerating code for already activated accounts
+    if (student.accountStatus === 'ACTIVE') {
+        throw new Error('This student account is already active. Activation codes cannot be regenerated for active accounts.');
+    }
     // Generate a random 8-char uppercase alphanumeric code
     const { randomBytes } = await Promise.resolve().then(() => __importStar(require('crypto')));
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable chars (0,O,1,I)
     const bytes = randomBytes(8);
     const code = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const hashedCode = await bcryptjs_1.default.hash(code, 10);
+    // Invalidate previous code and store new cryptographic hash securely
     await db_1.default.student.update({
         where: { id: studentId },
         data: {
-            activation_code: code,
+            activation_code: hashedCode,
             activation_code_expires: expires,
             accountStatus: 'PENDING_ACTIVATION',
         },
@@ -310,16 +317,103 @@ const createStudent = async (data, _schoolId) => {
     if (!studentId) {
         studentId = await (0, exports.getNextStudentId)();
     }
-    const gradeName = String(data.grade || '').trim();
-    const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
-    if (!isNaN(gradeNum)) {
-        if (gradeNum >= 11 && !data.stream) {
-            throw new Error(`Stream selection (Natural/Social Science) is required for ${gradeName}.`);
+    // 1. Resolve Grade
+    let gradeId = data.gradeId;
+    let grade = null;
+    if (gradeId) {
+        grade = await db_1.default.grade.findUnique({ where: { id: gradeId } });
+    }
+    else if (data.grade) {
+        const gName = String(data.grade).trim();
+        grade = await db_1.default.grade.upsert({
+            where: { name: gName },
+            update: {},
+            create: { name: gName },
+        });
+        gradeId = grade.id;
+    }
+    if (!grade) {
+        throw new Error('Grade Level is required.');
+    }
+    const gradeName = (grade.name || '').toLowerCase();
+    const isSeniorSecondary = gradeName.includes('11') || gradeName.includes('12');
+    // 2. Resolve Stream
+    let streamId = null;
+    if (isSeniorSecondary) {
+        if (data.streamId) {
+            const st = await db_1.default.stream.findUnique({ where: { id: data.streamId } });
+            if (!st)
+                throw new Error('Selected academic stream not found.');
+            streamId = st.id;
         }
-        if (gradeNum <= 10) {
-            data.stream = null;
+        else if (data.stream) {
+            const stName = String(data.stream).trim();
+            const st = await db_1.default.stream.upsert({
+                where: { name: stName },
+                update: {},
+                create: { name: stName },
+            });
+            streamId = st.id;
+        }
+        else {
+            throw new Error(`Academic stream (Natural Science or Social Science) is mandatory for ${grade.name}.`);
         }
     }
+    else {
+        streamId = null;
+    }
+    // 3. Resolve Section
+    let sectionId = data.sectionId;
+    let section = null;
+    if (sectionId) {
+        section = await db_1.default.section.findUnique({ where: { id: sectionId } });
+        if (!section)
+            throw new Error('Selected section not found.');
+        if (section.gradeId !== grade.id) {
+            throw new Error(`Section "${section.name}" does not belong to ${grade.name}.`);
+        }
+        if (isSeniorSecondary && section.streamId && streamId && section.streamId !== streamId) {
+            throw new Error('Section does not belong to the selected stream.');
+        }
+    }
+    else if (data.section) {
+        const secName = String(data.section).trim();
+        section = await db_1.default.section.findFirst({
+            where: {
+                gradeId: grade.id,
+                streamId,
+                name: { equals: secName, mode: 'insensitive' },
+            },
+        });
+        if (!section) {
+            section = await db_1.default.section.create({
+                data: {
+                    name: secName,
+                    gradeId: grade.id,
+                    streamId,
+                },
+            });
+        }
+        sectionId = section.id;
+    }
+    if (!sectionId || !section) {
+        throw new Error('Section is mandatory for student registration.');
+    }
+    // Prevent duplicate student ID registrations
+    const existingStudent = await db_1.default.student.findUnique({
+        where: { student_id: studentId },
+    });
+    if (existingStudent) {
+        throw new Error(`A student with Student ID "${studentId}" already exists.`);
+    }
+    // Generate unique 8-char activation code
+    const { randomBytes } = await Promise.resolve().then(() => __importStar(require('crypto')));
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = randomBytes(8);
+    const activationCode = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+    const hashedActivationCode = await bcryptjs_1.default.hash(activationCode, 10);
+    const activationExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    // Create student with PENDING_ACTIVATION and no usable login credential until activation
     const newStudent = await db_1.default.student.create({
         data: {
             fullName: data.name,
@@ -329,30 +423,20 @@ const createStudent = async (data, _schoolId) => {
             parent_name: data.parent_name || "",
             gender: data.gender,
             date_of_birth: data.date_of_birth,
-            grade: {
-                connectOrCreate: {
-                    where: { name: data.grade },
-                    create: { name: data.grade }
-                }
-            },
-            section: {
-                connectOrCreate: {
-                    where: { name: data.section },
-                    create: { name: data.section }
-                }
-            },
-            stream: data.stream ? {
-                connectOrCreate: {
-                    where: { name: data.stream },
-                    create: { name: data.stream }
-                }
-            } : undefined
+            address: data.address || null,
+            gradeId: grade.id,
+            sectionId: section.id,
+            streamId: streamId,
+            accountStatus: 'PENDING_ACTIVATION',
+            activation_code: hashedActivationCode,
+            activation_code_expires: activationExpires,
+            user_id: null,
         },
         include: {
             grade: true,
             section: true,
-            stream: true
-        }
+            stream: true,
+        },
     });
     try {
         const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
@@ -431,17 +515,21 @@ const createStudent = async (data, _schoolId) => {
     catch (notifErr) {
         console.error('[StudentService] Failed to send admin notification for new student:', notifErr);
     }
-    let activationSlip = null;
-    try {
-        activationSlip = await (0, exports.generateActivationCode)(newStudent.id);
-    }
-    catch (actErr) {
-        console.error('[StudentService] Failed to auto-generate activation code for new student:', actErr);
-    }
+    const activationSlip = {
+        student_id: newStudent.student_id,
+        fullName: newStudent.fullName,
+        grade: newStudent.grade?.name || '',
+        section: newStudent.section?.name || '',
+        activationCode,
+        expiresAt: activationExpires,
+    };
     return {
         ...mapStudentToFlat(newStudent),
         relationshipType: data.relationshipType || linkRecord?.relationshipType || 'Guardian',
-        activationCode: activationSlip?.activationCode || null,
+        accountStatus: 'PENDING_ACTIVATION',
+        activationCode,
+        activation_code: activationCode,
+        activation_code_expires: activationExpires,
         activationSlip,
     };
 };
@@ -491,12 +579,7 @@ const bulkUpsertStudents = async (students, _schoolId) => {
                 update: {},
                 create: { name: data.grade }
             });
-            const section = await db_1.default.section.upsert({
-                where: { name: data.section },
-                update: {},
-                create: { name: data.section }
-            });
-            let streamId = undefined;
+            let streamId = null;
             if (data.stream) {
                 const stream = await db_1.default.stream.upsert({
                     where: { name: data.stream },
@@ -504,6 +587,23 @@ const bulkUpsertStudents = async (students, _schoolId) => {
                     create: { name: data.stream }
                 });
                 streamId = stream.id;
+            }
+            const secName = (data.section || 'A').trim();
+            let section = await db_1.default.section.findFirst({
+                where: {
+                    gradeId: grade.id,
+                    streamId: streamId,
+                    name: { equals: secName, mode: 'insensitive' }
+                }
+            });
+            if (!section) {
+                section = await db_1.default.section.create({
+                    data: {
+                        name: secName,
+                        gradeId: grade.id,
+                        streamId: streamId
+                    }
+                });
             }
             const existingStudent = await db_1.default.student.findUnique({
                 where: { student_id: studentId }
@@ -541,6 +641,26 @@ const bulkUpsertStudents = async (students, _schoolId) => {
             }
             else {
                 results.created++;
+                try {
+                    const { randomBytes } = await Promise.resolve().then(() => __importStar(require('crypto')));
+                    const bChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                    const bBytes = randomBytes(8);
+                    const bCode = Array.from(bBytes).map((b) => bChars[b % bChars.length]).join('');
+                    const bHashedCode = await bcryptjs_1.default.hash(bCode, 10);
+                    const bExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                    await db_1.default.student.update({
+                        where: { id: student.id },
+                        data: {
+                            accountStatus: 'PENDING_ACTIVATION',
+                            activation_code: bHashedCode,
+                            activation_code_expires: bExpires,
+                            user_id: null,
+                        },
+                    });
+                }
+                catch (actErr) {
+                    console.error(`[StudentService] Failed to auto-generate activation for bulk student ${student.id}:`, actErr);
+                }
             }
             try {
                 const activeAY = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
@@ -649,38 +769,78 @@ const updateStudent = async (id, data, _schoolId) => {
         updateData.date_of_birth = data.date_of_birth;
     if (data.address)
         updateData.address = data.address;
-    if (data.grade) {
-        updateData.grade = {
-            connectOrCreate: {
-                where: { name: data.grade },
-                create: { name: data.grade }
-            }
-        };
+    const existingStudent = await db_1.default.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true } });
+    if (!existingStudent)
+        throw new Error('Student not found');
+    let targetGradeId = data.gradeId || existingStudent.gradeId;
+    let targetGrade = null;
+    if (data.gradeId) {
+        targetGrade = await db_1.default.grade.findUnique({ where: { id: data.gradeId } });
     }
-    if (data.section) {
-        updateData.section = {
-            connectOrCreate: {
-                where: { name: data.section },
-                create: { name: data.section }
-            }
-        };
+    else if (data.grade) {
+        targetGrade = await db_1.default.grade.upsert({
+            where: { name: String(data.grade).trim() },
+            update: {},
+            create: { name: String(data.grade).trim() },
+        });
+        targetGradeId = targetGrade.id;
     }
-    const gradeName = String(data.grade || '').trim();
-    const gradeNum = parseInt(gradeName.replace(/[^\d]/g, ''), 10);
-    if (!isNaN(gradeNum) && gradeNum <= 10) {
-        updateData.stream = { disconnect: true };
+    else {
+        targetGrade = await db_1.default.grade.findUnique({ where: { id: targetGradeId } });
     }
-    else if (data.stream) {
-        updateData.stream = {
-            connectOrCreate: {
-                where: { name: data.stream },
-                create: { name: data.stream }
-            }
-        };
+    const gradeName = (targetGrade?.name || '').toLowerCase();
+    const isSeniorSecondary = gradeName.includes('11') || gradeName.includes('12');
+    let targetStreamId = existingStudent.streamId;
+    if (isSeniorSecondary) {
+        if (data.streamId) {
+            targetStreamId = data.streamId;
+        }
+        else if (data.stream) {
+            const st = await db_1.default.stream.upsert({
+                where: { name: String(data.stream).trim() },
+                update: {},
+                create: { name: String(data.stream).trim() },
+            });
+            targetStreamId = st.id;
+        }
+        if (!targetStreamId) {
+            throw new Error(`Stream selection is mandatory for Grade 11 and 12.`);
+        }
     }
-    else if ('stream' in data && !data.stream) {
-        updateData.stream = { disconnect: true };
+    else {
+        targetStreamId = null;
     }
+    let targetSectionId = data.sectionId || existingStudent.sectionId;
+    if (data.sectionId) {
+        const sec = await db_1.default.section.findUnique({ where: { id: data.sectionId } });
+        if (!sec || sec.gradeId !== targetGradeId || (isSeniorSecondary && sec.streamId && sec.streamId !== targetStreamId)) {
+            throw new Error('Selected section does not match the target grade and stream.');
+        }
+        targetSectionId = sec.id;
+    }
+    else if (data.section) {
+        const secName = String(data.section).trim();
+        let sec = await db_1.default.section.findFirst({
+            where: {
+                gradeId: targetGradeId,
+                streamId: targetStreamId,
+                name: { equals: secName, mode: 'insensitive' },
+            },
+        });
+        if (!sec) {
+            sec = await db_1.default.section.create({
+                data: {
+                    name: secName,
+                    gradeId: targetGradeId,
+                    streamId: targetStreamId,
+                },
+            });
+        }
+        targetSectionId = sec.id;
+    }
+    updateData.gradeId = targetGradeId;
+    updateData.sectionId = targetSectionId;
+    updateData.streamId = targetStreamId;
     const updatedStudent = await db_1.default.student.update({
         where: { id },
         data: updateData,

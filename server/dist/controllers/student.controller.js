@@ -35,6 +35,21 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bulkGenerateActivationCodes = exports.generateActivationCode = exports.bulkCreateStudents = exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.createStudent = exports.getNextStudentId = exports.getStudents = void 0;
 const studentService = __importStar(require("../services/student.service"));
+const AUTHORIZED_STAFF_ROLES = ['admin', 'school_admin', 'super_admin', 'registrar'];
+const sanitizeStudentForRole = (student, role) => {
+    if (!student)
+        return null;
+    const isAuthorized = AUTHORIZED_STAFF_ROLES.includes(role || '');
+    const canSeeActivation = isAuthorized && student.accountStatus === 'PENDING_ACTIVATION';
+    const isPlaintextLegacy = student.activation_code && !student.activation_code.startsWith('$2') && student.activation_code.length <= 10;
+    return {
+        ...student,
+        // Never expose cryptographic hashes or passwords over API
+        activation_code: canSeeActivation && isPlaintextLegacy ? student.activation_code : null,
+        has_activation_code: canSeeActivation ? Boolean(student.activation_code) : false,
+        activation_code_expires: canSeeActivation ? student.activation_code_expires : null,
+    };
+};
 const getStudents = async (req, res, next) => {
     try {
         const search = req.query.search;
@@ -49,7 +64,21 @@ const getStudents = async (req, res, next) => {
             ? { page, limit }
             : undefined;
         const students = await studentService.getAllStudents(undefined, search, status, gradeId, sectionId, streamId, academicYear, pagination);
-        res.status(200).json({ success: true, data: students });
+        const userRole = req.user?.role;
+        let sanitizedData;
+        if (Array.isArray(students)) {
+            sanitizedData = students.map((s) => sanitizeStudentForRole(s, userRole));
+        }
+        else if (students && Array.isArray(students.items)) {
+            sanitizedData = {
+                ...students,
+                items: students.items.map((s) => sanitizeStudentForRole(s, userRole)),
+            };
+        }
+        else {
+            sanitizedData = sanitizeStudentForRole(students, userRole);
+        }
+        res.status(200).json({ success: true, data: sanitizedData });
     }
     catch (error) {
         next(error);
@@ -82,7 +111,8 @@ const getStudentById = async (req, res, next) => {
         if (!student) {
             return res.status(404).json({ success: false, message: 'Student not found' });
         }
-        res.status(200).json({ success: true, data: student });
+        const userRole = req.user?.role;
+        res.status(200).json({ success: true, data: sanitizeStudentForRole(student, userRole) });
     }
     catch (error) {
         next(error);

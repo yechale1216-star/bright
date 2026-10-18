@@ -144,11 +144,23 @@ class PromotionService {
             const isSecondary = toGradeNum >= 11;
             let globalTargetSectionId = toSectionId || null;
             if (!globalTargetSectionId && toSectionName && toGradeId && toGradeId !== 'GRADUATE') {
-                const section = await tx.section.upsert({
-                    where: { name: toSectionName },
-                    update: {},
-                    create: { name: toSectionName },
+                const secName = toSectionName.trim();
+                let section = await tx.section.findFirst({
+                    where: {
+                        gradeId: toGradeId,
+                        streamId: toStreamId || null,
+                        name: { equals: secName, mode: 'insensitive' },
+                    },
                 });
+                if (!section) {
+                    section = await tx.section.create({
+                        data: {
+                            name: secName,
+                            gradeId: toGradeId,
+                            streamId: toStreamId || null,
+                        },
+                    });
+                }
                 globalTargetSectionId = section.id;
             }
             const targetStreamObj = toStreamId ? await tx.stream.findUnique({ where: { id: toStreamId }, select: { name: true } }) : null;
@@ -160,11 +172,23 @@ class PromotionService {
             for (const student of students) {
                 let targetSectionId = globalTargetSectionId;
                 if (!targetSectionId && student.section?.name && toGradeId && toGradeId !== 'GRADUATE') {
-                    const section = await tx.section.upsert({
-                        where: { name: student.section.name },
-                        update: {},
-                        create: { name: student.section.name },
+                    const secName = student.section.name.trim();
+                    let section = await tx.section.findFirst({
+                        where: {
+                            gradeId: toGradeId,
+                            streamId: toStreamId || null,
+                            name: { equals: secName, mode: 'insensitive' },
+                        },
                     });
+                    if (!section) {
+                        section = await tx.section.create({
+                            data: {
+                                name: secName,
+                                gradeId: toGradeId,
+                                streamId: toStreamId || null,
+                            },
+                        });
+                    }
                     targetSectionId = section.id;
                 }
                 const effectiveTargetSectionId = targetSectionId || student.sectionId;

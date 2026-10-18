@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   BookOpen,
   User,
@@ -11,7 +11,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ArrowLeft,
   Loader2,
   CheckCircle2,
   ShieldCheck,
@@ -21,8 +20,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { studentDb } from "@/lib/db/student-db";
-
-type Step = 1 | 2 | 3;
 
 function PasswordCheck({ passed, label }: { passed: boolean; label: string }) {
   return (
@@ -35,115 +32,92 @@ function PasswordCheck({ passed, label }: { passed: boolean; label: string }) {
   );
 }
 
-export default function StudentActivatePage() {
+function StudentActivateForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [step, setStep] = useState<Step>(1);
   const [studentId, setStudentId] = useState("");
-  const [activationCode, setActivationCode] = useState(["", "", "", "", "", "", "", ""]);
-  const [studentName, setStudentName] = useState("");
+  const [activationCode, setActivationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isActivated, setIsActivated] = useState(false);
+  const [studentName, setStudentName] = useState<string | null>(null);
 
-  const codeRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Auto-populate Student ID from query params (e.g. redirected from login)
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (idParam) {
+      setStudentId(idParam.trim().toUpperCase());
+    }
+  }, [searchParams]);
 
-  // Password checks
+  // Password requirements
   const hasMinLength = newPassword.length >= 8;
   const hasUppercase = /[A-Z]/.test(newPassword);
   const hasLowercase = /[a-z]/.test(newPassword);
   const hasNumber = /[0-9]/.test(newPassword);
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
-  const notSameAsId = newPassword !== studentId;
+  const notSameAsId = !studentId.trim() || newPassword.trim().toLowerCase() !== studentId.trim().toLowerCase();
   const isPasswordValid = hasMinLength && hasUppercase && hasLowercase && hasNumber && passwordsMatch && notSameAsId;
 
-  const fullCode = activationCode.join("");
-
-  // Step 1: Verify activation code
-  const handleStep1 = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!studentId.trim()) { setError("Please enter your Student ID."); return; }
-    if (fullCode.length < 8) { setError("Please enter the complete 8-character activation code."); return; }
+
+    const trimmedId = studentId.trim().toUpperCase();
+    const cleanCode = activationCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+    if (!trimmedId) {
+      setError("Please enter your Student ID.");
+      return;
+    }
+    if (!cleanCode || cleanCode.length < 8) {
+      setError("Please enter your complete 8-character activation code.");
+      return;
+    }
+    if (!hasMinLength || !hasUppercase || !hasLowercase || !hasNumber) {
+      setError("Password must be at least 8 characters long and contain uppercase letters, lowercase letters, and numbers.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (!notSameAsId) {
+      setError("Password cannot be the same as your Student ID.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await studentDb.verifyActivationCode(studentId.trim(), fullCode);
+      const res = await studentDb.activateAccount(trimmedId, cleanCode, newPassword, confirmPassword);
       if (res.success) {
-        setStudentName(res.studentName || "");
-        setStep(2);
+        setStudentName(res.student?.fullName || null);
+        setIsActivated(true);
       } else {
-        setError(res.message || "Invalid activation code.");
+        setError(res.message || "Invalid Student ID or activation code. Check your school-issued slip.");
       }
     } catch (err: any) {
-      setError(err?.message || "Could not verify code. Please try again.");
+      setError(err?.message || "Activation failed. Please verify your Student ID and activation code.");
     } finally {
       setLoading(false);
     }
-  };
-
-  // Step 2: Activate with password
-  const handleStep2 = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!isPasswordValid) { setError("Please make sure all password requirements are met."); return; }
-
-    setLoading(true);
-    try {
-      const res = await studentDb.activateAccount(studentId.trim(), fullCode, newPassword);
-      if (res.success) {
-        setStep(3);
-      } else {
-        setError(res.message || "Activation failed. Please try again.");
-      }
-    } catch (err: any) {
-      setError(err?.message || "Activation failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Activation code input handler
-  const handleCodeInput = (index: number, value: string) => {
-    const char = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-1);
-    const newCode = [...activationCode];
-    newCode[index] = char;
-    setActivationCode(newCode);
-    if (char && index < 7) {
-      codeRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleCodeKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !activationCode[index] && index > 0) {
-      codeRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleCodePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData("text").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-    if (pasted.length > 0) {
-      const newCode = [...activationCode];
-      for (let i = 0; i < 8; i++) { newCode[i] = pasted[i] || ""; }
-      setActivationCode(newCode);
-      const nextEmpty = Math.min(pasted.length, 7);
-      codeRefs.current[nextEmpty]?.focus();
-    }
-    e.preventDefault();
   };
 
   return (
     <div className="min-h-screen relative flex flex-col justify-center items-center px-4 py-8 overflow-y-auto bg-[#2e1065]">
-      {/* Atmospheric background */}
+      {/* Background with scenic overlay and subtle atmospheric glows */}
       <div
         className="absolute inset-0 z-0 bg-cover bg-center"
         style={{ backgroundImage: `url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=2000&q=80')` }}
       />
       <div className="absolute inset-0 z-0 bg-gradient-to-b from-purple-950/85 via-purple-900/90 to-[#1e1b4b]/95 backdrop-blur-[2px]" />
 
-      {/* Logo */}
+      {/* Header Logo */}
       <div className="relative z-10 text-center pt-2 space-y-1 animate-in fade-in slide-in-from-top-4 duration-500">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xl shadow-purple-900/50 mb-1 ring-2 ring-white/10">
           <BookOpen className="w-6 h-6 text-white" />
@@ -152,35 +126,29 @@ export default function StudentActivatePage() {
         <p className="text-xs uppercase tracking-widest text-purple-200 font-semibold">Student Portal</p>
       </div>
 
-      {/* Progress dots */}
-      <div className="relative z-10 flex items-center gap-2 mt-4 mb-2">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className={`h-1.5 rounded-full transition-all duration-500 ${step >= s ? "bg-purple-300 w-8" : "bg-white/20 w-4"}`} />
-        ))}
-      </div>
-
-      {/* Card */}
-      <div className="relative z-10 w-full max-w-md my-2 animate-in fade-in zoom-in-95 duration-500">
+      {/* Main Activation Card */}
+      <div className="relative z-10 w-full max-w-md my-4 animate-in fade-in zoom-in-95 duration-500">
         <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-purple-100">
 
-          {/* Step 1: Enter Student ID + activation code */}
-          {step === 1 && (
-            <form onSubmit={handleStep1} className="space-y-5">
-              <div className="text-center mb-1">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-purple-100 mb-3">
+          {!isActivated ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="text-center mb-2">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-purple-100 mb-2">
                   <KeyRound className="w-5 h-5 text-purple-700" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800">Activate Your Account</h3>
-                <p className="text-xs text-slate-500 mt-1">Enter your Student ID and the activation code from your school-issued slip</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Enter your Student ID and activation code to choose your permanent password.
+                </p>
               </div>
 
               {error && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium animate-in shake">
                   {error}
                 </div>
               )}
 
-              {/* Student ID */}
+              {/* 1. Student ID */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 block">Student ID</label>
                 <div className="relative">
@@ -189,69 +157,34 @@ export default function StudentActivatePage() {
                     type="text"
                     placeholder="e.g. STU000042"
                     value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    className="pl-10 h-11 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-800 font-medium uppercase"
+                    onChange={(e) => setStudentId(e.target.value.toUpperCase())}
+                    className="pl-10 h-11 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-800 font-mono font-bold uppercase"
                     required
                   />
                 </div>
               </div>
 
-              {/* Activation code grid */}
+              {/* 2. Activation Code */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 block">Activation Code</label>
-                <p className="text-[10px] text-slate-400">From your school-issued activation slip</p>
-                <div className="flex gap-1.5 justify-between" onPaste={handleCodePaste}>
-                  {activationCode.map((char, i) => (
-                    <input
-                      key={i}
-                      ref={(el) => { codeRefs.current[i] = el; }}
-                      type="text"
-                      inputMode="text"
-                      maxLength={1}
-                      value={char}
-                      onChange={(e) => handleCodeInput(i, e.target.value)}
-                      onKeyDown={(e) => handleCodeKeyDown(i, e)}
-                      className="w-9 h-10 text-center text-sm font-bold uppercase tracking-widest border-2 rounded-lg focus:outline-none focus:border-purple-600 bg-slate-50 text-slate-800 transition-colors border-slate-200"
-                    />
-                  ))}
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 block">Activation Code</label>
+                  <span className="text-[10px] text-purple-600 font-medium">From school-issued slip</span>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Input
+                    type="text"
+                    placeholder="8-character code (e.g. ABC23456)"
+                    value={activationCode}
+                    onChange={(e) => setActivationCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
+                    maxLength={8}
+                    className="pl-10 h-11 text-sm rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-900 font-mono font-bold tracking-[0.2em] uppercase"
+                    required
+                  />
                 </div>
               </div>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-11 bg-purple-700 hover:bg-purple-800 active:scale-[0.98] text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-700/25 transition-all cursor-pointer flex items-center justify-center"
-              >
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying...</> : <>Verify Code <ArrowRight className="w-4 h-4 ml-2" /></>}
-              </Button>
-
-              <div className="text-center pt-1">
-                <Link href="/student/login" className="text-xs text-purple-700 font-semibold hover:text-purple-900 transition-colors">
-                  ← Back to Sign In
-                </Link>
-              </div>
-            </form>
-          )}
-
-          {/* Step 2: Set password */}
-          {step === 2 && (
-            <form onSubmit={handleStep2} className="space-y-4">
-              <div className="text-center mb-1">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-purple-100 mb-3">
-                  <Lock className="w-5 h-5 text-purple-700" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800">Create Your Password</h3>
-                {studentName && (
-                  <p className="text-xs text-slate-500 mt-1">Welcome, <span className="font-semibold text-slate-700">{studentName}</span>! Set a secure password to access your account.</p>
-                )}
-                {!studentName && <p className="text-xs text-slate-500 mt-1">Set a strong password for your account</p>}
-              </div>
-
-              {error && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">{error}</div>
-              )}
-
-              {/* New Password */}
+              {/* 3. New Password */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 block">New Password</label>
                 <div className="relative">
@@ -261,32 +194,43 @@ export default function StudentActivatePage() {
                     placeholder="Create a strong password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="pl-10 pr-10 h-11 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-800 font-medium"
+                    className="pl-10 pr-10 h-11 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-800 font-medium"
                     required
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Confirm Password */}
+              {/* 4. Confirm Password */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 block">Confirm Password</label>
                 <div className="relative">
                   <ShieldCheck className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Re-enter your password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Re-enter your new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10 h-11 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-800 font-medium"
+                    className="pl-10 pr-10 h-11 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 text-slate-800 font-medium"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
-              {/* Requirements checklist */}
+              {/* Password Requirements Checklist */}
               <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 border border-slate-100">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Password Requirements</p>
                 <PasswordCheck passed={hasMinLength} label="At least 8 characters" />
@@ -297,62 +241,83 @@ export default function StudentActivatePage() {
                 <PasswordCheck passed={notSameAsId} label="Not the same as your Student ID" />
               </div>
 
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  onClick={() => { setStep(1); setError(null); }}
-                  variant="outline"
-                  className="flex-1 h-11 rounded-xl border-slate-200 text-slate-600 text-sm font-semibold"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={loading || !isPasswordValid}
-                  className="flex-1 h-11 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-700/25 transition-all cursor-pointer flex items-center justify-center"
-                >
-                  {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Activating...</> : <>Activate <Sparkles className="w-4 h-4 ml-1" /></>}
-                </Button>
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={loading || !isPasswordValid || activationCode.length < 8 || !studentId.trim()}
+                className="w-full h-11 bg-purple-700 hover:bg-purple-800 active:scale-[0.98] disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-700/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Activating Account...
+                  </>
+                ) : (
+                  <>
+                    Activate Account
+                    <Sparkles className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+
+              <div className="text-center pt-2">
+                <Link href="/student/login" className="text-xs text-purple-700 font-semibold hover:text-purple-900 transition-colors">
+                  ← Back to Sign In
+                </Link>
               </div>
             </form>
-          )}
-
-          {/* Step 3: Success */}
-          {step === 3 && (
-            <div className="text-center space-y-5 py-2">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-emerald-100 mx-auto">
+          ) : (
+            /* Success Screen */
+            <div className="text-center space-y-5 py-4 animate-in fade-in zoom-in-95 duration-500">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-emerald-100 mx-auto ring-8 ring-emerald-50">
                 <CheckCircle2 className="w-9 h-9 text-emerald-600" />
               </div>
               <div>
                 <h3 className="text-xl font-bold text-slate-800">Account Activated!</h3>
                 <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                  Welcome to <span className="font-semibold text-purple-700">Bright Path</span>! Your account is ready. You're now signed in.
+                  {studentName ? (
+                    <>Welcome, <span className="font-semibold text-slate-700">{studentName}</span>! </>
+                  ) : null}
+                  Your account is activated and your permanent password has been set. You are now signed in.
                 </p>
               </div>
               <Button
                 onClick={() => router.push("/student")}
-                className="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-700/25 transition-all cursor-pointer flex items-center justify-center"
+                className="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white font-bold text-sm rounded-xl shadow-lg shadow-purple-700/25 transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                Go to My Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+                Go to My Dashboard <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           )}
+
         </div>
       </div>
 
-      {/* Login link */}
-      {step === 1 && (
-        <div className="relative z-10 mt-4 text-center">
+      {/* Footer */}
+      {!isActivated && (
+        <div className="relative z-10 mt-2 text-center">
           <p className="text-xs text-purple-200/80">
-            Already activated?{" "}
+            Already activated your account?{" "}
             <Link href="/student/login" className="text-white font-semibold hover:underline">Sign in</Link>
           </p>
         </div>
       )}
 
-      <footer className="relative z-10 text-center text-[11px] text-purple-200/80 pt-3 pb-3">
+      <footer className="relative z-10 text-center text-[11px] text-purple-200/80 pt-4 pb-3">
         © {new Date().getFullYear()} Bright Path. All rights reserved. • Powered by Ethio Nova
       </footer>
     </div>
+  );
+}
+
+export default function StudentActivatePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#2e1065] text-white">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-300" />
+      </div>
+    }>
+      <StudentActivateForm />
+    </Suspense>
   );
 }

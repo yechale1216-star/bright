@@ -26,7 +26,6 @@ export interface Student {
   accountStatus?: string
   activation_code?: string | null
   activation_code_expires?: string | Date | null
-  initialPassword?: string | null
   activationSlip?: any
 }
 

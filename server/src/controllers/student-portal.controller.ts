@@ -53,80 +53,48 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       return res.status(401).json({ success: false, message: 'Invalid Student ID or password.' });
     }
 
-    // Block pending-activation accounts — they must use activation flow first
+    // Block pending-activation accounts — they must complete account activation first
     if (student.accountStatus === 'PENDING_ACTIVATION') {
       return res.status(403).json({
         success: false,
         requiresActivation: true,
-        message: 'Your account is not yet activated. Please use the activation code from your school-issued slip.',
+        message: 'Your account is pending activation. Please activate your account using your activation code.',
       });
     }
-    let user: any = null;
-    const isDefaultCandidate = password === student.student_id || password === 'password123' || password === '12345678';
 
-
-    if (student.user_id) {
-      user = await prisma.user.findUnique({ where: { id: student.user_id } });
+    if (student.accountStatus !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is not active. Please contact your school administrator.',
+      });
     }
 
-    if (user && user.password_hash) {
-      const isValid = await bcrypt.compare(password, user.password_hash);
-      if (!isValid && !isDefaultCandidate) {
-        return res.status(401).json({ success: false, message: 'Invalid Student ID or password.' });
-      }
-      if (!isValid && isDefaultCandidate) {
-        const hashed = await bcrypt.hash(password, 10);
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { password_hash: hashed },
-        });
-      }
-    } else {
-      // First-time sign-in or student without user account
-      if (!isDefaultCandidate) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid Student ID or password. Initial password is your Student ID or password123.',
-        });
-      }
-
-      const dummyEmail = `student-${student.student_id.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
-      const hashed = await bcrypt.hash(password, 10);
-
-      let existingUser = await prisma.user.findUnique({ where: { email: dummyEmail } });
-      if (!existingUser) {
-        existingUser = await prisma.user.create({
-          data: {
-            email: dummyEmail,
-            password_hash: hashed,
-            full_name: student.fullName,
-            role: 'student',
-            is_active: true,
-            is_verified: true,
-          },
-        });
-      } else {
-        existingUser = await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { password_hash: hashed, role: 'student', is_active: true },
-        });
-      }
-
-      await prisma.student.update({
-        where: { id: student.id },
-        data: { user_id: existingUser.id },
+    if (!student.user_id) {
+      return res.status(401).json({
+        success: false,
+        requiresActivation: true,
+        message: 'Your account has not been activated yet. Please activate your account first.',
       });
+    }
 
-      user = existingUser;
+    const user = await prisma.user.findUnique({ where: { id: student.user_id } });
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ success: false, message: 'Invalid Student ID or password.' });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ success: false, message: 'Invalid Student ID or password.' });
     }
 
     if (!user.is_active) {
       return res.status(403).json({ success: false, message: 'Your account is inactive. Please contact the school.' });
     }
+
     const school = await prisma.schoolSettings.findFirst();
     const token = generateToken({
       id: user.id,
-      email: user.email || `student-${studentId}@addishiwot.edu.et`,
+      email: user.email || `student-${studentId}@brightpath.edu.et`,
       role: 'student',
       schoolId: 'single-school',
     });
@@ -158,74 +126,190 @@ export const verifyActivationCode = async (req: Request, res: Response, next: Ne
     }
     const student = await prisma.student.findUnique({ where: { student_id: studentId.trim() } }) as any;
     if (!student) {
-      return res.status(404).json({ success: false, message: 'Student ID not found.' });
+      return res.status(400).json({ success: false, message: 'Invalid Student ID or activation code.' });
+    }
+    if (student.accountStatus === 'ACTIVE') {
+      return res.status(400).json({ success: false, message: 'This account has already been activated. Please sign in normally.' });
     }
     if (student.accountStatus !== 'PENDING_ACTIVATION') {
-      return res.status(400).json({ success: false, message: 'This account is already activated. Please sign in normally.' });
+      return res.status(400).json({ success: false, message: 'This account is not pending activation. Please contact the school.' });
     }
-    if (!student.activation_code || student.activation_code !== activationCode.trim().toUpperCase()) {
-      return res.status(400).json({ success: false, message: 'Invalid activation code. Check your school-issued slip.' });
+    if (!student.activation_code) {
+      return res.status(400).json({ success: false, message: 'Invalid activation code.' });
     }
     if (student.activation_code_expires && new Date(student.activation_code_expires) < new Date()) {
       return res.status(400).json({ success: false, message: 'Activation code has expired. Please ask your school to regenerate it.' });
     }
+
+    const cleanedCode = activationCode.trim().toUpperCase();
+    const isMatch = student.activation_code.startsWith('$2')
+      ? await bcrypt.compare(cleanedCode, student.activation_code)
+      : student.activation_code === cleanedCode;
+
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Invalid activation code. Check your school-issued slip.' });
+    }
+
     return res.status(200).json({ success: true, studentName: student.fullName, message: 'Code verified. Please set your password.' });
   } catch (err) { next(err); }
 };
 
-// Step 2: Set password and activate the account
+// Step 2: Set password and activate the account atomically
 export const activateAccount = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { studentId, activationCode, newPassword } = req.body;
+    const { studentId, activationCode, newPassword, confirmPassword } = req.body;
     if (!studentId || !activationCode || !newPassword) {
       return res.status(400).json({ success: false, message: 'Student ID, activation code, and new password are required.' });
     }
-    const student = await prisma.student.findUnique({
-      where: { student_id: studentId.trim() },
-      include: { grade: true, section: true, stream: true },
-    }) as any;
-    if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
-    if (student.accountStatus !== 'PENDING_ACTIVATION') {
-      return res.status(400).json({ success: false, message: 'Account is already activated.' });
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match.' });
     }
-    if (!student.activation_code || student.activation_code !== activationCode.trim().toUpperCase()) {
-      return res.status(400).json({ success: false, message: 'Invalid activation code.' });
-    }
-    if (student.activation_code_expires && new Date(student.activation_code_expires) < new Date()) {
-      return res.status(400).json({ success: false, message: 'Activation code expired. Contact your school.' });
-    }
-    const validation = validatePassword(newPassword);
-    if (!validation.isValid) return res.status(400).json({ success: false, message: validation.error });
-    if (newPassword === student.student_id) {
+
+    const trimmedStudentId = studentId.trim();
+    const cleanedCode = activationCode.trim().toUpperCase();
+
+    if (newPassword.trim().toLowerCase() === trimmedStudentId.toLowerCase()) {
       return res.status(400).json({ success: false, message: 'Your password cannot be the same as your Student ID.' });
     }
-    const hashed = await bcrypt.hash(newPassword, 10);
-    const dummyEmail = `student-${student.student_id.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
-    let user = await prisma.user.findUnique({ where: { email: dummyEmail } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: { email: dummyEmail, password_hash: hashed, full_name: student.fullName, role: 'student', is_active: true, is_verified: true },
-      });
-    } else {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { password_hash: hashed, role: 'student', is_active: true, is_verified: true },
-      });
+
+    const validation = validatePassword(newPassword);
+    if (!validation.isValid) {
+      return res.status(400).json({ success: false, message: validation.error });
     }
-    await (prisma.student as any).update({
-      where: { id: student.id },
-      data: { user_id: user.id, accountStatus: 'ACTIVE', activation_code: null, activation_code_expires: null },
+
+    // Atomic activation transaction
+    const activationResult = await prisma.$transaction(async (tx) => {
+      const student = await tx.student.findUnique({
+        where: { student_id: trimmedStudentId },
+        include: { grade: true, section: true, stream: true },
+      }) as any;
+
+      if (!student) {
+        const err: any = new Error('Invalid Student ID or activation code.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (student.accountStatus === 'ACTIVE') {
+        const err: any = new Error('This account has already been activated. Please sign in with your password.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (student.accountStatus !== 'PENDING_ACTIVATION') {
+        const err: any = new Error('Account is not in a valid state for activation. Please contact the school.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (!student.activation_code) {
+        const err: any = new Error('Invalid activation code.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (student.activation_code_expires && new Date(student.activation_code_expires) < new Date()) {
+        const err: any = new Error('Activation code has expired. Please contact your school to issue a replacement.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const isMatch = student.activation_code.startsWith('$2')
+        ? await bcrypt.compare(cleanedCode, student.activation_code)
+        : student.activation_code === cleanedCode;
+
+      if (!isMatch) {
+        const err: any = new Error('Invalid activation code. Please check your school-issued slip.');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      // Atomic single-use consumption of activation code and state transition
+      const updateCount = await tx.student.updateMany({
+        where: {
+          id: student.id,
+          accountStatus: 'PENDING_ACTIVATION',
+          activation_code: student.activation_code,
+        },
+        data: {
+          accountStatus: 'ACTIVE',
+          activation_code: null,
+          activation_code_expires: null,
+        },
+      });
+
+      if (updateCount.count === 0) {
+        const err: any = new Error('This account is already being activated or has already been activated.');
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const portalEmail = `student-${trimmedStudentId.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
+
+      let user = await tx.user.findUnique({ where: { email: portalEmail } });
+      if (!user) {
+        user = await tx.user.create({
+          data: {
+            email: portalEmail,
+            password_hash: hashedPassword,
+            full_name: student.fullName,
+            role: 'student',
+            is_active: true,
+            is_verified: true,
+          },
+        });
+      } else {
+        user = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            password_hash: hashedPassword,
+            full_name: student.fullName,
+            role: 'student',
+            is_active: true,
+            is_verified: true,
+          },
+        });
+      }
+
+      await tx.student.update({
+        where: { id: student.id },
+        data: { user_id: user.id },
+      });
+
+      return { student, user };
     });
+
     const school = await prisma.schoolSettings.findFirst();
-    const token = generateToken({ id: user.id, email: user.email, role: 'student', schoolId: 'single-school' });
+    const token = generateToken({
+      id: activationResult.user.id,
+      email: activationResult.user.email,
+      role: 'student',
+      schoolId: 'single-school',
+    });
+
     return res.status(200).json({
       success: true,
-      message: 'Account activated! Welcome to Bright Path.',
+      message: 'Account activated successfully! Welcome to Bright Path.',
       token,
-      student: { id: student.id, student_id: student.student_id, fullName: student.fullName, grade: student.grade?.name || '', section: student.section?.name || '', stream: student.stream?.name || null, photo: null },
+      student: {
+        id: activationResult.student.id,
+        student_id: activationResult.student.student_id,
+        fullName: activationResult.student.fullName,
+        grade: activationResult.student.grade?.name || '',
+        section: activationResult.student.section?.name || '',
+        stream: activationResult.student.stream?.name || null,
+        photo: activationResult.user.profile_photo || null,
+      },
       school: { id: 'single-school', name: school?.school_name || 'Bright Path', logo: school?.school_logo || '' },
     });
-  } catch (err) { next(err); }
+  } catch (err: any) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
 };
 
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {

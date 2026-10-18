@@ -120,29 +120,46 @@ const deleteGrade = async (id) => {
 };
 exports.deleteGrade = deleteGrade;
 // ─── Sections ───────────────────────────────────────────────────────────────
-const getSections = async (gradeId) => {
+const getSections = async (gradeId, streamId) => {
     try {
+        const where = {};
         if (gradeId && gradeId !== 'ALL' && gradeId !== 'all') {
-            const filtered = await db_1.default.section.findMany({
-                where: {
-                    OR: [
-                        { students: { some: { gradeId } } },
-                        { assignments: { some: { gradeId } } },
-                        { assessments: { some: { gradeId } } },
-                    ],
-                },
-                orderBy: { name: 'asc' },
-            });
-            if (filtered && filtered.length > 0)
-                return filtered;
+            where.gradeId = gradeId;
         }
+        if (streamId && streamId !== 'ALL' && streamId !== 'all') {
+            if (streamId === 'NONE' || streamId === 'none') {
+                where.streamId = null;
+            }
+            else {
+                where.streamId = streamId;
+            }
+        }
+        return await db_1.default.section.findMany({
+            where,
+            include: {
+                grade: { select: { id: true, name: true } },
+                stream: { select: { id: true, name: true } },
+                _count: {
+                    select: {
+                        students: true,
+                        assignments: true,
+                        timetables: true,
+                    },
+                },
+            },
+            orderBy: [{ grade: { name: 'asc' } }, { name: 'asc' }],
+        });
     }
     catch (err) {
-        console.warn('[getSections] Failed to filter by gradeId, returning all sections:', err);
+        console.warn('[getSections] Failed to fetch sections with filters:', err);
+        return await db_1.default.section.findMany({
+            include: {
+                grade: { select: { id: true, name: true } },
+                stream: { select: { id: true, name: true } },
+            },
+            orderBy: { name: 'asc' },
+        });
     }
-    return await db_1.default.section.findMany({
-        orderBy: { name: 'asc' },
-    });
 };
 exports.getSections = getSections;
 // ─── Teachers ───────────────────────────────────────────────────────────────
@@ -156,11 +173,47 @@ const createSection = async (data) => {
     const trimmedName = data.name?.trim();
     if (!trimmedName)
         throw new Error('Section name is required');
-    const existing = await db_1.default.section.findUnique({ where: { name: trimmedName } });
-    if (existing)
-        throw new Error(`Section "${trimmedName}" already exists`);
+    if (!data.gradeId)
+        throw new Error('Grade Level is mandatory to create a section');
+    const grade = await db_1.default.grade.findUnique({ where: { id: data.gradeId } });
+    if (!grade)
+        throw new Error('Selected grade not found');
+    const gradeName = (grade.name || '').toLowerCase();
+    const isSeniorSecondary = gradeName.includes('11') || gradeName.includes('12');
+    let streamId = null;
+    if (isSeniorSecondary) {
+        if (!data.streamId) {
+            throw new Error(`Academic Stream (Natural Science or Social Science) is mandatory for ${grade.name}`);
+        }
+        const stream = await db_1.default.stream.findUnique({ where: { id: data.streamId } });
+        if (!stream)
+            throw new Error('Selected stream not found');
+        streamId = stream.id;
+    }
+    else {
+        streamId = null;
+    }
+    // Check duplicate section name within this grade and stream
+    const existing = await db_1.default.section.findFirst({
+        where: {
+            gradeId: data.gradeId,
+            streamId: streamId,
+            name: { equals: trimmedName, mode: 'insensitive' },
+        },
+    });
+    if (existing) {
+        throw new Error(`Section "${trimmedName}" already exists for this grade${streamId ? ' and stream' : ''}`);
+    }
     return await db_1.default.section.create({
-        data: { name: trimmedName },
+        data: {
+            name: trimmedName,
+            gradeId: data.gradeId,
+            streamId,
+        },
+        include: {
+            grade: true,
+            stream: true,
+        },
     });
 };
 exports.createSection = createSection;
@@ -168,18 +221,68 @@ const updateSection = async (id, data) => {
     const existing = await db_1.default.section.findUnique({ where: { id } });
     if (!existing)
         throw new Error('Section not found');
+    const targetGradeId = data.gradeId || existing.gradeId;
+    const grade = await db_1.default.grade.findUnique({ where: { id: targetGradeId } });
+    if (!grade)
+        throw new Error('Target grade not found');
+    const gradeName = (grade.name || '').toLowerCase();
+    const isSeniorSecondary = gradeName.includes('11') || gradeName.includes('12');
+    let targetStreamId = existing.streamId;
+    if (isSeniorSecondary) {
+        const candidateStreamId = data.streamId !== undefined ? data.streamId : existing.streamId;
+        if (!candidateStreamId) {
+            throw new Error(`Academic Stream is required for ${grade.name}`);
+        }
+        targetStreamId = candidateStreamId;
+    }
+    else {
+        targetStreamId = null;
+    }
+    const targetName = (data.name ? data.name.trim() : existing.name);
+    // Check duplicate
+    const duplicate = await db_1.default.section.findFirst({
+        where: {
+            id: { not: id },
+            gradeId: targetGradeId,
+            streamId: targetStreamId,
+            name: { equals: targetName, mode: 'insensitive' },
+        },
+    });
+    if (duplicate) {
+        throw new Error(`Section "${targetName}" already exists for this grade and stream`);
+    }
     return await db_1.default.section.update({
         where: { id },
         data: {
-            ...(data.name ? { name: data.name.trim() } : {}),
+            name: targetName,
+            gradeId: targetGradeId,
+            streamId: targetStreamId,
+        },
+        include: {
+            grade: true,
+            stream: true,
         },
     });
 };
 exports.updateSection = updateSection;
 const deleteSection = async (id) => {
-    const studentCount = await db_1.default.student.count({ where: { sectionId: id } });
+    const [studentCount, assignmentCount, timetableCount, assessmentCount] = await Promise.all([
+        db_1.default.student.count({ where: { sectionId: id } }),
+        db_1.default.teacherAssignment.count({ where: { sectionId: id } }),
+        db_1.default.timetable.count({ where: { sectionId: id } }),
+        db_1.default.assessment.count({ where: { sectionId: id } }),
+    ]);
     if (studentCount > 0) {
-        throw new Error(`Cannot delete section: ${studentCount} active students are currently assigned to it.`);
+        throw new Error(`Cannot delete section: ${studentCount} active students are currently enrolled in it.`);
+    }
+    if (assignmentCount > 0) {
+        throw new Error(`Cannot delete section: ${assignmentCount} teacher assignments are currently attached to it.`);
+    }
+    if (timetableCount > 0) {
+        throw new Error(`Cannot delete section: ${timetableCount} timetables are currently assigned to it.`);
+    }
+    if (assessmentCount > 0) {
+        throw new Error(`Cannot delete section: ${assessmentCount} assessments are currently recorded for it.`);
     }
     return await db_1.default.section.delete({ where: { id } });
 };

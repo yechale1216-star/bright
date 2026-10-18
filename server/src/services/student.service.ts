@@ -1,7 +1,6 @@
 import prisma from '../config/db';
 import * as parentService from './parent.service';
 import { academicYearService } from './academic-year.service';
-import { generateCompliantPassword } from '../utils/password-validator';
 import bcrypt from 'bcryptjs';
 
 // Map database relational model to flat frontend model
@@ -264,36 +263,15 @@ export const generateActivationCode = async (studentId: string) => {
   const code = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
 
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  const hashedCode = await bcrypt.hash(code, 10);
 
-  // Ensure student portal User account exists
-  let userId = student.user_id;
-  if (!userId) {
-    const portalEmail = `student-${student.student_id.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
-    const initialPassword = generateCompliantPassword(10);
-    const hashedPassword = await bcrypt.hash(initialPassword, 10);
-    let user = await prisma.user.findUnique({ where: { email: portalEmail } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: portalEmail,
-          password_hash: hashedPassword,
-          full_name: student.fullName,
-          role: 'student',
-          is_active: true,
-          is_verified: false,
-        },
-      });
-    }
-    userId = user.id;
-  }
-
+  // Invalidate previous code and store new cryptographic hash securely
   await (prisma.student as any).update({
     where: { id: studentId },
     data: {
-      activation_code: code,
+      activation_code: hashedCode,
       activation_code_expires: expires,
       accountStatus: 'PENDING_ACTIVATION',
-      user_id: userId,
     },
   });
 
@@ -421,72 +399,38 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     throw new Error(`A student with Student ID "${studentId}" already exists.`);
   }
 
-  // Automatically generate compliant initial password (min 8 chars, uppercase, lowercase, numbers)
-  const initialPassword = generateCompliantPassword(10);
-  const hashedPassword = await bcrypt.hash(initialPassword, 10);
-
   // Generate unique 8-char activation code
   const { randomBytes } = await import('crypto');
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes = randomBytes(8);
   const activationCode = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+  const hashedActivationCode = await bcrypt.hash(activationCode, 10);
   const activationExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-  const portalEmail = `student-${studentId.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
-
-  // Create portal user and student atomically
-  const { newStudent } = await prisma.$transaction(async (tx) => {
-    let user = await tx.user.findUnique({ where: { email: portalEmail } });
-    if (!user) {
-      user = await tx.user.create({
-        data: {
-          email: portalEmail,
-          password_hash: hashedPassword,
-          full_name: data.name,
-          role: 'student',
-          is_active: true,
-          is_verified: false,
-        },
-      });
-    } else {
-      user = await tx.user.update({
-        where: { id: user.id },
-        data: {
-          password_hash: hashedPassword,
-          full_name: data.name,
-          role: 'student',
-          is_active: true,
-          is_verified: false,
-        },
-      });
-    }
-
-    const created = await tx.student.create({
-      data: {
-        fullName: data.name,
-        student_id: studentId,
-        parent_email: data.parent_email || "",
-        parent_phone: data.parent_phone || "",
-        parent_name: data.parent_name || "",
-        gender: data.gender,
-        date_of_birth: data.date_of_birth,
-        address: data.address || null,
-        gradeId: grade.id,
-        sectionId: section.id,
-        streamId: streamId,
-        accountStatus: 'PENDING_ACTIVATION',
-        activation_code: activationCode,
-        activation_code_expires: activationExpires,
-        user_id: user.id,
-      },
-      include: {
-        grade: true,
-        section: true,
-        stream: true,
-      },
-    });
-
-    return { newStudent: created, user };
+  // Create student with PENDING_ACTIVATION and no usable login credential until activation
+  const newStudent = await prisma.student.create({
+    data: {
+      fullName: data.name,
+      student_id: studentId,
+      parent_email: data.parent_email || "",
+      parent_phone: data.parent_phone || "",
+      parent_name: data.parent_name || "",
+      gender: data.gender,
+      date_of_birth: data.date_of_birth,
+      address: data.address || null,
+      gradeId: grade.id,
+      sectionId: section.id,
+      streamId: streamId,
+      accountStatus: 'PENDING_ACTIVATION',
+      activation_code: hashedActivationCode,
+      activation_code_expires: activationExpires,
+      user_id: null,
+    },
+    include: {
+      grade: true,
+      section: true,
+      stream: true,
+    },
   });
 
   try {
@@ -575,7 +519,6 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     grade: newStudent.grade?.name || '',
     section: newStudent.section?.name || '',
     activationCode,
-    initialPassword,
     expiresAt: activationExpires,
   };
 
@@ -583,7 +526,6 @@ export const createStudent = async (data: any, _schoolId?: string) => {
     ...mapStudentToFlat(newStudent),
     relationshipType: data.relationshipType || linkRecord?.relationshipType || 'Guardian',
     accountStatus: 'PENDING_ACTIVATION',
-    initialPassword,
     activationCode,
     activation_code: activationCode,
     activation_code_expires: activationExpires,
@@ -710,35 +652,20 @@ export const bulkUpsertStudents = async (students: any[], _schoolId?: string) =>
       } else {
         results.created++;
         try {
-          const tempPassword = generateCompliantPassword(10);
-          const hashedTempPassword = await bcrypt.hash(tempPassword, 10);
-          const bulkPortalEmail = `student-${studentId.toLowerCase().replace(/[^a-z0-9]/g, '')}@brightpath.edu.et`;
           const { randomBytes } = await import('crypto');
           const bChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
           const bBytes = randomBytes(8);
           const bCode = Array.from(bBytes).map((b) => bChars[b % bChars.length]).join('');
+          const bHashedCode = await bcrypt.hash(bCode, 10);
           const bExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-          let bulkUser = await prisma.user.findUnique({ where: { email: bulkPortalEmail } });
-          if (!bulkUser) {
-            bulkUser = await prisma.user.create({
-              data: {
-                email: bulkPortalEmail,
-                password_hash: hashedTempPassword,
-                full_name: data.name,
-                role: 'student',
-                is_active: true,
-                is_verified: false,
-              },
-            });
-          }
           await (prisma.student as any).update({
             where: { id: student.id },
             data: {
               accountStatus: 'PENDING_ACTIVATION',
-              activation_code: bCode,
+              activation_code: bHashedCode,
               activation_code_expires: bExpires,
-              user_id: bulkUser.id,
+              user_id: null,
             },
           });
         } catch (actErr) {

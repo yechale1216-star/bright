@@ -82,8 +82,8 @@ router.delete('/me/grades/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMIN
 // ─── Sections ───────────────────────────────────────────────────────────────
 const getSectionsHandler = async (req, res, next) => {
     try {
-        const { gradeId } = req.query;
-        const sections = await schoolService.getSections(gradeId);
+        const { gradeId, streamId } = req.query;
+        const sections = await schoolService.getSections(gradeId, streamId);
         res.status(200).json({ success: true, data: sections });
     }
     catch (error) {
@@ -92,7 +92,7 @@ const getSectionsHandler = async (req, res, next) => {
 };
 router.get('/me/sections', getSectionsHandler);
 router.get('/sections', getSectionsHandler); // alias for frontend compatibility
-router.post('/me/sections', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), async (req, res, next) => {
+const createSectionHandler = async (req, res, next) => {
     try {
         const section = await schoolService.createSection(req.body);
         res.status(201).json({ success: true, data: section });
@@ -100,8 +100,10 @@ router.post('/me/sections', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), 
     catch (error) {
         next(error);
     }
-});
-router.put('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), async (req, res, next) => {
+};
+router.post('/me/sections', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), createSectionHandler);
+router.post('/sections', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), createSectionHandler);
+const updateSectionHandler = async (req, res, next) => {
     try {
         const section = await schoolService.updateSection(req.params.id, req.body);
         res.status(200).json({ success: true, data: section });
@@ -109,8 +111,10 @@ router.put('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS
     catch (error) {
         next(error);
     }
-});
-router.delete('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), async (req, res, next) => {
+};
+router.put('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), updateSectionHandler);
+router.put('/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), updateSectionHandler);
+const deleteSectionHandler = async (req, res, next) => {
     try {
         await schoolService.deleteSection(req.params.id);
         res.status(200).json({ success: true, message: 'Section deleted successfully' });
@@ -118,7 +122,9 @@ router.delete('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADM
     catch (error) {
         next(error);
     }
-});
+};
+router.delete('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), deleteSectionHandler);
+router.delete('/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), deleteSectionHandler);
 // ─── Streams ────────────────────────────────────────────────────────────────
 router.get('/me/streams', async (_req, res, next) => {
     try {

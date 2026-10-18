@@ -146,13 +146,13 @@ class StudentDatabase {
     );
   }
 
-  async activateAccount(studentId: string, activationCode: string, newPassword: string): Promise<any> {
+  async activateAccount(studentId: string, activationCode: string, newPassword: string, confirmPassword?: string): Promise<any> {
     const res = await apiFetch<{ success: boolean; token?: string; student?: any; school?: any; message?: string }>(
       `${API_URL}/api/student/activate`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, activationCode, newPassword }),
+        body: JSON.stringify({ studentId, activationCode, newPassword, confirmPassword }),
       }
     );
 

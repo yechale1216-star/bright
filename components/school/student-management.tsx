@@ -165,15 +165,6 @@ export function StudentManagement() {
             <div class="code-box">
               <div class="code-label">One-Time Activation Code</div>
               <div class="code">${slip.activationCode}</div>
-            </div>
-            ${slip.initialPassword ? `
-            <div class="info-box">
-              <div class="info-row">
-                <span class="info-label">Initial Password:</span>
-                <span class="info-value">${slip.initialPassword}</span>
-              </div>
-            </div>
-            ` : ''}
             <div class="steps-box">
               <div class="steps-title">Activation Instructions:</div>
               <ol>
@@ -2164,9 +2155,19 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                           )}
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-500 text-center py-1">
-                          No active code currently assigned.
-                        </p>
+                        <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900 text-center space-y-1">
+                          <p className="text-xs font-semibold text-purple-900 dark:text-purple-200">
+                            Activation Code Secured
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Stored securely. Click below to regenerate and print a fresh activation slip if lost or expired.
+                          </p>
+                          {selectedStudent.activation_code_expires && (
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              Expires: {new Date(selectedStudent.activation_code_expires).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex gap-2 pt-1">
@@ -2354,38 +2355,6 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                 </div>
               </div>
 
-              {/* Initial Password Box */}
-              {registrationConfirmation.initialPassword && (
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Initial Password
-                    </span>
-                    <span className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100">
-                      {showConfirmationPassword ? registrationConfirmation.initialPassword : "••••••••••••"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setShowConfirmationPassword(!showConfirmationPassword)}
-                      className="h-8 w-8 text-slate-500 hover:text-slate-700"
-                    >
-                      {showConfirmationPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => copyToClipboard(registrationConfirmation.initialPassword, 'confirm-pwd')}
-                      className="h-8 w-8 text-slate-500 hover:text-slate-700"
-                    >
-                      {copiedKey === 'confirm-pwd' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
               {/* Instructions */}
               <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900 text-xs text-slate-600 dark:text-slate-400 space-y-1">
                 <p className="font-bold text-purple-900 dark:text-purple-200">Instructions for the student:</p>
@@ -2403,7 +2372,6 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                     grade: registrationConfirmation.grade,
                     section: registrationConfirmation.section,
                     activationCode: registrationConfirmation.activationCode || registrationConfirmation.activation_code,
-                    initialPassword: registrationConfirmation.initialPassword,
                     expiresAt: registrationConfirmation.activation_code_expires || registrationConfirmation.activationSlip?.expiresAt,
                   })}
                   className="flex-1 h-11 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs gap-2 shadow-lg shadow-purple-700/20"

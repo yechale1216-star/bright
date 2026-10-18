@@ -8,9 +8,12 @@ const sanitizeStudentForRole = (student: any, role?: string) => {
   if (!student) return null;
   const isAuthorized = AUTHORIZED_STAFF_ROLES.includes(role || '');
   const canSeeActivation = isAuthorized && student.accountStatus === 'PENDING_ACTIVATION';
+  const isPlaintextLegacy = student.activation_code && !student.activation_code.startsWith('$2') && student.activation_code.length <= 10;
   return {
     ...student,
-    activation_code: canSeeActivation ? student.activation_code : null,
+    // Never expose cryptographic hashes or passwords over API
+    activation_code: canSeeActivation && isPlaintextLegacy ? student.activation_code : null,
+    has_activation_code: canSeeActivation ? Boolean(student.activation_code) : false,
     activation_code_expires: canSeeActivation ? student.activation_code_expires : null,
   };
 };
