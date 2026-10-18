@@ -52,6 +52,8 @@ import { useUnread } from "@/lib/context/unread-context";
 import { db } from "@/lib/db/database";
 import { getApiUrl } from "@/lib/api-config";
 import { cn } from "@/lib/utils/utils";
+import { parseMaterialMeta } from "@/components/student/student-shared-materials";
+import { getYouTubeThumbnailUrl } from "@/lib/utils/video-utils";
 
 export function ParentDashboardView() {
   const router = useRouter();
@@ -866,25 +868,41 @@ export function ParentDashboardView() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {materialsList.slice(0, 4).map((m) => {
                     const isVideo = (m.fileType || "").toUpperCase() === "VIDEO";
+                    const { meta } = parseMaterialMeta(m.description);
+                    const thumbUrl = meta.thumbnailUrl || (isVideo ? getYouTubeThumbnailUrl(m.fileUrl) : undefined);
+
                     return (
-                      <a
+                      <Link
                         key={m.id}
-                        href={m.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-3 transition-colors group"
+                        href="/parent/materials"
+                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-3 transition-colors group cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            className={cn(
-                              "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                              isVideo
-                                ? "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300"
-                                : "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"
-                            )}
-                          >
-                            {isVideo ? <Play className="w-4 h-4 fill-current" /> : <FileText className="w-4 h-4" />}
-                          </div>
+                          {thumbUrl ? (
+                            <div className="w-12 h-9 rounded-xl overflow-hidden shrink-0 relative bg-slate-200 dark:bg-slate-800 border border-border/50">
+                              <img
+                                src={thumbUrl}
+                                alt={m.title}
+                                className="w-full h-full object-cover"
+                              />
+                              {isVideo && (
+                                <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                                  <Play className="w-3 h-3 text-white fill-current" />
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div
+                              className={cn(
+                                "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                                isVideo
+                                  ? "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300"
+                                  : "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"
+                              )}
+                            >
+                              {isVideo ? <Play className="w-4 h-4 fill-current" /> : <FileText className="w-4 h-4" />}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <h5 className="text-xs font-bold text-foreground truncate group-hover:text-purple-600 transition-colors">
                               {m.title}
@@ -894,8 +912,8 @@ export function ParentDashboardView() {
                             </span>
                           </div>
                         </div>
-                        <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 shrink-0" />
-                      </a>
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 shrink-0" />
+                      </Link>
                     );
                   })}
                 </div>

@@ -66,7 +66,8 @@ export function parseMaterialMeta(rawDescription?: string | null): {
   const defaultMeta: MaterialMetadata = { status: "PUBLISHED" };
   if (!rawDescription) return { cleanDescription: "", meta: defaultMeta };
 
-  const match = rawDescription.match(/^<!--BP_META:([\s\S]*?)-->([\s\S]*)$/);
+  const trimmed = rawDescription.trim();
+  const match = trimmed.match(/<!--BP_META:([\s\S]*?)-->([\s\S]*)$/);
   if (match) {
     try {
       const parsed = JSON.parse(match[1]);
@@ -83,7 +84,7 @@ export function parseMaterialMeta(rawDescription?: string | null): {
     }
   }
 
-  return { cleanDescription: rawDescription.trim(), meta: defaultMeta };
+  return { cleanDescription: trimmed, meta: defaultMeta };
 }
 
 export interface StudentMaterialItem {
@@ -142,11 +143,20 @@ function formatBytes(bytes?: number | null): string {
   return `${val.toFixed(val < 10 && idx > 0 ? 1 : 0)} ${units[idx]}`;
 }
 
-export function StudentSharedMaterials() {
+export interface StudentSharedMaterialsProps {
+  studentId?: string;
+  isParentView?: boolean;
+}
+
+export function StudentSharedMaterials({
+  studentId,
+  isParentView = false,
+}: StudentSharedMaterialsProps = {}) {
   // ─── State ────────────────────────────────────────────────────────────────
   const [materials, setMaterials] = useState<StudentMaterialItem[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [studentInfo, setStudentInfo] = useState<{
+    name?: string;
     grade?: string;
     section?: string;
     academicYear?: string;
@@ -190,34 +200,131 @@ export function StudentSharedMaterials() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch Materials
-      const matsRes = await studentDb.getMaterials();
-      setMaterials(matsRes || []);
+      if (isParentView) {
+        // Parent context
+        const effectiveSid =
+          studentId ||
+          (typeof window !== "undefined"
+            ? localStorage.getItem("parent_selected_student_id") || ""
+            : "");
 
-      // 2. Fetch Classes / Enrolled Subjects
-      const classesRes = await studentDb.getClasses().catch(() => []);
-      setClasses(classesRes || []);
+        if (!effectiveSid) {
+          setMaterials([]);
+          setClasses([]);
+          setStudentInfo({});
+          setLoading(false);
+          return;
+        }
 
-      // 3. Fetch Student Dashboard Context (Grade, Section, Year)
-      const dashRes = await studentDb.getDashboard().catch(() => null);
-      if (dashRes?.student) {
-        setStudentInfo({
-          grade: dashRes.student.grade,
-          section: dashRes.student.section,
-          academicYear: dashRes.academicYear || "Current Year",
-        });
+        // Try to obtain student's name, grade, section from parent localStorage
+        if (typeof window !== "undefined") {
+          let foundStudent: any = null;
+          try {
+            const rawList = localStorage.getItem("parent_students");
+            if (rawList) {
+              const list = JSON.parse(rawList);
+              if (Array.isArray(list)) {
+                foundStudent = list.find((s: any) => s.id === effectiveSid);
+              }
+            }
+          } catch {}
+
+          if (!foundStudent) {
+            try {
+              const rawSingle = localStorage.getItem("parent_selected_student");
+              if (rawSingle) foundStudent = JSON.parse(rawSingle);
+            } catch {}
+          }
+
+          if (foundStudent) {
+            setStudentInfo({
+              name: foundStudent.fullName || foundStudent.name,
+              grade: foundStudent.grade || foundStudent.gradeName,
+              section: foundStudent.section || foundStudent.sectionName,
+              academicYear: foundStudent.academicYear || "Current Year",
+            });
+          }
+        }
+
+        // Fetch student materials scoped to parent's selected child
+        const rawMats = await learningMaterialClientService.getStudentMaterials(effectiveSid);
+        const mappedMats: StudentMaterialItem[] = (rawMats || []).map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          subjectId: m.subjectId,
+          subjectName: m.subject?.name || "General Subject",
+          subjectColor: m.subject?.color || "#7c3aed",
+          teacherName: m.teacher?.fullName,
+          fileUrl: m.fileUrl,
+          fileType: m.fileType,
+          fileSize: m.fileSize,
+          viewCount: m.viewCount,
+          createdAt: m.createdAt,
+        }));
+        setMaterials(mappedMats);
+
+        // Derive subjects filter options
+        const uniqueSubjects = Array.from(
+          new Map(
+            mappedMats
+              .filter((m) => m.subjectId)
+              .map((m) => [
+                m.subjectId,
+                {
+                  id: m.subjectId,
+                  subjectId: m.subjectId,
+                  name: m.subjectName || "Subject",
+                  color: m.subjectColor || "#7c3aed",
+                },
+              ])
+          ).values()
+        );
+        setClasses(uniqueSubjects);
+      } else {
+        // Student's own portal context
+        // 1. Fetch Materials
+        const matsRes = await studentDb.getMaterials();
+        setMaterials(matsRes || []);
+
+        // 2. Fetch Classes / Enrolled Subjects
+        const classesRes = await studentDb.getClasses().catch(() => []);
+        setClasses(classesRes || []);
+
+        // 3. Fetch Student Dashboard Context (Grade, Section, Year)
+        const dashRes = await studentDb.getDashboard().catch(() => null);
+        if (dashRes?.student) {
+          setStudentInfo({
+            name: dashRes.student.fullName || dashRes.student.name,
+            grade: dashRes.student.grade,
+            section: dashRes.student.section,
+            academicYear: dashRes.academicYear || "Current Year",
+          });
+        }
       }
     } catch (err: any) {
-      console.error("[StudentMaterials] Fetch error:", err);
+      console.error("[SharedMaterials] Fetch error:", err);
       setError(err?.message || "Failed to load learning materials. Please check your connection.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isParentView, studentId]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+
+    if (isParentView && typeof window !== "undefined") {
+      const handleStudentChanged = () => {
+        fetchData();
+      };
+      window.addEventListener("studentChanged", handleStudentChanged);
+      window.addEventListener("storage", handleStudentChanged);
+      return () => {
+        window.removeEventListener("studentChanged", handleStudentChanged);
+        window.removeEventListener("storage", handleStudentChanged);
+      };
+    }
+  }, [fetchData, isParentView]);
 
   // Focus search input on expand
   useEffect(() => {
@@ -592,10 +699,20 @@ export function StudentSharedMaterials() {
               <span className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
                 <BookOpen className="w-4 h-4" />
               </span>
-              <span>Learning Materials</span>
+              <span>
+                {isParentView
+                  ? studentInfo.name
+                    ? `${studentInfo.name}'s Learning Materials`
+                    : "Child's Learning Materials"
+                  : "Learning Materials"}
+              </span>
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Explore lessons, lecture slides, worksheets, and study resources
+              {isParentView
+                ? studentInfo.grade
+                  ? `Class lessons, video recordings, and study notes for Grade ${studentInfo.grade}${studentInfo.section ? ` — Section ${studentInfo.section}` : ""}`
+                  : "Video lessons, lecture slides, worksheets, and study resources"
+                : "Explore lessons, lecture slides, worksheets, and study resources"}
             </p>
           </div>
 
@@ -871,11 +988,20 @@ export function StudentSharedMaterials() {
                   {/* Visual 16:9 Thumbnail or Icon Hero */}
                   <div className="relative aspect-video w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
                     {meta.thumbnailUrl ? (
-                      <img
-                        src={meta.thumbnailUrl}
-                        alt={m.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                      <div className="relative w-full h-full">
+                        <img
+                          src={meta.thumbnailUrl}
+                          alt={m.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        {isVideo && (
+                          <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-xl bg-purple-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                              <Play className="w-4 h-4 ml-0.5 fill-current" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ) : isVideo && getYouTubeThumbnailUrl(m.fileUrl) ? (
                       <div className="relative w-full h-full">
                         <img
@@ -1030,9 +1156,24 @@ export function StudentSharedMaterials() {
                   className="p-3.5 rounded-2xl border border-border/60 bg-card hover:border-purple-400/50 hover:bg-purple-50/20 dark:hover:bg-purple-950/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs", iconBg)}>
-                      {isVideo ? <Play className="w-4 h-4 fill-current" /> : isSlides ? <Presentation className="w-5 h-5" /> : isLink ? <Globe className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
-                    </div>
+                    {meta.thumbnailUrl || (isVideo && getYouTubeThumbnailUrl(m.fileUrl)) ? (
+                      <div className="w-12 h-10 sm:w-14 sm:h-11 rounded-xl overflow-hidden shrink-0 relative bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+                        <img
+                          src={meta.thumbnailUrl || getYouTubeThumbnailUrl(m.fileUrl)!}
+                          alt={m.title}
+                          className="w-full h-full object-cover"
+                        />
+                        {isVideo && (
+                          <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                            <Play className="w-3.5 h-3.5 text-white fill-current" />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs", iconBg)}>
+                        {isVideo ? <Play className="w-4 h-4 fill-current" /> : isSlides ? <Presentation className="w-5 h-5" /> : isLink ? <Globe className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                      </div>
+                    )}
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
