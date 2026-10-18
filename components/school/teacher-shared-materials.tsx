@@ -200,13 +200,13 @@ function TeacherMaterialGridCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border/70 bg-card hover:border-purple-400/60 hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer relative",
+        "rounded-2xl border border-border/70 bg-card hover:border-purple-400/60 hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer relative w-full max-w-sm mx-auto min-[480px]:max-w-none",
         isDraft && "opacity-90 border-dashed border-amber-400/50"
       )}
       onClick={onPreview}
     >
       {/* Visual Thumbnail or Icon Hero */}
-      <div className="relative aspect-video max-h-52 sm:max-h-none w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
+      <div className="relative aspect-video max-h-48 sm:max-h-44 md:max-h-none w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
         {meta.thumbnailUrl ? (
           <img
             src={meta.thumbnailUrl}
@@ -1036,7 +1036,7 @@ export function TeacherSharedMaterials({
         </Card>
       ) : viewMode === "grid" ? (
         /* ─── GRID VIEW (Responsive Columns) ─── */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4">
           {filteredMaterials.map((item) => (
             <TeacherMaterialGridCard
               key={item.material.id}

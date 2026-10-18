@@ -846,8 +846,8 @@ export function StudentSharedMaterials() {
       {/* ─── 6. RESPONSIVE MATERIALS CARDS (GRID & LIST VIEWS) ─── */}
       {!loading && !error && filteredMaterials.length > 0 && (
         viewMode === "grid" ? (
-          /* ─── GRID VIEW: 4 COLS DESKTOP, 2 COLS TABLET, 1 COL MOBILE ─── */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          /* ─── GRID VIEW: 4 COLS DESKTOP, 3 COLS TABLET, 2 COLS MOBILE (min-480px) ─── */
+          <div className="grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4">
             {filteredMaterials.map(({ material: m, cleanDescription, meta, category }) => {
               const isVideo = category === "VIDEOS";
               const isDoc = category === "DOCUMENTS" || category === "PDF";
@@ -866,10 +866,10 @@ export function StudentSharedMaterials() {
                       handleOpenDocument(m);
                     }
                   }}
-                  className="rounded-2xl border border-border/60 bg-card hover:border-purple-400/60 hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer relative"
+                  className="rounded-2xl border border-border/60 bg-card hover:border-purple-400/60 hover:shadow-md transition-all flex flex-col overflow-hidden group cursor-pointer relative w-full max-w-sm mx-auto min-[480px]:max-w-none"
                 >
                   {/* Visual 16:9 Thumbnail or Icon Hero */}
-                  <div className="relative aspect-video w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
+                  <div className="relative aspect-video max-h-48 sm:max-h-44 md:max-h-none w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
                     {meta.thumbnailUrl ? (
                       <img
                         src={meta.thumbnailUrl}

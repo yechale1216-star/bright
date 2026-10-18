@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { 
@@ -578,7 +578,7 @@ export function TeacherPortal() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredAssignments.map((assignment) => {
               const isHomeroom = assignment.role === "HOMEROOM_TEACHER"
               const subjectName = assignment.subjectRef?.name || assignment.subject || (isHomeroom ? "Homeroom Class" : "General Subject")
@@ -587,7 +587,7 @@ export function TeacherPortal() {
                 <div
                   key={assignment.id}
                   onClick={() => handleSelectClass(assignment)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-white/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl hover:border-indigo-500/50 dark:hover:border-indigo-500/40 hover:bg-white/90 dark:hover:bg-slate-900/70 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20"
+                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-white/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl hover:border-indigo-500/50 dark:hover:border-indigo-500/40 hover:bg-white/90 dark:hover:bg-slate-900/70 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20 w-full max-w-xl mx-auto sm:max-w-none"
                 >
                   {/* Subtle top role accent bar */}
                   <div
