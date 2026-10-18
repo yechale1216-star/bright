@@ -15,6 +15,9 @@ export default function TeacherDashboard() {
   const handleNavigate = (tab: string) => {
     const tabToPath: Record<string, string> = {
       dashboard: '/school/teacher',
+      schedule: '/school/teacher/schedule',
+      classes: '/school/teacher/classes',
+      gradebook: '/school/teacher/gradebook',
       attendance: '/school/teacher/attendance',
       reports: '/school/teacher/reports',
       profile: '/school/teacher/profile',

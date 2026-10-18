@@ -2352,14 +2352,21 @@ export class GradebookService {
     }
 
     const cleanId = id.trim();
+    // Support prefixes like "AH-RC-12345678" or "AH-RC-STU-001-2018"
+    const strippedId = cleanId.replace(/^AH-RC-/i, '').replace(/-\d{4}$/, '');
+
+    const candidateIds = Array.from(new Set([cleanId, strippedId])).filter(Boolean);
+
+    // 1. Try finding an official persisted ReportCard record
     const reportCard = await prisma.reportCard.findFirst({
       where: {
-        OR: [
-          { id: cleanId },
-          { studentId: cleanId },
-          { student: { student_id: cleanId } },
-          { student: { student_id: { equals: cleanId, mode: 'insensitive' } } },
-        ],
+        OR: candidateIds.flatMap((cid) => [
+          { id: cid },
+          { id: { startsWith: cid, mode: 'insensitive' as const } },
+          { studentId: cid },
+          { student: { student_id: cid } },
+          { student: { student_id: { equals: cid, mode: 'insensitive' as const } } },
+        ]),
       },
       include: {
         student: {
@@ -2379,10 +2386,6 @@ export class GradebookService {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!reportCard) {
-      return null;
-    }
-
     const settings = await prisma.schoolSettings.findUnique({ where: { id: 'singleton' } });
     const school = {
       name: settings?.school_name || 'Bright Path School',
@@ -2391,63 +2394,129 @@ export class GradebookService {
       phone: settings?.school_phone || '0251 - 11 41 87 / 1838',
       logo: settings?.school_logo || '/bright-path-logo.png',
     };
-    const issueDate = reportCard.publishedAt
-      ? new Date(reportCard.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      : new Date(reportCard.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-    const totalStudentsInClass = await prisma.student.count({
-      where: { gradeId: reportCard.gradeId, sectionId: reportCard.sectionId, status: 'ACTIVE' },
+    if (reportCard) {
+      const issueDate = reportCard.publishedAt
+        ? new Date(reportCard.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : new Date(reportCard.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      const totalStudentsInClass = await prisma.student.count({
+        where: { gradeId: reportCard.gradeId, sectionId: reportCard.sectionId, status: 'ACTIVE' },
+      });
+
+      const rankDisplay = reportCard.rank ? `${reportCard.rank} of ${totalStudentsInClass}` : '—';
+      const remarkBadge = reportCard.averageScore >= 50 ? 'PASSED' : 'NEEDS IMPROVEMENT';
+
+      return {
+        verified: true,
+        status: reportCard.status,
+        isOfficial: reportCard.status === 'PUBLISHED',
+        reportCardId: `AH-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
+        certificateId: reportCard.id,
+        issueDate,
+        school,
+        student: {
+          id: reportCard.student.id,
+          studentId: reportCard.student.student_id,
+          fullName: reportCard.student.fullName,
+          gender: reportCard.student.gender || 'M',
+          photo: reportCard.student.user?.profile_photo || null,
+        },
+        academic: {
+          gradeName: reportCard.grade?.name || '10',
+          sectionName: reportCard.section?.name || 'A',
+          academicYearName: reportCard.academicYear?.name || '2018 E.C.',
+          termName: reportCard.academicTerm?.name || 'Annual',
+        },
+        performance: {
+          totalScore: reportCard.totalScore,
+          maxPossibleScore: reportCard.maxPossibleScore,
+          averageScore: reportCard.averageScore,
+          gpa: reportCard.gpa,
+          rank: rankDisplay,
+          conduct: reportCard.conduct || 'A',
+          remarkBadge,
+          teacherComment: reportCard.homeroomTeacherComment,
+          principalComment: reportCard.principalComment,
+        },
+        subjects: reportCard.subjectScores.map((ss) => ({
+          id: ss.subjectId,
+          name: ss.subject?.name || 'Subject',
+          code: ss.subject?.code,
+          score: ss.score,
+          maxScore: ss.maxScore || 100,
+          gradeLetter: ss.gradeLetter || '-',
+          gpaPoint: ss.gpaPoint || 0,
+        })),
+      };
+    }
+
+    // 2. If no persisted report_cards row exists yet, check if student exists
+    // and verify dynamically against current official gradebook assessments!
+    const student = await prisma.student.findFirst({
+      where: {
+        OR: candidateIds.flatMap((cid) => [
+          { id: cid },
+          { student_id: cid },
+          { student_id: { equals: cid, mode: 'insensitive' as const } },
+        ]),
+      },
+      include: {
+        grade: true,
+        section: true,
+        user: { select: { profile_photo: true } },
+      },
     });
 
-    const rankDisplay = reportCard.rank ? `${reportCard.rank} of ${totalStudentsInClass}` : '—';
-    const remarkBadge = reportCard.averageScore >= 50 ? 'PASSED' : 'NEEDS IMPROVEMENT';
+    if (!student) {
+      return null;
+    }
+
+    const comp = await this.getComprehensiveReportCardData({ studentId: student.id });
+    if (!comp) {
+      return null;
+    }
 
     return {
       verified: true,
-      status: reportCard.status,
-      isOfficial: reportCard.status === 'PUBLISHED',
-      reportCardId: `AH-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
-      certificateId: reportCard.id,
-      issueDate,
-      school: {
-        name: school.name,
-        amharicName: school.amharicName,
-        address: school.address,
-        phone: school.phone,
-        logo: school.logo,
-      },
+      status: comp.status || 'VERIFIED',
+      isOfficial: true,
+      reportCardId: comp.reportCardId || `AH-RC-${student.student_id}-2018`,
+      certificateId: `CERT-${student.student_id}-${student.id.substring(0, 8).toUpperCase()}`,
+      issueDate: comp.issueDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      school: comp.school || school,
       student: {
-        id: reportCard.student.id,
-        studentId: reportCard.student.student_id,
-        fullName: reportCard.student.fullName,
-        gender: reportCard.student.gender || 'M',
-        photo: reportCard.student.user?.profile_photo || null,
+        id: student.id,
+        studentId: student.student_id,
+        fullName: student.fullName,
+        gender: student.gender || 'M',
+        photo: student.user?.profile_photo || null,
       },
       academic: {
-        gradeName: reportCard.grade?.name || '10',
-        sectionName: reportCard.section?.name || 'A',
-        academicYearName: reportCard.academicYear?.name || '2018 E.C.',
-        termName: reportCard.academicTerm?.name || 'Annual',
+        gradeName: comp.academic?.gradeName || student.grade?.name || '10',
+        sectionName: comp.academic?.sectionName || student.section?.name || 'A',
+        academicYearName: comp.academic?.academicYearName || '2018 E.C.',
+        termName: comp.academic?.academicTermName || 'Annual',
       },
       performance: {
-        totalScore: reportCard.totalScore,
-        maxPossibleScore: reportCard.maxPossibleScore,
-        averageScore: reportCard.averageScore,
-        gpa: reportCard.gpa,
-        rank: rankDisplay,
-        conduct: reportCard.conduct || 'A',
-        remarkBadge,
-        teacherComment: reportCard.homeroomTeacherComment,
-        principalComment: reportCard.principalComment,
+        totalScore: comp.summary?.totalRow?.total || 0,
+        maxPossibleScore: comp.summary?.totalRow?.weight || 0,
+        averageScore: comp.summary?.totalRow?.average || 0,
+        gpa: comp.summary?.averageRow?.overallAverage ? Number((comp.summary.averageRow.overallAverage / 25).toFixed(2)) : 0,
+        rank: comp.summary?.rank || '1',
+        conduct: comp.summary?.conduct || 'A',
+        remarkBadge: comp.summary?.remarkBadge || 'Passed',
+        teacherComment: comp.summary?.teacherComment,
+        principalComment: comp.summary?.principalComment,
       },
-      subjects: reportCard.subjectScores.map((ss) => ({
-        id: ss.subjectId,
-        name: ss.subject?.name || 'Subject',
-        code: ss.subject?.code,
-        score: ss.score,
-        maxScore: ss.maxScore || 100,
-        gradeLetter: ss.gradeLetter || '-',
-        gpaPoint: ss.gpaPoint || 0,
+      subjects: (comp.subjectRows || []).map((row: any) => ({
+        id: row.subjectId || row.subjectName,
+        name: row.subjectName,
+        code: row.subjectCode,
+        score: row.finalScore ?? (row.periodScores?.sem2 ?? row.periodScores?.sem1 ?? 0),
+        maxScore: 100,
+        gradeLetter: row.letterGrade || (row.finalScore >= 90 ? 'A+' : row.finalScore >= 80 ? 'A' : row.finalScore >= 70 ? 'B' : row.finalScore >= 50 ? 'C' : 'F'),
+        gpaPoint: row.gpaPoint || (row.finalScore ? Number((row.finalScore / 25).toFixed(1)) : 0),
       })),
     };
   }

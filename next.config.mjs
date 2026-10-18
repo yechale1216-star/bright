@@ -82,6 +82,10 @@ const nextConfig = {
       { source: '/teacher/classes', destination: '/school/teacher/classes', permanent: false },
       { source: '/teacher/reports', destination: '/school/teacher/reports', permanent: false },
       { source: '/teacher/profile', destination: '/school/teacher/profile', permanent: false },
+      { source: '/school/teacher/schedules', destination: '/school/teacher/schedule', permanent: false },
+      { source: '/teacher/schedule', destination: '/school/teacher/schedule', permanent: false },
+      { source: '/teacher/schedules', destination: '/school/teacher/schedule', permanent: false },
+      { source: '/schedule', destination: '/school/teacher/schedule', permanent: false },
       { source: '/teacher', destination: '/school/teacher', permanent: false },
 
       // Admin generic shortcuts

@@ -30,7 +30,7 @@ export default function TeacherSchedulePage() {
   useEffect(() => {
     timetableDb
       .getMySchedule()
-      .then((data) => setSchedule(data))
+      .then((data) => setSchedule(data || {}))
       .catch((err) => {
         console.error("[TeacherSchedule] Error:", err);
         setError("Unable to load your schedule. Please try again.");

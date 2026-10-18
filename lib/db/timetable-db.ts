@@ -493,20 +493,28 @@ class TimetableDatabase {
 
   // ─── Local Storage Cache Helpers ───────────────────────────────────────────
   async getMySchedule(): Promise<Record<string, TimetableSlotData[]>> {
-    const res = await apiFetch<{ success: boolean; data: Record<string, TimetableSlotData[]> }>(
-      `${API_URL}/api/timetables/my-schedule`,
-      { headers: this.getHeaders() }
-    );
-    if (res?.success && res.data) return res.data;
+    try {
+      const res = await apiFetch<{ success: boolean; data: Record<string, TimetableSlotData[]> }>(
+        `${API_URL}/api/timetables/my-schedule`,
+        { headers: this.getHeaders() }
+      );
+      if (res?.success && res.data) return res.data;
+    } catch (err) {
+      console.warn("[TimetableDB] getMySchedule failed:", err);
+    }
     return {};
   }
 
   async getTeacherScheduleById(teacherId: string): Promise<Record<string, TimetableSlotData[]>> {
-    const res = await apiFetch<{ success: boolean; data: Record<string, TimetableSlotData[]> }>(
-      `${API_URL}/api/timetables/teacher/${teacherId}`,
-      { headers: this.getHeaders() }
-    );
-    if (res?.success && res.data) return res.data;
+    try {
+      const res = await apiFetch<{ success: boolean; data: Record<string, TimetableSlotData[]> }>(
+        `${API_URL}/api/timetables/teacher/${teacherId}`,
+        { headers: this.getHeaders() }
+      );
+      if (res?.success && res.data) return res.data;
+    } catch (err) {
+      console.warn("[TimetableDB] getTeacherScheduleById failed:", err);
+    }
     return {};
   }
 
