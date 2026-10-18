@@ -142,17 +142,65 @@ function formatBytes(bytes?: number | null): string {
   return `${val.toFixed(val < 10 && idx > 0 ? 1 : 0)} ${units[idx]}`;
 }
 
-export function StudentSharedMaterials() {
+export interface StudentSharedMaterialsProps {
+  studentId?: string;
+  isParentView?: boolean;
+}
+
+export function StudentSharedMaterials({
+  studentId: studentIdProp,
+  isParentView = false,
+}: StudentSharedMaterialsProps = {}) {
   // ─── State ────────────────────────────────────────────────────────────────
   const [materials, setMaterials] = useState<StudentMaterialItem[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [studentInfo, setStudentInfo] = useState<{
+    name?: string;
     grade?: string;
     section?: string;
     academicYear?: string;
   }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Parent child selection state
+  const [parentStudents, setParentStudents] = useState<any[]>([]);
+  const [activeParentStudentId, setActiveParentStudentId] = useState<string>(studentIdProp || "");
+
+  // Load parent children if in parent view
+  useEffect(() => {
+    if (!isParentView) return;
+
+    const loadParentChildren = () => {
+      let list: any[] = [];
+      const stored = typeof window !== "undefined" ? localStorage.getItem("parent_students") : null;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) list = parsed;
+        } catch {}
+      }
+      setParentStudents(list);
+
+      let currentId = studentIdProp || (typeof window !== "undefined" ? localStorage.getItem("parent_selected_student_id") : null);
+      if (!currentId && list.length > 0) {
+        currentId = list[0]?.id;
+      }
+      if (currentId) {
+        setActiveParentStudentId(currentId);
+      }
+    };
+
+    loadParentChildren();
+
+    const handleStudentChanged = () => {
+      loadParentChildren();
+    };
+    window.addEventListener("studentChanged", handleStudentChanged);
+    return () => {
+      window.removeEventListener("studentChanged", handleStudentChanged);
+    };
+  }, [isParentView, studentIdProp]);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -190,30 +238,79 @@ export function StudentSharedMaterials() {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch Materials
-      const matsRes = await studentDb.getMaterials();
-      setMaterials(matsRes || []);
+      if (isParentView) {
+        const sId = activeParentStudentId || studentIdProp || (typeof window !== "undefined" ? localStorage.getItem("parent_selected_student_id") : null);
+        if (!sId) {
+          setMaterials([]);
+          setLoading(false);
+          return;
+        }
 
-      // 2. Fetch Classes / Enrolled Subjects
-      const classesRes = await studentDb.getClasses().catch(() => []);
-      setClasses(classesRes || []);
+        const rawMats = await learningMaterialClientService.getStudentMaterials(sId);
+        const mappedMats: StudentMaterialItem[] = (rawMats || []).map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          subjectId: m.subjectId || m.subject?.id || "general",
+          subjectName: m.subject?.name || m.subjectName || "General Subject",
+          subjectColor: m.subject?.color || m.subjectColor || "#7c3aed",
+          teacherName: m.uploader?.fullName || m.uploader?.name || m.teacherName || null,
+          fileUrl: m.fileUrl,
+          fileType: m.fileType,
+          fileSize: m.fileSize,
+          viewCount: m.viewCount || 0,
+          createdAt: m.createdAt,
+        }));
+        setMaterials(mappedMats);
 
-      // 3. Fetch Student Dashboard Context (Grade, Section, Year)
-      const dashRes = await studentDb.getDashboard().catch(() => null);
-      if (dashRes?.student) {
-        setStudentInfo({
-          grade: dashRes.student.grade,
-          section: dashRes.student.section,
-          academicYear: dashRes.academicYear || "Current Year",
+        // Extract subjects from materials
+        const subMap = new Map<string, any>();
+        mappedMats.forEach((m) => {
+          if (m.subjectId && !subMap.has(m.subjectId)) {
+            subMap.set(m.subjectId, {
+              id: m.subjectId,
+              name: m.subjectName,
+              color: m.subjectColor,
+            });
+          }
         });
+        setClasses(Array.from(subMap.values()));
+
+        const currentChild = parentStudents.find((s) => s.id === sId);
+        if (currentChild) {
+          setStudentInfo({
+            name: currentChild.name || currentChild.fullName,
+            grade: currentChild.grade,
+            section: currentChild.section,
+            academicYear: currentChild.academicYear || "Current Year",
+          });
+        }
+      } else {
+        // 1. Fetch Materials via studentDb
+        const matsRes = await studentDb.getMaterials();
+        setMaterials(matsRes || []);
+
+        // 2. Fetch Classes / Enrolled Subjects
+        const classesRes = await studentDb.getClasses().catch(() => []);
+        setClasses(classesRes || []);
+
+        // 3. Fetch Student Dashboard Context (Grade, Section, Year)
+        const dashRes = await studentDb.getDashboard().catch(() => null);
+        if (dashRes?.student) {
+          setStudentInfo({
+            grade: dashRes.student.grade,
+            section: dashRes.student.section,
+            academicYear: dashRes.academicYear || "Current Year",
+          });
+        }
       }
     } catch (err: any) {
-      console.error("[StudentMaterials] Fetch error:", err);
+      console.error("[Materials] Fetch error:", err);
       setError(err?.message || "Failed to load learning materials. Please check your connection.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isParentView, activeParentStudentId, studentIdProp, parentStudents]);
 
   useEffect(() => {
     fetchData();
@@ -592,10 +689,12 @@ export function StudentSharedMaterials() {
               <span className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
                 <BookOpen className="w-4 h-4" />
               </span>
-              <span>Learning Materials</span>
+              <span>{isParentView ? "Child's Shared Materials" : "Learning Materials"}</span>
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Explore lessons, lecture slides, worksheets, and study resources
+              {isParentView
+                ? "Explore video lessons, lecture slides, worksheets, and study resources shared with your child"
+                : "Explore lessons, lecture slides, worksheets, and study resources"}
             </p>
           </div>
 
@@ -656,6 +755,50 @@ export function StudentSharedMaterials() {
           </div>
         </div>
 
+        {/* Parent Child Switcher */}
+        {isParentView && parentStudents.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase px-2 flex items-center gap-1.5 shrink-0">
+              <User className="w-3.5 h-3.5" />
+              Child:
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {parentStudents.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveParentStudentId(st.id);
+                    localStorage.setItem("parent_selected_student_id", st.id);
+                    if (st.schoolId) localStorage.setItem("x-school-id", st.schoolId);
+                    window.dispatchEvent(new Event("studentChanged"));
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                    activeParentStudentId === st.id
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800"
+                  )}
+                >
+                  <span>{st.name || st.fullName}</span>
+                  {st.grade && (
+                    <span
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.2 rounded-md font-medium",
+                        activeParentStudentId === st.id
+                          ? "bg-white/20 text-white"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                      )}
+                    >
+                      {st.grade}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Expandable Android Search Bar */}
         {(isSearchExpanded || searchQuery) && (
           <div className="relative pt-1 animate-in slide-in-from-top-2 duration-150">
@@ -683,10 +826,16 @@ export function StudentSharedMaterials() {
 
         {/* Current Class and Context Pill */}
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/70 text-[11px] text-slate-600 dark:text-slate-400 font-semibold">
+          {isParentView && studentInfo.name && (
+            <span className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-xl font-bold">
+              <User className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Child: {studentInfo.name}</span>
+            </span>
+          )}
           <span className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-2.5 py-1 rounded-xl font-bold">
             <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
             <span>
-              {studentInfo.grade || "My Grade"} {studentInfo.section ? `• Section ${studentInfo.section}` : ""}
+              {studentInfo.grade || "Grade"} {studentInfo.section ? `• Section ${studentInfo.section}` : ""}
             </span>
           </span>
           {studentInfo.academicYear && (
