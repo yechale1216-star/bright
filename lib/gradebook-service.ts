@@ -281,6 +281,8 @@ export interface ComprehensiveReportCardSubjectRow {
   scores: Record<string, number>;
   total: number;
   average: number;
+  isPassing?: boolean;
+  gradeLetter?: string | null;
 }
 
 export interface ComprehensiveReportCardData {
@@ -308,6 +310,8 @@ export interface ComprehensiveReportCardData {
     gradeName: string;
     sectionId: string;
     sectionName: string;
+    streamId?: string | null;
+    streamName?: string | null;
     academicYearId: string;
     academicYearName: string;
     academicTermId: string;
@@ -331,8 +335,23 @@ export interface ComprehensiveReportCardData {
     conduct: string;
     absence: string;
     remarkBadge: string;
+    isPassing?: boolean;
+    failedSubjectsCount?: number;
+    passingMinScore?: number;
     teacherComment?: string;
     principalComment?: string;
+  };
+  gradingPolicy?: {
+    passingMinScore: number;
+    scales: Array<{
+      grade: string;
+      minScore: number;
+      maxScore: number;
+      gpaPoint?: number | null;
+      description?: string | null;
+      color?: string | null;
+      isPassing: boolean;
+    }>;
   };
   qrCodeData: string;
   status: string;

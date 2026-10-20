@@ -347,14 +347,15 @@ export default function AdminReportCardsPage() {
     }
   };
 
-  const handleOpenPreview = async (studentId: string) => {
+  const handleOpenPreview = async (studentId: string, termId?: string) => {
     try {
       setPreviewLoading(true);
       setPreviewModalOpen(true);
+      const termToFetch = termId || (selectedTermId !== 'annual' ? selectedTermId : undefined);
       const card = await gradebookService.getComprehensiveReportCard(
         studentId,
         selectedYearId,
-        selectedTermId !== 'annual' ? selectedTermId : undefined
+        termToFetch
       );
       setComprehensiveCard(card);
     } catch (err: any) {
@@ -425,6 +426,8 @@ export default function AdminReportCardsPage() {
       return reportCards.map((rc, idx) => ({
         id: rc.id,
         studentId: rc.studentId,
+        termId: rc.academicTermId,
+        termName: rc.academicTerm?.name || '',
         studentUniqueId: rc.student?.student_id || '—',
         fullName: rc.student?.fullName || 'Student',
         gender: rc.student?.gender || 'M',
@@ -444,6 +447,8 @@ export default function AdminReportCardsPage() {
     return students.map((s, idx) => ({
       id: s.id,
       studentId: s.id,
+      termId: undefined,
+      termName: '',
       studentUniqueId: s.student_id || '—',
       fullName: s.fullName,
       gender: s.gender || 'M',
@@ -502,9 +507,6 @@ export default function AdminReportCardsPage() {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Official Student Report Cards
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Manage, publish, and print academic evaluation cards for parents & students.
-            </p>
           </div>
         </div>
 
@@ -790,9 +792,9 @@ export default function AdminReportCardsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row) => (
+                filteredRows.map((row, idx) => (
                   <tr
-                    key={row.studentId}
+                    key={row.id ? `rc-${row.id}` : `student-${row.studentId}-${idx}`}
                     className={`hover:bg-muted/30 transition-colors ${
                       row.status === 'NEEDS_CORRECTION' ? 'bg-amber-500/5' : ''
                     }`}
@@ -808,6 +810,12 @@ export default function AdminReportCardsPage() {
                         <span>{row.studentUniqueId}</span>
                         <span>•</span>
                         <span>Gender: {row.gender}</span>
+                        {row.termName && (
+                          <>
+                            <span>•</span>
+                            <span className="font-sans font-semibold text-primary">{row.termName}</span>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center font-bold text-foreground">
@@ -863,7 +871,7 @@ export default function AdminReportCardsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleOpenPreview(row.studentId)}
+                          onClick={() => handleOpenPreview(row.studentId, row.termId)}
                           className="h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold"
                           title="View Official Report Card"
                         >

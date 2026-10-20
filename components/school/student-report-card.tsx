@@ -72,7 +72,7 @@ export function StudentReportCardFront({
       >
         <div className="relative w-80 h-80 opacity-[0.04] grayscale print:opacity-[0.05]">
           <Image
-            src={school.logo || '/addis-hiwot-logo.png'}
+            src={school.logo || '/bright-path-logo.png'}
             alt="School Crest Watermark"
             fill
             className="object-contain"
@@ -90,9 +90,9 @@ export function StudentReportCardFront({
           <div className="flex items-start justify-between gap-3">
             {/* Left School Logo Emblem */}
             <div className="flex-shrink-0 pt-0.5">
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border border-slate-300 bg-white">
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border border-slate-300 bg-white shadow-2xs">
                 <Image
-                  src={school.logo || '/addis-hiwot-logo.png'}
+                  src={school.logo || '/bright-path-logo.png'}
                   alt={school.name}
                   fill
                   className="object-contain p-1"
@@ -104,7 +104,7 @@ export function StudentReportCardFront({
             {/* Center School Titles & Contact */}
             <div className="flex-1 text-center px-2">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-tight">
-                {school.amharicName || 'አዲስ ሕይወት ት/ቤት'} ::
+                {school.amharicName || 'ብራይት ፓዝ ት/ቤት'} ::
               </h1>
               <h2 className="text-lg sm:text-xl font-bold tracking-wide text-slate-800 mt-0.5 font-serif italic">
                 {school.name || 'Bright Path School'}
@@ -134,7 +134,7 @@ export function StudentReportCardFront({
                 />
               </div>
               <span className="text-[9px] font-mono text-slate-500 mt-0.5 tracking-tighter">
-                {reportCardId ? reportCardId.substring(0, 14) : 'AH-VERIFIED'}
+                {reportCardId ? reportCardId.substring(0, 14) : 'BP-VERIFIED'}
               </span>
             </div>
           </div>
@@ -178,10 +178,24 @@ export function StudentReportCardFront({
                 <span className="font-semibold text-slate-600">Section : </span>
                 <span className="font-bold text-slate-900">{academic.sectionName}</span>
               </div>
+              {academic.streamName && (
+                <div>
+                  <span className="font-semibold text-slate-600">Stream : </span>
+                  <span className="font-black text-indigo-900 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                    {academic.streamName}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="font-semibold text-slate-600">Year : </span>
                 <span className="font-bold text-slate-900">{academic.academicYearName}</span>
               </div>
+              {academic.academicTermName && (
+                <div>
+                  <span className="font-semibold text-slate-600">Term : </span>
+                  <span className="font-bold text-slate-900">{academic.academicTermName}</span>
+                </div>
+              )}
               <div>
                 <span className="font-semibold text-slate-600">Student ID : </span>
                 <span className="font-mono font-bold text-slate-900">{student.studentId}</span>
@@ -226,38 +240,54 @@ export function StudentReportCardFront({
                   </th>
                 ))}
                 <th className="py-1.5 px-2 border-r border-slate-900 w-18">Total</th>
-                <th className="py-1.5 px-2 w-20">Average</th>
+                <th className="py-1.5 px-2 w-24">Average</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-400">
-              {subjectRows.map((row) => (
-                <tr key={row.subjectId} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-1 px-3 text-left font-semibold text-slate-900 border-r border-slate-900 whitespace-nowrap">
-                    {row.subjectName}
-                  </td>
-                  <td className="py-1 px-2 text-center text-slate-800 border-r border-slate-900 font-medium">
-                    {row.weight}%
-                  </td>
-                  {periods.map((period) => {
-                    const score = row.scores[period.id];
-                    const hasScore = score !== undefined && score !== null;
-                    return (
-                      <td
-                        key={period.id}
-                        className="py-1 px-2 text-center font-bold text-slate-900 border-r border-slate-900"
-                      >
-                        {hasScore ? score : '—'}
-                      </td>
-                    );
-                  })}
-                  <td className="py-1 px-2 text-center font-extrabold text-slate-900 border-r border-slate-900 bg-slate-50/50">
-                    {row.total}
-                  </td>
-                  <td className="py-1 px-2 text-center font-black text-slate-900 bg-slate-50/50">
-                    {row.average}
-                  </td>
-                </tr>
-              ))}
+              {subjectRows.map((row) => {
+                const policyPassingThreshold = summary.passingMinScore ?? card.gradingPolicy?.passingMinScore ?? 50;
+                const isRowFailing = row.isPassing === false;
+                return (
+                  <tr key={row.subjectId} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-1 px-3 text-left font-semibold text-slate-900 border-r border-slate-900 whitespace-nowrap">
+                      {row.subjectName}
+                    </td>
+                    <td className="py-1 px-2 text-center text-slate-800 border-r border-slate-900 font-medium">
+                      {row.weight}%
+                    </td>
+                    {periods.map((period) => {
+                      const score = row.scores[period.id];
+                      const hasScore = score !== undefined && score !== null;
+                      const isPeriodFailing = hasScore && Number(score) < policyPassingThreshold;
+                      return (
+                        <td
+                          key={period.id}
+                          className={`py-1 px-2 text-center font-bold border-r border-slate-900 ${
+                            isPeriodFailing ? 'text-rose-600 font-extrabold' : 'text-slate-900'
+                          }`}
+                        >
+                          {hasScore ? score : '—'}
+                        </td>
+                      );
+                    })}
+                    <td className="py-1 px-2 text-center font-extrabold text-slate-900 border-r border-slate-900 bg-slate-50/50">
+                      {row.total}
+                    </td>
+                    <td className="py-1 px-2 text-center font-black bg-slate-50/50">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className={isRowFailing ? 'text-rose-600' : 'text-slate-900'}>
+                          {row.average}
+                        </span>
+                        {isRowFailing && (
+                          <span className="text-[8.5px] px-1 py-0.2 rounded font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                            Fail
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {/* ==================================================== */}
               {/* SUMMARY ROWS AT BOTTOM */}
@@ -370,7 +400,7 @@ export function StudentReportCardFront({
                 </td>
               </tr>
 
-              {/* REMARK ROW WITH BADGE */}
+              {/* REMARK ROW WITH BADGE & PASS/FAIL INDICATORS */}
               <tr className="border-t border-slate-900 text-center bg-slate-50/50">
                 <td className="py-2 px-3 text-left font-black text-slate-900 border-r border-slate-900">
                   Remark
@@ -380,13 +410,32 @@ export function StudentReportCardFront({
                   colSpan={periods.length + 2}
                   className="py-2 px-4 text-left font-bold text-slate-900"
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="inline-block px-5 py-1 border-2 border-slate-900 rounded-sm font-black text-xs uppercase tracking-wider text-slate-900 bg-white">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span
+                      className={`inline-block px-4 py-1 border-2 rounded-sm font-black text-xs uppercase tracking-wider ${
+                        summary.remarkBadge?.toLowerCase().includes('fail') ||
+                        summary.remarkBadge?.toLowerCase().includes('retain')
+                          ? 'border-rose-600 text-rose-700 bg-rose-50'
+                          : summary.remarkBadge?.toLowerCase().includes('conditional')
+                          ? 'border-amber-600 text-amber-800 bg-amber-50'
+                          : 'border-slate-900 text-slate-900 bg-white'
+                      }`}
+                    >
                       {summary.remarkBadge || 'Passed'}
                     </span>
+                    {summary.failedSubjectsCount !== undefined && summary.failedSubjectsCount > 0 && (
+                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                        {summary.failedSubjectsCount} {summary.failedSubjectsCount === 1 ? 'subject' : 'subjects'} below 50%
+                      </span>
+                    )}
                     {summary.teacherComment && (
                       <span className="text-[11px] italic text-slate-700 font-normal">
-                        &ldquo;{summary.teacherComment}&rdquo;
+                        Teacher: &ldquo;{summary.teacherComment}&rdquo;
+                      </span>
+                    )}
+                    {summary.principalComment && (
+                      <span className="text-[11px] italic text-slate-700 font-normal">
+                        Principal: &ldquo;{summary.principalComment}&rdquo;
                       </span>
                     )}
                   </div>
@@ -419,12 +468,23 @@ export function StudentReportCardFront({
               <span className="mt-1 block font-bold text-slate-900">Principal Signature</span>
             </div>
 
-            {/* School Stamp Seal */}
+            {/* Official School Stamp Seal */}
             <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center text-[10px] text-slate-500 font-bold uppercase tracking-tight text-center p-1">
-                School Seal / Stamp
+              <div className="w-18 h-18 rounded-full border-2 border-emerald-800 bg-emerald-50/20 flex flex-col items-center justify-center text-center p-1 relative shadow-2xs">
+                <div className="w-14 h-14 rounded-full border border-dashed border-emerald-700 flex flex-col items-center justify-center p-0.5">
+                  <span className="text-[7.5px] font-black uppercase tracking-tighter text-emerald-900 leading-none">
+                    BRIGHT PATH
+                  </span>
+                  <span className="text-[6.5px] font-bold text-emerald-800 tracking-tight my-0.5">
+                    ★ SEAL ★
+                  </span>
+                  <span className="text-[6px] font-mono font-bold text-emerald-700 leading-none">
+                    DIRE DAWA
+                  </span>
+                </div>
               </div>
-              <span className="mt-1 block font-bold text-slate-900">Date: {issueDate}</span>
+              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Official Seal & Stamp</span>
+              <span className="text-[10px] text-slate-600">Date: {issueDate}</span>
             </div>
           </div>
 
@@ -455,15 +515,27 @@ export function StudentReportCardBack({
 }) {
   const { school, student, academic, summary, reportCardId, issueDate } = card;
 
-  // Official Ethiopian Secondary Education Grading Scale Rubric
-  const gradingScales = [
-    { grade: 'A+', range: '95 – 100%', gpa: '4.00', descEn: 'Excellent', descAm: 'እጅግ በጣም ከፍተኛ ብልጫ', remark: 'Outstanding Mastery' },
-    { grade: 'A', range: '85 – 94%', gpa: '4.00', descEn: 'Very Good', descAm: 'ከፍተኛ ብልጫ', remark: 'Superior Competence' },
-    { grade: 'B', range: '75 – 84%', gpa: '3.00', descEn: 'Good', descAm: 'ጥሩ', remark: 'Above Average Standard' },
-    { grade: 'C', range: '65 – 74%', gpa: '2.00', descEn: 'Satisfactory', descAm: 'መካከለኛ', remark: 'Meets Curricular Standards' },
-    { grade: 'D', range: '50 – 64%', gpa: '1.00', descEn: 'Pass / Minimum', descAm: 'አጥጋቢ / ማለፊያ', remark: 'Passing Benchmark' },
-    { grade: 'F', range: '0 – 49%', gpa: '0.00', descEn: 'Unsatisfactory / Fail', descAm: 'የማያልፍ / ዝቅተኛ', remark: 'Retention / Non-Passing' },
-  ];
+  // Official School Grading Scale Rubric according to active grading policy
+  const gradingScales = (card.gradingPolicy?.scales && card.gradingPolicy.scales.length > 0)
+    ? card.gradingPolicy.scales.map((s) => ({
+        grade: s.grade,
+        range: `${s.minScore} – ${s.maxScore}%`,
+        gpa: s.gpaPoint !== null && s.gpaPoint !== undefined ? s.gpaPoint.toFixed(2) : '—',
+        descEn: s.description || (s.isPassing ? 'Passing' : 'Failing'),
+        descAm: s.isPassing ? 'ማለፊያ' : 'የማያልፍ / ዝቅተኛ',
+        remark: s.isPassing ? 'Passing Standard' : 'Retention / Non-Passing',
+        isPassing: s.isPassing,
+      }))
+    : [
+        { grade: 'A+', range: '90 – 100%', gpa: '4.00', descEn: 'Outstanding', descAm: 'እጅግ በጣም ከፍተኛ ብልጫ', remark: 'Outstanding Mastery', isPassing: true },
+        { grade: 'A', range: '85 – 89.99%', gpa: '4.00', descEn: 'Excellent', descAm: 'ከፍተኛ ብልጫ', remark: 'Superior Competence', isPassing: true },
+        { grade: 'B+', range: '80 – 84.99%', gpa: '3.50', descEn: 'Very Good', descAm: 'በጣም ጥሩ', remark: 'Above Average Standard', isPassing: true },
+        { grade: 'B', range: '75 – 79.99%', gpa: '3.00', descEn: 'Good', descAm: 'ጥሩ', remark: 'Above Average Standard', isPassing: true },
+        { grade: 'C+', range: '65 – 74.99%', gpa: '2.50', descEn: 'Satisfactory', descAm: 'አጥጋቢ', remark: 'Meets Curricular Standards', isPassing: true },
+        { grade: 'C', range: '60 – 64.99%', gpa: '2.00', descEn: 'Average', descAm: 'መካከለኛ', remark: 'Meets Curricular Standards', isPassing: true },
+        { grade: 'D', range: '50 – 59.99%', gpa: '1.00', descEn: 'Passing', descAm: 'ማለፊያ', remark: 'Passing Benchmark', isPassing: true },
+        { grade: 'F', range: '0 – 49.99%', gpa: '0.00', descEn: 'Failing', descAm: 'የማያልፍ / ዝቅተኛ', remark: 'Retention / Non-Passing', isPassing: false },
+      ];
 
   // Conduct Rubrics
   const conductRubrics = [
@@ -518,7 +590,7 @@ export function StudentReportCardBack({
       >
         <div className="relative w-80 h-80 opacity-[0.03] grayscale print:opacity-[0.04]">
           <Image
-            src={school.logo || '/addis-hiwot-logo.png'}
+            src={school.logo || '/bright-path-logo.png'}
             alt="School Crest Watermark"
             fill
             className="object-contain"
@@ -536,7 +608,7 @@ export function StudentReportCardBack({
             <div className="flex items-center gap-3">
               <div className="relative w-12 h-12 rounded-full overflow-hidden border border-slate-300 bg-white flex-shrink-0">
                 <Image
-                  src={school.logo || '/addis-hiwot-logo.png'}
+                  src={school.logo || '/bright-path-logo.png'}
                   alt={school.name}
                   fill
                   className="object-contain p-1"
@@ -544,7 +616,7 @@ export function StudentReportCardBack({
               </div>
               <div>
                 <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900">
-                  {school.amharicName || 'አዲስ ሕይወት ት/ቤት'} • {school.name}
+                  {school.amharicName || 'ብራይት ፓዝ ት/ቤት'} • {school.name}
                 </h2>
                 <p className="text-[10px] text-slate-600 font-medium">
                   {school.address} • Tel: {school.phone || '0251 - 11 41 87'} • Official Academic Evaluation System
@@ -582,6 +654,16 @@ export function StudentReportCardBack({
           <div>
             <span className="font-semibold text-slate-600">Grade & Sec: </span>
             <span className="font-bold text-slate-900">{academic.gradeName} &ldquo;{academic.sectionName}&rdquo;</span>
+          </div>
+          {academic.streamName && (
+            <div>
+              <span className="font-semibold text-slate-600">Stream: </span>
+              <span className="font-bold text-emerald-800">{academic.streamName}</span>
+            </div>
+          )}
+          <div>
+            <span className="font-semibold text-slate-600">Term: </span>
+            <span className="font-bold text-slate-900">{academic.academicTermName}</span>
           </div>
           <div>
             <span className="font-semibold text-slate-600">Academic Year: </span>
@@ -732,7 +814,7 @@ export function StudentReportCardBack({
           <div className="border border-slate-300 rounded-xs p-2.5 bg-slate-50/60 text-[10px] sm:text-[11px] text-slate-800 space-y-1 leading-snug">
             <div className="flex items-start gap-1.5">
               <span className="font-bold text-slate-900">1. Passing Standard (የማለፊያ መስፈርት):</span>
-              <span>A minimum combined cumulative average of 50.0% across both semesters is mandatory for promotion to the subsequent grade level.</span>
+              <span>A minimum combined cumulative average of {(summary.passingMinScore ?? card.gradingPolicy?.passingMinScore ?? 50).toFixed(1)}% across both semesters is mandatory for promotion to the subsequent grade level.</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="font-bold text-slate-900">2. Attendance Requirement (የትምህርት ገበታ ክትትል):</span>
@@ -764,8 +846,11 @@ export function StudentReportCardBack({
 
             {/* School Seal / Stamp */}
             <div className="flex flex-col items-center">
-              <div className="w-14 h-14 rounded-full border-2 border-dashed border-slate-400 flex items-center justify-center text-[9px] text-slate-500 font-bold uppercase tracking-tight text-center p-1">
-                Official Seal / Stamp
+              <div className="relative w-16 h-16 rounded-full border-2 border-emerald-900/80 bg-emerald-50/40 flex flex-col items-center justify-center text-center p-1 shadow-xs ring-1 ring-emerald-900/30">
+                <div className="absolute inset-1 rounded-full border border-dashed border-emerald-800/60 pointer-events-none" />
+                <span className="text-[7.5px] font-black uppercase tracking-tighter text-emerald-950 leading-none">BRIGHT PATH</span>
+                <span className="text-[6.5px] font-bold text-emerald-800 leading-none my-0.5">★ SEAL ★</span>
+                <span className="text-[6px] font-medium text-emerald-900 leading-none">DIRE DAWA</span>
               </div>
               <span className="mt-1 block font-bold text-slate-900 text-[11px]">Date: {issueDate}</span>
             </div>
@@ -785,7 +870,7 @@ export function StudentReportCardBack({
               Card ID: <strong className="font-mono text-slate-700">{reportCardId}</strong>
             </span>
             <span>Ethiopian Secondary Education Curriculum System • Back Page (ገጽ 2)</span>
-            <span>Status: <strong>AUTHENTICATED</strong></span>
+            <span>Status: <strong>{card.status === 'PUBLISHED' ? 'OFFICIAL / AUTHENTICATED' : card.status || 'AUTHENTICATED'}</strong></span>
           </div>
         </div>
       </div>

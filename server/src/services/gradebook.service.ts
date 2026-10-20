@@ -456,11 +456,37 @@ export class GradebookService {
     gradeId: string,
     sectionId?: string,
     academicYearId?: string,
-    academicTermId?: string
+    academicTermId?: string,
+    streamId?: string
   ): Promise<Array<{ id: string; name: string; code: string; color: string }>> {
     const subjectIdSet = new Set<string>();
 
-    // 1. Teacher assignments for this grade/section
+    const grade = await prisma.grade.findUnique({ where: { id: gradeId } });
+    const isGrade11or12 = grade ? /\b(11|12)\b/.test(grade.name) : false;
+
+    // Resolve stream if not explicitly provided
+    let effectiveStreamId = streamId;
+    if (!effectiveStreamId && sectionId) {
+      const sectionObj = await prisma.section.findUnique({ where: { id: sectionId } });
+      if (sectionObj?.streamId) {
+        effectiveStreamId = sectionObj.streamId;
+      }
+    }
+
+    // 1. Grade Subject assignments (Curriculum)
+    const gradeSubjects = await prisma.gradeSubject.findMany({
+      where: {
+        gradeId,
+        ...(effectiveStreamId ? { streamId: effectiveStreamId } : {}),
+        ...(sectionId ? { OR: [{ sectionId: null }, { sectionId }] } : {}),
+      },
+      select: { subjectId: true },
+    });
+    for (const gs of gradeSubjects) {
+      if (gs.subjectId) subjectIdSet.add(gs.subjectId);
+    }
+
+    // 2. Teacher assignments for this grade/section
     const teacherAssignments = await prisma.teacherAssignment.findMany({
       where: {
         gradeId,
@@ -486,7 +512,7 @@ export class GradebookService {
       }
     }
 
-    // 2. Assessment scheme assignments
+    // 3. Assessment scheme assignments
     const schemeAssignments = await prisma.assessmentSchemeAssignment.findMany({
       where: {
         gradeId,
@@ -499,7 +525,7 @@ export class GradebookService {
       if (sa.subjectId) subjectIdSet.add(sa.subjectId);
     }
 
-    // 3. Assessments created for this grade
+    // 4. Assessments created for this grade
     const assessments = await prisma.assessment.findMany({
       where: {
         gradeId,
@@ -513,7 +539,7 @@ export class GradebookService {
       if (a.subjectId) subjectIdSet.add(a.subjectId);
     }
 
-    // 4. Assessment submission records
+    // 5. Assessment submission records
     const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
       where: {
         gradeId,
@@ -526,19 +552,6 @@ export class GradebookService {
     for (const sr of submissionRecords) {
       if (sr.subjectId) subjectIdSet.add(sr.subjectId);
     }
-
-    // 5. Grade Subject assignments (Curriculum)
-    const gradeSubjects = await prisma.gradeSubject.findMany({
-      where: {
-        gradeId,
-        ...(sectionId ? { OR: [{ sectionId: null }, { sectionId }] } : {}),
-      },
-      select: { subjectId: true },
-    });
-    for (const gs of gradeSubjects) {
-      if (gs.subjectId) subjectIdSet.add(gs.subjectId);
-    }
-
 
     let subjects: any[] = [];
     if (subjectIdSet.size > 0) {
@@ -554,6 +567,34 @@ export class GradebookService {
         where: { isActive: true },
         select: { id: true, name: true, code: true, color: true },
       });
+    }
+
+    // Stream-specific filtering for Grades 11 and 12
+    if (isGrade11or12 && effectiveStreamId) {
+      const streamObj = await prisma.stream.findUnique({ where: { id: effectiveStreamId } });
+      const streamNameLower = (streamObj?.name || '').toLowerCase();
+      const isNatural = streamNameLower.includes('natural');
+      const isSocial = streamNameLower.includes('social');
+
+      // Check if explicit gradeSubjects exist for this stream
+      const streamSpecificCurriculum = gradeSubjects.length > 0;
+
+      if (streamSpecificCurriculum) {
+        const curriculumSubjectIdSet = new Set(gradeSubjects.map((gs) => gs.subjectId));
+        subjects = subjects.filter((s) => curriculumSubjectIdSet.has(s.id));
+      } else if (isNatural) {
+        // Exclude social-only subjects for natural science track
+        subjects = subjects.filter((s) => {
+          const n = s.name.toLowerCase();
+          return !n.includes('history') && !n.includes('geography') && !n.includes('economics');
+        });
+      } else if (isSocial) {
+        // Exclude natural-only subjects for social science track
+        subjects = subjects.filter((s) => {
+          const n = s.name.toLowerCase();
+          return !n.includes('physics') && !n.includes('chemistry') && !n.includes('biology');
+        });
+      }
     }
 
     // Standard Addis Hiwot / Ethiopian curriculum ordering
@@ -1411,7 +1452,7 @@ export class GradebookService {
   }
 
   /**
-   * Get dynamic, comprehensive report card data matching Addis Hiwot official layout
+   * Get dynamic, comprehensive report card data matching Bright Path official layout
    */
   async getComprehensiveReportCardData(params: {
     studentId: string;
@@ -1424,7 +1465,16 @@ export class GradebookService {
       where: { id: studentId },
       include: {
         grade: true,
-        section: true,
+        section: { include: { stream: true } },
+        stream: true,
+        academicRecords: {
+          include: {
+            grade: true,
+            section: { include: { stream: true } },
+            stream: true,
+          },
+          orderBy: { enrolledAt: 'desc' },
+        },
         user: { select: { profile_photo: true } },
       },
     });
@@ -1441,6 +1491,29 @@ export class GradebookService {
         include: { terms: { orderBy: { startDate: 'asc' } } },
       });
     }
+
+    // If not explicitly passed, check if student has existing report cards
+    if (!targetYear) {
+      const existingRc = await prisma.reportCard.findFirst({
+        where: { studentId: student.id },
+        include: { academicYear: { include: { terms: { orderBy: { startDate: 'asc' } } } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (existingRc?.academicYear) {
+        targetYear = existingRc.academicYear;
+      }
+    }
+
+    // Next check academic records
+    if (!targetYear && student.academicRecords.length > 0) {
+      const recordYearId = student.academicRecords[0].academicYearId;
+      targetYear = await prisma.academicYear.findUnique({
+        where: { id: recordYearId },
+        include: { terms: { orderBy: { startDate: 'asc' } } },
+      });
+    }
+
+    // Default to current year only if no prior records exist
     if (!targetYear) {
       targetYear = await prisma.academicYear.findFirst({
         where: { isCurrent: true },
@@ -1454,11 +1527,102 @@ export class GradebookService {
       });
     }
 
+    // Fetch existing report cards for student for the resolved target year
+    const reportCards = await prisma.reportCard.findMany({
+      where: {
+        studentId: student.id,
+        ...(targetYear ? { academicYearId: targetYear.id } : {}),
+      },
+      include: {
+        academicTerm: true,
+        grade: true,
+        section: { include: { stream: true } },
+        subjectScores: { include: { subject: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Resolve Academic Term
+    const isSingleTerm = !!(academicTermId && academicTermId !== 'all' && academicTermId !== 'annual');
+    let effectiveTermId = academicTermId || 'annual';
+    let effectiveTermName = 'Annual';
+
+    if (isSingleTerm) {
+      const termObj = targetYear?.terms?.find((t) => t.id === academicTermId);
+      effectiveTermId = academicTermId!;
+      effectiveTermName = termObj?.name || 'Semester';
+    } else if (reportCards.length === 1 && !academicTermId) {
+      effectiveTermId = reportCards[0].academicTermId;
+      effectiveTermName = reportCards[0].academicTerm?.name || 'Semester';
+    }
+
+    // Determine periods (columns)
+    let periods = [
+      { id: 'mid1', label: '1st Mid' },
+      { id: 'sem1', label: '1st Semester' },
+      { id: 'mid2', label: '2nd Mid' },
+      { id: 'sem2', label: '2nd Semester' },
+    ];
+
+    const termNameLower = effectiveTermName.toLowerCase();
+    if (termNameLower.includes('2') || termNameLower.includes('second')) {
+      periods = [
+        { id: 'mid2', label: '2nd Mid' },
+        { id: 'sem2', label: '2nd Semester' },
+      ];
+    } else if (termNameLower.includes('1') || termNameLower.includes('first')) {
+      periods = [
+        { id: 'mid1', label: '1st Mid' },
+        { id: 'sem1', label: '1st Semester' },
+      ];
+    }
+
+    // Historical Enrollment Resolution: Grade, Section & Stream
+    const termSpecificRc = isSingleTerm
+      ? reportCards.find((rc) => rc.academicTermId === academicTermId)
+      : null;
+    const latestRc = termSpecificRc || reportCards[0];
+
+    const historicalRecord = student.academicRecords.find((r) => r.academicYearId === targetYear?.id);
+    const effectiveGrade = latestRc?.grade || historicalRecord?.grade || student.grade;
+    const effectiveSection = latestRc?.section || historicalRecord?.section || student.section;
+
+    // Check if Grade 11 or 12
+    const isGrade11or12 = /\b(11|12)\b/.test(effectiveGrade?.name || '');
+
+    // Resolve Stream for Grade 11 & 12
+    let effectiveStreamId: string | null = null;
+    let effectiveStreamName: string | null = null;
+
+    if (isGrade11or12) {
+      const rawStream = historicalRecord?.stream || student.stream || effectiveSection?.stream;
+      effectiveStreamId = historicalRecord?.streamId || student.streamId || effectiveSection?.streamId || null;
+
+      if (!rawStream && effectiveStreamId) {
+        const streamInDb = await prisma.stream.findUnique({ where: { id: effectiveStreamId } });
+        if (streamInDb) {
+          const sName = streamInDb.name;
+          effectiveStreamName = sName.toLowerCase().includes('natural')
+            ? 'Natural Science'
+            : sName.toLowerCase().includes('social')
+            ? 'Social Science'
+            : sName;
+        }
+      } else if (rawStream) {
+        const sName = rawStream.name;
+        effectiveStreamName = sName.toLowerCase().includes('natural')
+          ? 'Natural Science'
+          : sName.toLowerCase().includes('social')
+          ? 'Social Science'
+          : sName;
+      }
+    }
+
     // Resolve Homeroom Teacher
     const homeroomAssignment = await prisma.teacherAssignment.findFirst({
       where: {
-        gradeId: student.gradeId,
-        sectionId: student.sectionId,
+        gradeId: effectiveGrade.id,
+        sectionId: effectiveSection.id,
         ...(targetYear ? { academicYearId: targetYear.id } : {}),
         role: 'HOMEROOM_TEACHER',
       },
@@ -1469,8 +1633,8 @@ export class GradebookService {
     if (!homeroomTeacherName) {
       const anyAssignment = await prisma.teacherAssignment.findFirst({
         where: {
-          gradeId: student.gradeId,
-          sectionId: student.sectionId,
+          gradeId: effectiveGrade.id,
+          sectionId: effectiveSection.id,
         },
         include: { teacher: true },
       });
@@ -1530,50 +1694,12 @@ export class GradebookService {
       return a.name.localeCompare(b.name);
     });
 
-    // Define Periods (Columns)
-    const isSingleTerm = academicTermId && academicTermId !== 'all' && academicTermId !== 'annual';
-    let periods = [
-      { id: 'mid1', label: '1st Mid' },
-      { id: 'sem1', label: '1st Semester' },
-      { id: 'mid2', label: '2nd Mid' },
-      { id: 'sem2', label: '2nd Semester' },
-    ];
-
-    if (isSingleTerm) {
-      const termObj = targetYear?.terms?.find((t) => t.id === academicTermId);
-      const isSem2 = termObj && termObj.name.includes('2');
-      if (isSem2) {
-        periods = [
-          { id: 'mid2', label: '2nd Mid' },
-          { id: 'sem2', label: '2nd Semester' },
-        ];
-      } else {
-        periods = [
-          { id: 'mid1', label: '1st Mid' },
-          { id: 'sem1', label: '1st Semester' },
-        ];
-      }
-    }
-
-    // Fetch existing report cards for student
-    const reportCards = await prisma.reportCard.findMany({
-      where: {
-        studentId: student.id,
-        ...(targetYear ? { academicYearId: targetYear.id } : {}),
-      },
-      include: {
-        academicTerm: true,
-        subjectScores: { include: { subject: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
     // Fetch assessments & marks for student
     const assessments = await prisma.assessment.findMany({
       where: {
-        gradeId: student.gradeId,
+        gradeId: effectiveGrade.id,
         ...(targetYear ? { academicYearId: targetYear.id } : {}),
-        OR: [{ sectionId: null }, { sectionId: student.sectionId }],
+        OR: [{ sectionId: null }, { sectionId: effectiveSection.id }],
       },
       include: {
         marks: { where: { studentId: student.id } },
@@ -1591,19 +1717,26 @@ export class GradebookService {
       },
     });
 
-    // Conduct & Remarks from matching report card
-    const termSpecificRc = isSingleTerm
-      ? reportCards.find((rc) => rc.academicTermId === academicTermId)
-      : null;
-    const latestRc = termSpecificRc || reportCards[0];
+    // Conduct & Remarks
     const conduct = latestRc?.conduct || 'A-';
     const teacherComment = latestRc?.homeroomTeacherComment || '';
     const principalComment = latestRc?.principalComment || '';
 
-    // Filter subjects to only those taught or assessed for this grade & section
+    // Curriculum & Stream-specific Subjects Filtering
+    let streamGradeSubjects: Array<{ subjectId: string }> = [];
+    if (isGrade11or12) {
+      streamGradeSubjects = await prisma.gradeSubject.findMany({
+        where: {
+          gradeId: effectiveGrade.id,
+          ...(effectiveStreamId ? { streamId: effectiveStreamId } : {}),
+        },
+        select: { subjectId: true },
+      });
+    }
+
     const teacherAssignedSubjectIds = await prisma.teacherAssignment.findMany({
       where: {
-        gradeId: student.gradeId,
+        gradeId: effectiveGrade.id,
         ...(targetYear ? { academicYearId: targetYear.id } : {}),
       },
       select: { subjectId: true },
@@ -1616,11 +1749,35 @@ export class GradebookService {
       ...teacherAssignedSubjectIds,
       ...assessedSubjectIds,
       ...scoredSubjectIds,
+      ...streamGradeSubjects.map((gs) => gs.subjectId),
     ]);
 
-    const activeSubjects = relevantSubjectIdSet.size > 0
-      ? sortedSubjects.filter((s) => relevantSubjectIdSet.has(s.id))
-      : sortedSubjects;
+    const isNaturalStream = effectiveStreamName?.toLowerCase().includes('natural');
+    const isSocialStream = effectiveStreamName?.toLowerCase().includes('social');
+
+    const activeSubjects = sortedSubjects.filter((subj) => {
+      // 1. If explicit GradeSubject records exist for Grade 11/12 with this stream, use them strictly
+      if (isGrade11or12 && streamGradeSubjects.length > 0) {
+        return streamGradeSubjects.some((gs) => gs.subjectId === subj.id);
+      }
+
+      // 2. Otherwise apply stream track rules for Grades 11 and 12
+      if (isGrade11or12) {
+        const subjName = subj.name.toLowerCase();
+        if (isNaturalStream && (subjName.includes('history') || subjName.includes('geography') || subjName.includes('economics'))) {
+          return false;
+        }
+        if (isSocialStream && (subjName.includes('physics') || subjName.includes('chemistry') || subjName.includes('biology'))) {
+          return false;
+        }
+      }
+
+      // 3. Keep subjects that are taught or assessed
+      if (relevantSubjectIdSet.size > 0) {
+        return relevantSubjectIdSet.has(subj.id);
+      }
+      return true;
+    });
 
     // Helper to compute weighted score for an assessment collection
     const computeWeightedScore = (
@@ -1650,6 +1807,42 @@ export class GradebookService {
       return Math.round(((weightedSum / totalWeight) * 100) * 10) / 10;
     };
 
+    // 1. Resolve school grading policy from database
+    const gradingScales = await this.getGradingScales();
+    const passingScales = gradingScales.filter((s) => s.isPassing);
+    const failingScales = gradingScales.filter((s) => !s.isPassing);
+
+    // Dynamic passing benchmark derived directly from the school's active grading policy
+    const policyPassingMinScore = passingScales.length > 0
+      ? Math.min(...passingScales.map((s) => s.minScore))
+      : (failingScales.length > 0 ? Math.max(...failingScales.map((s) => s.maxScore)) : 50.0);
+
+    const findGradeLetter = (pct: number) => {
+      for (const scale of gradingScales) {
+        if (pct >= scale.minScore && (pct <= scale.maxScore || scale.maxScore >= 100)) {
+          return {
+            letter: scale.grade,
+            gpa: scale.gpaPoint ?? 0,
+            isPassing: scale.isPassing,
+            description: scale.description,
+          };
+        }
+      }
+      // If outside configured scale boundaries, determine passing status via policy benchmark
+      const isPass = pct >= policyPassingMinScore;
+      const fallbackScale = isPass
+        ? (passingScales[passingScales.length - 1] || gradingScales[0])
+        : (failingScales[0] || gradingScales[gradingScales.length - 1]);
+      return {
+        letter: fallbackScale?.grade || (isPass ? 'D' : 'F'),
+        gpa: fallbackScale?.gpaPoint ?? (isPass ? 1.0 : 0.0),
+        isPassing: fallbackScale ? fallbackScale.isPassing : isPass,
+        description: fallbackScale?.description || (isPass ? 'Passing' : 'Failing'),
+      };
+    };
+
+    let failedSubjectsCount = 0;
+
     const subjectRows = activeSubjects.map((subj) => {
       const scores: Record<string, number | null> = {};
       const subjAssessments = assessments.filter((a) => a.subjectId === subj.id);
@@ -1659,10 +1852,10 @@ export class GradebookService {
         const matchingAssessments = subjAssessments.filter((a) => {
           const title = (a.title || '').toLowerCase();
           const type = (a.type || '').toUpperCase();
-          const termName = (a.academicTerm?.name || '').toLowerCase();
+          const tName = (a.academicTerm?.name || '').toLowerCase();
 
-          const isTerm1 = termName.includes('1') || termName.includes('first') || (!termName.includes('2') && !termName.includes('second'));
-          const isTerm2 = termName.includes('2') || termName.includes('second');
+          const isTerm1 = tName.includes('1') || tName.includes('first') || (!tName.includes('2') && !tName.includes('second'));
+          const isTerm2 = tName.includes('2') || tName.includes('second');
 
           if (period.id === 'mid1') {
             if (!isTerm1) return false;
@@ -1688,10 +1881,10 @@ export class GradebookService {
         // 2. If sem1/sem2 has no specific final assessment, calculate weighted score across all assessments in that term
         if (score === null && (period.id === 'sem1' || period.id === 'sem2')) {
           const termAssessments = subjAssessments.filter((a) => {
-            const termName = (a.academicTerm?.name || '').toLowerCase();
+            const tName = (a.academicTerm?.name || '').toLowerCase();
             return period.id === 'sem1'
-              ? (termName.includes('1') || termName.includes('first') || (!termName.includes('2') && !termName.includes('second')))
-              : (termName.includes('2') || termName.includes('second'));
+              ? (tName.includes('1') || tName.includes('first') || (!tName.includes('2') && !tName.includes('second')))
+              : (tName.includes('2') || tName.includes('second'));
           });
           score = computeWeightedScore(termAssessments, student.id);
         }
@@ -1699,9 +1892,9 @@ export class GradebookService {
         // 3. If still null, check saved official report card subject score
         if (score === null) {
           const rcMatch = reportCards.find((rc) => {
-            const termName = (rc.academicTerm?.name || '').toLowerCase();
-            if (period.id.includes('1') && (termName.includes('1') || termName.includes('first'))) return true;
-            if (period.id.includes('2') && (termName.includes('2') || termName.includes('second'))) return true;
+            const tName = (rc.academicTerm?.name || '').toLowerCase();
+            if (period.id.includes('1') && (tName.includes('1') || tName.includes('first'))) return true;
+            if (period.id.includes('2') && (tName.includes('2') || tName.includes('second'))) return true;
             return false;
           });
           const subjScoreMatch = rcMatch?.subjectScores.find((ss) => ss.subjectId === subj.id);
@@ -1710,7 +1903,6 @@ export class GradebookService {
           }
         }
 
-        // Keep null if the period has not occurred / has no assessments
         scores[period.id] = score;
       });
 
@@ -1723,6 +1915,12 @@ export class GradebookService {
         ? Math.round((rowTotal / validPeriodValues.length) * 10) / 10
         : 0;
 
+      const scaleInfo = findGradeLetter(rowAverage);
+      const isSubjectPassing = scaleInfo.isPassing;
+      if (validPeriodValues.length > 0 && !isSubjectPassing) {
+        failedSubjectsCount += 1;
+      }
+
       return {
         subjectId: subj.id,
         subjectName: subj.name,
@@ -1731,6 +1929,8 @@ export class GradebookService {
         scores: scores as Record<string, number>,
         total: rowTotal,
         average: rowAverage,
+        isPassing: isSubjectPassing,
+        gradeLetter: scaleInfo.letter,
       };
     });
 
@@ -1769,8 +1969,8 @@ export class GradebookService {
     // Class Standing & Section Size
     const sectionStudentsCount = await prisma.student.count({
       where: {
-        gradeId: student.gradeId,
-        sectionId: student.sectionId,
+        gradeId: effectiveGrade.id,
+        sectionId: effectiveSection.id,
         status: 'ACTIVE',
       },
     });
@@ -1779,12 +1979,37 @@ export class GradebookService {
     const studentRank = latestRc?.rank || 1;
     const rankDisplay = `${studentRank}/${totalStudentsInClass}`;
 
-    // Status / Remark badge
-    const remarkBadge = overallAverage >= 50 ? 'Passed' : 'Needs Improvement';
+    // School Grading & Promotion Policy Pass/Fail Logic:
+    // Rule 1: Student's cumulative average must meet or exceed the policy minimum passing score.
+    // Rule 2: A student who receives failing marks (under grading policy) in 3 or more subjects fails / is retained.
+    const isAveragePassing = overallAverage >= policyPassingMinScore;
+    const maxAllowedFailedSubjects = 2;
+    const isSubjectPassCountAcceptable = failedSubjectsCount <= maxAllowedFailedSubjects;
 
-    // Verifiable QR Code payload
-    const reportCardId = latestRc?.id ? `AH-RC-${latestRc.id.substring(0, 8).toUpperCase()}` : `AH-RC-${student.student_id}-2018`;
-    const issueDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const isOverallPassing = isAveragePassing && isSubjectPassCountAcceptable;
+    const isSingleTermEval = effectiveTermName !== 'Annual';
+    let remarkBadge = 'Passed';
+
+    if (!isOverallPassing) {
+      remarkBadge = isSingleTermEval ? 'Failed' : 'Retained';
+    } else if (failedSubjectsCount > 0) {
+      // Average meets policy requirement, but 1 or 2 subjects failed
+      remarkBadge = isSingleTermEval ? 'Passed (Conditional)' : 'Promoted (Conditional)';
+    } else {
+      remarkBadge = isSingleTermEval ? 'Passed' : 'Promoted';
+    }
+
+    // Official Report Card ID & Issue Date
+    const yearSuffix = targetYear?.name ? targetYear.name.replace(/[^\w]/g, '') : '2018';
+    const reportCardId = latestRc?.id
+      ? `BP-RC-${latestRc.id.substring(0, 8).toUpperCase()}`
+      : `BP-RC-${student.student_id}-${yearSuffix}`;
+
+    const issueDate = latestRc?.publishedAt
+      ? new Date(latestRc.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : latestRc?.createdAt
+      ? new Date(latestRc.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
     // Verifiable QR Code payload (direct URL for mobile camera scanning)
     const appBaseUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -1806,14 +2031,16 @@ export class GradebookService {
         status: student.status,
       },
       academic: {
-        gradeId: student.gradeId,
-        gradeName: student.grade?.name || '10 TEN',
-        sectionId: student.sectionId,
-        sectionName: student.section?.name || 'A',
+        gradeId: effectiveGrade.id,
+        gradeName: effectiveGrade.name,
+        sectionId: effectiveSection.id,
+        sectionName: effectiveSection.name,
+        streamId: effectiveStreamId,
+        streamName: effectiveStreamName,
         academicYearId: targetYear?.id || '',
-        academicYearName: targetYear?.name || '2017',
-        academicTermId: academicTermId || 'annual',
-        academicTermName: isSingleTerm ? (targetYear?.terms?.find((t) => t.id === academicTermId)?.name || 'Semester') : 'Annual',
+        academicYearName: targetYear?.name || '',
+        academicTermId: effectiveTermId,
+        academicTermName: effectiveTermName,
         homeroomTeacherName,
       },
       periods,
@@ -1833,8 +2060,23 @@ export class GradebookService {
         conduct,
         absence: `${absences} Day`,
         remarkBadge,
+        isPassing: isOverallPassing,
+        failedSubjectsCount,
+        passingMinScore: policyPassingMinScore,
         teacherComment,
         principalComment,
+      },
+      gradingPolicy: {
+        passingMinScore: policyPassingMinScore,
+        scales: gradingScales.map((s) => ({
+          grade: s.grade,
+          minScore: s.minScore,
+          maxScore: s.maxScore,
+          gpaPoint: s.gpaPoint,
+          description: s.description,
+          color: s.color,
+          isPassing: s.isPassing,
+        })),
       },
       qrCodeData: qrVerificationPayload,
       status: latestRc?.status || 'GENERATED',
@@ -2352,8 +2594,8 @@ export class GradebookService {
     }
 
     const cleanId = id.trim();
-    // Support prefixes like "AH-RC-12345678" or "AH-RC-STU-001-2018"
-    const strippedId = cleanId.replace(/^AH-RC-/i, '').replace(/-\d{4}$/, '');
+    // Support prefixes like "BP-RC-12345678", "AH-RC-12345678" or "BP-RC-STU-001-2018"
+    const strippedId = cleanId.replace(/^(BP|AH)-RC-/i, '').replace(/-\d{4}$/, '');
 
     const candidateIds = Array.from(new Set([cleanId, strippedId])).filter(Boolean);
 
@@ -2371,11 +2613,12 @@ export class GradebookService {
       include: {
         student: {
           include: {
+            stream: true,
             user: { select: { profile_photo: true } },
           },
         },
         grade: true,
-        section: true,
+        section: { include: { stream: true } },
         academicYear: true,
         academicTerm: true,
         subjectScores: {
@@ -2405,13 +2648,41 @@ export class GradebookService {
       });
 
       const rankDisplay = reportCard.rank ? `${reportCard.rank} of ${totalStudentsInClass}` : '—';
-      const remarkBadge = reportCard.averageScore >= 50 ? 'PASSED' : 'NEEDS IMPROVEMENT';
+
+      // School Grading & Promotion Policy Pass/Fail Logic:
+      const gradingScales = await this.getGradingScales();
+      const passingScales = gradingScales.filter((s) => s.isPassing);
+      const policyPassingMinScore = passingScales.length > 0
+        ? Math.min(...passingScales.map((s) => s.minScore))
+        : 50.0;
+
+      const failingSubjects = reportCard.subjectScores.filter((s) => {
+        const val = s.score ?? 0;
+        const matched = gradingScales.find((sc) => val >= sc.minScore && (val <= sc.maxScore || sc.maxScore >= 100));
+        return matched ? !matched.isPassing : val < policyPassingMinScore;
+      });
+      const isRetained = reportCard.averageScore < policyPassingMinScore || failingSubjects.length >= 3;
+      const isConditional = !isRetained && failingSubjects.length > 0;
+      const remarkBadge = isRetained ? 'RETAINED' : isConditional ? 'PASSED (CONDITIONAL)' : 'PASSED';
+
+      const isGrade11or12 = /\b(11|12)\b/.test(reportCard.grade?.name || '');
+      let streamName: string | null = null;
+      if (isGrade11or12) {
+        const raw = reportCard.section?.stream?.name || reportCard.student?.stream?.name;
+        if (raw) {
+          streamName = raw.toLowerCase().includes('natural')
+            ? 'Natural Science'
+            : raw.toLowerCase().includes('social')
+            ? 'Social Science'
+            : raw;
+        }
+      }
 
       return {
         verified: true,
         status: reportCard.status,
         isOfficial: reportCard.status === 'PUBLISHED',
-        reportCardId: `AH-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
+        reportCardId: `BP-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
         certificateId: reportCard.id,
         issueDate,
         school,
@@ -2425,6 +2696,7 @@ export class GradebookService {
         academic: {
           gradeName: reportCard.grade?.name || '10',
           sectionName: reportCard.section?.name || 'A',
+          streamName,
           academicYearName: reportCard.academicYear?.name || '2018 E.C.',
           termName: reportCard.academicTerm?.name || 'Annual',
         },
@@ -2439,15 +2711,21 @@ export class GradebookService {
           teacherComment: reportCard.homeroomTeacherComment,
           principalComment: reportCard.principalComment,
         },
-        subjects: reportCard.subjectScores.map((ss) => ({
-          id: ss.subjectId,
-          name: ss.subject?.name || 'Subject',
-          code: ss.subject?.code,
-          score: ss.score,
-          maxScore: ss.maxScore || 100,
-          gradeLetter: ss.gradeLetter || '-',
-          gpaPoint: ss.gpaPoint || 0,
-        })),
+        subjects: reportCard.subjectScores.map((ss) => {
+          const val = ss.score ?? 0;
+          const matched = gradingScales.find((sc) => val >= sc.minScore && (val <= sc.maxScore || sc.maxScore >= 100));
+          const isPassing = matched ? matched.isPassing : val >= policyPassingMinScore;
+          return {
+            id: ss.subjectId,
+            name: ss.subject?.name || 'Subject',
+            code: ss.subject?.code,
+            score: ss.score,
+            maxScore: ss.maxScore || 100,
+            gradeLetter: ss.gradeLetter || matched?.grade || (isPassing ? 'D' : 'F'),
+            gpaPoint: ss.gpaPoint !== null && ss.gpaPoint !== undefined ? ss.gpaPoint : (matched?.gpaPoint ?? (isPassing ? 1.0 : 0.0)),
+            isPassing,
+          };
+        }),
       };
     }
 
@@ -2480,8 +2758,8 @@ export class GradebookService {
     return {
       verified: true,
       status: comp.status || 'VERIFIED',
-      isOfficial: true,
-      reportCardId: comp.reportCardId || `AH-RC-${student.student_id}-2018`,
+      isOfficial: comp.status === 'PUBLISHED',
+      reportCardId: comp.reportCardId || `BP-RC-${student.student_id}-2018`,
       certificateId: `CERT-${student.student_id}-${student.id.substring(0, 8).toUpperCase()}`,
       issueDate: comp.issueDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       school: comp.school || school,
@@ -2495,6 +2773,7 @@ export class GradebookService {
       academic: {
         gradeName: comp.academic?.gradeName || student.grade?.name || '10',
         sectionName: comp.academic?.sectionName || student.section?.name || 'A',
+        streamName: comp.academic?.streamName || null,
         academicYearName: comp.academic?.academicYearName || '2018 E.C.',
         termName: comp.academic?.academicTermName || 'Annual',
       },
@@ -2512,11 +2791,12 @@ export class GradebookService {
       subjects: (comp.subjectRows || []).map((row: any) => ({
         id: row.subjectId || row.subjectName,
         name: row.subjectName,
-        code: row.subjectCode,
-        score: row.finalScore ?? (row.periodScores?.sem2 ?? row.periodScores?.sem1 ?? 0),
+        code: row.code || row.subjectCode,
+        score: row.average ?? (row.periodScores?.sem2 ?? row.periodScores?.sem1 ?? 0),
         maxScore: 100,
-        gradeLetter: row.letterGrade || (row.finalScore >= 90 ? 'A+' : row.finalScore >= 80 ? 'A' : row.finalScore >= 70 ? 'B' : row.finalScore >= 50 ? 'C' : 'F'),
-        gpaPoint: row.gpaPoint || (row.finalScore ? Number((row.finalScore / 25).toFixed(1)) : 0),
+        gradeLetter: row.gradeLetter || (row.isPassing ? 'D' : 'F'),
+        gpaPoint: row.gpaPoint || (row.isPassing ? 1.0 : 0.0),
+        isPassing: row.isPassing,
       })),
     };
   }
