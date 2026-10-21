@@ -1,4 +1,4 @@
-# Render Blueprint for Zetime Backend Service Only
+# Render Blueprint for Bright Path Backend Service Only
 version: "1"
 
 services:
@@ -6,7 +6,7 @@ services:
   # Express Node.js Backend Service
   # ---------------------------------------------------------------------------
   - type: web
-    name: zetime-backend
+    name: bright-8uji
     runtime: node
     plan: free
     region: oregon
@@ -25,7 +25,7 @@ services:
       - key: JWT_SECRET
         sync: false  # Set a permanent secret in the Render dashboard — do NOT use generateValue (it rotates on every deploy and invalidates all user tokens)
       - key: APP_URL
-        value: https://zetime-backend-dmlv.onrender.com
+        value: https://bright-8uji.onrender.com
       - key: FRONTEND_URL
         sync: false
       - key: ALLOWED_ORIGINS

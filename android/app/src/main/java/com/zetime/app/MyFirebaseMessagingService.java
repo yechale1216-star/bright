@@ -531,7 +531,7 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             return;
         }
 
-        String baseUrl = prefs.getString("api_url", "https://zetime-backend-dmlv.onrender.com");
+        String baseUrl = prefs.getString("api_url", "https://bright-8uji.onrender.com");
         String apiUrl = baseUrl + "/api/auth/push-token";
 
         // Persist the new token to the backend so server-side pushes keep working

@@ -55,6 +55,7 @@ if (target === 'school' || target === 'portal') {
         CAPACITOR_BUILD: '1',
         APP_TARGET: target,
         NEXT_PUBLIC_APP_TARGET: target,
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://bright-8uji.onrender.com',
       },
       cwd: ROOT,
     });
@@ -121,7 +122,12 @@ if (target === 'school' || target === 'portal') {
     console.log('\n[capacitor-build] Running: next build --webpack (CAPACITOR_BUILD=1)…\n');
     execSync('npx next build --webpack', {
       stdio: 'inherit',
-      env: { ...process.env, CAPACITOR_BUILD: '1', APP_TARGET: 'root' },
+      env: {
+        ...process.env,
+        CAPACITOR_BUILD: '1',
+        APP_TARGET: 'root',
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://bright-8uji.onrender.com',
+      },
       cwd: ROOT,
     });
     console.log('\n[capacitor-build] ✓ Build succeeded');

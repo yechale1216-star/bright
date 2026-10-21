@@ -725,7 +725,7 @@ export const initSocket = (server: HttpServer) => {
       await emitToUser(io, data.to, 'incoming_call', { from: data.from, offer: data.offer, type: data.type || 'VOICE', profile: data.profile, callId });
 
       if (targetUser.pushToken) {
-        const serverUrl = process.env.NEXT_PUBLIC_API_URL || 'https://zetime-backend-dmlv.onrender.com';
+        const serverUrl = process.env.NEXT_PUBLIC_API_URL || process.env.APP_URL || 'https://bright-8uji.onrender.com';
         sendCallNotification(targetUser.pushToken, { callId, callerId: data.from, callerName: (data.profile?.name || callerInfo?.full_name || 'Unknown').slice(0, 64), callType: (data.type || 'VOICE') as 'VOICE' | 'VIDEO', serverUrl });
       }
     });
