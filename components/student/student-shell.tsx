@@ -243,78 +243,96 @@ export function StudentShell({ children }: StudentShellProps) {
         </div>
       </aside>
 
-      {/* ─── Mobile Header ────────────────────────────────────────────────── */}
-      <header className="md:hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-xs border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
-            <BookOpen className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-sm leading-none text-slate-900 dark:text-white">Bright Path</h1>
-            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">Student Portal</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Quick theme toggle on mobile */}
+      {/* ─── Mobile Header — matches admin TopNav style ───────────────────── */}
+      <header className={cn(
+        "md:hidden sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800",
+        "bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-xs transition-colors duration-200",
+        isNative && "pt-safe"
+      )}>
+        <div className="flex h-16 items-center px-3 gap-2">
+          {/* ── Hamburger menu — LEFT (same as admin) ── */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleTheme}
-            className="h-8 w-8 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-            aria-label="Toggle theme"
-          >
-            {isDark ? <Moon className="w-4 h-4 text-purple-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
-          </Button>
-
-          <Link href="/student/profile" className="flex items-center gap-2">
-            <Avatar className="w-8 h-8 ring-2 ring-purple-500/30">
-              <AvatarImage src={student?.photo || ""} />
-              <AvatarFallback className="bg-purple-600 text-white text-xs font-semibold">
-                {displayName.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
+            className="h-9 w-9 rounded-xl hover:bg-primary/10 transition-all active:scale-90 shrink-0"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 h-8 w-8"
+            aria-label="Open menu"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <Menu className="h-5 w-5" />
           </Button>
+
+          {/* ── Logo + Brand ── */}
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 text-white shrink-0">
+              <BookOpen className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-sm font-black tracking-tight text-foreground truncate uppercase">Bright Path</h1>
+              <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold leading-none">Student Portal</p>
+            </div>
+          </div>
+
+          {/* ── Right actions: theme toggle + avatar ── */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-9 w-9 rounded-full border border-border bg-muted/40 hover:border-primary/50 transition-all shadow-2xs"
+              aria-label="Toggle theme"
+            >
+              {isDark ? <Moon className="w-4 h-4 text-purple-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            </Button>
+
+            <Link href="/student/profile">
+              <Avatar className="w-9 h-9 ring-2 ring-purple-500/30 hover:ring-purple-500/60 transition-all shadow-2xs">
+                <AvatarImage src={student?.photo || ""} />
+                <AvatarFallback className="bg-gradient-to-tr from-purple-700 to-indigo-600 text-white text-xs font-bold">
+                  {displayName.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* Mobile Drawer */}
+      {/* ─── Mobile Drawer — slides from LEFT like admin sidebar ─────────── */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex">
-          <div className="w-72 bg-white dark:bg-slate-900 text-slate-900 dark:text-white h-full flex flex-col justify-between p-4 shadow-2xl border-r border-slate-200 dark:border-slate-800 animate-in slide-in-from-left duration-200">
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          {/* Drawer panel */}
+          <div className="relative w-72 bg-white dark:bg-slate-900 text-slate-900 dark:text-white h-full flex flex-col justify-between p-4 shadow-2xl border-r border-slate-200 dark:border-slate-800 animate-in slide-in-from-left duration-200">
             <div>
+              {/* Drawer header */}
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center text-white">
-                    <BookOpen className="w-5 h-5 text-white" />
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md">
+                    <BookOpen className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-sm text-slate-900 dark:text-white">Bright Path</h2>
-                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Student Portal</p>
+                    <h2 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">Bright Path</h2>
+                    <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Student Portal</p>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="h-8 w-8 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
-              {/* Student info summary */}
+              {/* Student info card */}
               <div className="my-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center gap-3">
                 <Avatar className="w-10 h-10 ring-2 ring-purple-400/40">
-                  <AvatarFallback className="bg-purple-600 text-white text-xs font-bold">
+                  <AvatarImage src={student?.photo || ""} />
+                  <AvatarFallback className="bg-gradient-to-tr from-purple-700 to-indigo-600 text-white text-xs font-bold">
                     {displayName.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -394,8 +412,8 @@ export function StudentShell({ children }: StudentShellProps) {
 
       {/* ─── Main Content Area ────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Top Header Bar (Desktop & Tablet) */}
-        <header className="hidden md:flex items-center justify-between px-8 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors duration-200">
+        {/* Top Header Bar (Desktop & Tablet) — matches admin TopNav */}
+        <header className="hidden md:flex items-center justify-between px-8 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors duration-200">
           {/* Search bar */}
           <div className="relative w-72">
             <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
