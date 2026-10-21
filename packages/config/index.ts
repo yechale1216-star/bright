@@ -3,7 +3,7 @@
  * Centralized application and environment configuration
  */
 
-const ANDROID_BACKEND_URL = "https://bright-8uji.onrender.com";
+const BACKEND_URL = "https://bright-8uji.onrender.com";
 
 export const getApiUrl = () => {
   if (typeof window !== "undefined") {
@@ -14,10 +14,10 @@ export const getApiUrl = () => {
 
     // 1. Android / iOS Capacitor Native App: uses the dedicated Render backend
     if (isCapacitor) {
-      return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || ANDROID_BACKEND_URL;
+      return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || BACKEND_URL;
     }
 
-    // 2. Web Browser: Fully dynamic
+    // 2. Web Browser: Local development check
     const hostname = window.location.hostname;
     const isLocal =
       hostname === "localhost" ||
@@ -31,23 +31,19 @@ export const getApiUrl = () => {
       return `http://${hostname}:5000`;
     }
 
-    // Production Web: If NEXT_PUBLIC_API_URL is set in web environment, use it; otherwise dynamically resolve from window.location.origin
+    // 3. Web Production: Use NEXT_PUBLIC_API_URL if configured, otherwise default to the live Render backend
     if (process.env.NEXT_PUBLIC_API_URL) {
       return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
     }
-    return window.location.origin;
+    return BACKEND_URL;
   }
 
-  // Server-side / Build-time
-  if (process.env.CAPACITOR_BUILD === "1") {
-    return ANDROID_BACKEND_URL;
-  }
-
+  // Server-side / Build-time / SSR
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
   }
 
-  return "";
+  return BACKEND_URL;
 };
 
 export const API_URL = getApiUrl();
@@ -57,7 +53,7 @@ export const SOCKET_URL =
   ((window as any)?.Capacitor?.isNativePlatform?.() ||
     (window as any)?.Capacitor?.platform === "android" ||
     (window as any)?.Capacitor?.platform === "ios")
-    ? ANDROID_BACKEND_URL
+    ? BACKEND_URL
     : API_URL);
 
 export const APP_URL =

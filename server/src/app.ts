@@ -93,6 +93,10 @@ app.use(cors({
     const isAllowed = defaultAllowedOrigins.includes(origin) || 
                       origin.startsWith('http://localhost:') || 
                       origin.startsWith('http://127.0.0.1:') ||
+                      origin.endsWith('.vercel.app') ||
+                      origin.endsWith('.onrender.com') ||
+                      origin.endsWith('.pro.et') ||
+                      origin.endsWith('.zetime.app') ||
                       // Local network origins only allowed outside production
                       (process.env.NODE_ENV !== 'production' && (
                         origin.startsWith('http://192.168.') ||
