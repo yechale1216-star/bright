@@ -203,6 +203,7 @@ export function StudentSharedMaterials({
 
   const [copiedTranscript, setCopiedTranscript] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(true);
+  const [isLessonFullscreen, setIsLessonFullscreen] = useState(false);
 
   // Scroll preservation
   const scrollPositionRef = useRef<number>(0);
@@ -397,6 +398,7 @@ export function StudentSharedMaterials({
 
   // ─── Close Lesson (Return to List) ────────────────────────────────────────
   const handleBackToList = useCallback(() => {
+    setIsLessonFullscreen(false);
     setActiveLesson(null);
     setTimeout(() => {
       window.scrollTo({ top: scrollPositionRef.current, behavior: "instant" });
@@ -559,31 +561,39 @@ export function StudentSharedMaterials({
     const viewsCount = localViews[m.id] ?? m.viewCount ?? 0;
 
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 -mx-4 sm:mx-0 -mt-4 sm:mt-0 animate-in fade-in duration-200 overflow-x-hidden">
-        {/* Sticky Mobile Top App Bar */}
-        <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 shadow-xs">
-          <button
-            type="button"
-            onClick={handleBackToList}
-            aria-label="Back to learning materials"
-            className="flex items-center gap-1.5 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm hover:text-purple-600 transition-colors py-1.5 px-2 rounded-xl active:scale-95 bg-slate-100/80 dark:bg-slate-800/80"
-          >
-            <ArrowLeft className="w-4 h-4 text-purple-600 shrink-0" />
-            <span className="truncate max-w-[150px] sm:max-w-xs font-black">All Materials</span>
-          </button>
-
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              className="text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full text-white shadow-xs shrink-0 truncate max-w-[130px] sm:max-w-none"
-              style={{ backgroundColor: m.subjectColor || "#7c3aed" }}
+      <div className={cn(
+        "min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 -mx-4 sm:mx-0 -mt-4 sm:mt-0 animate-in fade-in duration-200 overflow-x-hidden",
+        isLessonFullscreen && "p-0 m-0 overflow-hidden"
+      )}>
+        {/* Sticky Mobile Top App Bar (Hidden in Fullscreen) */}
+        {!isLessonFullscreen && (
+          <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 shadow-xs">
+            <button
+              type="button"
+              onClick={handleBackToList}
+              aria-label="Back to learning materials"
+              className="flex items-center gap-1.5 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm hover:text-purple-600 transition-colors py-1.5 px-2 rounded-xl active:scale-95 bg-slate-100/80 dark:bg-slate-800/80"
             >
-              {m.subjectName || "Lesson"}
-            </span>
-          </div>
-        </header>
+              <ArrowLeft className="w-4 h-4 text-purple-600 shrink-0" />
+              <span className="truncate max-w-[150px] sm:max-w-xs font-black">All Materials</span>
+            </button>
+
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full text-white shadow-xs shrink-0 truncate max-w-[130px] sm:max-w-none"
+                style={{ backgroundColor: m.subjectColor || "#7c3aed" }}
+              >
+                {m.subjectName || "Lesson"}
+              </span>
+            </div>
+          </header>
+        )}
 
         {/* 16:9 Responsive Video Box & YouTube Assistant */}
-        <div className="w-full max-w-5xl mx-auto sm:px-4 sm:pt-4">
+        <div className={cn(
+          "w-full transition-all duration-300",
+          isLessonFullscreen ? "m-0 p-0 max-w-none" : "max-w-5xl mx-auto sm:px-4 sm:pt-4"
+        )}>
           <EducationalVideoPlayer
             fileUrl={m.fileUrl}
             title={m.title}
@@ -594,6 +604,7 @@ export function StudentSharedMaterials({
             showSubtitles={showSubtitles}
             autoPlay={true}
             showExternalAction={true}
+            onFullscreenChange={setIsLessonFullscreen}
           />
         </div>
 

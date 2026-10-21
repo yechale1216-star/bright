@@ -60,7 +60,11 @@ public class MainActivity extends BridgeActivity {
                 settings.setDatabaseEnabled(true);
                 // Enable Geolocation for attendance tracking GPS verification
                 settings.setGeolocationEnabled(true);
-                android.util.Log.d("MainActivity", "WebView performance settings applied (cache, DOM storage, media, geolocation)");
+
+                // Enable Fullscreen Video in Android WebView (Landscape YouTube-style playback)
+                setupFullscreenVideoSupport();
+
+                android.util.Log.d("MainActivity", "WebView performance settings applied (cache, DOM storage, media, geolocation, video fullscreen)");
             }
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "Error configuring WebView settings", e);
@@ -328,5 +332,100 @@ public class MainActivity extends BridgeActivity {
 
             android.util.Log.d("MainActivity", "Notification channels initialized successfully on startup");
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Video Fullscreen Landscape Support for Android WebView
+    // ═══════════════════════════════════════════════════════════════════════
+    private android.view.View customFullscreenView = null;
+    private android.webkit.WebChromeClient.CustomViewCallback customFullscreenCallback = null;
+
+    private void setupFullscreenVideoSupport() {
+        if (bridge == null || bridge.getWebView() == null) return;
+
+        bridge.getWebView().setWebChromeClient(new com.getcapacitor.BridgeWebChromeClient(bridge) {
+            @Override
+            public void onShowCustomView(android.view.View view, android.webkit.WebChromeClient.CustomViewCallback callback) {
+                if (customFullscreenView != null) {
+                    hideCustomFullscreenView();
+                    return;
+                }
+                customFullscreenView = view;
+                customFullscreenCallback = callback;
+
+                android.view.ViewGroup decor = (android.view.ViewGroup) getWindow().getDecorView();
+                decor.addView(view, new android.widget.FrameLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                ));
+
+                bridge.getWebView().setVisibility(android.view.View.GONE);
+
+                // Lock to sensor landscape for immersive YouTube-style educational video viewing
+                setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+
+                // Hide system UI bars for full immersion
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    android.view.WindowInsetsController controller = getWindow().getInsetsController();
+                    if (controller != null) {
+                        controller.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+                        controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    }
+                } else {
+                    getWindow().getDecorView().setSystemUiVisibility(
+                            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    );
+                }
+            }
+
+            @Override
+            public void onHideCustomView() {
+                hideCustomFullscreenView();
+            }
+        });
+    }
+
+    public void hideCustomFullscreenView() {
+        if (customFullscreenView != null) {
+            android.view.ViewGroup decor = (android.view.ViewGroup) getWindow().getDecorView();
+            decor.removeView(customFullscreenView);
+            customFullscreenView = null;
+
+            if (bridge != null && bridge.getWebView() != null) {
+                bridge.getWebView().setVisibility(android.view.View.VISIBLE);
+            }
+
+            // Restore normal auto-orientation
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+
+            // Restore system UI bars
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.view.WindowInsetsController controller = getWindow().getInsetsController();
+                if (controller != null) {
+                    controller.show(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+                }
+            } else {
+                getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_VISIBLE);
+            }
+
+            if (customFullscreenCallback != null) {
+                customFullscreenCallback.onCustomViewHidden();
+                customFullscreenCallback = null;
+            }
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (customFullscreenView != null) {
+            hideCustomFullscreenView();
+            return;
+        }
+        super.onBackPressed();
     }
 }

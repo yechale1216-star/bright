@@ -768,4 +768,13 @@
   .mobile-card {
     @apply bg-card backdrop-blur-xl border border-border rounded-3xl p-4 shadow-md active:scale-[0.98] transition-all duration-200;
   }
+
+  /* Educational Video Fullscreen Experience */
+  body.video-fullscreen-active {
+    overflow: hidden !important;
+    touch-action: none;
+  }
+  body.video-fullscreen-active header {
+    display: none !important;
+  }
 }

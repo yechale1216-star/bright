@@ -177,6 +177,7 @@ export function getYouTubeEmbedUrl(
   params.set("modestbranding", "1");
   params.set("playsinline", "1");
   params.set("enablejsapi", "1");
+  params.set("fs", "1");
 
   if (options?.autoplay) {
     params.set("autoplay", "1");

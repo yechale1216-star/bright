@@ -56,12 +56,49 @@ interface CallPlugin {
   isLocationEnabled: () => Promise<{ enabled: boolean }>;
   openAppSettings: () => Promise<void>;
   openLocationSettings: () => Promise<void>;
+  lockLandscape: () => Promise<void>;
+  unlockOrientation: () => Promise<void>;
 }
 
 const CallPlugin = registerPlugin<CallPlugin>('CallPlugin');
 
 export const NativeBridge = {
   isNative: () => Capacitor.isNativePlatform(),
+
+  // Screen orientation helpers for immersive video playback
+  lockLandscape: async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await CallPlugin.lockLandscape();
+      } catch (e) {
+        console.warn('[NativeBridge] Native lockLandscape failed', e);
+      }
+    }
+    try {
+      if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.lock === 'function') {
+        await screen.orientation.lock('landscape').catch(() => {});
+      }
+    } catch {
+      // Screen orientation lock not supported on standard desktop browser without user gesture
+    }
+  },
+
+  unlockOrientation: async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await CallPlugin.unlockOrientation();
+      } catch (e) {
+        console.warn('[NativeBridge] Native unlockOrientation failed', e);
+      }
+    }
+    try {
+      if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.unlock === 'function') {
+        screen.orientation.unlock();
+      }
+    } catch {
+      // Ignore
+    }
+  },
 
   // Saves JWT token to native SharedPreferences
   saveAuthToken: async (token: string, apiUrl?: string) => {

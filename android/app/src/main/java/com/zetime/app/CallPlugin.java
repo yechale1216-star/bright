@@ -2,6 +2,7 @@ package com.zetime.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.AutomaticGainControl;
 import android.media.audiofx.NoiseSuppressor;
@@ -385,6 +386,32 @@ public class CallPlugin extends Plugin implements CallManager.CallBannerListener
         } catch (Exception e) {
             Log.e(TAG, "setSpeakerphone failed", e);
             call.reject(e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void lockLandscape(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(() -> {
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                call.resolve();
+            });
+        } else {
+            call.reject("Activity not available");
+        }
+    }
+
+    @PluginMethod
+    public void unlockOrientation(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(() -> {
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                call.resolve();
+            });
+        } else {
+            call.reject("Activity not available");
         }
     }
 
