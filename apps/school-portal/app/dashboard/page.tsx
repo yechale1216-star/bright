@@ -24,7 +24,7 @@ export default function SchoolDashboardDispatcher() {
         router.replace("/school/admin");
       } else if (role === "academic_head") {
         router.replace("/school/academic-head");
-      } else if (role === "teacher") {
+      } else if (role === "teacher" || role === "subject_teacher" || role === "highschol_teachers") {
         router.replace("/school/teacher");
       } else if (role === "librarian") {
         router.replace("/school/library");

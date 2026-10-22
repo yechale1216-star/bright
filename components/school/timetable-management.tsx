@@ -2,6 +2,7 @@
 
 import { isGrade11or12Grade } from "@/components/school/grade-stream-section-selector";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useAcademicYear } from "@/lib/context/academic-year-context";
 import {
   CalendarDays,
   Clock,
@@ -125,6 +126,35 @@ export function TimetableManagement({
   const [slotDialogOpen, setSlotDialogOpen] = useState(false);
   const [validationDialogOpen, setValidationDialogOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<TimetableSlotData | null>(null);
+
+  // ─── Auto-Generator State ──────────────────────────────────────────────────
+  const { activeAcademicYear, allAcademicYears } = useAcademicYear();
+  const [autoGenDialogOpen, setAutoGenDialogOpen] = useState(false);
+  const [autoAcademicYearId, setAutoAcademicYearId] = useState("");
+  const [autoGradeId, setAutoGradeId] = useState("");
+  const [autoSectionId, setAutoSectionId] = useState("");
+  const [autoStreamId, setAutoStreamId] = useState("");
+  const [autoSchoolDays, setAutoSchoolDays] = useState<string[]>([
+    "MONDAY",
+    "TUESDAY",
+    "WEDNESDAY",
+    "THURSDAY",
+    "FRIDAY",
+  ]);
+  const [autoPeriodsPerDay, setAutoPeriodsPerDay] = useState<number>(6);
+  const [autoSubjectReqs, setAutoSubjectReqs] = useState<
+    Array<{
+      subjectId: string;
+      subjectName: string;
+      subjectCode: string;
+      teacherName: string;
+      hasTeacher: boolean;
+      lessonsPerWeek: number;
+    }>
+  >([]);
+  const [autoGenLoading, setAutoGenLoading] = useState(false);
+  const [autoGenError, setAutoGenError] = useState<string | null>(null);
+  const [regeneratingDraftId, setRegeneratingDraftId] = useState<string | null>(null);
 
   // Form states for Create Timetable
   const [newTitle, setNewTitle] = useState("");
@@ -472,6 +502,253 @@ export function TimetableManagement({
       notifications.error("Error", err.message || "Failed to create timetable");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // ─── Auto-Generator Handlers ────────────────────────────────────────────────
+  const loadAutoSubjectRequirements = useCallback(
+    async (gradeId: string, sectionId?: string, streamId?: string) => {
+      if (!gradeId) {
+        setAutoSubjectReqs([]);
+        return;
+      }
+
+      try {
+        const gsList = await db.getGradeSubjects({
+          gradeId,
+          streamId: streamId || undefined,
+        });
+
+        let subjectsToUse: any[] = [];
+        if (gsList && gsList.length > 0) {
+          const matchedSubs = gsList
+            .map((gs) => gs.subject || allSubjects.find((s) => s.id === gs.subjectId))
+            .filter(Boolean);
+          subjectsToUse = matchedSubs;
+        } else {
+          subjectsToUse = allSubjects.slice(0, 8);
+        }
+
+        const instructionalCount = periods.filter((p) => !p.isBreak).length || 6;
+        const totalAvailable = 5 * instructionalCount;
+        const basePerSub = Math.max(1, Math.floor(totalAvailable / (subjectsToUse.length || 1)));
+        let remainder = totalAvailable % (subjectsToUse.length || 1);
+
+        const reqs = subjectsToUse.map((sub: any) => {
+          const subName = (sub.name || "").toLowerCase();
+          const assigned =
+            teacherAssignments.find((ta) => {
+              const matchGrade = ta.gradeId === gradeId;
+              const matchSec = !sectionId || !ta.sectionId || ta.sectionId === sectionId;
+              const matchSub =
+                ta.subjectId === sub.id ||
+                (ta.subject && ta.subject.toLowerCase() === subName);
+              return matchGrade && matchSec && matchSub;
+            }) ||
+            teacherAssignments.find((ta) => {
+              const matchGrade = ta.gradeId === gradeId;
+              const matchSub =
+                ta.subjectId === sub.id ||
+                (ta.subject && ta.subject.toLowerCase() === subName);
+              return matchGrade && matchSub;
+            });
+
+          let teacherName = "Unassigned";
+          if (assigned?.teacher?.name) {
+            teacherName = assigned.teacher.name;
+          } else if (assigned?.teacher_id) {
+            const foundTeacher = teachers.find(
+              (t) => t.id === assigned.teacher_id || t.user_id === assigned.teacher_id
+            );
+            if (foundTeacher) teacherName = foundTeacher.name;
+          }
+
+          const extra = remainder > 0 ? 1 : 0;
+          if (remainder > 0) remainder--;
+
+          const hasRealTeacher = Boolean(teacherName && teacherName !== "Unassigned");
+
+          return {
+            subjectId: sub.id,
+            subjectName: sub.name,
+            subjectCode: sub.code || sub.name.slice(0, 4).toUpperCase(),
+            teacherName,
+            hasTeacher: hasRealTeacher,
+            lessonsPerWeek: Math.min(basePerSub + extra, 6),
+          };
+        });
+
+        setAutoSubjectReqs(reqs);
+      } catch (err) {
+        console.error("Failed to load curriculum subjects for auto generator:", err);
+      }
+    },
+    [allSubjects, periods, teacherAssignments, teachers]
+  );
+
+  const openAutoGenerateDialog = useCallback(
+    async (sourceTimetable?: TimetableHeader | TimetableDetail | null) => {
+      setAutoGenError(null);
+
+      const yearId =
+        sourceTimetable?.academicYearId ||
+        activeAcademicYear?.id ||
+        (allAcademicYears && allAcademicYears.length > 0 ? allAcademicYears[0].id : "");
+      setAutoAcademicYearId(yearId || "");
+
+      const targetGradeId = sourceTimetable?.gradeId || (grades.length > 0 ? grades[0].id : "");
+      setAutoGradeId(targetGradeId);
+
+      const availableSecs = sections.filter((s) => s.gradeId === targetGradeId);
+      const targetSecId =
+        sourceTimetable?.sectionId || (availableSecs.length > 0 ? availableSecs[0].id : "");
+      setAutoSectionId(targetSecId);
+
+      const targetStreamId = sourceTimetable?.streamId || "";
+      setAutoStreamId(targetStreamId);
+
+      const isDraft = sourceTimetable?.status === "DRAFT";
+      setRegeneratingDraftId(isDraft && sourceTimetable ? sourceTimetable.id : null);
+
+      const instructionalCount = periods.filter((p) => !p.isBreak).length;
+      setAutoPeriodsPerDay(instructionalCount > 0 ? instructionalCount : 6);
+      setAutoSchoolDays(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]);
+
+      await loadAutoSubjectRequirements(targetGradeId, targetSecId, targetStreamId);
+      setAutoGenDialogOpen(true);
+    },
+    [activeAcademicYear, allAcademicYears, grades, sections, periods, loadAutoSubjectRequirements]
+  );
+
+  const handleAutoGradeChange = async (gradeId: string) => {
+    setAutoGradeId(gradeId);
+    const availableSecs = sections.filter((s) => s.gradeId === gradeId);
+    const newSecId = availableSecs.length > 0 ? availableSecs[0].id : "";
+    setAutoSectionId(newSecId);
+
+    const gradeObj = grades.find((g) => g.id === gradeId);
+    const isSenior = (gradeObj?.name || "").toLowerCase().includes("11") || (gradeObj?.name || "").toLowerCase().includes("12");
+    let streamId = autoStreamId;
+    if (isSenior && !streamId && streams.length > 0) {
+      streamId = streams[0].id;
+      setAutoStreamId(streamId);
+    } else if (!isSenior) {
+      streamId = "";
+      setAutoStreamId("");
+    }
+
+    await loadAutoSubjectRequirements(gradeId, newSecId, streamId);
+  };
+
+  const handleAutoStreamChange = async (streamId: string) => {
+    setAutoStreamId(streamId);
+    await loadAutoSubjectRequirements(autoGradeId, autoSectionId, streamId);
+  };
+
+  const handleAutoSectionChange = async (sectionId: string) => {
+    setAutoSectionId(sectionId);
+    await loadAutoSubjectRequirements(autoGradeId, sectionId, autoStreamId);
+  };
+
+  const handleToggleAutoSchoolDay = (day: string) => {
+    setAutoSchoolDays((prev) => {
+      if (prev.includes(day)) {
+        if (prev.length <= 1) {
+          notifications.error("Invalid Selection", "At least one school day is required.");
+          return prev;
+        }
+        return prev.filter((d) => d !== day);
+      } else {
+        const order = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+        const next = [...prev, day];
+        return order.filter((d) => next.includes(d));
+      }
+    });
+  };
+
+  const handleUpdateSubjectLessons = (subjectId: string, delta: number) => {
+    setAutoSubjectReqs((prev) =>
+      prev.map((s) => {
+        if (s.subjectId === subjectId) {
+          const nextVal = Math.max(1, Math.min(10, s.lessonsPerWeek + delta));
+          return { ...s, lessonsPerWeek: nextVal };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleRunAutoGenerate = async () => {
+    if (!autoGradeId || !autoSectionId) {
+      notifications.error("Validation Error", "Grade and Section are mandatory.");
+      return;
+    }
+
+    const gradeObj = grades.find((g) => g.id === autoGradeId);
+    const gradeName = (gradeObj?.name || "").toLowerCase();
+    const isSenior = gradeName.includes("11") || gradeName.includes("12");
+
+    if (isSenior && !autoStreamId && streams.length > 0) {
+      notifications.error("Validation Error", "Academic Stream is required for Grades 11 and 12.");
+      return;
+    }
+
+    if (autoSchoolDays.length === 0) {
+      notifications.error("Validation Error", "Please select at least one school day.");
+      return;
+    }
+
+    if (autoSubjectReqs.length === 0) {
+      notifications.error("Validation Error", "At least one subject requirement is needed.");
+      return;
+    }
+
+    const totalReq = autoSubjectReqs.reduce((sum, s) => sum + s.lessonsPerWeek, 0);
+    const totalAvail = autoSchoolDays.length * autoPeriodsPerDay;
+    if (totalReq > totalAvail) {
+      setAutoGenError(
+        `Total requested lessons (${totalReq}) exceeds available periods (${totalAvail}). Please decrease some subject lessons or add school days/periods.`
+      );
+      return;
+    }
+
+    setAutoGenLoading(true);
+    setAutoGenError(null);
+
+    try {
+      const res = await timetableDb.generateTimetable({
+        academicYearId: autoAcademicYearId || undefined,
+        gradeId: autoGradeId,
+        sectionId: autoSectionId,
+        streamId: autoStreamId || undefined,
+        schoolDays: autoSchoolDays,
+        periodsPerDay: autoPeriodsPerDay,
+        subjectRequirements: autoSubjectReqs.map((r) => ({
+          subjectId: r.subjectId,
+          lessonsPerWeek: Number(r.lessonsPerWeek),
+        })),
+        replaceExistingDraftId: regeneratingDraftId || undefined,
+      });
+
+      notifications.success(
+        "Timetable Generated Successfully!",
+        `Scheduled ${res.summary.totalScheduled} lessons across ${res.summary.schoolDays.length} days with zero clashes.`
+      );
+
+      setAutoGenDialogOpen(false);
+
+      // Refresh list & select newly generated draft
+      const refreshed = await timetableDb.listTimetables();
+      setTimetables(refreshed);
+      if (res.timetable?.id) {
+        await handleSelectTimetable(res.timetable.id);
+      }
+    } catch (err: any) {
+      console.error("Auto generator error:", err);
+      setAutoGenError(err.message || "Failed to generate clash-free timetable.");
+      notifications.error("Generation Unsuccessful", err.message || "Unable to solve constraints.");
+    } finally {
+      setAutoGenLoading(false);
     }
   };
 
@@ -867,6 +1144,13 @@ export function TimetableManagement({
 
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
+              onClick={() => openAutoGenerateDialog()}
+              className="bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-xl shadow-lg h-10 px-4 text-xs gap-1.5 transition-all"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-100" />
+              Generate Timetable Automatically
+            </Button>
+            <Button
               onClick={() => setCreateDialogOpen(true)}
               className="bg-white text-purple-900 hover:bg-purple-50 font-bold rounded-xl shadow-md h-10 px-4 text-xs gap-1.5"
             >
@@ -1014,6 +1298,20 @@ export function TimetableManagement({
                       {activeTimetable.status === "ARCHIVED" && "📁 Archived"}
                     </Badge>
 
+                    {/* If DRAFT, offer Regenerate button */}
+                    {activeTimetable.status === "DRAFT" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openAutoGenerateDialog(activeTimetable)}
+                        disabled={actionLoading}
+                        className="h-8 px-3 rounded-xl text-xs font-bold gap-1.5 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        Regenerate
+                      </Button>
+                    )}
+
                     {/* Publish / Unpublish Action Button */}
                     <Button
                       size="sm"
@@ -1034,7 +1332,7 @@ export function TimetableManagement({
                       ) : (
                         <>
                           <Send className="w-3.5 h-3.5" />
-                          Publish to Students & Teachers
+                          Approve & Publish Live
                         </>
                       )}
                     </Button>
@@ -1083,6 +1381,59 @@ export function TimetableManagement({
           </div>
         )}
       </Card>
+
+      {/* ─── Draft Timetable Preview & Actions Banner ─────────────────────── */}
+      {viewMode === "class" && activeTimetable && activeTimetable.status === "DRAFT" && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-purple-500/10 border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-foreground">Draft Timetable Preview</span>
+                <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-bold">
+                  Unpublished
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                Existing published schedules remain active and untouched. You can preview, edit any cell in the grid, regenerate with new constraints, or approve &amp; publish this version live.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openAutoGenerateDialog(activeTimetable)}
+              disabled={actionLoading}
+              className="h-8 px-3 text-xs font-semibold rounded-xl bg-background border-border text-foreground hover:bg-muted gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              Regenerate
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRunValidation}
+              disabled={validating}
+              className="h-8 px-3 text-xs font-semibold rounded-xl bg-background border-border text-foreground hover:bg-muted gap-1.5"
+            >
+              <FileCheck2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              Validate
+            </Button>
+            <Button
+              size="sm"
+              onClick={handlePublishTimetable}
+              disabled={actionLoading}
+              className="h-8 px-3 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 shadow-xs"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Approve &amp; Publish Live
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ─── View 1: Interactive Class Weekly Timetable Grid ─────────────── */}
       {viewMode === "class" && activeTimetable && (
@@ -1826,8 +2177,8 @@ export function TimetableManagement({
                       !newGradeId
                         ? "Select Grade first"
                         : isNewGrade11or12 && !newStreamId
-                        ? "Select Stream first"
-                        : "Select Section *"
+                          ? "Select Stream first"
+                          : "Select Section *"
                     }
                   />
                 </SelectTrigger>
@@ -1887,6 +2238,319 @@ export function TimetableManagement({
               className="rounded-xl text-xs font-bold"
             >
               Create Draft Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Dialog: Automatic Timetable Generator ────────────────────── */}
+      <Dialog open={autoGenDialogOpen} onOpenChange={setAutoGenDialogOpen}>
+        <DialogContent className="rounded-3xl max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-1">
+              <Sparkles className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Constraint-Based Intelligence</span>
+            </div>
+            <DialogTitle className="text-xl font-black tracking-tight">
+              {regeneratingDraftId ? "Regenerate Timetable Automatically" : "Generate Timetable Automatically"}
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
+              Automatically builds complete clash-free weekly schedules. The generator prevents teacher double-booking,
+              section conflicts, balances workloads evenly across the week, and enforces Grade 11–12 streams.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Server Error / Impossible Schedule Notice */}
+          {autoGenError && (
+            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+              <div>
+                <p className="font-bold">Cannot Generate Timetable</p>
+                <p className="text-[11px] opacity-95 mt-0.5 leading-relaxed">{autoGenError}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Academic Year & Class Configuration */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Academic Year */}
+              <div>
+                <Label className="text-xs font-semibold mb-1.5 block">Academic Year</Label>
+                <Select
+                  value={autoAcademicYearId}
+                  onValueChange={setAutoAcademicYearId}
+                >
+                  <SelectTrigger className="rounded-xl text-xs font-semibold">
+                    <SelectValue placeholder="Select academic year..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl max-h-56">
+                    {(allAcademicYears || []).map((y) => (
+                      <SelectItem key={y.id} value={y.id} className="text-xs">
+                        {y.name} {y.isCurrent && "★ (Current)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Grade Level */}
+              <div>
+                <Label className="text-xs font-semibold mb-1.5 block">Target Grade Level *</Label>
+                <Select
+                  value={autoGradeId}
+                  onValueChange={handleAutoGradeChange}
+                >
+                  <SelectTrigger className="rounded-xl text-xs font-semibold">
+                    <SelectValue placeholder="Select grade level..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl max-h-56">
+                    {grades.map((g) => (
+                      <SelectItem key={g.id} value={g.id} className="text-xs">
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Stream (Only for Grade 11/12) */}
+              {(() => {
+                const gradeObj = grades.find((g) => g.id === autoGradeId);
+                const isSenior = (gradeObj?.name || "").toLowerCase().includes("11") || (gradeObj?.name || "").toLowerCase().includes("12");
+                if (!isSenior) return null;
+                return (
+                  <div>
+                    <Label className="text-xs font-semibold mb-1.5 block text-primary">Academic Stream * (Grade 11–12)</Label>
+                    <Select
+                      value={autoStreamId}
+                      onValueChange={handleAutoStreamChange}
+                    >
+                      <SelectTrigger className="rounded-xl text-xs font-semibold border-primary/40">
+                        <SelectValue placeholder="Select stream..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {streams.map((st) => (
+                          <SelectItem key={st.id} value={st.id} className="text-xs font-medium">
+                            {st.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })()}
+
+              {/* Section */}
+              <div>
+                <Label className="text-xs font-semibold mb-1.5 block">Section *</Label>
+                <Select
+                  value={autoSectionId}
+                  onValueChange={handleAutoSectionChange}
+                  disabled={!autoGradeId}
+                >
+                  <SelectTrigger className="rounded-xl text-xs font-semibold">
+                    <SelectValue placeholder="Select section..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl max-h-56">
+                    {sections
+                      .filter((s) => s.gradeId === autoGradeId)
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id} className="text-xs">
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* School Days Selection */}
+            <div>
+              <Label className="text-xs font-semibold mb-1.5 block">
+                Instructional School Days ({autoSchoolDays.length} days selected)
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {DAYS_OF_WEEK.map((day) => {
+                  const isSelected = autoSchoolDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => handleToggleAutoSchoolDay(day)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                          : "bg-muted/40 text-muted-foreground border-border hover:text-foreground"
+                      )}
+                    >
+                      {DAY_LABELS[day]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Daily Periods Capacity */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3 rounded-2xl bg-muted/30 border border-border">
+              <div>
+                <Label className="text-xs font-semibold mb-1 block">Instructional Periods per Day</Label>
+                <Select
+                  value={String(autoPeriodsPerDay)}
+                  onValueChange={(val) => setAutoPeriodsPerDay(Number(val))}
+                >
+                  <SelectTrigger className="rounded-xl text-xs font-semibold bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {[4, 5, 6, 7, 8].map((num) => (
+                      <SelectItem key={num} value={String(num)} className="text-xs">
+                        {num} instructional periods / day
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Live Capacity Meter */}
+              {(() => {
+                const totalReq = autoSubjectReqs.reduce((sum, s) => sum + s.lessonsPerWeek, 0);
+                const totalAvail = autoSchoolDays.length * autoPeriodsPerDay;
+                const isOver = totalReq > totalAvail;
+                return (
+                  <div className="flex flex-col justify-center">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-muted-foreground">Capacity Allocation:</span>
+                      <span className={cn("font-bold font-mono", isOver ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
+                        {totalReq} / {totalAvail} slots ({Math.round((totalReq / (totalAvail || 1)) * 100)}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all duration-300",
+                          isOver ? "bg-red-500" : totalReq === totalAvail ? "bg-emerald-500" : "bg-primary"
+                        )}
+                        style={{ width: `${Math.min(100, Math.round((totalReq / (totalAvail || 1)) * 100))}%` }}
+                      />
+                    </div>
+                    {isOver && (
+                      <span className="text-[10px] text-red-600 dark:text-red-400 font-medium mt-1">
+                        ⚠ Exceeds capacity by {totalReq - totalAvail} periods.
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Weekly Subject Lesson Requirements */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <Label className="text-xs font-semibold block">Weekly Subject Requirements</Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Adjust periods per week for each subject. The constraint solver distributes them evenly across the week.
+                  </span>
+                </div>
+                <Badge variant="outline" className="text-xs font-mono font-bold bg-primary/10 text-primary">
+                  {autoSubjectReqs.length} Subjects
+                </Badge>
+              </div>
+
+              {autoSubjectReqs.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-muted/40 border border-border text-center text-xs text-muted-foreground">
+                  No subjects found for this grade. Please select a grade and stream with assigned subjects.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {autoSubjectReqs.map((sub) => (
+                    <div
+                      key={sub.subjectId}
+                      className="p-3 rounded-2xl border border-border bg-card flex items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground truncate">{sub.subjectName}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">({sub.subjectCode})</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {sub.hasTeacher ? (
+                            <Badge className="text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-medium">
+                              ✓ {sub.teacherName}
+                            </Badge>
+                          ) : (
+                            <Badge className="text-[9px] px-1.5 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-medium">
+                              ⚠ No Teacher Assigned
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stepper */}
+                      <div className="flex items-center gap-1.5 shrink-0 bg-muted/60 p-1 rounded-xl border border-border">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSubjectLessons(sub.subjectId, -1)}
+                          disabled={sub.lessonsPerWeek <= 1}
+                          className="w-6 h-6 rounded-lg bg-background hover:bg-muted text-foreground flex items-center justify-center font-bold text-xs disabled:opacity-40 transition-colors shadow-2xs"
+                        >
+                          -
+                        </button>
+                        <span className="w-8 text-center font-bold font-mono text-xs">
+                          {sub.lessonsPerWeek}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSubjectLessons(sub.subjectId, 1)}
+                          disabled={sub.lessonsPerWeek >= 10}
+                          className="w-6 h-6 rounded-lg bg-background hover:bg-muted text-foreground flex items-center justify-center font-bold text-xs disabled:opacity-40 transition-colors shadow-2xs"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Information Banner on Non-destructive Draft generation */}
+            <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-800 dark:text-blue-300 text-[11px] flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
+              <span>
+                Safety Guarantee: The generator creates a private <strong>Draft</strong>. Your active live timetable remains published until you review and approve the new version.
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAutoGenDialogOpen(false)}
+              className="rounded-xl text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleRunAutoGenerate}
+              disabled={autoGenLoading || autoSubjectReqs.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold gap-1.5 shadow-md"
+            >
+              {autoGenLoading ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Solving Constraints...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {regeneratingDraftId ? "Regenerate Timetable" : "Generate Timetable Automatically"}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

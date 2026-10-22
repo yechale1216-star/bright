@@ -21,6 +21,7 @@ import { clearMessageCache } from "@/lib/utils/message-cache"
 
 import { PhoneInput } from "@/components/ui/phone-input"
 import { Spinner } from "@/components/ui/spinner"
+import { isSchoolStaffRole } from "@/packages/auth"
 
 interface LoginFormProps {
   onLoginSuccess: (user?: any) => void
@@ -137,8 +138,9 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
       return
     }
 
-    if (!credentials.email.includes("@")) {
-      const errorMsg = "Please enter a valid email address"
+    const cleanIdentifier = credentials.email.trim()
+    if (!cleanIdentifier) {
+      const errorMsg = "Please enter your email or phone number"
       setLoginError(errorMsg)
       notifications.error("Validation Error", errorMsg)
       return
@@ -150,7 +152,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
       await clearMessageCache().catch(() => {})
 
       const result = await authService.login({
-        email: credentials.email,
+        email: cleanIdentifier,
         password: credentials.password,
       })
 
@@ -158,7 +160,7 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
         setLoginError(null)
         notifications.success("Welcome Back!", `${result.user?.name || "User"}, you've successfully logged in.`)
 
-        const confirmedRole = result.user?.role || ""
+        const confirmedRole = (result.user?.role || "").toLowerCase()
         console.log(`[Login][STAFF] Success | userId: ${result.user?.id} | role: ${confirmedRole} | email: ${result.user?.email}`)
 
         // Set FRESH_LOGIN_KEY so validateSession preserves this confirmed role
@@ -169,16 +171,13 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
         // Run validateSession AFTER marking fresh login so the role is preserved
         await validateSession()
 
-        // STAFF PORTAL FIX: When logging in via the school (email/password) portal,
-        // only consider staff-type memberships (admin, teacher, etc.) — NOT parent roles.
-        // This prevents showing the role selection screen when a user is both admin and parent
-        // at the same school, since they explicitly chose the school staff portal.
-        if (confirmedRole === "super_admin" || confirmedRole === "admin" || confirmedRole === "school_admin") {
+        // Route to designated dashboard according to role
+        if (confirmedRole === "super_admin" || confirmedRole === "admin" || confirmedRole === "school_admin" || confirmedRole === "school-admin") {
           console.log(`[Login][STAFF] Redirecting admin —> /school/admin`)
           router.push("/school/admin")
         } else if (confirmedRole === "academic_head") {
           router.push("/school/academic-head")
-        } else if (confirmedRole === "teacher") {
+        } else if (confirmedRole === "teacher" || confirmedRole === "subject_teacher" || confirmedRole === "highschol_teachers") {
           console.log(`[Login][STAFF] Redirecting teacher —> /school/teacher`)
           router.push("/school/teacher")
         } else if (confirmedRole === "librarian") {
@@ -191,6 +190,8 @@ export function LoginForm({ onLoginSuccess, onShowForgotPassword, onShowParentFo
           router.push("/school/registrar")
         } else if (confirmedRole === "discipline_officer") {
           router.push("/school/discipline-officer")
+        } else if (confirmedRole === "staff" || isSchoolStaffRole(confirmedRole)) {
+          router.push("/school/staff")
         } else {
           console.warn(`[Login][STAFF] Navigating with role '${confirmedRole}'`)
           onLoginSuccess(result.user)

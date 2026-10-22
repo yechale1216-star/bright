@@ -282,3 +282,60 @@ export const getClassrooms = async (_req: AuthenticatedRequest, res: Response, n
     next(err);
   }
 };
+
+export const generateTimetable = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const {
+      academicYearId,
+      termId,
+      gradeId,
+      sectionId,
+      streamId,
+      schoolDays,
+      periodsPerDay,
+      subjectRequirements,
+      replaceExistingDraftId,
+      title,
+    } = req.body;
+
+    if (!gradeId || !sectionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Grade Level and Section are required for automatic timetable generation.',
+      });
+    }
+
+    const result = await timetableService.generateTimetableAutomatic({
+      academicYearId,
+      termId,
+      gradeId,
+      sectionId,
+      streamId,
+      schoolDays,
+      periodsPerDay: periodsPerDay ? Number(periodsPerDay) : undefined,
+      subjectRequirements,
+      replaceExistingDraftId,
+      createdById: req.user?.id,
+      title,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Timetable generated successfully with ${result.summary.totalScheduled} scheduled periods.`,
+      data: result,
+    });
+  } catch (err: any) {
+    if (
+      err.message?.includes('Impossible') ||
+      err.message?.includes('Missing Teacher') ||
+      err.message?.includes('exceeds available') ||
+      err.message?.includes('No subjects')
+    ) {
+      return res.status(422).json({
+        success: false,
+        message: err.message,
+      });
+    }
+    next(err);
+  }
+};

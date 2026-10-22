@@ -46,7 +46,7 @@ export default function SchoolPortalHomePage() {
           router.replace("/school/academic-head")
           return
         }
-        if (role === "teacher") {
+        if (role === "teacher" || role === "subject_teacher" || role === "highschol_teachers") {
           router.replace("/school/teacher")
           return
         }

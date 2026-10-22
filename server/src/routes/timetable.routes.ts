@@ -19,6 +19,7 @@ router.get('/teacher/:teacherId', authorize(ALL_PORTAL_ROLES), timetableControll
 
 // Management endpoints
 router.post('/check-conflict', authorize(ACADEMIC_MANAGERS), timetableController.checkConflict);
+router.post('/generate', authorize(ACADEMIC_MANAGERS), timetableController.generateTimetable);
 router.post('/', authorize(ACADEMIC_MANAGERS), timetableController.createTimetable);
 
 router.get('/:id', authorize(ALL_PORTAL_ROLES), timetableController.getTimetableById);

@@ -617,14 +617,31 @@ export const getTimetable = async (req: AuthenticatedRequest, res: Response, nex
     const userId = req.user!.id;
     const student = await getStudentByUserId(userId);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    const slots = await prisma.timetableSlot.findMany({
-      where: { gradeId: student.gradeId, sectionId: student.sectionId, isCancelled: false, timetable: { status: 'PUBLISHED' } },
-      orderBy: [{ dayOfWeek: 'asc' }, { periodNumber: 'asc' }],
-      include: { subject: true, teacher: true, classroom: true },
+    // Find the single active published timetable for this student's class
+    const activeTimetable = await prisma.timetable.findFirst({
+      where: {
+        gradeId: student.gradeId,
+        sectionId: student.sectionId,
+        status: 'PUBLISHED',
+      },
+      orderBy: [{ publishedAt: 'desc' }, { updatedAt: 'desc' }],
+      select: { id: true },
     });
+
     const dayOrder = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
     const grouped: Record<string, any[]> = {};
     for (const day of dayOrder) grouped[day] = [];
+
+    if (!activeTimetable) {
+      return res.status(200).json({ success: true, data: { grade: student.grade?.name, section: student.section?.name, schedule: grouped } });
+    }
+
+    const slots = await prisma.timetableSlot.findMany({
+      where: { timetableId: activeTimetable.id, isCancelled: false },
+      orderBy: [{ dayOfWeek: 'asc' }, { periodNumber: 'asc' }],
+      include: { subject: true, teacher: true, classroom: true },
+    });
+
     for (const slot of slots) {
       const day = slot.dayOfWeek.toUpperCase();
       if (!grouped[day]) grouped[day] = [];

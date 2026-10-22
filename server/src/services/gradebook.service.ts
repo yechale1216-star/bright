@@ -82,45 +82,13 @@ export class GradebookService {
   }
 
   /**
-   * Ensure standard Ethiopian curriculum subjects exist (13 subjects from official report card)
+   * Return all active subjects from the database.
    */
   async ensureSubjects() {
-    let subjects = await prisma.subject.findMany({
+    const subjects = await prisma.subject.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
-
-    if (subjects.length === 0) {
-      const defaultSubjects = [
-        { name: 'Amharic', code: 'AMH', color: '#10b981' },
-        { name: 'English', code: 'ENG', color: '#3b82f6' },
-        { name: 'Maths', code: 'MTH', color: '#6366f1' },
-        { name: 'Phy. Edu.', code: 'PED', color: '#f59e0b' },
-        { name: 'Physics', code: 'PHY', color: '#8b5cf6' },
-        { name: 'Chemistry', code: 'CHM', color: '#ec4899' },
-        { name: 'Biology', code: 'BIO', color: '#14b8a6' },
-        { name: 'History', code: 'HIS', color: '#f97316' },
-        { name: 'Geography', code: 'GEO', color: '#06b6d4' },
-        { name: 'Inform. Tech.', code: 'ICT', color: '#0ea5e9' },
-        { name: 'Citizenship', code: 'CIT', color: '#84cc16' },
-        { name: 'Economics', code: 'ECN', color: '#eab308' },
-        { name: 'PVA', code: 'PVA', color: '#d946ef' },
-      ];
-
-      for (const subj of defaultSubjects) {
-        await prisma.subject.upsert({
-          where: { code: subj.code },
-          update: {},
-          create: subj,
-        });
-      }
-
-      subjects = await prisma.subject.findMany({
-        where: { isActive: true },
-        orderBy: { name: 'asc' },
-      });
-    }
-
     return subjects;
   }
 
@@ -1668,31 +1636,7 @@ export class GradebookService {
     // Ensure Standard Subjects
     const allSubjects = await this.ensureSubjects();
 
-    // Standard high school order
-    const standardOrder = [
-      'Amharic',
-      'English',
-      'Maths',
-      'Phy. Edu.',
-      'Physics',
-      'Chemistry',
-      'Biology',
-      'History',
-      'Geography',
-      'Inform. Tech.',
-      'Citizenship',
-      'Economics',
-      'PVA',
-    ];
-
-    const sortedSubjects = [...allSubjects].sort((a, b) => {
-      const idxA = standardOrder.findIndex((s) => s.toLowerCase() === a.name.toLowerCase() || a.name.toLowerCase().includes(s.toLowerCase()));
-      const idxB = standardOrder.findIndex((s) => s.toLowerCase() === b.name.toLowerCase() || b.name.toLowerCase().includes(s.toLowerCase()));
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.name.localeCompare(b.name);
-    });
+    const sortedSubjects = [...allSubjects].sort((a, b) => a.name.localeCompare(b.name));
 
     // Fetch assessments & marks for student
     const assessments = await prisma.assessment.findMany({

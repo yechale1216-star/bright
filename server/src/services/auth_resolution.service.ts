@@ -70,6 +70,13 @@ export const resolveRoleInSchool = async (userId: string, _schoolId?: string, re
       if (user) return user.role;
     }
 
+    if (requestedRole === 'staff') {
+      const user = await prisma.user.findFirst({
+        where: { id: userId, role: { notIn: ['student', 'parent'] }, is_active: true }
+      });
+      if (user) return user.role;
+    }
+
     const staffRoles = [
       'staff',
       'staff_member',
@@ -79,11 +86,14 @@ export const resolveRoleInSchool = async (userId: string, _schoolId?: string, re
       'librarian',
       'transport_manager',
       'staff_attendance_officer',
-      'hr_officer'
+      'hr_officer',
+      'subject_teacher',
+      'highschol_teachers',
+      'labrotory',
     ];
     if (staffRoles.includes(requestedRole)) {
       const user = await prisma.user.findFirst({
-        where: { id: userId, role: { in: requestedRole === 'staff' ? ['staff', 'staff_member'] : [requestedRole] } }
+        where: { id: userId, role: requestedRole, is_active: true }
       });
       if (user) return user.role;
     }

@@ -25,7 +25,40 @@ export const getUserByEmail = async (email: string) => {
 
 /** Fetch full user record including password_hash (internal auth use only) */
 export const getUserByEmailWithPassword = async (email: string) => {
-  return await prisma.user.findUnique({ where: { email } });
+  return await prisma.user.findFirst({
+    where: { email: { equals: email.trim(), mode: 'insensitive' } }
+  });
+};
+
+/** Fetch full user record by email, phone, or teacher_id including password_hash */
+export const getUserByIdentifierWithPassword = async (identifier: string) => {
+  const clean = identifier.trim();
+  const cleanDigits = clean.replace(/[^0-9+]/g, '');
+  const phoneVariants: string[] = [clean, cleanDigits];
+
+  if (cleanDigits.startsWith('09')) {
+    phoneVariants.push('+251' + cleanDigits.slice(1));
+  } else if (cleanDigits.startsWith('9') && cleanDigits.length === 9) {
+    phoneVariants.push('+251' + cleanDigits);
+    phoneVariants.push('0' + cleanDigits);
+  } else if (cleanDigits.startsWith('+251')) {
+    phoneVariants.push('0' + cleanDigits.slice(4));
+  } else if (cleanDigits.startsWith('251')) {
+    phoneVariants.push('+' + cleanDigits);
+    phoneVariants.push('0' + cleanDigits.slice(3));
+  }
+
+  const validPhones = Array.from(new Set(phoneVariants.filter(p => p && p.length >= 8)));
+
+  return await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { equals: clean, mode: 'insensitive' } },
+        ...(validPhones.length > 0 ? [{ phone: { in: validPhones } }] : []),
+        { teacher_id: clean },
+      ]
+    }
+  });
 };
 
 export const getUserById = async (id: string, _schoolId?: string) => {

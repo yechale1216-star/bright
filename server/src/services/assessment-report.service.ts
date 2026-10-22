@@ -232,10 +232,9 @@ export class AssessmentReportService {
         gradeName: lowestCandidate.gradeName,
       };
     } else {
-      // Default clean presentation when no marks are entered yet
-      averageSubjectScore = 76.4;
-      highestSubject = { name: 'Mathematics', score: 98, gradeName: 'Grade 10' };
-      lowestSubject = { name: 'Civics', score: 42, gradeName: 'Grade 9' };
+      averageSubjectScore = 0;
+      highestSubject = null;
+      lowestSubject = null;
     }
 
     // 6. Result Distribution across GradingScale bands
@@ -247,7 +246,7 @@ export class AssessmentReportService {
       }
     });
 
-    const totalStudents = studentAverages.length > 0 ? studentAverages.length : 1248; // fallback realistic count if empty
+    const totalStudents = studentAverages.length;
 
     const distributionBands = bandsConfig.map((band) => {
       let count = 0;
@@ -255,15 +254,8 @@ export class AssessmentReportService {
         count = studentAverages.filter(
           (score) => score >= band.minScore && (score <= band.maxScore || band.maxScore === 100)
         ).length;
-      } else {
-        // Representative defaults from reference UI
-        if (band.name.toLowerCase().includes('excel') || band.minScore >= 90) count = 349;
-        else if (band.name.toLowerCase().includes('very') || band.minScore >= 80) count = 424;
-        else if (band.name.toLowerCase().includes('good') || band.minScore >= 70) count = 274;
-        else if (band.name.toLowerCase().includes('satis') || band.minScore >= 60) count = 125;
-        else count = 76;
       }
-      const percentage = Math.round((count / totalStudents) * 100);
+      const percentage = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
       return {
         ...band,
         count,
@@ -288,28 +280,16 @@ export class AssessmentReportService {
       subjectPerformance,
     });
 
-    // 9. Standard subject performance fallback if empty
-    const finalSubjectPerformance = subjectPerformance.length > 0
-      ? subjectPerformance
-      : [
-          { subjectId: '1', subjectName: 'Mathematics', subjectCode: 'MATH', averageScore: 82, studentCount: 320, highestScore: 98, lowestScore: 54, gradeName: 'Grade 9-10' },
-          { subjectId: '2', subjectName: 'Physics', subjectCode: 'PHYS', averageScore: 76, studentCount: 310, highestScore: 95, lowestScore: 48, gradeName: 'Grade 9-10' },
-          { subjectId: '3', subjectName: 'Chemistry', subjectCode: 'CHEM', averageScore: 71, studentCount: 295, highestScore: 92, lowestScore: 40, gradeName: 'Grade 9-10' },
-          { subjectId: '4', subjectName: 'Biology', subjectCode: 'BIOL', averageScore: 78, studentCount: 315, highestScore: 96, lowestScore: 50, gradeName: 'Grade 9-10' },
-          { subjectId: '5', subjectName: 'English', subjectCode: 'ENGL', averageScore: 85, studentCount: 340, highestScore: 99, lowestScore: 62, gradeName: 'All Grades' },
-          { subjectId: '6', subjectName: 'History', subjectCode: 'HIST', averageScore: 68, studentCount: 280, highestScore: 88, lowestScore: 38, gradeName: 'Grade 9-10' },
-        ];
-
     return {
       summary: {
-        totalSubjects: allSubjectsCount || finalSubjectPerformance.length || 48,
+        totalSubjects: allSubjectsCount || subjectPerformance.length,
         averageSubjectScore,
         highestSubject,
         lowestSubject,
         totalStudentsAssessed: allAssessedStudentIds.size || totalStudents,
-        completeAndPublishedResults: completeAndPublishedResults || 24,
+        completeAndPublishedResults,
       },
-      subjectPerformance: finalSubjectPerformance,
+      subjectPerformance,
       distribution: {
         totalResults: totalStudents,
         bands: distributionBands,

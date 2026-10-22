@@ -13,21 +13,7 @@ export { SCHOOL_STAFF_ROLES, STUDENT_PARENT_ROLES, type UserRole } from "../type
 export function isSchoolStaffRole(role?: string | null): boolean {
   if (!role) return false;
   const normalized = role.toLowerCase().trim();
-  return (
-    normalized === "admin" ||
-    normalized === "school_admin" ||
-    normalized === "school-admin" ||
-    normalized === "super_admin" ||
-    normalized === "academic_head" ||
-    normalized === "teacher" ||
-    normalized === "librarian" ||
-    normalized === "transport_manager" ||
-    normalized === "staff_attendance_officer" ||
-    normalized === "hr_officer" ||
-    normalized === "registrar" ||
-    normalized === "discipline_officer" ||
-    normalized === "staff"
-  );
+  return Boolean(normalized && normalized !== "student" && normalized !== "parent");
 }
 
 /**

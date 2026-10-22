@@ -110,6 +110,38 @@ export interface TimetableValidationResult {
   }>;
 }
 
+export interface GenerateTimetableParams {
+  academicYearId?: string;
+  termId?: string;
+  gradeId: string;
+  sectionId: string;
+  streamId?: string;
+  schoolDays?: string[];
+  periodsPerDay?: number;
+  subjectRequirements?: Array<{ subjectId: string; lessonsPerWeek: number }>;
+  replaceExistingDraftId?: string;
+  title?: string;
+}
+
+export interface GenerateTimetableResponse {
+  timetable: TimetableDetail;
+  summary: {
+    totalRequested: number;
+    totalScheduled: number;
+    schoolDays: string[];
+    periodsPerDay: number;
+    distribution: Array<{
+      subjectId: string;
+      subjectName: string;
+      teacherName: string;
+      lessonsScheduled: number;
+      lessonsRequested: number;
+    }>;
+  };
+  warnings: string[];
+  validation: TimetableValidationResult;
+}
+
 class TimetableDatabase {
   private getHeaders(): Record<string, string> {
     const token = typeof window !== "undefined" ? localStorage.getItem("attendance_token") : null;
@@ -295,6 +327,24 @@ class TimetableDatabase {
       return res.data;
     }
     throw new Error(res?.message || "Failed to duplicate timetable.");
+  }
+
+  async generateTimetable(params: GenerateTimetableParams): Promise<GenerateTimetableResponse> {
+    const res = await apiFetch<{ success: boolean; data: GenerateTimetableResponse; message?: string }>(
+      `${API_URL}/api/timetables/generate`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(params),
+      }
+    );
+    if (res?.success && res.data) {
+      if (res.data.timetable) {
+        this.saveCachedTimetable(res.data.timetable);
+      }
+      return res.data;
+    }
+    throw new Error(res?.message || "Failed to automatically generate timetable.");
   }
 
   async checkConflict(params: {

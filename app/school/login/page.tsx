@@ -10,16 +10,7 @@ import { useAuth } from "@/lib/context/auth-context";
 import { notifications } from "@/lib/utils/notifications";
 import { clearMessageCache } from "@/lib/utils/message-cache";
 
-// Roles allowed in the School Portal
-const SCHOOL_STAFF_ROLES = [
-  "admin",
-  "school_admin",
-  "super_admin",
-  "teacher",
-  "registrar",
-  "discipline_officer",
-  "staff",
-];
+import { isSchoolStaffRole } from "@/packages/auth";
 
 function SchoolLoginContent() {
   const router = useRouter();
@@ -39,9 +30,13 @@ function SchoolLoginContent() {
     const user = authStorage.getUser();
     if (token && user) {
       const role = (user.role || "").toLowerCase();
-      if (SCHOOL_STAFF_ROLES.includes(role)) {
+      if (isSchoolStaffRole(role)) {
         if (role === "admin" || role === "school_admin" || role === "super_admin") router.replace("/school/admin");
-        else if (role === "teacher") router.replace("/school/teacher");
+        else if (role === "academic_head") router.replace("/school/academic-head");
+        else if (role === "teacher" || role === "subject_teacher" || role === "highschol_teachers") router.replace("/school/teacher");
+        else if (role === "librarian") router.replace("/school/library");
+        else if (role === "transport_manager") router.replace("/school/transport");
+        else if (role === "staff_attendance_officer" || role === "hr_officer") router.replace("/school/staff-hr");
         else if (role === "registrar") router.replace("/school/registrar");
         else if (role === "discipline_officer") router.replace("/school/discipline-officer");
         else router.replace("/school/staff");
@@ -71,7 +66,7 @@ function SchoolLoginContent() {
       if (result.success && result.user) {
         const role = (result.user.role || "").toLowerCase();
         // SECURITY: Block non-staff from School Portal
-        if (!SCHOOL_STAFF_ROLES.includes(role as any)) {
+        if (!isSchoolStaffRole(role)) {
           setLoginError("Invalid credentials.");
           authStorage.clearSession().catch(() => {});
           return;
@@ -82,7 +77,7 @@ function SchoolLoginContent() {
         await validateSession();
         if (role === "admin" || role === "school_admin" || role === "super_admin") router.push("/school/admin");
         else if (role === "academic_head") router.push("/school/academic-head");
-        else if (role === "teacher") router.push("/school/teacher");
+        else if (role === "teacher" || role === "subject_teacher" || role === "highschol_teachers") router.push("/school/teacher");
         else if (role === "librarian") router.push("/school/library");
         else if (role === "transport_manager") router.push("/school/transport");
         else if (role === "staff_attendance_officer" || role === "hr_officer") router.push("/school/staff-hr");

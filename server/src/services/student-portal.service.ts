@@ -480,15 +480,6 @@ export class StudentPortalService {
       };
     });
 
-    // Fallback recent marks matching UI reference if none entered yet
-    const displayRecentMarks = formattedRecentMarks.length > 0 ? formattedRecentMarks : [
-      { id: '1', subject: 'Mathematics', assessment: 'Midterm', score: '85/100', grade: 'A', date: new Date() },
-      { id: '2', subject: 'Physics', assessment: 'Final', score: '78/100', grade: 'B+', date: new Date() },
-      { id: '3', subject: 'English', assessment: 'Test', score: '92/100', grade: 'A+', date: new Date() },
-      { id: '4', subject: 'Chemistry', assessment: 'Quiz', score: '88/100', grade: 'A', date: new Date() },
-      { id: '5', subject: 'Biology', assessment: 'Assignment', score: '84/100', grade: 'A-', date: new Date() },
-    ];
-
     // 5. Announcements preview
     const announcements = await prisma.parentNotification.findMany({
       where: {
@@ -515,21 +506,15 @@ export class StudentPortalService {
       academicYear: currentAcademicYearName,
       stats: {
         overallAverage,
-        averageTrend: '+2.3%',
+        averageTrend: null,
         attendancePercentage,
         attendanceStatus: attendancePercentage >= 90 ? 'Excellent' : attendancePercentage >= 75 ? 'Good' : 'Needs Improvement',
-        presentDays: presentCount || 26,
-        absentDays: absentCount || 2,
-        lateDays: lateCount || 1,
+        presentDays: presentCount,
+        absentDays: absentCount,
+        lateDays: lateCount,
       },
-      todayTimetable: formattedTodaySlots.length > 0 ? formattedTodaySlots : [
-        { id: 't1', time: '08:30 - 09:15', subject: 'Mathematics', teacher: 'W/ro. Sara Y.', room: 'Room 102' },
-        { id: 't2', time: '09:15 - 10:00', subject: 'Physics', teacher: 'Ato Abebe K.', room: 'Room 102' },
-        { id: 't3', time: '10:30 - 11:15', subject: 'English', teacher: 'W/ro. Selam B.', room: 'Room 101' },
-        { id: 't4', time: '12:00 - 01:00', subject: 'Chemistry', teacher: 'W/ro. Mihret A.', room: 'Room 201' },
-        { id: 't5', time: '02:00 - 03:00', subject: 'Biology', teacher: 'Ato Getachew T.', room: 'Room 204' },
-      ],
-      recentMarks: displayRecentMarks,
+      todayTimetable: formattedTodaySlots,
+      recentMarks: formattedRecentMarks,
       announcements: announcements.map((a) => ({
         id: a.id,
         title: a.title,
@@ -723,28 +708,12 @@ export class StudentPortalService {
     if (formattedMarks.length > 0) {
       const sum = formattedMarks.reduce((acc, curr) => acc + ((curr.score ?? 0) / curr.maxScore) * 100, 0);
       overallAverage = Math.round((sum / formattedMarks.length) * 10) / 10;
-    } else {
-      overallAverage = 82.6;
     }
 
-    // Fallback records matching reference UI if no marks yet
-    const displayMarks = formattedMarks.length > 0 ? formattedMarks : [
-      { id: '1', subject: 'Mathematics', assessment: 'Midterm', score: 85, maxScore: 100, scoreDisplay: '85/100', grade: 'A', date: new Date() },
-      { id: '2', subject: 'Mathematics', assessment: 'Final', score: 88, maxScore: 100, scoreDisplay: '88/100', grade: 'A', date: new Date() },
-      { id: '3', subject: 'Physics', assessment: 'Midterm', score: 78, maxScore: 100, scoreDisplay: '78/100', grade: 'B+', date: new Date() },
-      { id: '4', subject: 'Physics', assessment: 'Final', score: 82, maxScore: 100, scoreDisplay: '82/100', grade: 'A-', date: new Date() },
-      { id: '5', subject: 'English', assessment: 'Midterm', score: 92, maxScore: 100, scoreDisplay: '92/100', grade: 'A+', date: new Date() },
-      { id: '6', subject: 'English', assessment: 'Final', score: 90, maxScore: 100, scoreDisplay: '90/100', grade: 'A', date: new Date() },
-      { id: '7', subject: 'Chemistry', assessment: 'Midterm', score: 88, maxScore: 100, scoreDisplay: '88/100', grade: 'A', date: new Date() },
-      { id: '8', subject: 'Chemistry', assessment: 'Final', score: 86, maxScore: 100, scoreDisplay: '86/100', grade: 'A', date: new Date() },
-      { id: '9', subject: 'Biology', assessment: 'Midterm', score: 80, maxScore: 100, scoreDisplay: '80/100', grade: 'A-', date: new Date() },
-      { id: '10', subject: 'Biology', assessment: 'Final', score: 84, maxScore: 100, scoreDisplay: '84/100', grade: 'A-', date: new Date() },
-    ];
-
     return {
-      marks: displayMarks,
+      marks: formattedMarks,
       overallAverage,
-      totalAssessments: displayMarks.length,
+      totalAssessments: formattedMarks.length,
       gradeLetter: calculateLetterGrade(overallAverage, scales),
     };
   }
