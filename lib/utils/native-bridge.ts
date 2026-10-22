@@ -75,8 +75,8 @@ export const NativeBridge = {
       }
     }
     try {
-      if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.lock === 'function') {
-        await screen.orientation.lock('landscape').catch(() => {});
+      if (typeof screen !== 'undefined' && screen.orientation && typeof (screen.orientation as any).lock === 'function') {
+        await (screen.orientation as any).lock('landscape').catch(() => {});
       }
     } catch {
       // Screen orientation lock not supported on standard desktop browser without user gesture
