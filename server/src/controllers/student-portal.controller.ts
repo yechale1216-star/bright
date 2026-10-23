@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import prisma from '../config/db';
 import { generateToken } from '../utils/jwt';
 import * as smsService from '../services/sms.service';
+import * as userService from '../services/user.service';
 import { validatePassword } from '../utils/password-validator';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
@@ -465,22 +466,151 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response, next:
     const userId = req.user!.id;
     const student = await prisma.student.findFirst({
       where: { user_id: userId },
-      include: { grade: true, section: true, stream: true, academicRecords: { include: { academicYear: true }, orderBy: { enrolledAt: 'desc' }, take: 1 } },
+      include: {
+        grade: true,
+        section: true,
+        stream: true,
+        academicRecords: {
+          include: {
+            academicYear: true,
+            grade: true,
+            section: true,
+            stream: true,
+          },
+          orderBy: { enrolledAt: 'desc' },
+        },
+      },
     });
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, profile_photo: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, phone: true, profile_photo: true },
+    });
+
+    const activeRecord = student.academicRecords[0];
+
+    const basicInfo = {
+      fullName: student.fullName,
+      studentId: student.student_id,
+      grade: student.grade?.name || '',
+      section: student.section?.name || '',
+      stream: student.stream?.name || null,
+      academicYear: activeRecord?.academicYear?.name || '',
+      dateOfBirth: student.date_of_birth,
+      gender: student.gender,
+      phone: user?.phone || student.parent_phone || '',
+      address: student.address || '',
+      status: student.status,
+      photo: user?.profile_photo || null,
+      email: user?.email || null,
+    };
+
+    const academicHistory = student.academicRecords.length > 0
+      ? student.academicRecords.map((r, idx) => ({
+          id: r.id || `h-${idx}`,
+          year: r.academicYear?.name || 'Academic Year',
+          grade: r.grade?.name ? `Grade ${r.grade.name}` : student.grade?.name ? `Grade ${student.grade.name}` : '',
+          section: r.section?.name ? `Section ${r.section.name}` : student.section?.name ? `Section ${student.section.name}` : '',
+          stream: r.stream?.name || student.stream?.name || 'General',
+          status: r.status || (idx === 0 ? 'CURRENT' : 'PROMOTED'),
+        }))
+      : [
+          {
+            id: 'current-rec',
+            year: activeRecord?.academicYear?.name || 'Current Year',
+            grade: student.grade?.name ? `Grade ${student.grade.name}` : 'Grade 12',
+            section: student.section?.name ? `Section ${student.section.name}` : 'Section A',
+            stream: student.stream?.name || 'General',
+            status: 'CURRENT',
+          },
+        ];
+
+    const contactInfo = {
+      parentName: student.parent_name,
+      parentPhone: student.parent_phone,
+      parentEmail: student.parent_email,
+      address: student.address || '',
+    };
+
     return res.status(200).json({
       success: true,
       data: {
-        id: student.id, student_id: student.student_id, fullName: student.fullName, gender: student.gender,
-        date_of_birth: student.date_of_birth, address: student.address, grade: student.grade?.name || '',
-        section: student.section?.name || '', stream: student.stream?.name || null, parent_name: student.parent_name,
-        parent_phone: student.parent_phone, parent_email: student.parent_email, photo: user?.profile_photo || null,
-        email: user?.email || null, status: student.status, academicYear: student.academicRecords[0]?.academicYear?.name || '',
-        enrolledAt: student.academicRecords[0]?.enrolledAt || student.createdAt,
+        id: student.id,
+        student_id: student.student_id,
+        fullName: student.fullName,
+        gender: student.gender,
+        date_of_birth: student.date_of_birth,
+        address: student.address,
+        grade: student.grade?.name || '',
+        section: student.section?.name || '',
+        stream: student.stream?.name || null,
+        parent_name: student.parent_name,
+        parent_phone: student.parent_phone,
+        parent_email: student.parent_email,
+        photo: user?.profile_photo || null,
+        email: user?.email || null,
+        phone: user?.phone || null,
+        status: student.status,
+        academicYear: activeRecord?.academicYear?.name || '',
+        enrolledAt: activeRecord?.enrolledAt || student.createdAt,
+        basicInfo,
+        academicHistory,
+        contactInfo,
       },
     });
   } catch (err) { next(err); }
+};
+
+export const updateProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const student = await getStudentByUserId(userId);
+    if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
+
+    const { address, photo, phone } = req.body;
+
+    if (address !== undefined) {
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { address: address ? String(address).trim() : null },
+      });
+    }
+
+    const userUpdates: any = {};
+    if (photo !== undefined) userUpdates.profile_photo = photo;
+    if (phone !== undefined) userUpdates.phone = phone ? String(phone).trim() : null;
+
+    if (Object.keys(userUpdates).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: userUpdates,
+      });
+    }
+
+    return res.status(200).json({ success: true, message: 'Profile updated successfully.' });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, message: err?.message || 'Failed to update profile.' });
+  }
+};
+
+export const changePassword = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+    }
+
+    const val = validatePassword(newPassword);
+    if (!val.isValid) {
+      return res.status(400).json({ success: false, message: val.error || 'Password does not meet security requirements.' });
+    }
+
+    await userService.changePassword(userId, currentPassword, newPassword);
+    return res.status(200).json({ success: true, message: 'Password updated successfully.' });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, message: err?.message || 'Failed to update password.' });
+  }
 };
 
 // ─── CLASSES ─────────────────────────────────────────────────────────────────

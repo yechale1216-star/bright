@@ -20,6 +20,8 @@ router.use(authorize(['student']));
 
 router.get('/dashboard', studentPortalController.getDashboard);
 router.get('/profile', studentPortalController.getProfile);
+router.put('/profile', studentPortalController.updateProfile);
+router.post('/change-password', studentPortalController.changePassword);
 router.get('/classes', studentPortalController.getClasses);
 router.get('/marks', studentPortalController.getMarks);
 router.get('/attendance', studentPortalController.getAttendance);

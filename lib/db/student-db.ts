@@ -214,6 +214,46 @@ class StudentDatabase {
     );
   }
 
+  async updateProfile(payload: { address?: string; phone?: string; photo?: string }): Promise<any> {
+    const res = await apiFetch<{ success: boolean; message: string }>(
+      `${API_URL}/api/student/profile`,
+      {
+        method: "PUT",
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      }
+    );
+    queryCache.invalidate("student_profile_details");
+    queryCache.invalidate("student_dashboard_overview");
+
+    // Also update localStorage session if photo or phone changed
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("attendance_current_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (payload.photo !== undefined) parsed.profile_photo = payload.photo;
+          if (payload.phone !== undefined) parsed.phone = payload.phone;
+          localStorage.setItem("attendance_current_user", JSON.stringify(parsed));
+          window.dispatchEvent(new Event("userSessionChanged"));
+        }
+      } catch {}
+    }
+    return res;
+  }
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<any> {
+    const res = await apiFetch<{ success: boolean; message: string }>(
+      `${API_URL}/api/student/change-password`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }
+    );
+    return res;
+  }
+
   // ─── CLASSES ─────────────────────────────────────────────────────────────────
 
   async getClasses(): Promise<any[]> {
