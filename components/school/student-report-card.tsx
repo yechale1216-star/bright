@@ -118,7 +118,7 @@ export function StudentReportCardFront({
               </div>
               <div className="mt-1.5">
                 <span className="inline-block text-xs sm:text-sm font-bold tracking-wider text-slate-900 border-b border-slate-700 pb-0.5 uppercase">
-                  Student&apos;s Grade Report • የውጤት መግለጫ (ገጽ 1)
+                  Student&apos;s Grade Report
                 </span>
               </div>
             </div>
