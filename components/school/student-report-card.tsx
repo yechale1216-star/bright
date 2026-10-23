@@ -190,12 +190,6 @@ export function StudentReportCardFront({
                 <span className="font-semibold text-slate-600">Year : </span>
                 <span className="font-bold text-slate-900">{academic.academicYearName}</span>
               </div>
-              {academic.academicTermName && (
-                <div>
-                  <span className="font-semibold text-slate-600">Term : </span>
-                  <span className="font-bold text-slate-900">{academic.academicTermName}</span>
-                </div>
-              )}
               <div>
                 <span className="font-semibold text-slate-600">Student ID : </span>
                 <span className="font-mono font-bold text-slate-900">{student.studentId}</span>
@@ -661,10 +655,6 @@ export function StudentReportCardBack({
               <span className="font-bold text-emerald-800">{academic.streamName}</span>
             </div>
           )}
-          <div>
-            <span className="font-semibold text-slate-600">Term: </span>
-            <span className="font-bold text-slate-900">{academic.academicTermName}</span>
-          </div>
           <div>
             <span className="font-semibold text-slate-600">Academic Year: </span>
             <span className="font-bold text-slate-900">{academic.academicYearName}</span>
