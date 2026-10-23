@@ -440,6 +440,29 @@ export function EducationalVideoPlayer({
               onError={() => setIframeError(true)}
             />
 
+            {/*
+              YouTube Branding Click Blocker:
+              Disables clicking the YouTube logo link in the bottom-right of the embedded player,
+              preventing users from navigating to YouTube, while keeping fullscreen and all other
+              controls completely responsive and functional.
+            */}
+            <div
+              className="absolute bottom-0 right-10 sm:right-12 w-20 sm:w-24 h-11 sm:h-12 z-20 cursor-default pointer-events-auto"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              aria-hidden="true"
+            />
+
             {/* YouTube Fullscreen Helper Overlay (Ensures mobile users get 1-tap Landscape Fullscreen) */}
             <div
               className={cn(
@@ -830,22 +853,13 @@ export function EducationalVideoPlayer({
         )}
       </div>
 
-      {/* External Action link below the player (only in normal view) */}
-      {!isFullscreen && showExternalAction && watchUrl && isYouTube && (
+      {/* Educational Video Mode status indicator below the player (only in normal view) */}
+      {!isFullscreen && showExternalAction && isYouTube && (
         <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1 pt-1">
           <span className="flex items-center gap-1 text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             Educational Video Mode
           </span>
-          <a
-            href={watchUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline"
-          >
-            <ExternalLink className="w-3 h-3" />
-            Watch directly on YouTube
-          </a>
         </div>
       )}
     </div>
