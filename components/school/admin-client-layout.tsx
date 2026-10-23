@@ -92,13 +92,46 @@ export default function SchoolAdminClientLayout({
     setSidebarOpen(false)
   }, [pathname])
 
+  const isItemActive = (item: NavItem) => {
+    if (!pathname) return false;
+
+    // 1. Root / Dashboard page: EXACT match only
+    // Ensures '/school/admin' does NOT stay active when on '/school/admin/report-cards', etc.
+    if (item.href === '/school/admin') {
+      return pathname === '/school/admin';
+    }
+
+    // 2. Parent item with children (e.g. Assessments):
+    // Active ONLY when the current route belongs to this section or any of its children
+    if (item.children && item.children.length > 0) {
+      const [parentPath] = item.href.split('?');
+      return (
+        pathname === parentPath ||
+        pathname.startsWith(parentPath + '/') ||
+        item.children.some(child => {
+          const [childPath] = child.href.split('?');
+          return pathname === childPath || pathname.startsWith(childPath + '/');
+        })
+      );
+    }
+
+    // 3. Teachers special alias (teacher assignments belongs to teachers)
+    if (item.href === '/school/admin/teachers' && pathname.startsWith('/school/admin/teacher-assignments')) {
+      return true;
+    }
+
+    // 4. Exact match or nested sub-routes under this section (e.g. /school/admin/students/...)
+    const [targetPath] = item.href.split('?');
+    return pathname === targetPath || pathname.startsWith(targetPath + '/');
+  };
+
   const isActive = (path: string) => {
     if (!pathname) return false;
     const [targetPath] = path.split('?');
-    if (path.includes('?')) {
-      return pathname === targetPath;
+    if (targetPath === '/school/admin') {
+      return pathname === '/school/admin';
     }
-    return pathname === path || (path === '/school/admin/teachers' && pathname.startsWith('/school/admin/teacher-assignments'));
+    return pathname === targetPath || pathname.startsWith(targetPath + '/') || (path === '/school/admin/teachers' && pathname.startsWith('/school/admin/teacher-assignments'));
   };
 
   const isCommunicationPage = pathname?.includes('/communication')
@@ -236,44 +269,79 @@ export default function SchoolAdminClientLayout({
                           {group.title}
                         </p>
                       </div>
-                      {group.items.map(item => (
-                        <div key={item.href} className="space-y-1">
-                          <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
-                            <div className={cn(
-                              "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group",
-                            isActive(item.href) ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
-                            )}>
-                              <span className={cn(
-                                "transition-colors flex-shrink-0",
-                                isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
-                              )}>{item.icon}</span>
-                              <span className="flex-1 truncate">{item.label}</span>
-                              {(item as any).badge && (
-                                <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
-                                  {(item as any).badge}
-                                </span>
-                              )}
-                              {isActive(item.href) && !(item as any).badge && <ChevronRight className="w-4 h-4" />}
-                            </div>
-                          </Link>
-                          {(item.children?.length ?? 0) > 0 && (pathname?.startsWith(item.href) || item.children?.some(c => pathname === c.href)) && (
-                            <div className="pl-9 pr-2 py-1 space-y-1">
-                              {item.children?.map(child => (
-                                <Link key={child.href} href={child.href} onClick={() => setSidebarOpen(false)}>
-                                  <div className={cn(
-                                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors block truncate",
-                                    pathname === child.href
-                                      ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                  )}>
-                                    {child.label}
-                                  </div>
-                                </Link>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                      {group.items.map(item => {
+                        const itemActive = isItemActive(item);
+                        const hasChildren = (item.children?.length ?? 0) > 0;
+                        const isExpanded = hasChildren && itemActive;
+                        return (
+                          <div key={item.href} className="space-y-1">
+                            {hasChildren ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  router.push(item.children![0].href);
+                                  setSidebarOpen(false);
+                                }}
+                                className={cn(
+                                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group text-left",
+                                  itemActive ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                                )}
+                              >
+                                <span className={cn(
+                                  "transition-colors flex-shrink-0",
+                                  itemActive ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                                )}>{item.icon}</span>
+                                <span className="flex-1 truncate">{item.label}</span>
+                                {(item as any).badge && (
+                                  <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+                                    {(item as any).badge}
+                                  </span>
+                                )}
+                                <ChevronRight className={cn("w-4 h-4 transition-transform duration-200 ml-auto", isExpanded && "rotate-90 text-primary")} />
+                              </button>
+                            ) : (
+                              <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
+                                <div className={cn(
+                                  "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group",
+                                  itemActive ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                                )}>
+                                  <span className={cn(
+                                    "transition-colors flex-shrink-0",
+                                    itemActive ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                                  )}>{item.icon}</span>
+                                  <span className="flex-1 truncate">{item.label}</span>
+                                  {(item as any).badge && (
+                                    <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+                                      {(item as any).badge}
+                                    </span>
+                                  )}
+                                  {itemActive && !(item as any).badge && <ChevronRight className="w-4 h-4 ml-auto text-primary" />}
+                                </div>
+                              </Link>
+                            )}
+                            {hasChildren && isExpanded && (
+                              <div className="pl-9 pr-2 py-1 space-y-1">
+                                {item.children?.map(child => {
+                                  const [childPath] = child.href.split('?');
+                                  const isChildActive = pathname === childPath || (Boolean(pathname) && pathname.startsWith(childPath + '/'));
+                                  return (
+                                    <Link key={child.href} href={child.href} onClick={() => setSidebarOpen(false)}>
+                                      <div className={cn(
+                                        "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors block truncate",
+                                        isChildActive
+                                          ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                      )}>
+                                        {child.label}
+                                      </div>
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ))}
                 </nav>
@@ -332,7 +400,7 @@ export default function SchoolAdminClientLayout({
                           href={item.href}
                           icon={item.icon}
                           label={item.label}
-                          active={isActive(item.href) || !!(pathname && item.href !== '/' && pathname.startsWith(item.href)) || !!(item.children?.some(c => isActive(c.href)))}
+                          active={isItemActive(item)}
                           isCollapsed={isCollapsed}
                           badge={(item as any).badge}
                           children={item.children}
@@ -402,31 +470,30 @@ function NavLink({
   children?: Array<{ href: string; label: string }>;
   currentPath?: string;
 }) {
-  const [expanded, setExpanded] = useState(
-    Boolean(
-      (currentPath?.startsWith('/school/admin/assessments') && label === 'Assessments') ||
-      (children && children.some(c => currentPath?.startsWith(c.href)))
-    )
-  );
-
   const hasChildren = Boolean(children && children.length > 0 && !isCollapsed);
+
+  // Manual toggle state: null means follow active state from route (single source of truth)
+  const [manuallyExpanded, setManuallyExpanded] = useState<boolean | null>(null);
+
+  // When route changes, reset manual override so current URL is the single source of truth
+  useEffect(() => {
+    setManuallyExpanded(null);
+  }, [currentPath]);
+
+  // Auto-expand parent ONLY when current route belongs to that section, or if user manually opened it
+  const isExpanded = hasChildren && (manuallyExpanded !== null ? manuallyExpanded : active);
 
   return (
     <div className="space-y-1">
-      <Link
-        href={hasChildren ? children![0].href : href}
-        onClick={(e) => {
-          if (hasChildren) {
-            setExpanded(!expanded);
-          }
-        }}
-        title={isCollapsed ? label : undefined}
-      >
-        <div
+      {hasChildren ? (
+        <button
+          type="button"
+          onClick={() => setManuallyExpanded(!isExpanded)}
+          title={isCollapsed ? label : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-xl transition-all duration-200 text-sm font-semibold group cursor-pointer',
+            'w-full flex items-center gap-3 rounded-xl transition-all duration-200 text-sm font-semibold group cursor-pointer text-left',
             isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
-            active || (hasChildren && expanded)
+            active
               ? 'bg-primary/15 text-primary shadow-2xs font-bold'
               : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
           )}
@@ -445,29 +512,64 @@ function NavLink({
               {badge}
             </span>
           )}
-          {!isCollapsed && hasChildren && (
+          {!isCollapsed && (
             <ChevronRight
               className={cn(
                 'w-4 h-4 text-muted-foreground transition-transform duration-200 ml-auto',
-                expanded && 'rotate-90 text-primary'
+                isExpanded && 'rotate-90',
+                active && 'text-primary'
               )}
             />
           )}
-        </div>
-      </Link>
+        </button>
+      ) : (
+        <Link
+          href={href}
+          title={isCollapsed ? label : undefined}
+        >
+          <div
+            className={cn(
+              'flex items-center gap-3 rounded-xl transition-all duration-200 text-sm font-semibold group cursor-pointer',
+              isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
+              active
+                ? 'bg-primary/15 text-primary shadow-2xs font-bold'
+                : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+            )}
+          >
+            <span
+              className={cn(
+                'transition-colors flex-shrink-0',
+                active ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+              )}
+            >
+              {icon}
+            </span>
+            {!isCollapsed && <span className="flex-1 truncate">{label}</span>}
+            {!isCollapsed && badge && (
+              <span className="ml-auto h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+                {badge}
+              </span>
+            )}
+            {!isCollapsed && active && (
+              <ChevronRight className="w-4 h-4 ml-auto text-primary" />
+            )}
+          </div>
+        </Link>
+      )}
 
       {/* Submenu Children */}
-      {hasChildren && expanded && (
+      {hasChildren && isExpanded && (
         <div className="pl-9 pr-2 py-1 space-y-1">
           {children!.map((child) => {
-            const isChildActive = currentPath === child.href;
+            const [childPath] = child.href.split('?');
+            const isChildActive = currentPath === childPath || (Boolean(currentPath) && currentPath!.startsWith(childPath + '/'));
             return (
               <Link key={child.href} href={child.href}>
                 <div
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors block truncate',
                     isChildActive
-                      ? 'bg-blue-600 text-white font-bold shadow-xs'
+                      ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                 >

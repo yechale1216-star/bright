@@ -58,24 +58,27 @@ function AcademicNavItem({
   onNavigate?: () => void
 }) {
   const hasChildren = Boolean(item.children && item.children.length > 0)
-  const isParentActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
-  const [expanded, setExpanded] = useState(isParentActive)
+  const isParentActive = item.exact
+    ? pathname === item.href
+    : (pathname === item.href || pathname.startsWith(item.href + '/') || Boolean(item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))))
+
+  const [manuallyExpanded, setManuallyExpanded] = useState<boolean | null>(null)
 
   useEffect(() => {
-    if (isParentActive) {
-      setExpanded(true)
-    }
-  }, [isParentActive, pathname])
+    setManuallyExpanded(null)
+  }, [pathname])
+
+  const expanded = hasChildren && (manuallyExpanded !== null ? manuallyExpanded : isParentActive)
 
   if (hasChildren && !isCollapsed) {
     return (
       <div className="space-y-1">
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setManuallyExpanded(!expanded)}
           className={cn(
             'w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-semibold group cursor-pointer text-left',
-            isParentActive || expanded
+            isParentActive
               ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold'
               : 'text-foreground/70 hover:bg-violet-500/10 hover:text-foreground'
           )}
