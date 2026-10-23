@@ -284,12 +284,12 @@ export default function SchoolAdminClientLayout({
                                 }}
                                 className={cn(
                                   "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group text-left",
-                                  itemActive ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                                  itemActive ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
                                 )}
                               >
                                 <span className={cn(
                                   "transition-colors flex-shrink-0",
-                                  itemActive ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                                  itemActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
                                 )}>{item.icon}</span>
                                 <span className="flex-1 truncate">{item.label}</span>
                                 {(item as any).badge && (
@@ -297,17 +297,17 @@ export default function SchoolAdminClientLayout({
                                     {(item as any).badge}
                                   </span>
                                 )}
-                                <ChevronRight className={cn("w-4 h-4 transition-transform duration-200 ml-auto", isExpanded && "rotate-90 text-primary")} />
+                                <ChevronRight className={cn("w-4 h-4 transition-transform duration-200 ml-auto text-muted-foreground", isExpanded && "rotate-90 text-foreground")} />
                               </button>
                             ) : (
                               <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
                                 <div className={cn(
                                   "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold group",
-                                  itemActive ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                                  itemActive ? 'bg-primary/15 text-primary shadow-sm font-bold' : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
                                 )}>
                                   <span className={cn(
                                     "transition-colors flex-shrink-0",
-                                    itemActive ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                                    itemActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
                                   )}>{item.icon}</span>
                                   <span className="flex-1 truncate">{item.label}</span>
                                   {(item as any).badge && (
@@ -315,7 +315,7 @@ export default function SchoolAdminClientLayout({
                                       {(item as any).badge}
                                     </span>
                                   )}
-                                  {itemActive && !(item as any).badge && <ChevronRight className="w-4 h-4 ml-auto text-primary" />}
+                                  {itemActive && !(item as any).badge && <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground" />}
                                 </div>
                               </Link>
                             )}
@@ -501,7 +501,7 @@ function NavLink({
           <span
             className={cn(
               'transition-colors flex-shrink-0',
-              active ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+              active ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
             )}
           >
             {icon}
@@ -517,7 +517,7 @@ function NavLink({
               className={cn(
                 'w-4 h-4 text-muted-foreground transition-transform duration-200 ml-auto',
                 isExpanded && 'rotate-90',
-                active && 'text-primary'
+                active && 'text-muted-foreground'
               )}
             />
           )}
@@ -533,13 +533,13 @@ function NavLink({
               isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
               active
                 ? 'bg-primary/15 text-primary shadow-2xs font-bold'
-                : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
             )}
           >
             <span
               className={cn(
                 'transition-colors flex-shrink-0',
-                active ? 'text-primary' : 'text-primary/70 group-hover:text-primary'
+                active ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
               )}
             >
               {icon}
@@ -551,7 +551,7 @@ function NavLink({
               </span>
             )}
             {!isCollapsed && active && (
-              <ChevronRight className="w-4 h-4 ml-auto text-primary" />
+              <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground" />
             )}
           </div>
         </Link>

@@ -137,7 +137,7 @@ export default function DisciplineOfficerClientLayout({ children }: { children: 
                     {active && (
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-amber-500 rounded-r-full" />
                     )}
-                    <item.icon className={cn('w-4 h-4 flex-shrink-0 transition-colors', active ? 'text-amber-500' : 'text-slate-400 group-hover:text-foreground')} />
+                    <item.icon className={cn('w-4 h-4 flex-shrink-0 transition-colors', active ? 'text-foreground' : 'text-slate-400 group-hover:text-foreground')} />
                     {(mobile || !isCollapsed) && <span className="truncate">{item.label}</span>}
                   </div>
                 </Link>

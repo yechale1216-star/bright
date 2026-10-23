@@ -129,9 +129,9 @@ export default function TransportClientLayout({ children }: { children: React.Re
                   isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
                   isActive(item.href, item.exact)
                     ? 'bg-orange-500/15 text-orange-600 dark:text-orange-400 font-bold'
-                    : 'text-foreground/70 hover:bg-orange-500/5 hover:text-orange-600 dark:hover:text-orange-400'
+                    : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
                 )}>
-                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground group-hover:text-orange-500")} />
+                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </div>
               </Link>

@@ -137,9 +137,9 @@ export default function RegistrarClientLayout({ children }: { children: React.Re
                   isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
                   isActive(item.href, item.exact)
                     ? 'bg-primary/15 text-primary font-bold'
-                    : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                    : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
                 )}>
-                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-primary" : "text-primary/70 group-hover:text-primary")} />
+                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </div>
               </Link>

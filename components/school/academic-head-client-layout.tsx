@@ -86,7 +86,7 @@ function AcademicNavItem({
           <div className="flex items-center gap-3 min-w-0">
             <item.icon className={cn(
               "w-5 h-5 flex-shrink-0 transition-colors",
-              isParentActive ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground group-hover:text-violet-500"
+              isParentActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
             )} />
             <span className="truncate">{item.label}</span>
           </div>
@@ -142,11 +142,11 @@ function AcademicNavItem({
       )}>
         <item.icon className={cn(
           "w-5 h-5 flex-shrink-0 transition-colors",
-          isParentActive ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground group-hover:text-violet-500"
+          isParentActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
         )} />
         {!isCollapsed && <span className="truncate">{item.label}</span>}
         {!isCollapsed && isParentActive && !hasChildren && (
-          <ChevronRight className="w-4 h-4 ml-auto text-violet-500" />
+          <ChevronRight className="w-4 h-4 ml-auto text-muted-foreground" />
         )}
       </div>
     </Link>

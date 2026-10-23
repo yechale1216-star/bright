@@ -197,7 +197,7 @@ export default function StaffClientLayout({ children }: { children: React.ReactN
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={cn('w-4 h-4 shrink-0 transition-transform group-hover:scale-110', active ? 'text-primary-foreground' : 'text-primary')} />
+                    <Icon className={cn('w-4 h-4 shrink-0 transition-transform group-hover:scale-110', active ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground')} />
                     <span>{item.label}</span>
                   </div>
                   {item.href.includes('communication') && totalUnreadCount > 0 && (

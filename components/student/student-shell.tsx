@@ -198,7 +198,7 @@ export function StudentShell({ children }: StudentShellProps) {
                       "w-4 h-4 transition-transform group-hover:scale-110",
                       isActive
                         ? "text-white"
-                        : "text-slate-400 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400"
+                        : "text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-200"
                     )}
                   />
                   <span>{item.name}</span>

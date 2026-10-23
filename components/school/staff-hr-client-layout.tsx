@@ -132,9 +132,9 @@ export default function StaffHrClientLayout({ children }: { children: React.Reac
                   isCollapsed ? 'justify-center p-3' : 'px-4 py-2.5',
                   isActive(item.href, item.exact)
                     ? 'bg-teal-500/15 text-teal-600 dark:text-teal-400 font-bold'
-                    : 'text-foreground/70 hover:bg-teal-500/5 hover:text-teal-600 dark:hover:text-teal-400'
+                    : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
                 )}>
-                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground group-hover:text-teal-500")} />
+                  <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive(item.href, item.exact) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")} />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </div>
               </Link>
