@@ -58,6 +58,7 @@ export function StudentShell({ children }: StudentShellProps) {
 
   const [student, setStudent] = useState<any>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
   const [currentDate, setCurrentDate] = useState("");
   const isNative = useIsNativeApp();
@@ -149,8 +150,20 @@ export function StudentShell({ children }: StudentShellProps) {
         <div>
           {/* Logo Brand Header */}
           <div className="p-6 pb-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 text-white">
-              <BookOpen className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 shrink-0 bg-white dark:bg-slate-900">
+              {!logoError ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src="/bright-path-logo.png"
+                  alt="Bright Path Logo"
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white">
+                  <BookOpen className="w-5 h-5 text-white" />
+                </div>
+              )}
             </div>
             <div>
               <h1 className="font-bold text-base tracking-wide leading-tight text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -263,8 +276,20 @@ export function StudentShell({ children }: StudentShellProps) {
 
           {/* ── Logo + Brand ── */}
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 text-white shrink-0">
-              <BookOpen className="w-5 h-5 text-white" />
+            <div className="h-9 w-9 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 shrink-0 bg-white dark:bg-slate-900">
+              {!logoError ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src="/bright-path-logo.png"
+                  alt="Bright Path Logo"
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white">
+                  <BookOpen className="w-5 h-5 text-white" />
+                </div>
+              )}
             </div>
             <div className="flex flex-col min-w-0">
               <h1 className="text-sm font-black tracking-tight text-foreground truncate uppercase">Bright Path</h1>
@@ -310,8 +335,20 @@ export function StudentShell({ children }: StudentShellProps) {
               {/* Drawer header */}
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md">
-                    <BookOpen className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shadow-md ring-2 ring-purple-100 dark:ring-purple-500/20 shrink-0 bg-white dark:bg-slate-900">
+                    {!logoError ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src="/bright-path-logo.png"
+                        alt="Bright Path Logo"
+                        className="w-full h-full object-cover"
+                        onError={() => setLogoError(true)}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <h2 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">Bright Path</h2>
