@@ -126,7 +126,7 @@ const deleteSectionHandler = async (req, res, next) => {
 router.delete('/me/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), deleteSectionHandler);
 router.delete('/sections/:id', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), deleteSectionHandler);
 // ─── Streams ────────────────────────────────────────────────────────────────
-router.get('/me/streams', async (_req, res, next) => {
+const getStreamsHandler = async (_req, res, next) => {
     try {
         const streams = await schoolService.getStreams();
         res.status(200).json({ success: true, data: streams });
@@ -134,7 +134,9 @@ router.get('/me/streams', async (_req, res, next) => {
     catch (error) {
         next(error);
     }
-});
+};
+router.get('/me/streams', getStreamsHandler);
+router.get('/streams', getStreamsHandler);
 router.post('/me/streams', (0, auth_middleware_1.authorize)(STRUCTURE_ADMINS), async (req, res, next) => {
     try {
         const stream = await schoolService.createStream(req.body);

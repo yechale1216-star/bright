@@ -78,12 +78,14 @@ router.delete('/me/sections/:id', authorize(STRUCTURE_ADMINS), deleteSectionHand
 router.delete('/sections/:id', authorize(STRUCTURE_ADMINS), deleteSectionHandler);
 
 // ─── Streams ────────────────────────────────────────────────────────────────
-router.get('/me/streams', async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+const getStreamsHandler = async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const streams = await schoolService.getStreams();
     res.status(200).json({ success: true, data: streams });
   } catch (error) { next(error); }
-});
+};
+router.get('/me/streams', getStreamsHandler);
+router.get('/streams', getStreamsHandler);
 
 router.post('/me/streams', authorize(STRUCTURE_ADMINS), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {

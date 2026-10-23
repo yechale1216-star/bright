@@ -295,10 +295,11 @@ export const generateReportCards = async (req: AuthenticatedRequest, res: Respon
 
 export const getReportCards = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { gradeId, sectionId, academicYearId, academicTermId, status } = req.query as any;
+    const { gradeId, sectionId, streamId, academicYearId, academicTermId, status } = req.query as any;
     const cards = await gradebookService.getReportCards({
       gradeId,
       sectionId,
+      streamId,
       academicYearId,
       academicTermId,
       status,

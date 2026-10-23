@@ -80,8 +80,10 @@ export default function AdminReportCardsPage() {
   const [selectedYearId, setSelectedYearId] = useState<string>('');
   const [selectedTermId, setSelectedTermId] = useState<string>('annual');
   const [grades, setGrades] = useState<any[]>([]);
+  const [streams, setStreams] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
   const [selectedGradeId, setSelectedGradeId] = useState<string>('');
+  const [selectedStreamId, setSelectedStreamId] = useState<string>('all');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
 
   const [reportCards, setReportCards] = useState<ReportCard[]>([]);
@@ -133,9 +135,10 @@ export default function AdminReportCardsPage() {
       const { getApiUrl } = await import('@/lib/api-config');
       const API_URL = getApiUrl();
 
-      const [ayRes, gradesRes] = await Promise.all([
-        fetch(`${API_URL}/api/academic-years`, { headers }).then((r) => r.json()),
-        fetch(`${API_URL}/api/schools/grades`, { headers }).then((r) => r.json()),
+      const [ayRes, gradesRes, streamsRes] = await Promise.all([
+        fetch(`${API_URL}/api/academic-years`, { headers }).then((r) => r.json()).catch(() => null),
+        fetch(`${API_URL}/api/schools/grades`, { headers }).then((r) => r.json()).catch(() => null),
+        fetch(`${API_URL}/api/schools/me/streams`, { headers }).then((r) => r.json()).catch(() => null),
       ]);
 
       if (ayRes?.success && Array.isArray(ayRes.data)) {
@@ -148,12 +151,21 @@ export default function AdminReportCardsPage() {
         setGrades(gradesRes.data);
         if (gradesRes.data.length > 0) setSelectedGradeId(gradesRes.data[0].id);
       }
+
+      if (streamsRes?.success && Array.isArray(streamsRes.data)) {
+        setStreams(streamsRes.data);
+      }
     } catch (err: any) {
       notifications.error('Error', err?.message || 'Failed to load metadata');
     } finally {
       setLoading(false);
     }
   };
+
+  // Reset stream when grade changes
+  useEffect(() => {
+    setSelectedStreamId('all');
+  }, [selectedGradeId]);
 
   // When grade changes, load sections
   useEffect(() => {
@@ -188,13 +200,72 @@ export default function AdminReportCardsPage() {
     }
   }, [selectedGradeId, grades]);
 
+  const selectedGradeObj = useMemo(() => {
+    return grades.find((g) => g.id === selectedGradeId);
+  }, [grades, selectedGradeId]);
+
+  const isSeniorGrade = useMemo(() => {
+    if (!selectedGradeObj) return false;
+    const name = (selectedGradeObj.name || '').toLowerCase();
+    return /\b(11|12)\b/.test(name) || name.includes('11') || name.includes('12');
+  }, [selectedGradeObj]);
+
+  const availableStreamsForGrade = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    sections.forEach((s: any) => {
+      const sid = s.streamId || s.stream?.id;
+      const sname = s.stream?.name;
+      if (sid && !map.has(sid)) {
+        map.set(sid, { id: sid, name: sname || sid });
+      }
+    });
+    if (isSeniorGrade || map.size > 0 || streams.length > 0) {
+      streams.forEach((st: any) => {
+        if (!map.has(st.id)) {
+          map.set(st.id, { id: st.id, name: st.name });
+        }
+      });
+    }
+    return Array.from(map.values());
+  }, [sections, isSeniorGrade, streams]);
+
+  const gradeHasStreams = useMemo(() => {
+    return isSeniorGrade || availableStreamsForGrade.length > 0 || sections.some((s: any) => !!s.streamId || !!s.stream);
+  }, [isSeniorGrade, availableStreamsForGrade, sections]);
+
+  const filteredSections = useMemo(() => {
+    if (!selectedStreamId || selectedStreamId === 'all') {
+      return sections;
+    }
+    return sections.filter((s: any) => {
+      const sid = s.streamId || s.stream?.id;
+      const sname = (s.stream?.name || '').toLowerCase();
+      const sel = selectedStreamId.toLowerCase();
+      return sid === selectedStreamId || sname === sel || sname.includes(sel);
+    });
+  }, [sections, selectedStreamId]);
+
+  // Sync selectedSectionId when filtered sections change
+  useEffect(() => {
+    // For senior grades: if no stream selected, clear section (enforce hierarchy)
+    if (isSeniorGrade && selectedStreamId === 'all') {
+      setSelectedSectionId('');
+      return;
+    }
+    if (filteredSections.length === 0) {
+      setSelectedSectionId('');
+    } else if (!filteredSections.some((s: any) => s.id === selectedSectionId)) {
+      setSelectedSectionId(filteredSections[0].id);
+    }
+  }, [filteredSections, selectedSectionId, isSeniorGrade, selectedStreamId]);
+
   // Load report cards & students + readiness whenever filters change
   useEffect(() => {
     if (selectedGradeId && selectedSectionId && selectedYearId) {
       loadData();
       loadReadiness();
     }
-  }, [selectedGradeId, selectedSectionId, selectedYearId, selectedTermId]);
+  }, [selectedGradeId, selectedSectionId, selectedStreamId, selectedYearId, selectedTermId]);
 
   const loadData = async () => {
     try {
@@ -207,6 +278,7 @@ export default function AdminReportCardsPage() {
         gradebookService.getReportCards({
           gradeId: selectedGradeId,
           sectionId: selectedSectionId,
+          streamId: selectedStreamId !== 'all' ? selectedStreamId : undefined,
           academicYearId: selectedYearId,
           academicTermId: selectedTermId !== 'annual' ? selectedTermId : undefined,
         }),
@@ -496,35 +568,35 @@ export default function AdminReportCardsPage() {
   const canBulkPublish = readiness?.isFullyReady && (readiness?.reportCardsSummary?.ready || 0) > 0;
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto print:p-0">
+    <div className="p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto print:p-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/70 print:hidden">
+      <div className="flex flex-col gap-3 pb-3 border-b border-border/70 print:hidden">
+        {/* Title row */}
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400">
-            <FileText className="w-6 h-6" />
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 shrink-0">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Official Student Report Cards
-            </h1>
-          </div>
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground leading-tight">
+            Official Student Report Cards
+          </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Action buttons — full width on mobile, wrap naturally */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2">
           <Button
             onClick={handleGenerate}
             disabled={generating || loading || !selectedSectionId}
-            className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs"
+            className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs w-full justify-center"
           >
             <Sparkles className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
-            {generating ? 'Calculating...' : 'Recalculate Results'}
+            {generating ? 'Calculating...' : 'Recalculate'}
           </Button>
 
           <Button
             variant="outline"
             onClick={handleOpenBatchPrint}
             disabled={studentRows.length === 0}
-            className="gap-2 border-border text-foreground hover:bg-muted"
+            className="gap-2 border-border text-foreground hover:bg-muted w-full justify-center"
           >
             <Layers className="w-4 h-4" />
             Batch Print
@@ -533,7 +605,7 @@ export default function AdminReportCardsPage() {
           <Button
             onClick={handleBulkPublish}
             disabled={bulkPublishing || !canBulkPublish}
-            className={`gap-2 ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
+            className={`gap-2 w-full justify-center xs:col-span-2 sm:col-span-1 ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
             variant={canBulkPublish ? 'default' : 'outline'}
           >
             {bulkPublishing ? (
@@ -546,8 +618,8 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden">
+      {/* Filter Toolbar — Hierarchical: Year → Term → Grade → Stream (if 11/12) → Section */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden ${isSeniorGrade ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Academic Year
@@ -600,6 +672,33 @@ export default function AdminReportCardsPage() {
           </select>
         </div>
 
+        {/* Stream — only shown when grade is 11 or 12 */}
+        {isSeniorGrade && (
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              Academic Stream
+              <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded uppercase tracking-wide">Required</span>
+            </label>
+            <select
+              value={selectedStreamId}
+              onChange={(e) => setSelectedStreamId(e.target.value)}
+              className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 bg-background text-foreground transition-colors ${
+                selectedStreamId === 'all'
+                  ? 'border-amber-400 dark:border-amber-500 focus:ring-amber-500/30'
+                  : 'border-input focus:ring-ring/40'
+              }`}
+            >
+              <option value="all">— Select Stream —</option>
+              {availableStreamsForGrade.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}{st.name.toLowerCase().includes('stream') ? '' : ' Stream'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Section — filtered by stream for senior grades */}
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Section
@@ -607,13 +706,25 @@ export default function AdminReportCardsPage() {
           <select
             value={selectedSectionId}
             onChange={(e) => setSelectedSectionId(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+            disabled={isSeniorGrade && selectedStreamId === 'all'}
+            className={`w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 ${
+              isSeniorGrade && selectedStreamId === 'all' ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
-            {sections.map((s) => (
-              <option key={s.id} value={s.id}>
-                Section {s.name}
-              </option>
-            ))}
+            {isSeniorGrade && selectedStreamId === 'all' ? (
+              <option value="">Select a stream first</option>
+            ) : filteredSections.length === 0 ? (
+              <option value="">No sections found</option>
+            ) : (
+              filteredSections.map((s) => {
+                const prefix = s.name.toLowerCase().startsWith('section') ? s.name : `Section ${s.name}`;
+                return (
+                  <option key={s.id} value={s.id}>
+                    {prefix}
+                  </option>
+                );
+              })
+            )}
           </select>
         </div>
       </div>
@@ -745,24 +856,125 @@ export default function AdminReportCardsPage() {
       </div>
 
       {/* Search Toolbar */}
-      <div className="flex items-center justify-between gap-4 print:hidden">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 print:hidden">
+        <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search student by name or ID..."
+            placeholder="Search by name or ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10 rounded-xl"
+            className="pl-9 h-10 rounded-xl w-full"
           />
         </div>
-        <Button variant="ghost" size="sm" onClick={() => { loadData(); loadReadiness(); }} disabled={loading} className="gap-2">
+        <Button variant="outline" size="sm" onClick={() => { loadData(); loadReadiness(); }} disabled={loading} className="gap-2 h-10 px-4 shrink-0">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {/* Main Student Cards Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs print:hidden">
+      {/* ============================================================ */}
+      {/* MOBILE: Card list (visible below md)                         */}
+      {/* ============================================================ */}
+      <div className="md:hidden space-y-3 print:hidden">
+        {loading ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+            Loading report card data...
+          </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">
+            {!selectedSectionId
+              ? 'Select filters above to load report cards.'
+              : 'No students or report cards found for this selection.'}
+          </div>
+        ) : (
+          filteredRows.map((row, idx) => (
+            <div
+              key={row.id ? `mrc-${row.id}` : `mstudent-${row.studentId}-${idx}`}
+              className={`rounded-2xl border bg-card p-4 shadow-xs space-y-3 ${
+                row.status === 'NEEDS_CORRECTION'
+                  ? 'border-amber-400/40 bg-amber-500/5'
+                  : 'border-border'
+              }`}
+            >
+              {/* Top row: rank + name + status */}
+              <div className="flex items-start gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted border border-border text-xs font-black text-foreground shrink-0">
+                  {row.rank}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-foreground text-sm leading-tight truncate">{row.fullName}</div>
+                  <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{row.studentUniqueId} · {row.gender}</div>
+                  {row.termName && (
+                    <div className="text-[11px] font-semibold text-primary mt-0.5">{row.termName}</div>
+                  )}
+                </div>
+                <StatusBadge status={row.status} />
+              </div>
+
+              {/* Scores row */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
+                  <div className="text-[10px] text-muted-foreground font-semibold uppercase">Total</div>
+                  <div className="font-black text-foreground text-base">{row.totalScore > 0 ? row.totalScore : '—'}</div>
+                </div>
+                <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
+                  <div className="text-[10px] text-muted-foreground font-semibold uppercase">Average</div>
+                  <div className={`font-black text-base ${
+                    row.averageScore >= 85 ? 'text-emerald-600 dark:text-emerald-400'
+                    : row.averageScore >= 70 ? 'text-blue-600 dark:text-blue-400'
+                    : row.averageScore >= 50 ? 'text-amber-600 dark:text-amber-400'
+                    : row.averageScore > 0 ? 'text-rose-600 dark:text-rose-400'
+                    : 'text-muted-foreground'
+                  }`}>{row.averageScore > 0 ? `${row.averageScore}%` : '—'}</div>
+                </div>
+                <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
+                  <div className="text-[10px] text-muted-foreground font-semibold uppercase">Conduct</div>
+                  <div className="font-black text-foreground text-base">{row.conduct}</div>
+                </div>
+              </div>
+
+              {/* Actions row */}
+              <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenPreview(row.studentId, row.termId)}
+                  className="flex-1 h-9 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  View Card
+                </Button>
+                {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
+                  <Button
+                    size="sm"
+                    onClick={() => handlePublishSingle(row.id, row.fullName)}
+                    disabled={publishingId === row.id}
+                    className="flex-1 h-9 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  >
+                    {publishingId === row.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    Publish
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleOpenEdit(row.rawCard || row)}
+                  className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
+                  title="Edit Remarks & Conduct"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ============================================================ */}
+      {/* DESKTOP: Full table (visible from md up)                     */}
+      {/* ============================================================ */}
+      <div className="hidden md:block rounded-2xl border border-border bg-card overflow-hidden shadow-xs print:hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-[11px] tracking-wider font-semibold border-b border-border">
@@ -851,7 +1063,6 @@ export default function AdminReportCardsPage() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Publish single button for READY or NEEDS_CORRECTION */}
                         {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
                           <Button
                             size="sm"
@@ -867,7 +1078,6 @@ export default function AdminReportCardsPage() {
                             Publish
                           </Button>
                         )}
-
                         <Button
                           variant="outline"
                           size="sm"

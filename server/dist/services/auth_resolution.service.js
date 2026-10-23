@@ -65,6 +65,13 @@ const resolveRoleInSchool = async (userId, _schoolId, requestedRole) => {
             if (user)
                 return user.role;
         }
+        if (requestedRole === 'staff') {
+            const user = await db_1.default.user.findFirst({
+                where: { id: userId, role: { notIn: ['student', 'parent'] }, is_active: true }
+            });
+            if (user)
+                return user.role;
+        }
         const staffRoles = [
             'staff',
             'staff_member',
@@ -74,11 +81,14 @@ const resolveRoleInSchool = async (userId, _schoolId, requestedRole) => {
             'librarian',
             'transport_manager',
             'staff_attendance_officer',
-            'hr_officer'
+            'hr_officer',
+            'subject_teacher',
+            'highschol_teachers',
+            'labrotory',
         ];
         if (staffRoles.includes(requestedRole)) {
             const user = await db_1.default.user.findFirst({
-                where: { id: userId, role: { in: requestedRole === 'staff' ? ['staff', 'staff_member'] : [requestedRole] } }
+                where: { id: userId, role: requestedRole, is_active: true }
             });
             if (user)
                 return user.role;

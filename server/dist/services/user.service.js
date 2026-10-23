@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.changePassword = exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPasswordResetToken = exports.verifyPassword = exports.deleteUser = exports.updateUser = exports.createUser = exports.getContacts = exports.getUsers = exports.getUserById = exports.getUserByEmailWithPassword = exports.getUserByEmail = void 0;
+exports.changePassword = exports.getUserByResetToken = exports.resetPasswordByToken = exports.createPasswordResetToken = exports.verifyPassword = exports.deleteUser = exports.updateUser = exports.createUser = exports.getContacts = exports.getUsers = exports.getUserById = exports.getUserByIdentifierWithPassword = exports.getUserByEmailWithPassword = exports.getUserByEmail = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_1 = __importDefault(require("../config/db"));
@@ -30,9 +30,42 @@ const getUserByEmail = async (email) => {
 exports.getUserByEmail = getUserByEmail;
 /** Fetch full user record including password_hash (internal auth use only) */
 const getUserByEmailWithPassword = async (email) => {
-    return await db_1.default.user.findUnique({ where: { email } });
+    return await db_1.default.user.findFirst({
+        where: { email: { equals: email.trim(), mode: 'insensitive' } }
+    });
 };
 exports.getUserByEmailWithPassword = getUserByEmailWithPassword;
+/** Fetch full user record by email, phone, or teacher_id including password_hash */
+const getUserByIdentifierWithPassword = async (identifier) => {
+    const clean = identifier.trim();
+    const cleanDigits = clean.replace(/[^0-9+]/g, '');
+    const phoneVariants = [clean, cleanDigits];
+    if (cleanDigits.startsWith('09')) {
+        phoneVariants.push('+251' + cleanDigits.slice(1));
+    }
+    else if (cleanDigits.startsWith('9') && cleanDigits.length === 9) {
+        phoneVariants.push('+251' + cleanDigits);
+        phoneVariants.push('0' + cleanDigits);
+    }
+    else if (cleanDigits.startsWith('+251')) {
+        phoneVariants.push('0' + cleanDigits.slice(4));
+    }
+    else if (cleanDigits.startsWith('251')) {
+        phoneVariants.push('+' + cleanDigits);
+        phoneVariants.push('0' + cleanDigits.slice(3));
+    }
+    const validPhones = Array.from(new Set(phoneVariants.filter(p => p && p.length >= 8)));
+    return await db_1.default.user.findFirst({
+        where: {
+            OR: [
+                { email: { equals: clean, mode: 'insensitive' } },
+                ...(validPhones.length > 0 ? [{ phone: { in: validPhones } }] : []),
+                { teacher_id: clean },
+            ]
+        }
+    });
+};
+exports.getUserByIdentifierWithPassword = getUserByIdentifierWithPassword;
 const getUserById = async (id, _schoolId) => {
     return await db_1.default.user.findUnique({
         where: { id },

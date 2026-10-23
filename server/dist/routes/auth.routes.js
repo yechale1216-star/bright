@@ -130,11 +130,12 @@ router.get('/check-phone', checkPhoneLimiter, async (req, res, next) => {
 // Login
 router.post('/login', loginLimiter, async (req, res, next) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ success: false, message: 'Email and password are required' });
+        const { email, identifier, phone, password } = req.body;
+        const loginTarget = (email || identifier || phone || '').trim();
+        if (!loginTarget || !password) {
+            return res.status(400).json({ success: false, message: 'Email or phone number and password are required' });
         }
-        const user = await userService.getUserByEmailWithPassword(email);
+        const user = await userService.getUserByIdentifierWithPassword(loginTarget);
         if (!user) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }

@@ -551,6 +551,7 @@ export const gradebookService = {
   async getReportCards(filters: {
     gradeId?: string;
     sectionId?: string;
+    streamId?: string;
     academicYearId?: string;
     academicTermId?: string;
     status?: string;

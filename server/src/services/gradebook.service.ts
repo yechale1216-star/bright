@@ -1298,6 +1298,7 @@ export class GradebookService {
   async getReportCards(filters: {
     gradeId?: string;
     sectionId?: string;
+    streamId?: string;
     academicYearId?: string;
     academicTermId?: string;
     status?: string;
@@ -1308,13 +1309,35 @@ export class GradebookService {
     if (filters.academicYearId) where.academicYearId = filters.academicYearId;
     if (filters.academicTermId) where.academicTermId = filters.academicTermId;
     if (filters.status) where.status = filters.status;
+    if (filters.streamId && filters.streamId !== 'all') {
+      where.OR = [
+        { section: { streamId: filters.streamId } },
+        { student: { streamId: filters.streamId } },
+      ];
+    }
 
     return prisma.reportCard.findMany({
       where,
       include: {
-        student: { select: { id: true, student_id: true, fullName: true, gender: true } },
+        student: {
+          select: {
+            id: true,
+            student_id: true,
+            fullName: true,
+            gender: true,
+            streamId: true,
+            stream: { select: { id: true, name: true } },
+          },
+        },
         grade: { select: { id: true, name: true } },
-        section: { select: { id: true, name: true } },
+        section: {
+          select: {
+            id: true,
+            name: true,
+            streamId: true,
+            stream: { select: { id: true, name: true } },
+          },
+        },
         academicYear: { select: { id: true, name: true } },
         academicTerm: { select: { id: true, name: true } },
         subjectScores: {
@@ -1516,33 +1539,16 @@ export class GradebookService {
     let effectiveTermName = 'Annual';
 
     if (isSingleTerm) {
-      const termObj = targetYear?.terms?.find((t) => t.id === academicTermId);
-      effectiveTermId = academicTermId!;
-      effectiveTermName = termObj?.name || 'Semester';
+      const termObj = targetYear?.terms?.find((t) =>
+        t.id === academicTermId ||
+        (academicTermId === 'sem1' && (t.name.toLowerCase().includes('1') || t.name.toLowerCase().includes('first'))) ||
+        (academicTermId === 'sem2' && (t.name.toLowerCase().includes('2') || t.name.toLowerCase().includes('second')))
+      );
+      effectiveTermId = termObj?.id || academicTermId!;
+      effectiveTermName = termObj?.name || (academicTermId === 'sem1' ? 'Semester 1' : academicTermId === 'sem2' ? 'Semester 2' : 'Semester');
     } else if (reportCards.length === 1 && !academicTermId) {
       effectiveTermId = reportCards[0].academicTermId;
       effectiveTermName = reportCards[0].academicTerm?.name || 'Semester';
-    }
-
-    // Determine periods (columns)
-    let periods = [
-      { id: 'mid1', label: '1st Mid' },
-      { id: 'sem1', label: '1st Semester' },
-      { id: 'mid2', label: '2nd Mid' },
-      { id: 'sem2', label: '2nd Semester' },
-    ];
-
-    const termNameLower = effectiveTermName.toLowerCase();
-    if (termNameLower.includes('2') || termNameLower.includes('second')) {
-      periods = [
-        { id: 'mid2', label: '2nd Mid' },
-        { id: 'sem2', label: '2nd Semester' },
-      ];
-    } else if (termNameLower.includes('1') || termNameLower.includes('first')) {
-      periods = [
-        { id: 'mid1', label: '1st Mid' },
-        { id: 'sem1', label: '1st Semester' },
-      ];
     }
 
     // Historical Enrollment Resolution: Grade, Section & Stream
@@ -1649,6 +1655,8 @@ export class GradebookService {
         marks: { where: { studentId: student.id } },
         subject: true,
         academicTerm: true,
+        category: true,
+        assessmentType: true,
       },
     });
 
@@ -1785,6 +1793,77 @@ export class GradebookService {
       };
     };
 
+    // Resolve active assessment policy scheme to check if Midterms are configured
+    const activeScheme = await AssessmentPolicyService.resolveSchemeForContext({
+      academicYearId: targetYear?.id || '',
+      academicTermId: isSingleTerm ? effectiveTermId : undefined,
+      gradeId: effectiveGrade.id,
+      streamId: effectiveStreamId || undefined,
+    }).catch(() => null);
+
+    const schemeHasMidterm = (activeScheme?.categories || []).some((c: any) => {
+      const cName = (c.name || '').toLowerCase();
+      const tCode = (c.type?.code || '').toUpperCase();
+      return tCode === 'MIDTERM' || cName.includes('midterm') || cName.includes('mid');
+    });
+
+    const isMidtermAssessment = (a: any) => {
+      const type = (a.type || '').toUpperCase();
+      const typeCode = (a.assessmentType?.code || '').toUpperCase();
+      const catName = (a.category?.name || '').toLowerCase();
+      const title = (a.title || '').toLowerCase();
+      return (
+        type === 'MIDTERM' ||
+        typeCode === 'MIDTERM' ||
+        catName.includes('midterm') ||
+        catName.includes('mid') ||
+        title.includes('midterm') ||
+        title.includes('1st mid') ||
+        title.includes('mid 1') ||
+        title.includes('2nd mid') ||
+        title.includes('mid 2')
+      );
+    };
+
+    const hasTerm1Midterm = schemeHasMidterm || assessments.some((a) => {
+      const tName = (a.academicTerm?.name || '').toLowerCase();
+      const isTerm1 = tName.includes('1') || tName.includes('first') || (!tName.includes('2') && !tName.includes('second'));
+      return isTerm1 && isMidtermAssessment(a);
+    });
+
+    const hasTerm2Midterm = schemeHasMidterm || assessments.some((a) => {
+      const tName = (a.academicTerm?.name || '').toLowerCase();
+      const isTerm2 = tName.includes('2') || tName.includes('second');
+      return isTerm2 && isMidtermAssessment(a);
+    });
+
+    // Determine periods (columns) dynamically based on active term and whether midterms are configured/assessed
+    let periods: Array<{ id: string; label: string }> = [];
+
+    const termNameLower = effectiveTermName.toLowerCase();
+    if (termNameLower.includes('2') || termNameLower.includes('second')) {
+      if (hasTerm2Midterm) {
+        periods.push({ id: 'mid2', label: '2nd Mid' });
+      }
+      periods.push({ id: 'sem2', label: '2nd Semester' });
+    } else if (termNameLower.includes('1') || termNameLower.includes('first')) {
+      if (hasTerm1Midterm) {
+        periods.push({ id: 'mid1', label: '1st Mid' });
+      }
+      periods.push({ id: 'sem1', label: '1st Semester' });
+    } else {
+      // Annual / All terms
+      if (hasTerm1Midterm) {
+        periods.push({ id: 'mid1', label: '1st Mid' });
+      }
+      periods.push({ id: 'sem1', label: '1st Semester' });
+
+      if (hasTerm2Midterm) {
+        periods.push({ id: 'mid2', label: '2nd Mid' });
+      }
+      periods.push({ id: 'sem2', label: '2nd Semester' });
+    }
+
     let failedSubjectsCount = 0;
 
     const subjectRows = activeSubjects.map((subj) => {
@@ -1794,28 +1873,34 @@ export class GradebookService {
       periods.forEach((period) => {
         // 1. Find matching assessments for this specific period
         const matchingAssessments = subjAssessments.filter((a) => {
-          const title = (a.title || '').toLowerCase();
-          const type = (a.type || '').toUpperCase();
           const tName = (a.academicTerm?.name || '').toLowerCase();
 
           const isTerm1 = tName.includes('1') || tName.includes('first') || (!tName.includes('2') && !tName.includes('second'));
           const isTerm2 = tName.includes('2') || tName.includes('second');
 
+          const isMid = isMidtermAssessment(a);
+
           if (period.id === 'mid1') {
             if (!isTerm1) return false;
-            return type === 'MIDTERM' || title.includes('1st mid') || title.includes('mid 1') || title.includes('midterm') || (type !== 'FINAL' && title.includes('mid'));
+            return isMid;
           }
           if (period.id === 'sem1') {
             if (!isTerm1) return false;
-            return type === 'FINAL' || type === 'EXAM' || title.includes('1st sem') || title.includes('sem 1') || title.includes('final') || title.includes('semester') || (!title.includes('mid') && type !== 'MIDTERM');
+            if (hasTerm1Midterm) {
+              return !isMid;
+            }
+            return true;
           }
           if (period.id === 'mid2') {
             if (!isTerm2) return false;
-            return type === 'MIDTERM' || title.includes('2nd mid') || title.includes('mid 2') || title.includes('midterm') || (type !== 'FINAL' && title.includes('mid'));
+            return isMid;
           }
           if (period.id === 'sem2') {
             if (!isTerm2) return false;
-            return type === 'FINAL' || type === 'EXAM' || title.includes('2nd sem') || title.includes('sem 2') || title.includes('final') || title.includes('semester') || (!title.includes('mid') && type !== 'MIDTERM');
+            if (hasTerm2Midterm) {
+              return !isMid;
+            }
+            return true;
           }
           return false;
         });
@@ -1833,12 +1918,12 @@ export class GradebookService {
           score = computeWeightedScore(termAssessments, student.id);
         }
 
-        // 3. If still null, check saved official report card subject score
-        if (score === null) {
+        // 3. Fallback to saved official report card subject score (ONLY for semester periods, NEVER for midterm!)
+        if (score === null && (period.id === 'sem1' || period.id === 'sem2')) {
           const rcMatch = reportCards.find((rc) => {
             const tName = (rc.academicTerm?.name || '').toLowerCase();
-            if (period.id.includes('1') && (tName.includes('1') || tName.includes('first'))) return true;
-            if (period.id.includes('2') && (tName.includes('2') || tName.includes('second'))) return true;
+            if (period.id === 'sem1' && (tName.includes('1') || tName.includes('first'))) return true;
+            if (period.id === 'sem2' && (tName.includes('2') || tName.includes('second'))) return true;
             return false;
           });
           const subjScoreMatch = rcMatch?.subjectScores.find((ss) => ss.subjectId === subj.id);
