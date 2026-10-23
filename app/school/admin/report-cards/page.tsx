@@ -1,18 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   FileText,
   Printer,
   Sparkles,
   RefreshCw,
+  Loader2,
   Search,
   CheckCircle2,
   Award,
   TrendingUp,
-  Share2,
   Edit3,
-  Calendar,
   X,
   Send,
   Eye,
@@ -52,9 +51,21 @@ export default function AdminReportCardsPage() {
 
   const [reportCards, setReportCards] = useState<ReportCard[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Unified loading state — one spinner to rule them all
+  type LoadPhase = 'idle' | 'data' | 'preview' | 'batch';
+  const [loadPhase, setLoadPhase] = useState<LoadPhase>('idle');
+  const loading = loadPhase === 'data';
+  const previewLoading = loadPhase === 'preview';
+  const batchLoading = loadPhase === 'batch';
+  const loadingMessage: Record<LoadPhase, string> = {
+    idle: '',
+    data: 'Loading report cards...',
+    preview: 'Generating official grade report...',
+    batch: 'Compiling all report cards for printing...',
+  };
 
   // Edit comments modal
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -65,12 +76,10 @@ export default function AdminReportCardsPage() {
 
   // Single Print Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [comprehensiveCard, setComprehensiveCard] = useState<ComprehensiveReportCardData | null>(null);
 
   // Batch Print Modal
   const [batchModalOpen, setBatchModalOpen] = useState(false);
-  const [batchLoading, setBatchLoading] = useState(false);
   const [batchCards, setBatchCards] = useState<ComprehensiveReportCardData[]>([]);
 
   const printSingleRef = useRef<HTMLDivElement>(null);
@@ -224,9 +233,9 @@ export default function AdminReportCardsPage() {
     }
   }, [selectedGradeId, selectedSectionId, selectedStreamId, selectedYearId, selectedTermId]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      setLoading(true);
+      setLoadPhase('data');
       const token = localStorage.getItem('attendance_token');
       const { getApiUrl } = await import('@/lib/api-config');
       const API_URL = getApiUrl();
@@ -253,9 +262,9 @@ export default function AdminReportCardsPage() {
     } catch (err: any) {
       console.error(err);
     } finally {
-      setLoading(false);
+      setLoadPhase('idle');
     }
-  };
+  }, [selectedGradeId, selectedSectionId, selectedStreamId, selectedYearId, selectedTermId]);
 
   const handleGenerate = async () => {
     if (!selectedGradeId || !selectedSectionId || !selectedYearId) {
@@ -289,7 +298,7 @@ export default function AdminReportCardsPage() {
 
   const handleOpenPreview = async (studentId: string, termId?: string) => {
     try {
-      setPreviewLoading(true);
+      setLoadPhase('preview');
       setPreviewModalOpen(true);
       const termToFetch = termId || (selectedTermId !== 'annual' ? selectedTermId : undefined);
       const card = await gradebookService.getComprehensiveReportCard(
@@ -302,7 +311,7 @@ export default function AdminReportCardsPage() {
       notifications.error('Preview Error', err?.message || 'Failed to render report card');
       setPreviewModalOpen(false);
     } finally {
-      setPreviewLoading(false);
+      setLoadPhase('idle');
     }
   };
 
@@ -313,7 +322,7 @@ export default function AdminReportCardsPage() {
     }
 
     try {
-      setBatchLoading(true);
+      setLoadPhase('batch');
       setBatchModalOpen(true);
       const cards = await gradebookService.getBatchComprehensiveReportCards({
         gradeId: selectedGradeId,
@@ -326,7 +335,7 @@ export default function AdminReportCardsPage() {
       notifications.error('Batch Print Error', err?.message || 'Failed to prepare batch cards');
       setBatchModalOpen(false);
     } finally {
-      setBatchLoading(false);
+      setLoadPhase('idle');
     }
   };
 
@@ -661,21 +670,37 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-      {/* Search Toolbar */}
-      <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 print:hidden">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by name or ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10 rounded-xl w-full"
-          />
+      {/* Search Toolbar + unified loading status strip */}
+      <div className="flex flex-col gap-2 print:hidden">
+        <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10 rounded-xl w-full"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadData}
+            disabled={loading || generating}
+            className="gap-2 h-10 px-4 shrink-0"
+          >
+            <RefreshCw className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-2 h-10 px-4 shrink-0">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+
+        {/* Unified status bar — only visible while any async op is active */}
+        {(loading || generating) && (
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-primary/5 border border-primary/20 text-primary text-sm font-medium animate-in fade-in duration-200">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            <span>{generating ? 'Recalculating grades...' : loadingMessage[loadPhase]}</span>
+          </div>
+        )}
       </div>
 
       {/* ============================================================ */}
@@ -683,9 +708,11 @@ export default function AdminReportCardsPage() {
       {/* ============================================================ */}
       <div className="md:hidden space-y-3 print:hidden">
         {loading ? (
-          <div className="py-12 text-center text-muted-foreground">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-            Loading report card data...
+          <div className="py-14 flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            </div>
+            <span className="text-sm font-medium">{loadingMessage.data}</span>
           </div>
         ) : filteredRows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground text-sm">
@@ -787,9 +814,13 @@ export default function AdminReportCardsPage() {
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-                    Loading report card data...
+                  <td colSpan={8} className="py-14 text-center">
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                      </div>
+                      <span className="text-sm font-medium">{loadingMessage.data}</span>
+                    </div>
                   </td>
                 </tr>
               ) : filteredRows.length === 0 ? (
@@ -909,9 +940,11 @@ export default function AdminReportCardsPage() {
 
           <div ref={printSingleRef} className="p-2 sm:p-6 bg-muted/60 flex justify-center">
             {previewLoading ? (
-              <div className="py-24 text-center text-muted-foreground">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                Generating official grade report...
+              <div className="py-24 flex flex-col items-center gap-4 text-muted-foreground">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Loader2 className="w-7 h-7 animate-spin text-primary" />
+                </div>
+                <span className="text-sm font-medium">{loadingMessage.preview}</span>
               </div>
             ) : comprehensiveCard ? (
               <StudentReportCard card={comprehensiveCard} />
@@ -955,9 +988,11 @@ export default function AdminReportCardsPage() {
 
           <div ref={printBatchRef} className="p-2 sm:p-6 bg-muted/60 space-y-6">
             {batchLoading ? (
-              <div className="py-24 text-center text-muted-foreground">
-                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-primary" />
-                Compiling all report cards for printing...
+              <div className="py-24 flex flex-col items-center gap-4 text-muted-foreground">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Loader2 className="w-7 h-7 animate-spin text-primary" />
+                </div>
+                <span className="text-sm font-medium">{loadingMessage.batch}</span>
               </div>
             ) : batchCards.length > 0 ? (
               batchCards.map((c, i) => (
