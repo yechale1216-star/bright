@@ -93,7 +93,9 @@ export default function AdminReportCardsPage() {
   // Unified loading state — one phase at a time
   type LoadPhase = 'idle' | 'data' | 'preview' | 'batch';
   const [loadPhase, setLoadPhase] = useState<LoadPhase>('idle');
+  const [metadataLoading, setMetadataLoading] = useState(true);
   const loading = loadPhase === 'data';
+  const isTableLoading = metadataLoading || loading;
   const previewLoading = loadPhase === 'preview';
   const batchLoading = loadPhase === 'batch';
   const loadingMessage: Record<LoadPhase, string> = {
@@ -136,7 +138,7 @@ export default function AdminReportCardsPage() {
 
   const loadMetadata = async () => {
     try {
-      setLoading(true);
+      setMetadataLoading(true);
       const token = localStorage.getItem('attendance_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -167,7 +169,7 @@ export default function AdminReportCardsPage() {
     } catch (err: any) {
       notifications.error('Error', err?.message || 'Failed to load metadata');
     } finally {
-      setLoading(false);
+      setMetadataLoading(false);
     }
   };
 
@@ -741,19 +743,19 @@ export default function AdminReportCardsPage() {
       {/* Readiness Banner */}
       {selectedSectionId && (
         <div
-          className={`rounded-xl border px-4 py-3 flex items-start gap-3 print:hidden cursor-pointer transition-all ${
+          className={`rounded-xl border px-4 py-3 flex items-start gap-3 print:hidden transition-all ${
             loadingReadiness
-              ? 'border-border/50 bg-muted/30'
+              ? 'border-border/50 bg-muted/20'
               : readiness?.isFullyReady
-              ? 'border-emerald-500/30 bg-emerald-500/5'
+              ? 'border-emerald-500/30 bg-emerald-500/5 cursor-pointer'
               : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
-              ? 'border-amber-500/30 bg-amber-500/5'
-              : 'border-blue-500/20 bg-blue-500/5'
+              ? 'border-amber-500/30 bg-amber-500/5 cursor-pointer'
+              : 'border-blue-500/20 bg-blue-500/5 cursor-pointer'
           }`}
-          onClick={() => setReadinessPanelOpen((o) => !o)}
+          onClick={() => !loadingReadiness && setReadinessPanelOpen((o) => !o)}
         >
           {loadingReadiness ? (
-            <Loader2 className="w-5 h-5 text-muted-foreground animate-spin mt-0.5 shrink-0" />
+            <Skeleton className="w-5 h-5 rounded-full mt-0.5 shrink-0" />
           ) : readiness?.isFullyReady ? (
             <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
           ) : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0 ? (
@@ -763,29 +765,36 @@ export default function AdminReportCardsPage() {
           )}
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">
-                {loadingReadiness
-                  ? 'Checking readiness...'
-                  : readiness?.isFullyReady
-                  ? 'All subjects approved — class is ready to publish!'
-                  : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
-                  ? `⚠ ${readiness?.reportCardsSummary?.needsCorrection} report card(s) need correction`
-                  : `${readiness?.approvedSubjectsCount || 0} / ${readiness?.totalRequiredSubjects || '?'} subjects approved`}
-              </p>
-              <ChevronRight
-                className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${readinessPanelOpen ? 'rotate-90' : ''}`}
-              />
-            </div>
-            {readiness && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Report cards: {readiness.reportCardsSummary.published} published •{' '}
-                {readiness.reportCardsSummary.ready} ready •{' '}
-                {readiness.reportCardsSummary.draft} draft
-                {readiness.reportCardsSummary.needsCorrection > 0
-                  ? ` • ${readiness.reportCardsSummary.needsCorrection} need correction`
-                  : ''}
-              </p>
+            {loadingReadiness ? (
+              <div className="space-y-1.5 py-0.5">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-72" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {readiness?.isFullyReady
+                      ? 'All subjects approved — class is ready to publish!'
+                      : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
+                      ? `⚠ ${readiness?.reportCardsSummary?.needsCorrection} report card(s) need correction`
+                      : `${readiness?.approvedSubjectsCount || 0} / ${readiness?.totalRequiredSubjects || '?'} subjects approved`}
+                  </p>
+                  <ChevronRight
+                    className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${readinessPanelOpen ? 'rotate-90' : ''}`}
+                  />
+                </div>
+                {readiness && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Report cards: {readiness.reportCardsSummary.published} published •{' '}
+                    {readiness.reportCardsSummary.ready} ready •{' '}
+                    {readiness.reportCardsSummary.draft} draft
+                    {readiness.reportCardsSummary.needsCorrection > 0
+                      ? ` • ${readiness.reportCardsSummary.needsCorrection} need correction`
+                      : ''}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -879,11 +888,11 @@ export default function AdminReportCardsPage() {
           variant="outline"
           size="sm"
           onClick={() => { loadData(); loadReadiness(); }}
-          disabled={loading || generating}
+          disabled={isTableLoading || generating}
           className="gap-2 h-10 px-4 shrink-0"
         >
-          <RefreshCw className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw className="w-4 h-4" />
+          Refresh
         </Button>
       </div>
 
@@ -891,7 +900,7 @@ export default function AdminReportCardsPage() {
       {/* MOBILE: Card list (visible below md)                         */}
       {/* ============================================================ */}
       <div className="md:hidden space-y-3 print:hidden">
-        {loading ? (
+        {isTableLoading ? (
           // Skeleton mobile cards
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
@@ -1023,7 +1032,7 @@ export default function AdminReportCardsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loading ? (
+              {isTableLoading ? (
                 // Skeleton table rows
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
@@ -1186,11 +1195,27 @@ export default function AdminReportCardsPage() {
 
           <div ref={printSingleRef} className="p-2 sm:p-6 bg-muted/60 flex justify-center">
             {previewLoading ? (
-              <div className="py-24 flex flex-col items-center gap-4 text-muted-foreground">
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Loader2 className="w-7 h-7 animate-spin text-primary" />
+              <div className="w-full max-w-2xl bg-card rounded-2xl border border-border p-6 sm:p-8 space-y-6 shadow-xs animate-pulse">
+                <div className="flex items-center justify-between border-b pb-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="w-14 h-14 rounded-full" />
                 </div>
-                <span className="text-sm font-medium">{loadingMessage.preview}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Skeleton className="h-12 rounded-xl" />
+                  <Skeleton className="h-12 rounded-xl" />
+                  <Skeleton className="h-12 rounded-xl" />
+                  <Skeleton className="h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2.5 pt-2">
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                </div>
               </div>
             ) : comprehensiveCard ? (
               <StudentReportCard card={comprehensiveCard} />
@@ -1234,11 +1259,28 @@ export default function AdminReportCardsPage() {
 
           <div ref={printBatchRef} className="p-2 sm:p-6 bg-muted/60 space-y-6">
             {batchLoading ? (
-              <div className="py-24 flex flex-col items-center gap-4 text-muted-foreground">
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Loader2 className="w-7 h-7 animate-spin text-primary" />
-                </div>
-                <span className="text-sm font-medium">{loadingMessage.batch}</span>
+              <div className="w-full max-w-2xl mx-auto space-y-6">
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-card rounded-2xl border border-border p-6 sm:p-8 space-y-6 shadow-xs animate-pulse">
+                    <div className="flex items-center justify-between border-b pb-4">
+                      <div className="space-y-2">
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-32" />
+                      </div>
+                      <Skeleton className="w-14 h-14 rounded-full" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Skeleton className="h-12 rounded-xl" />
+                      <Skeleton className="h-12 rounded-xl" />
+                      <Skeleton className="h-12 rounded-xl" />
+                    </div>
+                    <div className="space-y-2.5 pt-2">
+                      <Skeleton className="h-7 w-full rounded-md" />
+                      <Skeleton className="h-7 w-full rounded-md" />
+                      <Skeleton className="h-7 w-full rounded-md" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : batchCards.length > 0 ? (
               batchCards.map((c, i) => (

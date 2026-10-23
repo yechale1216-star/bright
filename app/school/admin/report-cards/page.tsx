@@ -57,7 +57,9 @@ export default function AdminReportCardsPage() {
   // Unified loading state — one spinner to rule them all
   type LoadPhase = 'idle' | 'data' | 'preview' | 'batch';
   const [loadPhase, setLoadPhase] = useState<LoadPhase>('idle');
+  const [metadataLoading, setMetadataLoading] = useState(true);
   const loading = loadPhase === 'data';
+  const isTableLoading = metadataLoading || loading;
   const previewLoading = loadPhase === 'preview';
   const batchLoading = loadPhase === 'batch';
   const loadingMessage: Record<LoadPhase, string> = {
@@ -91,7 +93,7 @@ export default function AdminReportCardsPage() {
 
   const loadMetadata = async () => {
     try {
-      setLoading(true);
+      setMetadataLoading(true);
       const token = localStorage.getItem('attendance_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -126,7 +128,7 @@ export default function AdminReportCardsPage() {
     } catch (err: any) {
       notifications.error('Error', err?.message || 'Failed to load metadata');
     } finally {
-      setLoading(false);
+      setMetadataLoading(false);
     }
   };
 
@@ -685,11 +687,11 @@ export default function AdminReportCardsPage() {
           variant="outline"
           size="sm"
           onClick={loadData}
-          disabled={loading || generating}
+          disabled={isTableLoading || generating}
           className="gap-2 h-10 px-4 shrink-0"
         >
-          <RefreshCw className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw className="w-4 h-4" />
+          Refresh
         </Button>
       </div>
 
@@ -697,7 +699,7 @@ export default function AdminReportCardsPage() {
       {/* MOBILE: Card list (visible below md)                         */}
       {/* ============================================================ */}
       <div className="md:hidden space-y-3 print:hidden">
-        {loading ? (
+        {isTableLoading ? (
           // Skeleton mobile cards
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
@@ -818,7 +820,7 @@ export default function AdminReportCardsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loading ? (
+              {isTableLoading ? (
                 // Skeleton table rows
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
@@ -959,11 +961,27 @@ export default function AdminReportCardsPage() {
 
           <div ref={printSingleRef} className="p-2 sm:p-6 bg-muted/60 flex justify-center">
             {previewLoading ? (
-              <div className="py-24 flex flex-col items-center gap-4 text-muted-foreground">
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Loader2 className="w-7 h-7 animate-spin text-primary" />
+              <div className="w-full max-w-2xl bg-card rounded-2xl border border-border p-6 sm:p-8 space-y-6 shadow-xs animate-pulse">
+                <div className="flex items-center justify-between border-b pb-4">
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                  <Skeleton className="w-14 h-14 rounded-full" />
                 </div>
-                <span className="text-sm font-medium">{loadingMessage.preview}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Skeleton className="h-12 rounded-xl" />
+                  <Skeleton className="h-12 rounded-xl" />
+                  <Skeleton className="h-12 rounded-xl" />
+                  <Skeleton className="h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2.5 pt-2">
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                  <Skeleton className="h-7 w-full rounded-md" />
+                </div>
               </div>
             ) : comprehensiveCard ? (
               <StudentReportCard card={comprehensiveCard} />
@@ -1007,11 +1025,28 @@ export default function AdminReportCardsPage() {
 
           <div ref={printBatchRef} className="p-2 sm:p-6 bg-muted/60 space-y-6">
             {batchLoading ? (
-              <div className="py-24 flex flex-col items-center gap-4 text-muted-foreground">
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Loader2 className="w-7 h-7 animate-spin text-primary" />
-                </div>
-                <span className="text-sm font-medium">{loadingMessage.batch}</span>
+              <div className="w-full max-w-2xl mx-auto space-y-6">
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-card rounded-2xl border border-border p-6 sm:p-8 space-y-6 shadow-xs animate-pulse">
+                    <div className="flex items-center justify-between border-b pb-4">
+                      <div className="space-y-2">
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-32" />
+                      </div>
+                      <Skeleton className="w-14 h-14 rounded-full" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Skeleton className="h-12 rounded-xl" />
+                      <Skeleton className="h-12 rounded-xl" />
+                      <Skeleton className="h-12 rounded-xl" />
+                    </div>
+                    <div className="space-y-2.5 pt-2">
+                      <Skeleton className="h-7 w-full rounded-md" />
+                      <Skeleton className="h-7 w-full rounded-md" />
+                      <Skeleton className="h-7 w-full rounded-md" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : batchCards.length > 0 ? (
               batchCards.map((c, i) => (
