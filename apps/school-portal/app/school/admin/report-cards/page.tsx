@@ -568,7 +568,7 @@ export default function AdminReportCardsPage() {
   const canBulkPublish = readiness?.isFullyReady && (readiness?.reportCardsSummary?.ready || 0) > 0;
 
   return (
-    <div className="p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto print:p-0">
+    <div className="w-full min-w-0 overflow-x-hidden p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto print:p-0">
       {/* Header */}
       <div className="flex flex-col gap-3 pb-3 border-b border-border/70 print:hidden">
         {/* Title row */}
@@ -581,12 +581,12 @@ export default function AdminReportCardsPage() {
           </h1>
         </div>
 
-        {/* Action buttons — full width on mobile, wrap naturally */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2">
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleGenerate}
             disabled={generating || loading || !selectedSectionId}
-            className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs w-full justify-center"
+            className="flex-1 min-w-[130px] gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs justify-center"
           >
             <Sparkles className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
             {generating ? 'Calculating...' : 'Recalculate'}
@@ -596,7 +596,7 @@ export default function AdminReportCardsPage() {
             variant="outline"
             onClick={handleOpenBatchPrint}
             disabled={studentRows.length === 0}
-            className="gap-2 border-border text-foreground hover:bg-muted w-full justify-center"
+            className="flex-1 min-w-[120px] gap-2 border-border text-foreground hover:bg-muted justify-center"
           >
             <Layers className="w-4 h-4" />
             Batch Print
@@ -605,7 +605,7 @@ export default function AdminReportCardsPage() {
           <Button
             onClick={handleBulkPublish}
             disabled={bulkPublishing || !canBulkPublish}
-            className={`gap-2 w-full justify-center xs:col-span-2 sm:col-span-1 ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
+            className={`flex-1 min-w-[120px] gap-2 justify-center ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
             variant={canBulkPublish ? 'default' : 'outline'}
           >
             {bulkPublishing ? (
@@ -619,8 +619,8 @@ export default function AdminReportCardsPage() {
       </div>
 
       {/* Filter Toolbar — Hierarchical: Year → Term → Grade → Stream (if 11/12) → Section */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden ${isSeniorGrade ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
-        <div>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden min-w-0 ${isSeniorGrade ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
+        <div className="min-w-0">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Academic Year
           </label>
@@ -637,7 +637,7 @@ export default function AdminReportCardsPage() {
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Evaluation Period
           </label>
@@ -655,7 +655,7 @@ export default function AdminReportCardsPage() {
           </select>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Grade Level
           </label>
@@ -674,7 +674,7 @@ export default function AdminReportCardsPage() {
 
         {/* Stream — only shown when grade is 11 or 12 */}
         {isSeniorGrade && (
-          <div>
+          <div className="min-w-0">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1.5">
               Academic Stream
               <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded uppercase tracking-wide">Required</span>
@@ -699,7 +699,7 @@ export default function AdminReportCardsPage() {
         )}
 
         {/* Section — filtered by stream for senior grades */}
-        <div>
+        <div className="min-w-0">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Section
           </label>
