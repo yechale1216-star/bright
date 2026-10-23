@@ -6,7 +6,6 @@ import {
   Printer,
   Sparkles,
   RefreshCw,
-  Loader2,
   Search,
   CheckCircle2,
   Award,
@@ -34,6 +33,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { StudentReportCard } from '@/components/school/student-report-card';
 import { AuthGuard } from '@/components/auth/auth-guard';
 
@@ -670,37 +670,27 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-      {/* Search Toolbar + unified loading status strip */}
-      <div className="flex flex-col gap-2 print:hidden">
-        <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-10 rounded-xl w-full"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadData}
-            disabled={loading || generating}
-            className="gap-2 h-10 px-4 shrink-0"
-          >
-            <RefreshCw className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
+      {/* Search Toolbar */}
+      <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 print:hidden">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-10 rounded-xl w-full"
+          />
         </div>
-
-        {/* Unified status bar — only visible while any async op is active */}
-        {(loading || generating) && (
-          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-primary/5 border border-primary/20 text-primary text-sm font-medium animate-in fade-in duration-200">
-            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-            <span>{generating ? 'Recalculating grades...' : loadingMessage[loadPhase]}</span>
-          </div>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={loadData}
+          disabled={loading || generating}
+          className="gap-2 h-10 px-4 shrink-0"
+        >
+          <RefreshCw className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </Button>
       </div>
 
       {/* ============================================================ */}
@@ -708,12 +698,28 @@ export default function AdminReportCardsPage() {
       {/* ============================================================ */}
       <div className="md:hidden space-y-3 print:hidden">
         {loading ? (
-          <div className="py-14 flex flex-col items-center gap-3 text-muted-foreground">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          // Skeleton mobile cards
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
+              <div className="flex items-start gap-3">
+                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/5" />
+                  <Skeleton className="h-3 w-2/5" />
+                </div>
+                <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Skeleton className="h-12 rounded-xl" />
+                <Skeleton className="h-12 rounded-xl" />
+                <Skeleton className="h-12 rounded-xl" />
+              </div>
+              <div className="flex gap-2 pt-1 border-t border-border/40">
+                <Skeleton className="h-9 flex-1 rounded-lg" />
+                <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+              </div>
             </div>
-            <span className="text-sm font-medium">{loadingMessage.data}</span>
-          </div>
+          ))
         ) : filteredRows.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground text-sm">
             {!selectedSectionId
@@ -813,16 +819,29 @@ export default function AdminReportCardsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="py-14 text-center">
-                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                // Skeleton table rows
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/50">
+                    <td className="py-3 px-4 text-center">
+                      <Skeleton className="w-7 h-7 rounded-full mx-auto" />
+                    </td>
+                    <td className="py-3 px-4">
+                      <Skeleton className="h-4 w-36 mb-1.5" />
+                      <Skeleton className="h-3 w-24" />
+                    </td>
+                    <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-10 mx-auto" /></td>
+                    <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-12 mx-auto" /></td>
+                    <td className="py-3 px-4 text-center"><Skeleton className="h-6 w-10 mx-auto rounded-md" /></td>
+                    <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-10 mx-auto" /></td>
+                    <td className="py-3 px-4 text-center"><Skeleton className="h-5 w-16 mx-auto rounded-full" /></td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Skeleton className="h-8 w-24 rounded-lg" />
+                        <Skeleton className="h-8 w-8 rounded-lg" />
                       </div>
-                      <span className="text-sm font-medium">{loadingMessage.data}</span>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                ))
               ) : filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-muted-foreground">
