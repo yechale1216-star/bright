@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   GraduationCap, Layers, Award, FileText, User, MessageSquare, UserCheck,
-  ChevronRight, X, LayoutDashboard, CalendarDays, ClipboardList, BarChart3, CheckSquare
+  ChevronRight, X, LayoutDashboard, CalendarDays
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { useAuth } from '@/lib/context/auth-context'
@@ -26,18 +26,17 @@ const navItems: NavItem[] = [
   { href: '/school/academic-head/academic-structure', icon: Layers, label: 'Academic Structure' },
   { href: '/school/academic-head/timetables', icon: CalendarDays, label: 'Timetables' },
   {
-    href: '/school/academic-head/assessments/policy',
+    href: '/school/academic-head/assessments',
     icon: GraduationCap,
-    label: 'Assessment Policies',
+    label: 'Assessments',
     children: [
-      { href: '/school/academic-head/assessments/types', label: 'Assessment Types' },
-      { href: '/school/academic-head/assessments/templates', label: 'Assessment Templates' },
-      { href: '/school/academic-head/assessments/policy', label: 'Assessments' },
+      { href: '/school/academic-head/assessments/policy', label: 'Assessment Policy' },
+      { href: '/school/academic-head/assessments/configurations', label: 'Grade & Subject Config' },
+      { href: '/school/academic-head/assessments/bulk-assignment', label: 'Bulk Assessment Assignment' },
+      { href: '/school/academic-head/assessments/submissions', label: 'Mark Submissions & Approval' },
+      { href: '/school/academic-head/assessments/reports', label: 'Assessment Reports' },
     ],
   },
-  { href: '/school/academic-head/assessments/bulk-assignment', icon: ClipboardList, label: 'Bulk Assessment Assignment' },
-  { href: '/school/academic-head/assessments/submissions',     icon: CheckSquare,   label: 'Mark Submissions & Approval' },
-  { href: '/school/academic-head/assessments/reports',         icon: BarChart3,     label: 'Assessment Reports' },
   { href: '/school/academic-head/exams', icon: Award, label: 'Exams & Grades' },
   { href: '/school/academic-head/report-cards', icon: FileText, label: 'Report Cards' },
   { href: '/school/academic-head/staff-attendance', icon: UserCheck, label: 'My Attendance' },
