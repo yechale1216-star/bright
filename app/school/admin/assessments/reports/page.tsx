@@ -138,6 +138,34 @@ const REPORT_CATEGORIES: ReportCategoryMeta[] = [
   },
 ];
 
+export interface ReportTier {
+  id: string;
+  label: string;
+  badge: string;
+  categories: string[];
+}
+
+const REPORT_TIERS: ReportTier[] = [
+  {
+    id: 'classroom',
+    label: 'Classroom & Students',
+    badge: 'Class & Student',
+    categories: ['CLASS_PERFORMANCE', 'STUDENT_ACADEMIC'],
+  },
+  {
+    id: 'curriculum',
+    label: 'Curriculum & Grades',
+    badge: 'Subject & Grade Level',
+    categories: ['SUBJECT_PERFORMANCE', 'GRADE_LEVEL'],
+  },
+  {
+    id: 'leadership',
+    label: 'Leadership & Annual',
+    badge: 'Trends, Annual & School',
+    categories: ['PERFORMANCE_ANALYSIS', 'ANNUAL_ACADEMIC', 'SCHOOL_SUMMARY'],
+  },
+];
+
 export default function AssessmentReportsPage() {
   const pathname = usePathname();
   const isAcademicHead = pathname?.startsWith('/school/academic-head');
@@ -436,6 +464,11 @@ export default function AssessmentReportsPage() {
     return REPORT_CATEGORIES.find((c) => c.key === selectedCategory) || REPORT_CATEGORIES[0];
   }, [selectedCategory]);
 
+  // Active Report Tier
+  const activeTier = useMemo(() => {
+    return REPORT_TIERS.find((t) => t.categories.includes(selectedCategory)) || REPORT_TIERS[0];
+  }, [selectedCategory]);
+
   // Filtered & Paginated Reports in the Catalog Table
   const filteredReports = useMemo(() => {
     const reports = analytics?.availableReports || [];
@@ -598,19 +631,55 @@ export default function AssessmentReportsPage() {
         </div>
       </div>
 
-      {/* ─── 7 Standard Academic Report Categories Navigation ────────────── */}
-      <div className="space-y-2 print:hidden">
-        <div className="flex items-center justify-between">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            Select Standard Report Category
-          </label>
-          <span className="text-[11px] text-muted-foreground font-medium">
-            Category: <strong className="text-foreground">{activeCategoryMeta.shortTitle}</strong>
-          </span>
+      {/* ─── 1. Tiered Academic Report Navigation ─────────────────────────── */}
+      <div className="space-y-3 print:hidden">
+        {/* Tier Tabs: Classroom | Curriculum | Leadership */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-muted/60 border border-border w-fit">
+            {REPORT_TIERS.map((tier) => {
+              const isTierActive = activeTier.id === tier.id;
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => {
+                    if (!tier.categories.includes(selectedCategory)) {
+                      setSelectedCategory(tier.categories[0]);
+                    }
+                  }}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer select-none",
+                    isTierActive
+                      ? isAcademicHead
+                        ? "bg-violet-600 text-white shadow-xs"
+                        : "bg-blue-600 text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
+                >
+                  <span>{tier.label}</span>
+                  <span
+                    className={cn(
+                      "text-[9px] font-semibold px-1.5 py-0.2 rounded-md hidden md:inline-block",
+                      isTierActive
+                        ? "bg-white/20 text-white"
+                        : "bg-background/80 text-muted-foreground border border-border/50"
+                    )}
+                  >
+                    {tier.badge}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="text-[11px] text-muted-foreground font-medium hidden sm:block">
+            Standard: <strong className="text-foreground">{activeCategoryMeta.title}</strong>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
-          {REPORT_CATEGORIES.map((cat) => {
+        {/* Report Types Pills within the Active Tier */}
+        <div className="flex flex-wrap items-center gap-2">
+          {REPORT_CATEGORIES.filter((c) => activeTier.categories.includes(c.key)).map((cat) => {
             const isSelected = selectedCategory === cat.key;
             return (
               <button
@@ -618,23 +687,27 @@ export default function AssessmentReportsPage() {
                 type="button"
                 onClick={() => setSelectedCategory(cat.key)}
                 className={cn(
-                  "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 group relative overflow-hidden",
+                  "px-3.5 py-2 rounded-xl text-left border transition-all flex items-center gap-2.5 group cursor-pointer select-none",
                   isSelected
                     ? isAcademicHead
-                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs"
-                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs"
+                      ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs font-bold"
+                      : "bg-blue-500/15 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs font-bold"
                     : "bg-card border-border hover:bg-muted/50 text-foreground"
                 )}
               >
-                <span className="text-xs font-bold leading-tight line-clamp-1">
+                <span className="text-xs font-bold leading-tight">
                   {cat.shortTitle}
                 </span>
-                <span className={cn(
-                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate w-fit max-w-full",
-                  isSelected
-                    ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300" : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
-                    : "border-border text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate",
+                    isSelected
+                      ? isAcademicHead
+                        ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                        : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                      : "border-border text-muted-foreground"
+                  )}
+                >
                   {cat.badge}
                 </span>
               </button>
@@ -643,13 +716,19 @@ export default function AssessmentReportsPage() {
         </div>
       </div>
 
-      {/* ─── Contextual Filters Bar ──────────────────────────────────────── */}
-      <div className="p-4 rounded-2xl bg-card border border-border shadow-xs print:hidden">
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/60">
-          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+      {/* ─── 2. Adaptive Scope & Context Filters Bar ──────────────────────── */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs print:hidden space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-border/60">
+          <div className="flex items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>Report Scope & Context Filters</span>
-          </span>
+            <span className="text-xs font-bold text-foreground">
+              Report Scope & Context
+            </span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
+              {activeCategoryMeta.shortTitle}
+            </span>
+          </div>
+
           <Button
             variant="ghost"
             size="sm"
@@ -661,7 +740,7 @@ export default function AssessmentReportsPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
           {/* Academic Year */}
           <div>
             <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
@@ -683,7 +762,7 @@ export default function AssessmentReportsPage() {
             </select>
           </div>
 
-          {/* Academic Term */}
+          {/* Reporting Term */}
           <div>
             <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               Reporting Term
@@ -712,34 +791,45 @@ export default function AssessmentReportsPage() {
             </select>
           </div>
 
-          {/* Grade */}
-          <div>
-            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Grade
-            </label>
-            <select
-              value={selectedGradeId}
-              onChange={(e) => {
-                setSelectedGradeId(e.target.value);
-                setSelectedSectionId('all');
-                setSelectedStreamId('all');
-              }}
-              className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
-                isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-              )}
-            >
-              <option value="all">All Grades</option>
-              {grades.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Grade - Adaptive */}
+          {selectedCategory === 'SCHOOL_SUMMARY' ? (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Grade Scope
+              </label>
+              <div className="h-9 px-3 rounded-xl border border-border bg-muted/40 text-xs font-medium text-muted-foreground flex items-center">
+                All School Grades
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Grade
+              </label>
+              <select
+                value={selectedGradeId}
+                onChange={(e) => {
+                  setSelectedGradeId(e.target.value);
+                  setSelectedSectionId('all');
+                  setSelectedStreamId('all');
+                }}
+                className={cn(
+                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
+                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                )}
+              >
+                <option value="all">All Grades</option>
+                {grades.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Stream - Visible only for Senior Grades 11/12 */}
-          {isSeniorGrade && (
+          {/* Stream - Visible only for Senior Grades 11/12 and not School Summary */}
+          {isSeniorGrade && selectedCategory !== 'SCHOOL_SUMMARY' && (
             <div>
               <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center justify-between">
                 <span>Stream</span>
@@ -763,30 +853,7 @@ export default function AssessmentReportsPage() {
             </div>
           )}
 
-          {/* Section */}
-          <div>
-            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Section
-            </label>
-            <select
-              disabled={selectedGradeId === 'all'}
-              value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
-              className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
-                isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-              )}
-            >
-              <option value="all">All Sections</option>
-              {sections.map((sec) => (
-                <option key={sec.id} value={sec.id}>
-                  Section {sec.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Subject Filter (Relevant for Subject Performance & Performance Analysis) */}
+          {/* Section or Subject or Comparison */}
           {selectedCategory === 'SUBJECT_PERFORMANCE' ? (
             <div>
               <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
@@ -808,10 +875,53 @@ export default function AssessmentReportsPage() {
                 ))}
               </select>
             </div>
-          ) : selectedCategory === 'STUDENT_ACADEMIC' ? (
+          ) : selectedCategory === 'GRADE_LEVEL' ? (
             <div>
               <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Individual Student
+                Section Scope
+              </label>
+              <div className="h-9 px-3 rounded-xl border border-border bg-muted/40 text-xs font-medium text-muted-foreground flex items-center truncate">
+                All Sections in Grade
+              </div>
+            </div>
+          ) : selectedCategory === 'SCHOOL_SUMMARY' ? (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Institutional Scope
+              </label>
+              <div className="h-9 px-3 rounded-xl border border-border bg-muted/40 text-xs font-medium text-muted-foreground flex items-center truncate">
+                Whole-School Matrix
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Section
+              </label>
+              <select
+                disabled={selectedGradeId === 'all'}
+                value={selectedSectionId}
+                onChange={(e) => setSelectedSectionId(e.target.value)}
+                className={cn(
+                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
+                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                )}
+              >
+                <option value="all">All Sections</option>
+                {sections.map((sec) => (
+                  <option key={sec.id} value={sec.id}>
+                    Section {sec.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Student Picker - Only for STUDENT_ACADEMIC */}
+          {selectedCategory === 'STUDENT_ACADEMIC' && (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Candidate Student
               </label>
               <select
                 value={selectedStudentId}
@@ -829,38 +939,22 @@ export default function AssessmentReportsPage() {
                 ))}
               </select>
             </div>
-          ) : (
-            <div>
-              <Button
-                onClick={loadReportAnalytics}
-                disabled={generating || loading}
-                className={cn(
-                  "w-full h-9 gap-1.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center text-white",
-                  isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
-                )}
-              >
-                <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
-                <span>{generating ? 'Calculating...' : 'Generate Report'}</span>
-              </Button>
-            </div>
           )}
 
-          {/* Action button if subject/student dropdown took the 6th slot */}
-          {(selectedCategory === 'SUBJECT_PERFORMANCE' || selectedCategory === 'STUDENT_ACADEMIC') && (
-            <div className="col-span-full sm:col-span-1">
-              <Button
-                onClick={loadReportAnalytics}
-                disabled={generating || loading}
-                className={cn(
-                  "w-full h-9 gap-1.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center text-white",
-                  isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
-                )}
-              >
-                <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
-                <span>{generating ? 'Calculating...' : 'Apply Filters'}</span>
-              </Button>
-            </div>
-          )}
+          {/* Action: Generate / Apply Scope Button */}
+          <div>
+            <Button
+              onClick={loadReportAnalytics}
+              disabled={generating || loading}
+              className={cn(
+                "w-full h-9 gap-1.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center text-white cursor-pointer",
+                isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
+              )}
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
+              <span>{generating ? 'Calculating...' : 'Generate Report'}</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1194,22 +1288,22 @@ export default function AssessmentReportsPage() {
 
       {/* ─── Available Reports Catalog Table Section ─────────────────────── */}
       <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
-        {/* Table Header with Search & Reset */}
+        {/* Table Header with Search & Direct Export/Print */}
         <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-base font-bold text-foreground tracking-tight">
-              Standard Academic Reports Catalog
+              {activeCategoryMeta.shortTitle} Roster
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Available reports in <strong className="text-foreground">{activeCategoryMeta.title}</strong> ready for review, print, and export
+              Official assessment records and cohort evaluations for <strong className="text-foreground">{activeCategoryMeta.title}</strong>
             </p>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
+            <div className="relative flex-1 sm:w-60">
               <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
-                placeholder="Search report roster..."
+                placeholder="Search roster..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -1224,11 +1318,22 @@ export default function AssessmentReportsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleResetFilters}
+              onClick={() => handleExportCSV()}
               className="h-9 px-3 rounded-xl gap-1.5 text-xs font-semibold border-border bg-card text-foreground hover:bg-muted"
+              title="Export all cohort records to CSV"
             >
-              <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>Reset</span>
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              className="h-9 px-3 rounded-xl gap-1.5 text-xs font-semibold border-border bg-card text-foreground hover:bg-muted"
+              title="Print official report summary"
+            >
+              <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline">Print</span>
             </Button>
           </div>
         </div>
