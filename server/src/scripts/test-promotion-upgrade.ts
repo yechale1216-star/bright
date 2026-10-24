@@ -490,12 +490,30 @@ async function runPromotionUpgradeTests() {
       await prisma.student.delete({ where: { id: sid } }).catch(() => {});
     }
 
+    // Clean up sections before grades
+    if (testSectionA) await prisma.section.delete({ where: { id: testSectionA.id } }).catch(() => {});
+    if (testSection12A) await prisma.section.delete({ where: { id: testSection12A.id } }).catch(() => {});
+
+    // Clean up promotions referencing test grades/years
+    if (testGrade9 || testGrade10 || testGrade12) {
+      const gids = [testGrade9?.id, testGrade10?.id, testGrade12?.id].filter(Boolean);
+      await prisma.studentPromotion.deleteMany({
+        where: {
+          OR: [{ fromGradeId: { in: gids } }, { toGradeId: { in: gids } }],
+        },
+      }).catch(() => {});
+    }
+
     if (testGrade9) await prisma.grade.delete({ where: { id: testGrade9.id } }).catch(() => {});
     if (testGrade10) await prisma.grade.delete({ where: { id: testGrade10.id } }).catch(() => {});
     if (testGrade12) await prisma.grade.delete({ where: { id: testGrade12.id } }).catch(() => {});
     if (subjMath) await prisma.subject.delete({ where: { id: subjMath.id } }).catch(() => {});
     if (subjEng) await prisma.subject.delete({ where: { id: subjEng.id } }).catch(() => {});
     if (subjPhy) await prisma.subject.delete({ where: { id: subjPhy.id } }).catch(() => {});
+
+    // Clean up terms before years
+    if (term1) await prisma.academicTerm.delete({ where: { id: term1.id } }).catch(() => {});
+    if (term2) await prisma.academicTerm.delete({ where: { id: term2.id } }).catch(() => {});
     if (testNextYear) await prisma.academicYear.delete({ where: { id: testNextYear.id } }).catch(() => {});
     if (testYear) await prisma.academicYear.delete({ where: { id: testYear.id } }).catch(() => {});
 
