@@ -89,14 +89,6 @@ const REPORT_CATEGORIES: ReportCategoryMeta[] = [
     icon: Users,
   },
   {
-    key: 'STUDENT_ACADEMIC',
-    title: 'Student Academic Report',
-    shortTitle: 'Student Report',
-    badge: 'Individual Student',
-    description: "Evaluate an individual student's subject achievement, grading status, and trajectory.",
-    icon: GraduationCap,
-  },
-  {
     key: 'SUBJECT_PERFORMANCE',
     title: 'Subject Performance Report',
     shortTitle: 'Subject Report',
@@ -578,7 +570,7 @@ export default function AssessmentReportsPage() {
         </div>
       </div>
 
-      {/* ─── 7 Standard Academic Report Categories Navigation ────────────── */}
+      {/* ─── Standard Academic Report Categories Navigation ────────────── */}
       <div className="space-y-2 print:hidden">
         <div className="flex items-center justify-between">
           <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -589,7 +581,7 @@ export default function AssessmentReportsPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {REPORT_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.key;
             return (
@@ -766,7 +758,7 @@ export default function AssessmentReportsPage() {
             </select>
           </div>
 
-          {/* Subject Filter (Relevant for Subject Performance & Performance Analysis) */}
+          {/* Subject Filter (Relevant for Subject Performance) */}
           {selectedCategory === 'SUBJECT_PERFORMANCE' ? (
             <div>
               <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
@@ -788,27 +780,6 @@ export default function AssessmentReportsPage() {
                 ))}
               </select>
             </div>
-          ) : selectedCategory === 'STUDENT_ACADEMIC' ? (
-            <div>
-              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Individual Student
-              </label>
-              <select
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className={cn(
-                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
-                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-                )}
-              >
-                <option value="all">Select Student...</option>
-                {students.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.fullName} ({st.student_id})
-                  </option>
-                ))}
-              </select>
-            </div>
           ) : (
             <div>
               <Button
@@ -825,8 +796,8 @@ export default function AssessmentReportsPage() {
             </div>
           )}
 
-          {/* Action button if subject/student dropdown took the 6th slot */}
-          {(selectedCategory === 'SUBJECT_PERFORMANCE' || selectedCategory === 'STUDENT_ACADEMIC') && (
+          {/* Action button if subject dropdown took the 6th slot */}
+          {selectedCategory === 'SUBJECT_PERFORMANCE' && (
             <div className="col-span-full sm:col-span-1">
               <Button
                 onClick={loadReportAnalytics}
