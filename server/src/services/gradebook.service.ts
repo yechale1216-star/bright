@@ -1,6 +1,7 @@
 import prisma from '../config/db';
 import { AssessmentCalculationEngine, StudentAssessmentScore, ConfiguredCategory } from './assessment-calculation.service';
 import { AssessmentPolicyService } from './assessment-policy.service';
+import { evaluateStudentPromotion, findGradeScale } from '../utils/report-card-promotion';
 
 export interface GradingScaleInput {
   grade: string;
@@ -1735,6 +1736,9 @@ export class GradebookService {
     });
 
     // Helper to compute weighted score for an assessment collection
+    // Distinguishes missing marks from a valid score of 0:
+    // - If any required assessment mark is missing/unentered, returns null (incomplete)
+    // - If score is 0 or student is marked absent, counts as 0 (valid recorded mark)
     const computeWeightedScore = (
       assessmentsList: typeof assessments,
       studentIdToMatch: string
@@ -1747,9 +1751,25 @@ export class GradebookService {
 
       for (const ass of assessmentsList) {
         const mark = ass.marks.find((m) => m.studentId === studentIdToMatch);
-        if (!mark) continue;
+        const hasValidRecordedScore = mark && (mark.score !== null && mark.score !== undefined);
+        const isAbsent = mark?.isAbsent || mark?.status === 'ABSENT';
+        const isExcused = mark?.status === 'EXCUSED';
+
+        if (isExcused) {
+          // Excused assessment is omitted from calculation
+          continue;
+        }
+
+        // CRITICAL: If an assessment mark was not entered (missing),
+        // we must NOT assume 0 and must NOT calculate provisional total as complete!
+        // Return null to signify incomplete marks for this assessment set.
+        if (!hasValidRecordedScore && !isAbsent) {
+          return null;
+        }
+
         hasGradedMark = true;
-        const rawScore = !mark.isAbsent && mark.score != null ? mark.score : 0;
+        // 0 is a valid score!
+        const rawScore = isAbsent ? 0 : Number(mark!.score);
         const max = ass.maxScore > 0 ? ass.maxScore : 100;
         const pct = (rawScore / max) * 100;
         const weight = ass.weightage > 0 ? ass.weightage : 100;
@@ -1867,9 +1887,7 @@ export class GradebookService {
       periods.push({ id: 'sem2', label: '2nd Semester' });
     }
 
-    let failedSubjectsCount = 0;
-
-    const subjectRows = activeSubjects.map((subj) => {
+    const rawSubjectScoresList = activeSubjects.map((subj) => {
       const scores: Record<string, number | null> = {};
       const subjAssessments = assessments.filter((a) => a.subjectId === subj.id);
 
@@ -1938,33 +1956,41 @@ export class GradebookService {
         scores[period.id] = score;
       });
 
-      const validPeriodValues = periods
-        .map((p) => scores[p.id])
-        .filter((val): val is number => val !== null && val !== undefined);
-
-      const rowTotal = Math.round(validPeriodValues.reduce((a, b) => a + b, 0) * 10) / 10;
-      const rowAverage = validPeriodValues.length > 0
-        ? Math.round((rowTotal / validPeriodValues.length) * 10) / 10
-        : 0;
-
-      const scaleInfo = findGradeLetter(rowAverage);
-      const isSubjectPassing = scaleInfo.isPassing;
-      if (validPeriodValues.length > 0 && !isSubjectPassing) {
-        failedSubjectsCount += 1;
-      }
-
       return {
         subjectId: subj.id,
         subjectName: subj.name,
         code: subj.code,
-        weight: 100,
-        scores: scores as Record<string, number>,
-        total: rowTotal,
-        average: rowAverage,
-        isPassing: isSubjectPassing,
-        gradeLetter: scaleInfo.letter,
+        scores,
       };
     });
+
+    const isSingleTermEval = effectiveTermName !== 'Annual';
+
+    // Authoritative Promotion & Pass/Fail Evaluation:
+    // - Incomplete: If any required assessment or term mark is missing, displays INCOMPLETE and denies passing/promotion.
+    // - Zero (0): Treated as valid recorded score, calculated normally with existing grading/promotion rules.
+    // - Complete: Only determines PASS/FAIL/PROMOTION when all required marks are recorded.
+    const promoEval = evaluateStudentPromotion({
+      subjectScores: rawSubjectScoresList,
+      requiredPeriodIds: periods.map((p) => p.id),
+      isSingleTerm: isSingleTermEval,
+      policyPassingMinScore,
+      gradingScales,
+    });
+
+    const subjectRows = promoEval.subjectRows.map((r) => ({
+      subjectId: r.subjectId,
+      subjectName: r.subjectName,
+      code: r.code,
+      weight: 100,
+      scores: r.scores as Record<string, number>,
+      total: r.total ?? 0,
+      average: r.average ?? 0,
+      isPassing: r.isPassing,
+      gradeLetter: r.gradeLetter,
+      isComplete: r.isComplete,
+      missingPeriods: r.missingPeriods,
+    }));
 
     // Column Totals
     const columnTotals: Record<string, number> = {};
@@ -1985,17 +2011,11 @@ export class GradebookService {
       }
     });
 
-    const activeRows = subjectRows.filter((r) => {
-      return periods.some((p) => r.scores[p.id] !== null && r.scores[p.id] !== undefined);
-    });
-    const rowsForCalculations = activeRows.length > 0 ? activeRows : subjectRows;
-
-    const totalPointsSum = Math.round(subjectRows.reduce((acc, row) => acc + (row.total || 0), 0) * 10) / 10;
-    const totalAverageSum = rowsForCalculations.reduce((acc, row) => acc + (row.average || 0), 0);
-    const overallAverage = rowsForCalculations.length > 0 ? Math.round((totalAverageSum / rowsForCalculations.length) * 10) / 10 : 0;
+    const totalPointsSum = promoEval.totalPointsSum ?? Math.round(subjectRows.reduce((acc, row) => acc + (row.total || 0), 0) * 10) / 10;
+    const overallAverage = promoEval.overallAverage ?? (subjectRows.length > 0 ? Math.round((subjectRows.reduce((acc, row) => acc + (row.average || 0), 0) / subjectRows.length) * 10) / 10 : 0);
 
     columnTotals['total'] = totalPointsSum;
-    columnTotals['average'] = Math.round(totalAverageSum * 10) / 10;
+    columnTotals['average'] = overallAverage;
     columnAverages['overall'] = overallAverage;
 
     // Class Standing & Section Size
@@ -2028,7 +2048,7 @@ export class GradebookService {
         if (classReportCards.length > 0) {
           const studentAverages = new Map<string, number[]>();
           for (const rc of classReportCards) {
-            if (typeof rc.averageScore === 'number' && !isNaN(rc.averageScore) && rc.averageScore > 0) {
+            if (typeof rc.averageScore === 'number' && !isNaN(rc.averageScore)) {
               const list = studentAverages.get(rc.studentId) || [];
               list.push(rc.averageScore);
               studentAverages.set(rc.studentId, list);
@@ -2052,27 +2072,7 @@ export class GradebookService {
       }
     }
 
-    const rankDisplay = `${studentRank}/${totalStudentsInClass}`;
-
-    // School Grading & Promotion Policy Pass/Fail Logic:
-    // Rule 1: Student's cumulative average must meet or exceed the policy minimum passing score.
-    // Rule 2: A student who receives failing marks (under grading policy) in 3 or more subjects fails / is retained.
-    const isAveragePassing = overallAverage >= policyPassingMinScore;
-    const maxAllowedFailedSubjects = 2;
-    const isSubjectPassCountAcceptable = failedSubjectsCount <= maxAllowedFailedSubjects;
-
-    const isOverallPassing = isAveragePassing && isSubjectPassCountAcceptable;
-    const isSingleTermEval = effectiveTermName !== 'Annual';
-    let remarkBadge = 'Passed';
-
-    if (!isOverallPassing) {
-      remarkBadge = isSingleTermEval ? 'Failed' : 'Retained';
-    } else if (failedSubjectsCount > 0) {
-      // Average meets policy requirement, but 1 or 2 subjects failed
-      remarkBadge = isSingleTermEval ? 'Passed (Conditional)' : 'Promoted (Conditional)';
-    } else {
-      remarkBadge = isSingleTermEval ? 'Passed' : 'Promoted';
-    }
+    const rankDisplay = promoEval.isIncomplete ? '—' : `${studentRank}/${totalStudentsInClass}`;
 
     // Official Report Card ID & Issue Date
     const yearSuffix = targetYear?.name ? targetYear.name.replace(/[^\w]/g, '') : '2018';
@@ -2134,9 +2134,12 @@ export class GradebookService {
         rank: rankDisplay,
         conduct,
         absence: `${absences} Day`,
-        remarkBadge,
-        isPassing: isOverallPassing,
-        failedSubjectsCount,
+        remarkBadge: promoEval.remarkBadge,
+        isPassing: promoEval.isOverallPassing,
+        canPromote: promoEval.canPromote,
+        isIncomplete: promoEval.isIncomplete,
+        missingReasons: promoEval.missingReasons,
+        failedSubjectsCount: promoEval.failedSubjectsCount,
         passingMinScore: policyPassingMinScore,
         teacherComment,
         principalComment,
@@ -2744,6 +2747,7 @@ export class GradebookService {
         ? Math.min(...passingScales.map((s) => s.minScore))
         : 50.0;
 
+      const hasMissingSubject = reportCard.subjectScores.some((s) => s.status === 'MISSING' || s.score === null);
       const failingSubjects = reportCard.subjectScores.filter((s) => {
         const val = s.score ?? 0;
         const matched = gradingScales.find((sc) => val >= sc.minScore && (val <= sc.maxScore || sc.maxScore >= 100));
@@ -2751,7 +2755,22 @@ export class GradebookService {
       });
       const isRetained = reportCard.averageScore < policyPassingMinScore || failingSubjects.length >= 3;
       const isConditional = !isRetained && failingSubjects.length > 0;
-      const remarkBadge = isRetained ? 'RETAINED' : isConditional ? 'PASSED (CONDITIONAL)' : 'PASSED';
+      let remarkBadge = 'PASSED';
+      let isPassing = true;
+
+      if (reportCard.status === 'INCOMPLETE' || hasMissingSubject) {
+        remarkBadge = 'INCOMPLETE';
+        isPassing = false;
+      } else if (isRetained) {
+        remarkBadge = 'RETAINED';
+        isPassing = false;
+      } else if (isConditional) {
+        remarkBadge = 'PASSED (CONDITIONAL)';
+        isPassing = true;
+      } else {
+        remarkBadge = 'PASSED';
+        isPassing = true;
+      }
 
       const isGrade11or12 = /\b(11|12)\b/.test(reportCard.grade?.name || '');
       let streamName: string | null = null;

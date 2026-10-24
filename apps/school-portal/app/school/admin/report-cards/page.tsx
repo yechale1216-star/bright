@@ -63,6 +63,7 @@ function StatusBadge({ status }: { status: string }) {
     READY: { label: 'Ready', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30' },
     DRAFT: { label: 'Draft', className: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-300/50' },
     NEEDS_CORRECTION: { label: 'Needs Correction', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30' },
+    INCOMPLETE: { label: 'Incomplete', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/40 font-bold' },
     PENDING: { label: 'Pending', className: 'bg-muted text-muted-foreground' },
   };
   const cfg = map[status] || map.PENDING;
@@ -667,10 +668,20 @@ export default function AdminReportCardsPage() {
         return acc + (diff > 0 ? diff : 0);
       }, 0);
 
-      // Overall status: PUBLISHED if all valid cards are published, otherwise READY/NEEDS_CORRECTION/GENERATED/DRAFT
+      // Display term coverage information
+      const termCount = validTermCards.length;
+      const totalConfiguredTerms = currentTerms?.length || 0;
+      const isAnnualComplete = (totalConfiguredTerms === 0 || termCount >= totalConfiguredTerms) &&
+        validTermCards.every((rc) => rc.status !== 'INCOMPLETE' && typeof rc.averageScore === 'number');
+
+      // Overall status: If not all terms are completed or any card is incomplete -> INCOMPLETE
       let annualStatus = 'PENDING';
-      if (validTermCards.length > 0) {
-        if (validTermCards.every((rc) => rc.status === 'PUBLISHED')) {
+      if (!isAnnualComplete && totalConfiguredTerms > 0 && termCount < totalConfiguredTerms) {
+        annualStatus = 'INCOMPLETE';
+      } else if (validTermCards.length > 0) {
+        if (validTermCards.some((rc) => rc.status === 'INCOMPLETE')) {
+          annualStatus = 'INCOMPLETE';
+        } else if (validTermCards.every((rc) => rc.status === 'PUBLISHED')) {
           annualStatus = 'PUBLISHED';
         } else if (validTermCards.some((rc) => rc.status === 'READY')) {
           annualStatus = 'READY';
@@ -685,9 +696,6 @@ export default function AdminReportCardsPage() {
         annualStatus = latestCard.status;
       }
 
-      // Display term coverage information
-      const termCount = validTermCards.length;
-      const totalConfiguredTerms = currentTerms?.length || 0;
       const termNameDisplay =
         totalConfiguredTerms > 0
           ? `Annual (${termCount}/${totalConfiguredTerms} Terms)`

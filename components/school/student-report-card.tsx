@@ -407,8 +407,10 @@ export function StudentReportCardFront({
                   <div className="flex flex-wrap items-center gap-3">
                     <span
                       className={`inline-block px-4 py-1 border-2 rounded-sm font-black text-xs uppercase tracking-wider ${
-                        summary.remarkBadge?.toLowerCase().includes('fail') ||
-                        summary.remarkBadge?.toLowerCase().includes('retain')
+                        summary.remarkBadge?.toLowerCase().includes('incomplete')
+                          ? 'border-amber-600 text-amber-900 bg-amber-100 font-extrabold shadow-sm'
+                          : summary.remarkBadge?.toLowerCase().includes('fail') ||
+                            summary.remarkBadge?.toLowerCase().includes('retain')
                           ? 'border-rose-600 text-rose-700 bg-rose-50'
                           : summary.remarkBadge?.toLowerCase().includes('conditional')
                           ? 'border-amber-600 text-amber-800 bg-amber-50'
@@ -417,7 +419,12 @@ export function StudentReportCardFront({
                     >
                       {summary.remarkBadge || 'Passed'}
                     </span>
-                    {summary.failedSubjectsCount !== undefined && summary.failedSubjectsCount > 0 && (
+                    {summary.remarkBadge?.toLowerCase().includes('incomplete') && (
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-300">
+                        Incomplete marks: Missing assessment or term evaluation
+                      </span>
+                    )}
+                    {!summary.remarkBadge?.toLowerCase().includes('incomplete') && summary.failedSubjectsCount !== undefined && summary.failedSubjectsCount > 0 && (
                       <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
                         {summary.failedSubjectsCount} {summary.failedSubjectsCount === 1 ? 'subject' : 'subjects'} below 50%
                       </span>
