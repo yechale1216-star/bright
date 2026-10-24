@@ -1307,7 +1307,10 @@ export class GradebookService {
     if (filters.gradeId) where.gradeId = filters.gradeId;
     if (filters.sectionId) where.sectionId = filters.sectionId;
     if (filters.academicYearId) where.academicYearId = filters.academicYearId;
-    if (filters.academicTermId) where.academicTermId = filters.academicTermId;
+    // When 'annual' or 'all' is selected, omit the term filter so all terms are returned
+    if (filters.academicTermId && filters.academicTermId !== 'annual' && filters.academicTermId !== 'all') {
+      where.academicTermId = filters.academicTermId;
+    }
     if (filters.status) where.status = filters.status;
     if (filters.streamId && filters.streamId !== 'all') {
       where.OR = [
@@ -2005,7 +2008,50 @@ export class GradebookService {
     });
 
     const totalStudentsInClass = sectionStudentsCount > 0 ? sectionStudentsCount : 1;
-    const studentRank = latestRc?.rank || 1;
+    let studentRank = latestRc?.rank || 1;
+
+    // For Full Academic Year / Annual evaluation, calculate rank by annual average across the class section
+    if (effectiveTermName === 'Annual' && targetYear?.id) {
+      try {
+        const classReportCards = await prisma.reportCard.findMany({
+          where: {
+            gradeId: effectiveGrade.id,
+            sectionId: effectiveSection.id,
+            academicYearId: targetYear.id,
+          },
+          select: {
+            studentId: true,
+            averageScore: true,
+          },
+        });
+
+        if (classReportCards.length > 0) {
+          const studentAverages = new Map<string, number[]>();
+          for (const rc of classReportCards) {
+            if (typeof rc.averageScore === 'number' && !isNaN(rc.averageScore) && rc.averageScore > 0) {
+              const list = studentAverages.get(rc.studentId) || [];
+              list.push(rc.averageScore);
+              studentAverages.set(rc.studentId, list);
+            }
+          }
+
+          const studentAnnualAvgList: { studentId: string; avg: number }[] = [];
+          for (const [sId, avgs] of studentAverages.entries()) {
+            const annualAvg = avgs.reduce((a, b) => a + b, 0) / avgs.length;
+            studentAnnualAvgList.push({ studentId: sId, avg: annualAvg });
+          }
+
+          studentAnnualAvgList.sort((a, b) => b.avg - a.avg);
+          const foundIdx = studentAnnualAvgList.findIndex((item) => item.studentId === student.id);
+          if (foundIdx !== -1) {
+            studentRank = foundIdx + 1;
+          }
+        }
+      } catch (err) {
+        // Fallback to latestRc rank
+      }
+    }
+
     const rankDisplay = `${studentRank}/${totalStudentsInClass}`;
 
     // School Grading & Promotion Policy Pass/Fail Logic:
@@ -2145,12 +2191,10 @@ export class GradebookService {
 
     // Ensure rankings are correctly assigned across the class section
     const totalStudents = results.length;
-    const needsBatchRank = results.length > 1 && results.every(
-      (c) => !c.summary.rank || c.summary.rank === '1/1' || c.summary.rank === `1/${totalStudents}`
-    );
+    const isAnnualBatch = !academicTermId || academicTermId === 'annual' || academicTermId === 'all';
 
-    if (needsBatchRank && totalStudents > 1) {
-      // Sort copy descending by overallAverage
+    if (isAnnualBatch && totalStudents > 0) {
+      // For Full Academic Year, rank students by annual overallAverage in descending order
       const sortedCards = [...results].sort(
         (a, b) => (b.summary.averageRow.overallAverage || 0) - (a.summary.averageRow.overallAverage || 0)
       );
@@ -2158,6 +2202,21 @@ export class GradebookService {
         const rankStr = `${index + 1}/${totalStudents}`;
         card.summary.rank = rankStr;
       });
+    } else {
+      const needsBatchRank = results.length > 1 && results.every(
+        (c) => !c.summary.rank || c.summary.rank === '1/1' || c.summary.rank === `1/${totalStudents}`
+      );
+
+      if (needsBatchRank && totalStudents > 1) {
+        // Sort copy descending by overallAverage
+        const sortedCards = [...results].sort(
+          (a, b) => (b.summary.averageRow.overallAverage || 0) - (a.summary.averageRow.overallAverage || 0)
+        );
+        sortedCards.forEach((card, index) => {
+          const rankStr = `${index + 1}/${totalStudents}`;
+          card.summary.rank = rankStr;
+        });
+      }
     }
 
     return results;

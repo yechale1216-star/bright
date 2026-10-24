@@ -344,22 +344,41 @@ export default function AdminReportCardsPage() {
     try {
       setGenerating(true);
       const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
-      const termToUse =
-        selectedTermId !== 'annual'
-          ? selectedTermId
-          : currentYearObj?.terms?.[0]?.id || '';
+      const currentTerms = currentYearObj?.terms || [];
 
-      const res = await gradebookService.generateReportCards({
-        gradeId: selectedGradeId,
-        sectionId: selectedSectionId,
-        academicYearId: selectedYearId,
-        academicTermId: termToUse,
-      });
+      if (selectedTermId === 'annual' && currentTerms.length > 0) {
+        let totalCount = 0;
+        for (const term of currentTerms) {
+          const res = await gradebookService.generateReportCards({
+            gradeId: selectedGradeId,
+            sectionId: selectedSectionId,
+            academicYearId: selectedYearId,
+            academicTermId: term.id,
+          });
+          totalCount += res.count || 0;
+        }
+        notifications.success(
+          'Calculations Complete',
+          `Generated ${totalCount} student report cards across ${currentTerms.length} terms.`
+        );
+      } else {
+        const termToUse =
+          selectedTermId !== 'annual'
+            ? selectedTermId
+            : currentTerms[0]?.id || '';
 
-      notifications.success(
-        'Calculations Complete',
-        res.message || `Generated ${res.count} student report cards.`
-      );
+        const res = await gradebookService.generateReportCards({
+          gradeId: selectedGradeId,
+          sectionId: selectedSectionId,
+          academicYearId: selectedYearId,
+          academicTermId: termToUse,
+        });
+
+        notifications.success(
+          'Calculations Complete',
+          res.message || `Generated ${res.count} student report cards.`
+        );
+      }
       await loadData();
       await loadReadiness();
     } catch (err: any) {
@@ -503,50 +522,223 @@ export default function AdminReportCardsPage() {
     window.print();
   };
 
+  // Resolve active year object and dynamically configured terms
+  const currentYearObj = useMemo(() => {
+    return academicYears.find((y) => y.id === selectedYearId);
+  }, [academicYears, selectedYearId]);
+
+  const currentTerms = useMemo(() => {
+    return currentYearObj?.terms || [];
+  }, [currentYearObj]);
+
   // Combine report cards and enrolled students into a unified list
   const studentRows = useMemo(() => {
-    if (reportCards.length > 0) {
-      return reportCards.map((rc, idx) => ({
-        id: rc.id,
-        studentId: rc.studentId,
-        termId: rc.academicTermId,
-        termName: rc.academicTerm?.name || '',
-        studentUniqueId: rc.student?.student_id || '—',
-        fullName: rc.student?.fullName || 'Student',
-        gender: rc.student?.gender || 'M',
-        totalScore: rc.totalScore,
-        averageScore: rc.averageScore,
-        rank: rc.rank || idx + 1,
-        totalStudents: rc.totalStudentsInClass || reportCards.length,
-        conduct: rc.conduct || 'A-',
-        absence: `${rc.attendanceTotalDays - rc.attendancePresentDays > 0 ? rc.attendanceTotalDays - rc.attendancePresentDays : 0} Day`,
-        status: rc.status,
-        homeroomTeacherComment: rc.homeroomTeacherComment,
-        principalComment: rc.principalComment,
-        rawCard: rc,
+    const isAnnual = selectedTermId === 'annual' || !selectedTermId;
+
+    if (!isAnnual) {
+      // Single specific term selected: preserve individual term rankings and rows unchanged
+      if (reportCards.length > 0) {
+        return reportCards.map((rc, idx) => ({
+          id: rc.id,
+          studentId: rc.studentId,
+          termId: rc.academicTermId,
+          termName: rc.academicTerm?.name || '',
+          studentUniqueId: rc.student?.student_id || '—',
+          fullName: rc.student?.fullName || 'Student',
+          gender: rc.student?.gender || 'M',
+          totalScore: rc.totalScore,
+          averageScore: rc.averageScore,
+          rank: rc.rank || idx + 1,
+          totalStudents: rc.totalStudentsInClass || reportCards.length,
+          conduct: rc.conduct || 'A-',
+          absence: `${rc.attendanceTotalDays - rc.attendancePresentDays > 0 ? rc.attendanceTotalDays - rc.attendancePresentDays : 0} Day`,
+          status: rc.status,
+          homeroomTeacherComment: rc.homeroomTeacherComment,
+          principalComment: rc.principalComment,
+          rawCard: rc,
+        }));
+      }
+
+      return students.map((s, idx) => ({
+        id: s.id,
+        studentId: s.id,
+        termId: undefined,
+        termName: '',
+        studentUniqueId: s.student_id || '—',
+        fullName: s.fullName,
+        gender: s.gender || 'M',
+        totalScore: 0,
+        averageScore: 0,
+        rank: idx + 1,
+        totalStudents: students.length || 1,
+        conduct: 'A-',
+        absence: '0 Day',
+        status: 'PENDING',
+        homeroomTeacherComment: '',
+        principalComment: '',
+        rawCard: null,
       }));
     }
 
-    return students.map((s, idx) => ({
-      id: s.id,
-      studentId: s.id,
-      termId: undefined,
-      termName: '',
-      studentUniqueId: s.student_id || '—',
-      fullName: s.fullName,
-      gender: s.gender || 'M',
-      totalScore: 0,
-      averageScore: 0,
-      rank: idx + 1,
-      totalStudents: students.length || 1,
-      conduct: 'A-',
-      absence: '0 Day',
-      status: 'PENDING',
-      homeroomTeacherComment: '',
-      principalComment: '',
-      rawCard: null,
-    }));
-  }, [reportCards, students]);
+    // Full Academic Year selected:
+    // Display each student only once, calculate annual average across all valid term results,
+    // and rank students by annual average in descending order.
+
+    // 1. Build a complete map of unique students (from students roster + report cards)
+    const uniqueStudentsMap = new Map<string, { id: string; student_id: string; fullName: string; gender: string }>();
+
+    students.forEach((s) => {
+      uniqueStudentsMap.set(s.id, {
+        id: s.id,
+        student_id: s.student_id || '—',
+        fullName: s.fullName || 'Student',
+        gender: s.gender || 'M',
+      });
+    });
+
+    reportCards.forEach((rc) => {
+      if (!uniqueStudentsMap.has(rc.studentId)) {
+        uniqueStudentsMap.set(rc.studentId, {
+          id: rc.studentId,
+          student_id: rc.student?.student_id || '—',
+          fullName: rc.student?.fullName || 'Student',
+          gender: rc.student?.gender || 'M',
+        });
+      }
+    });
+
+    // 2. Group report cards by studentId
+    const studentCardsMap = new Map<string, ReportCard[]>();
+    reportCards.forEach((rc) => {
+      const list = studentCardsMap.get(rc.studentId) || [];
+      list.push(rc);
+      studentCardsMap.set(rc.studentId, list);
+    });
+
+    // 3. Helper to determine if a term report card contains valid results
+    const isValidTermCard = (rc: ReportCard) => {
+      return (
+        typeof rc.averageScore === 'number' &&
+        !isNaN(rc.averageScore) &&
+        (rc.averageScore > 0 || (rc.totalScore !== undefined && rc.totalScore > 0))
+      );
+    };
+
+    // 4. Compute annual aggregated metrics per unique student
+    const aggregatedRows = Array.from(uniqueStudentsMap.values()).map((student) => {
+      const studentCards = studentCardsMap.get(student.id) || [];
+
+      // Deduplicate by academicTermId (keep the latest updated/created card per term)
+      const termMap = new Map<string, ReportCard>();
+      studentCards.forEach((rc) => {
+        const termKey = rc.academicTermId || rc.id;
+        const existing = termMap.get(termKey);
+        if (!existing || new Date(rc.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+          termMap.set(termKey, rc);
+        }
+      });
+
+      const dedupedCards = Array.from(termMap.values());
+      const validTermCards = dedupedCards.filter(isValidTermCard);
+
+      // Latest card for comments / conduct fallback
+      const latestCard = dedupedCards.length > 0
+        ? dedupedCards.reduce((latest, current) =>
+            new Date(current.createdAt).getTime() > new Date(latest.createdAt).getTime() ? current : latest
+          )
+        : null;
+
+      // Calculate annual average across all valid term results
+      const annualAverage = validTermCards.length > 0
+        ? Math.round(
+            (validTermCards.reduce((sum, rc) => sum + rc.averageScore, 0) / validTermCards.length) * 10
+          ) / 10
+        : 0;
+
+      // Cumulative total score across valid terms
+      const annualTotalScore = validTermCards.length > 0
+        ? Math.round(
+            validTermCards.reduce((sum, rc) => sum + (rc.totalScore || 0), 0) * 10
+          ) / 10
+        : 0;
+
+      // Total absences across all terms
+      const totalAbsenceDays = dedupedCards.reduce((acc, rc) => {
+        const diff = (rc.attendanceTotalDays || 0) - (rc.attendancePresentDays || 0);
+        return acc + (diff > 0 ? diff : 0);
+      }, 0);
+
+      // Overall status: PUBLISHED if all valid cards are published, otherwise READY/NEEDS_CORRECTION/GENERATED/DRAFT
+      let annualStatus = 'PENDING';
+      if (validTermCards.length > 0) {
+        if (validTermCards.every((rc) => rc.status === 'PUBLISHED')) {
+          annualStatus = 'PUBLISHED';
+        } else if (validTermCards.some((rc) => rc.status === 'READY')) {
+          annualStatus = 'READY';
+        } else if (validTermCards.some((rc) => rc.status === 'NEEDS_CORRECTION')) {
+          annualStatus = 'NEEDS_CORRECTION';
+        } else if (validTermCards.some((rc) => rc.status === 'GENERATED')) {
+          annualStatus = 'GENERATED';
+        } else {
+          annualStatus = latestCard?.status || 'DRAFT';
+        }
+      } else if (latestCard) {
+        annualStatus = latestCard.status;
+      }
+
+      // Display term coverage information
+      const termCount = validTermCards.length;
+      const totalConfiguredTerms = currentTerms?.length || 0;
+      const termNameDisplay =
+        totalConfiguredTerms > 0
+          ? `Annual (${termCount}/${totalConfiguredTerms} Terms)`
+          : termCount > 0
+          ? `Annual (${termCount} ${termCount === 1 ? 'Term' : 'Terms'})`
+          : 'Annual / Full Year';
+
+      return {
+        id: latestCard?.id || student.id,
+        studentId: student.id,
+        termId: undefined, // Annual
+        termName: termNameDisplay,
+        studentUniqueId: student.student_id,
+        fullName: student.fullName,
+        gender: student.gender,
+        totalScore: annualTotalScore,
+        averageScore: annualAverage,
+        rank: 1, // Will be set after sorting
+        totalStudents: uniqueStudentsMap.size,
+        conduct: latestCard?.conduct || 'A-',
+        absence: `${totalAbsenceDays} Day`,
+        status: annualStatus,
+        homeroomTeacherComment: latestCard?.homeroomTeacherComment || '',
+        principalComment: latestCard?.principalComment || '',
+        rawCard: latestCard,
+      };
+    });
+
+    // 5. Rank students by annual average in descending order
+    aggregatedRows.sort((a, b) => {
+      // Primary: Annual Average descending
+      if (b.averageScore !== a.averageScore) {
+        return b.averageScore - a.averageScore;
+      }
+      // Secondary: Total Score descending
+      if (b.totalScore !== a.totalScore) {
+        return b.totalScore - a.totalScore;
+      }
+      // Tertiary: Alphabetical by Full Name
+      return a.fullName.localeCompare(b.fullName);
+    });
+
+    // 6. Assign final sequential ranks
+    aggregatedRows.forEach((row, idx) => {
+      row.rank = idx + 1;
+      row.totalStudents = aggregatedRows.length;
+    });
+
+    return aggregatedRows;
+  }, [reportCards, students, selectedTermId, currentTerms]);
 
   const filteredRows = useMemo(() => {
     if (!searchQuery.trim()) return studentRows;
@@ -572,9 +764,6 @@ export default function AdminReportCardsPage() {
 
     return { total, avgPct, topScore, published, ready, needsCorrection };
   }, [studentRows]);
-
-  const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
-  const currentTerms = currentYearObj?.terms || [];
 
   const canBulkPublish = readiness?.isFullyReady && (readiness?.reportCardsSummary?.ready || 0) > 0;
 
@@ -657,7 +846,7 @@ export default function AdminReportCardsPage() {
             onChange={(e) => setSelectedTermId(e.target.value)}
             className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring/40"
           >
-            <option value="annual">★ Annual / Full Year</option>
+            <option value="annual">★ Full Academic Year (Annual)</option>
             {currentTerms.map((t: any) => (
               <option key={t.id} value={t.id}>
                 {t.name}
