@@ -26,6 +26,7 @@ async function runPromotionUpgradeTests() {
   let testGrade10: any = null;
   let testGrade12: any = null;
   let testSectionA: any = null;
+  let testSection12A: any = null;
   let subjMath: any = null;
   let subjEng: any = null;
   let subjPhy: any = null;
@@ -109,7 +110,7 @@ async function runPromotionUpgradeTests() {
       });
     }
 
-    let testSection12A = await prisma.section.findFirst({
+    testSection12A = await prisma.section.findFirst({
       where: { gradeId: testGrade12.id, name: 'A' },
     });
     if (!testSection12A) {
