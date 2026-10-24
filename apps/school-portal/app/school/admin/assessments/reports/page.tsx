@@ -79,7 +79,118 @@ const getTypeBadgeStyle = (type: string) => {
   if (t.includes('parent')) {
     return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
   }
+  if (t.includes('annual')) {
+    return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
+  }
   return 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20';
+};
+
+const getReportSummaryConfig = (reportType: string, summary: any) => {
+  switch (reportType) {
+    case 'GRADE_REPORT':
+      return {
+        card1Title: 'Evaluated Cohorts',
+        card1Val: summary?.totalSubjects ?? 0,
+        card1Sub: 'Grades and active sections',
+        card2Title: 'Overall Grade Average',
+        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
+        card2Sub: 'Class and grade average',
+        card3Title: 'Top Performing Cohort',
+        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : 'N/A',
+        card3Sub: summary?.highestSubject?.name || 'Top Section',
+        card4Title: 'Lowest Performing Cohort',
+        card4Val: summary?.lowestSubject?.score ? `${summary.lowestSubject.score}%` : 'N/A',
+        card4Sub: summary?.lowestSubject?.name || 'Lowest Section',
+        chartTitle: 'Grade & Section Benchmark Comparison',
+        chartSub: 'Average score comparisons across grades and class sections',
+      };
+    case 'SUBJECT_COMPARISON':
+      return {
+        card1Title: 'Compared Subjects',
+        card1Val: summary?.totalSubjects ?? 0,
+        card1Sub: 'Academic curriculum subjects',
+        card2Title: 'Curriculum Mean Score',
+        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
+        card2Sub: 'Across all subject assessments',
+        card3Title: 'Best Performing Subject',
+        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : 'N/A',
+        card3Sub: summary?.highestSubject?.name || 'N/A',
+        card4Title: 'Subject Disparity Spread',
+        card4Val: summary?.lowestSubject?.score ? `${summary.lowestSubject.score}%` : 'N/A',
+        card4Sub: summary?.lowestSubject ? `Lowest: ${summary.lowestSubject.name}` : 'N/A',
+        chartTitle: 'Cross-Subject Comparative Analysis',
+        chartSub: 'Side-by-side performance ranking across curriculum subjects',
+      };
+    case 'PERFORMANCE_ANALYSIS':
+      return {
+        card1Title: 'Total Assessed Students',
+        card1Val: summary?.totalStudentsAssessed ?? 0,
+        card1Sub: 'Students with recorded results',
+        card2Title: 'Cohort Overall Average',
+        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
+        card2Sub: 'Standard cohort benchmark',
+        card3Title: 'Mastery Level (≥80%)',
+        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : '0%',
+        card3Sub: summary?.highestSubject?.gradeName || 'High achievement band',
+        card4Title: 'At-Risk Students (<50%)',
+        card4Val: summary?.lowestSubject?.score !== undefined ? `${summary.lowestSubject.score}` : '0',
+        card4Sub: summary?.lowestSubject?.gradeName || 'Requiring academic intervention',
+        chartTitle: 'Competency & Performance Tier Distribution',
+        chartSub: 'Student distribution across academic achievement tiers',
+      };
+    case 'PARENT_REPORT':
+      return {
+        card1Title: 'Parent Reports Ready',
+        card1Val: summary?.totalStudentsAssessed ?? 0,
+        card1Sub: 'Available student progress summaries',
+        card2Title: 'Class Average Score',
+        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
+        card2Sub: 'Overall class mean score',
+        card3Title: 'Honor Roll (A/A+)',
+        card3Val: summary?.highestSubject?.score !== undefined ? `${summary.highestSubject.score}` : '0',
+        card3Sub: summary?.highestSubject?.gradeName || 'Distinction students',
+        card4Title: 'Attention Required',
+        card4Val: summary?.lowestSubject?.score !== undefined ? `${summary.lowestSubject.score}` : '0',
+        card4Sub: summary?.lowestSubject?.gradeName || 'Students with low marks',
+        chartTitle: 'Parent Summary Academic Standing',
+        chartSub: 'Subject progress metrics for parent-teacher reporting',
+      };
+    case 'ANNUAL_REPORT':
+      return {
+        card1Title: 'Annual Candidates Assessed',
+        card1Val: summary?.totalStudentsAssessed ?? 0,
+        card1Sub: 'Candidates evaluated for annual promotion',
+        card2Title: 'Cumulative Annual Average',
+        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
+        card2Sub: 'Combined multi-term annual mean',
+        card3Title: 'Eligible for Promotion',
+        card3Val: summary?.highestSubject?.score !== undefined ? `${summary.highestSubject.score}` : '0',
+        card3Sub: summary?.highestSubject?.gradeName || 'Met promotion criteria',
+        card4Title: 'Detained / Incomplete',
+        card4Val: summary?.lowestSubject?.score !== undefined ? `${summary.lowestSubject.score}` : '0',
+        card4Sub: summary?.lowestSubject?.gradeName || 'Failed or missing terms',
+        chartTitle: 'Annual Combined Academic Performance',
+        chartSub: 'Cumulative annual assessment metrics across grades and subjects',
+      };
+    case 'SUBJECT_PERFORMANCE':
+    default:
+      return {
+        card1Title: 'Total Subjects',
+        card1Val: summary?.totalSubjects ?? 0,
+        card1Sub: 'Across all grades and sections',
+        card2Title: 'Average Subject Score',
+        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
+        card2Sub: 'School-wide subject average',
+        card3Title: 'Highest Subject Score',
+        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : 'N/A',
+        card3Sub: summary?.highestSubject ? `${summary.highestSubject.name} (${summary.highestSubject.gradeName || 'All'})` : 'N/A',
+        card4Title: 'Lowest Subject Score',
+        card4Val: summary?.lowestSubject?.score ? `${summary.lowestSubject.score}%` : 'N/A',
+        card4Sub: summary?.lowestSubject ? `${summary.lowestSubject.name} (${summary.lowestSubject.gradeName || 'All'})` : 'N/A',
+        chartTitle: 'Subject Performance Overview',
+        chartSub: 'Average percentage marks across academic subjects',
+      };
+  }
 };
 
 export default function AssessmentReportsPage() {
@@ -282,17 +393,72 @@ export default function AssessmentReportsPage() {
   // Export CSV Action
   const handleExportCSV = (reportItem?: any) => {
     const target = reportItem || selectedReportItem;
-    const title = target?.reportName || 'assessment_report';
-    const rows = detailData?.studentRows || [
-      { rank: 1, studentId: 'BP-1001', fullName: 'Alazar Tadesse', grade: 'Grade 9', section: 'A', score: 94, gradeLetter: 'A+', status: 'PASS' },
-      { rank: 2, studentId: 'BP-1002', fullName: 'Bethlehem Haile', grade: 'Grade 9', section: 'A', score: 91, gradeLetter: 'A+', status: 'PASS' },
-      { rank: 3, studentId: 'BP-1003', fullName: 'Dawit Mengistu', grade: 'Grade 9', section: 'A', score: 86, gradeLetter: 'A', status: 'PASS' },
-    ];
+    const title = target?.reportName || 'academic_report';
+    const typeKey = target?.typeKey || selectedReportType;
+    const rows = detailData?.studentRows || [];
 
-    const headers = ['Rank', 'Student ID', 'Full Name', 'Grade', 'Section', 'Score (%)', 'Grade Letter', 'Status'];
+    let headers: string[] = [];
+    let rowsFormatted: string[][] = [];
+
+    if (typeKey === 'ANNUAL_REPORT') {
+      headers = ['Rank', 'Student ID', 'Full Name', 'Grade', 'Section', 'Sem 1 (%)', 'Sem 2 (%)', 'Annual Final (%)', 'Grade Letter', 'Promotion Status'];
+      rowsFormatted = rows.map((r: any) => [
+        r.rank,
+        r.studentId,
+        `"${r.fullName}"`,
+        r.grade,
+        r.section,
+        r.term1Score ?? r.score,
+        r.term2Score ?? r.score,
+        r.score,
+        r.gradeLetter,
+        r.promotionStatus || r.status,
+      ]);
+    } else if (typeKey === 'PARENT_REPORT') {
+      headers = ['Rank', 'Student ID', 'Student Name', 'Parent Name', 'Parent Phone', 'Grade', 'Section', 'Average (%)', 'Grade Letter', 'Conduct', 'Status'];
+      rowsFormatted = rows.map((r: any) => [
+        r.rank,
+        r.studentId,
+        `"${r.fullName}"`,
+        `"${r.parentName || 'N/A'}"`,
+        `"${r.parentPhone || 'N/A'}"`,
+        r.grade,
+        r.section,
+        r.score,
+        r.gradeLetter,
+        r.conduct || 'Good',
+        r.status,
+      ]);
+    } else if (typeKey === 'PERFORMANCE_ANALYSIS') {
+      headers = ['Rank', 'Student ID', 'Student Name', 'Grade', 'Section', 'Score (%)', 'Performance Tier', 'Grade Letter', 'Status'];
+      rowsFormatted = rows.map((r: any) => [
+        r.rank,
+        r.studentId,
+        `"${r.fullName}"`,
+        r.grade,
+        r.section,
+        r.score,
+        r.performanceTier || 'Average',
+        r.gradeLetter,
+        r.status,
+      ]);
+    } else {
+      headers = ['Rank', 'Student ID', 'Full Name', 'Grade', 'Section', 'Score (%)', 'Grade Letter', 'Status'];
+      rowsFormatted = rows.map((r: any) => [
+        r.rank,
+        r.studentId,
+        `"${r.fullName}"`,
+        r.grade,
+        r.section,
+        r.score,
+        r.gradeLetter,
+        r.status,
+      ]);
+    }
+
     const csvContent =
       'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r: any) => [r.rank, r.studentId, `"${r.fullName}"`, r.grade, r.section, r.score, r.gradeLetter, r.status].join(','))].join('\n');
+      [headers.join(','), ...rowsFormatted.map((row) => row.join(','))].join('\n');
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
@@ -580,72 +746,76 @@ export default function AssessmentReportsPage() {
       </div>
 
       {/* ─── 4 Assessment Summary Cards ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Subjects */}
-        <div className={cn(
-          "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-          isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-        )}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Subjects</p>
-          <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-            {analytics?.summary?.totalSubjects ?? 48}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">Across all grades and sections</p>
-        </div>
+      {(() => {
+        const summaryCfg = getReportSummaryConfig(selectedReportType, analytics?.summary);
+        return (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1 */}
+              <div className={cn(
+                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
+                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
+              )}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card1Title}</p>
+                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
+                  {summaryCfg.card1Val}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{summaryCfg.card1Sub}</p>
+              </div>
 
-        {/* Card 2: Average Subject Score */}
-        <div className={cn(
-          "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-          isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-        )}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Average Subject Score</p>
-          <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-            {analytics?.summary?.averageSubjectScore ? `${analytics.summary.averageSubjectScore}%` : '76.4%'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">School-wide average</p>
-        </div>
+              {/* Card 2 */}
+              <div className={cn(
+                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
+                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
+              )}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card2Title}</p>
+                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
+                  {summaryCfg.card2Val}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{summaryCfg.card2Sub}</p>
+              </div>
 
-        {/* Card 3: Highest Subject Score */}
-        <div className={cn(
-          "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-          isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-        )}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Highest Subject Score</p>
-          <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-            {analytics?.summary?.highestSubject?.score ? `${analytics.summary.highestSubject.score}%` : '98%'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {analytics?.summary?.highestSubject?.name || 'Mathematics'} ({analytics?.summary?.highestSubject?.gradeName || 'Grade 10'})
-          </p>
-        </div>
+              {/* Card 3 */}
+              <div className={cn(
+                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
+                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
+              )}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card3Title}</p>
+                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
+                  {summaryCfg.card3Val}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                  {summaryCfg.card3Sub}
+                </p>
+              </div>
 
-        {/* Card 4: Lowest Subject Score */}
-        <div className={cn(
-          "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-          isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-        )}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Lowest Subject Score</p>
-          <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-            {analytics?.summary?.lowestSubject?.score ? `${analytics.summary.lowestSubject.score}%` : '42%'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {analytics?.summary?.lowestSubject?.name || 'Civics'} ({analytics?.summary?.lowestSubject?.gradeName || 'Grade 9'})
-          </p>
-        </div>
-      </div>
+              {/* Card 4 */}
+              <div className={cn(
+                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
+                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
+              )}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card4Title}</p>
+                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
+                  {summaryCfg.card4Val}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                  {summaryCfg.card4Sub}
+                </p>
+              </div>
+            </div>
 
-      {/* ─── Two Chart Columns: Subject Performance & Result Distribution ─ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Subject Performance Overview (Bar Chart) */}
-        <div className="lg:col-span-7 p-6 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs flex flex-col justify-between">
-          <div>
-            <h2 className="text-base font-bold text-foreground tracking-tight">
-              Subject Performance Overview
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Average percentage marks across academic subjects
-            </p>
-          </div>
+            {/* ─── Two Chart Columns: Performance & Result Distribution ─ */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left: Performance Overview (Bar Chart) */}
+              <div className="lg:col-span-7 p-6 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs flex flex-col justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-foreground tracking-tight">
+                    {summaryCfg.chartTitle}
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {summaryCfg.chartSub}
+                  </p>
+                </div>
 
           {/* Bar Chart Container */}
           <div className="mt-8 relative pt-4">
@@ -774,6 +944,9 @@ export default function AssessmentReportsPage() {
           </div>
         </div>
       </div>
+          </>
+        );
+      })()}
 
       {/* ─── Available Reports Table Section ─────────────────────────────── */}
       <div className="rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs overflow-hidden">
@@ -1066,37 +1239,145 @@ export default function AssessmentReportsPage() {
                       <th className="py-2.5 px-3 w-12 text-center">Rank</th>
                       <th className="py-2.5 px-3">Student ID</th>
                       <th className="py-2.5 px-3">Student Name</th>
-                      <th className="py-2.5 px-3">Gender</th>
-                      <th className="py-2.5 px-3">Section</th>
-                      <th className="py-2.5 px-3 text-right">Score</th>
-                      <th className="py-2.5 px-3 text-center">Grade</th>
-                      <th className="py-2.5 px-3 text-center">Status</th>
+                      {selectedReportItem?.typeKey === 'PARENT_REPORT' ? (
+                        <>
+                          <th className="py-2.5 px-3">Parent Name</th>
+                          <th className="py-2.5 px-3">Parent Contact</th>
+                          <th className="py-2.5 px-3">Section</th>
+                          <th className="py-2.5 px-3 text-right">Avg Score</th>
+                          <th className="py-2.5 px-3 text-center">Conduct</th>
+                          <th className="py-2.5 px-3 text-center">Grade</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                        </>
+                      ) : selectedReportItem?.typeKey === 'ANNUAL_REPORT' ? (
+                        <>
+                          <th className="py-2.5 px-3">Grade & Sec</th>
+                          <th className="py-2.5 px-3 text-right">Sem 1</th>
+                          <th className="py-2.5 px-3 text-right">Sem 2</th>
+                          <th className="py-2.5 px-3 text-right">Annual Final</th>
+                          <th className="py-2.5 px-3 text-center">Grade</th>
+                          <th className="py-2.5 px-3 text-center">Promotion Status</th>
+                        </>
+                      ) : selectedReportItem?.typeKey === 'PERFORMANCE_ANALYSIS' ? (
+                        <>
+                          <th className="py-2.5 px-3">Section</th>
+                          <th className="py-2.5 px-3 text-right">Score</th>
+                          <th className="py-2.5 px-3 text-center">Grade</th>
+                          <th className="py-2.5 px-3 text-center">Performance Tier</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="py-2.5 px-3">Gender</th>
+                          <th className="py-2.5 px-3">Section</th>
+                          <th className="py-2.5 px-3 text-right">Score</th>
+                          <th className="py-2.5 px-3 text-center">Grade</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {(detailData?.studentRows || []).slice(0, 15).map((s: any, i: number) => (
+                    {(detailData?.studentRows || []).slice(0, 30).map((s: any, i: number) => (
                       <tr key={s.id || i} className="hover:bg-muted/30 transition-colors">
                         <td className="py-2 px-3 text-center font-mono font-bold text-muted-foreground">{s.rank}</td>
                         <td className="py-2 px-3 font-mono text-muted-foreground">{s.studentId}</td>
                         <td className="py-2 px-3 font-semibold text-foreground">{s.fullName}</td>
-                        <td className="py-2 px-3 text-muted-foreground">{s.gender}</td>
-                        <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
-                        <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
-                        <td className="py-2 px-3 text-center">
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
-                            {s.gradeLetter}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold border",
-                            s.status === 'PASS'
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                          )}>
-                            {s.status}
-                          </span>
-                        </td>
+
+                        {selectedReportItem?.typeKey === 'PARENT_REPORT' ? (
+                          <>
+                            <td className="py-2 px-3 text-foreground font-medium">{s.parentName || 'N/A'}</td>
+                            <td className="py-2 px-3 font-mono text-muted-foreground text-[11px]">{s.parentPhone || 'N/A'}</td>
+                            <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
+                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
+                            <td className="py-2 px-3 text-center text-muted-foreground">{s.conduct || 'Good'}</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
+                                {s.gradeLetter}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                s.status === 'PASS'
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                              )}>
+                                {s.status}
+                              </span>
+                            </td>
+                          </>
+                        ) : selectedReportItem?.typeKey === 'ANNUAL_REPORT' ? (
+                          <>
+                            <td className="py-2 px-3 text-muted-foreground">{s.grade} - {s.section}</td>
+                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term1Score ?? s.score}%</td>
+                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term2Score ?? s.score}%</td>
+                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
+                                {s.gradeLetter}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                s.promotionStatus === 'PROMOTED' || s.status === 'PROMOTED'
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : s.promotionStatus === 'INCOMPLETE' || s.status === 'INCOMPLETE'
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                              )}>
+                                {s.promotionStatus || s.status}
+                              </span>
+                            </td>
+                          </>
+                        ) : selectedReportItem?.typeKey === 'PERFORMANCE_ANALYSIS' ? (
+                          <>
+                            <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
+                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
+                                {s.gradeLetter}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded text-[10px]">
+                                {s.performanceTier || 'Average'}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                s.status === 'PASS'
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                              )}>
+                                {s.status}
+                              </span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-2 px-3 text-muted-foreground">{s.gender}</td>
+                            <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
+                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
+                                {s.gradeLetter}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                s.status === 'PASS'
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                              )}>
+                                {s.status}
+                              </span>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
