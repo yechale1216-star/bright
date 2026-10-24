@@ -296,7 +296,7 @@ async function runPromotionUpgradeTests() {
     const evalIncomplete = await promotionService.evaluateStudentAcademicEligibility(incompleteStudent.id, testYearName);
     assert(evalIncomplete.finalStatus === 'INCOMPLETE', 'Incomplete student finalStatus is INCOMPLETE');
     assert(evalIncomplete.isEligible === false, 'Incomplete student isEligible is false');
-    assert(evalIncomplete.ineligibilityReason?.includes('Missing report card for required term'), `Reason explains missing term: "${evalIncomplete.ineligibilityReason}"`);
+    assert(evalIncomplete.ineligibilityReason?.includes('Missing report card for required term') ?? false, `Reason explains missing term: "${evalIncomplete.ineligibilityReason}"`);
 
     let caughtIncompletePromo = false;
     try {
@@ -357,7 +357,7 @@ async function runPromotionUpgradeTests() {
     const evalPending = await promotionService.evaluateStudentAcademicEligibility(pendingStudent.id, testYearName);
     assert(evalPending.finalStatus === 'INCOMPLETE', 'Unpublished report card marks student as INCOMPLETE');
     assert(evalPending.isEligible === false, 'Student with unpublished card is ineligible for promotion');
-    assert(evalPending.ineligibilityReason?.includes('not published'), `Clear reason given: "${evalPending.ineligibilityReason}"`);
+    assert(evalPending.ineligibilityReason?.includes('not published') ?? false, `Clear reason given: "${evalPending.ineligibilityReason}"`);
 
     // ─── Test 6: Bulk Promotion Filters Eligible vs Ineligible ───────────────
     console.log('\n--- Test 6: Bulk Promotion Behavior ---');
