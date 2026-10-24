@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   FileText,
   Printer,
-  Sparkles,
   RefreshCw,
   Search,
   CheckCircle2,
@@ -677,7 +676,7 @@ export default function AdminReportCardsPage() {
             disabled={generating || loading || !selectedSectionId}
             className="flex-1 min-w-[130px] gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs justify-center"
           >
-            <Sparkles className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
+
             {generating ? 'Calculating...' : 'Recalculate'}
           </Button>
 
