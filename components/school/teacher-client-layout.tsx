@@ -191,11 +191,11 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
                      <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
                         <div className={cn(
                           "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all",
-                          isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-foreground/70 hover:bg-muted/60 hover:text-foreground'
+                          isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
                         )}>
-                          <span className={cn("transition-colors flex-shrink-0", isActive(item.href) ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground')}>{item.icon}</span>
+                          <span className={isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'}>{item.icon}</span>
                           <span className="flex-1">{item.label}</span>
-                          {isActive(item.href) && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                          {isActive(item.href) && <ChevronRight className="w-4 h-4" />}
                         </div>
                      </Link>
                    ))}
@@ -262,10 +262,10 @@ function NavLink({ href, icon, label, active, badge }: { href: string, icon: Rea
     <Link href={href}>
       <div className={cn(
         "flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0 group relative",
-        active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-foreground/70 hover:bg-muted/60 hover:text-foreground"
+        active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-foreground/70 hover:bg-primary/5 hover:text-primary"
       )}>
         <div className="flex items-center gap-3">
-          <span className={cn("transition-colors flex-shrink-0", active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}>{icon}</span>
+          <span className={active ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{icon}</span>
           <span>{label}</span>
         </div>
         {badge && (

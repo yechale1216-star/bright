@@ -285,12 +285,12 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
               "flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-sm font-semibold group",
               isActive(link.href)
                 ? "bg-primary/15 text-primary shadow-sm font-bold"
-                : "text-foreground/70 hover:bg-muted/60 hover:text-foreground"
+                : "text-foreground/70 hover:bg-primary/5 hover:text-primary"
             )}>
               <div className="flex items-center gap-3">
                 <span className={cn(
                   "transition-colors",
-                  isActive(link.href) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                  isActive(link.href) ? "text-primary" : "text-primary/70 group-hover:text-primary"
                 )}>{link.icon}</span>
                 <span>{link.label}</span>
               </div>
@@ -364,8 +364,8 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1">
           {navLinks.map(link => (
             <Link key={link.href} href={link.href} onClick={() => setSidebarOpen(false)}>
-              <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all", isActive(link.href) ? "bg-primary/15 text-primary font-bold" : "text-foreground/70 hover:bg-muted/60 hover:text-foreground")}>
-                <span className={cn("transition-colors flex-shrink-0", isActive(link.href) ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}>{link.icon}</span> <span className="flex-1">{link.label}</span> {isActive(link.href) && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+              <div className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all", isActive(link.href) ? "bg-primary/15 text-primary font-bold" : "text-foreground/70 hover:bg-primary/5 hover:text-primary")}>
+                <span className={isActive(link.href) ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{link.icon}</span> <span className="flex-1">{link.label}</span> {isActive(link.href) && <ChevronRight className="w-4 h-4" />}
               </div>
             </Link>
           ))}
