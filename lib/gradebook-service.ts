@@ -956,6 +956,7 @@ export const gradebookService = {
     sectionId?: string;
     subjectId?: string;
     streamId?: string;
+    studentId?: string;
     reportType?: string;
   } = {}): Promise<AssessmentReportsAnalyticsData> {
     const query = new URLSearchParams();
@@ -969,7 +970,7 @@ export const gradebookService = {
     return res.data;
   },
 
-  async getDetailedAssessmentReport(reportId: string, filters: Record<string, string> = {}): Promise<any> {
+  async getDetailedAssessmentReport(reportId: string, filters: Record<string, string | undefined> = {}): Promise<any> {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => {
       if (v && v !== 'all') query.set(k, v);
@@ -983,13 +984,32 @@ export const gradebookService = {
 };
 
 export interface AssessmentReportsAnalyticsData {
+  schoolInfo?: {
+    name: string;
+    academicYear: string;
+    term: string;
+  };
   summary: {
-    totalSubjects: number;
-    averageSubjectScore: number;
-    highestSubject: { name: string; score: number; gradeName?: string } | null;
-    lowestSubject: { name: string; score: number; gradeName?: string } | null;
-    totalStudentsAssessed: number;
-    completeAndPublishedResults: number;
+    card1Title?: string;
+    card1Val?: string | number;
+    card1Sub?: string;
+    card2Title?: string;
+    card2Val?: string | number;
+    card2Sub?: string;
+    card3Title?: string;
+    card3Val?: string | number;
+    card3Sub?: string;
+    card4Title?: string;
+    card4Val?: string | number;
+    card4Sub?: string;
+    chartTitle?: string;
+    chartSub?: string;
+    totalSubjects?: number;
+    averageSubjectScore?: number;
+    highestSubject?: { name: string; score: number; gradeName?: string } | null;
+    lowestSubject?: { name: string; score: number; gradeName?: string } | null;
+    totalStudentsAssessed?: number;
+    completeAndPublishedResults?: number;
   };
   subjectPerformance: Array<{
     subjectId: string;
@@ -999,6 +1019,8 @@ export interface AssessmentReportsAnalyticsData {
     studentCount: number;
     highestScore: number;
     lowestScore: number;
+    passRate?: number;
+    incompleteCount?: number;
     gradeName?: string;
   }>;
   distribution: {
@@ -1013,6 +1035,7 @@ export interface AssessmentReportsAnalyticsData {
       percentage: number;
     }>;
   };
+  recommendations?: string[];
   availableReports: Array<{
     id: string;
     reportName: string;

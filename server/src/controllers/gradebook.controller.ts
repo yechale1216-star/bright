@@ -720,7 +720,7 @@ export const saveClassMarks = async (req: AuthenticatedRequest, res: Response, n
  */
 export const getAssessmentReportAnalytics = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { academicYearId, academicTermId, gradeId, sectionId, subjectId, streamId, reportType } = req.query as any;
+    const { academicYearId, academicTermId, gradeId, sectionId, subjectId, streamId, studentId, reportType } = req.query as any;
 
     const data = await assessmentReportService.getAnalytics({
       academicYearId,
@@ -729,6 +729,7 @@ export const getAssessmentReportAnalytics = async (req: AuthenticatedRequest, re
       sectionId,
       subjectId,
       streamId,
+      studentId,
       reportType,
     });
 
@@ -744,7 +745,7 @@ export const getAssessmentReportAnalytics = async (req: AuthenticatedRequest, re
 export const getDetailedAssessmentReport = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { reportId } = req.params;
-    const { academicYearId, academicTermId, gradeId, sectionId, subjectId, streamId, reportType } = req.query as any;
+    const { academicYearId, academicTermId, gradeId, sectionId, subjectId, streamId, studentId, reportType } = req.query as any;
 
     const data = await assessmentReportService.getDetailedReport(reportId, {
       academicYearId,
@@ -753,6 +754,7 @@ export const getDetailedAssessmentReport = async (req: AuthenticatedRequest, res
       sectionId,
       subjectId,
       streamId,
+      studentId,
       reportType,
     });
 

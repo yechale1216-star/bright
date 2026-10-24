@@ -24,7 +24,14 @@ import {
   Users,
   Award,
   Layers,
+  BookOpen,
+  TrendingUp,
+  School,
+  CheckCircle2,
+  AlertTriangle,
+  HelpCircle,
   X,
+  Info,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -49,149 +56,85 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils/utils';
 
-// ─── Color Palette for Bar Chart ───────────────────────────────────────────
+// Color Palette for Visual Analytics
 const BAR_COLORS = [
-  '#8b5cf6', // Violet
   '#3b82f6', // Blue
+  '#8b5cf6', // Violet
   '#10b981', // Emerald
   '#f59e0b', // Amber
   '#06b6d4', // Cyan
-  '#f43f5e', // Rose
   '#ec4899', // Pink
   '#6366f1', // Indigo
+  '#f43f5e', // Rose
 ];
 
-// Helper to style report type badges
-const getTypeBadgeStyle = (type: string) => {
-  const t = (type || '').toLowerCase();
-  if (t.includes('subject performance')) {
-    return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
-  }
-  if (t.includes('grade report')) {
-    return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
-  }
-  if (t.includes('comparison')) {
-    return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
-  }
-  if (t.includes('performance analysis')) {
-    return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
-  }
-  if (t.includes('parent')) {
-    return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
-  }
-  if (t.includes('annual')) {
-    return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
-  }
-  return 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20';
-};
+export interface ReportCategoryMeta {
+  key: string;
+  title: string;
+  shortTitle: string;
+  badge: string;
+  description: string;
+  icon: any;
+}
 
-const getReportSummaryConfig = (reportType: string, summary: any) => {
-  switch (reportType) {
-    case 'GRADE_REPORT':
-      return {
-        card1Title: 'Evaluated Cohorts',
-        card1Val: summary?.totalSubjects ?? 0,
-        card1Sub: 'Grades and active sections',
-        card2Title: 'Overall Grade Average',
-        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
-        card2Sub: 'Class and grade average',
-        card3Title: 'Top Performing Cohort',
-        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : 'N/A',
-        card3Sub: summary?.highestSubject?.name || 'Top Section',
-        card4Title: 'Lowest Performing Cohort',
-        card4Val: summary?.lowestSubject?.score ? `${summary.lowestSubject.score}%` : 'N/A',
-        card4Sub: summary?.lowestSubject?.name || 'Lowest Section',
-        chartTitle: 'Grade & Section Benchmark Comparison',
-        chartSub: 'Average score comparisons across grades and class sections',
-      };
-    case 'SUBJECT_COMPARISON':
-      return {
-        card1Title: 'Compared Subjects',
-        card1Val: summary?.totalSubjects ?? 0,
-        card1Sub: 'Academic curriculum subjects',
-        card2Title: 'Curriculum Mean Score',
-        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
-        card2Sub: 'Across all subject assessments',
-        card3Title: 'Best Performing Subject',
-        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : 'N/A',
-        card3Sub: summary?.highestSubject?.name || 'N/A',
-        card4Title: 'Subject Disparity Spread',
-        card4Val: summary?.lowestSubject?.score ? `${summary.lowestSubject.score}%` : 'N/A',
-        card4Sub: summary?.lowestSubject ? `Lowest: ${summary.lowestSubject.name}` : 'N/A',
-        chartTitle: 'Cross-Subject Comparative Analysis',
-        chartSub: 'Side-by-side performance ranking across curriculum subjects',
-      };
-    case 'PERFORMANCE_ANALYSIS':
-      return {
-        card1Title: 'Total Assessed Students',
-        card1Val: summary?.totalStudentsAssessed ?? 0,
-        card1Sub: 'Students with recorded results',
-        card2Title: 'Cohort Overall Average',
-        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
-        card2Sub: 'Standard cohort benchmark',
-        card3Title: 'Mastery Level (≥80%)',
-        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : '0%',
-        card3Sub: summary?.highestSubject?.gradeName || 'High achievement band',
-        card4Title: 'At-Risk Students (<50%)',
-        card4Val: summary?.lowestSubject?.score !== undefined ? `${summary.lowestSubject.score}` : '0',
-        card4Sub: summary?.lowestSubject?.gradeName || 'Requiring academic intervention',
-        chartTitle: 'Competency & Performance Tier Distribution',
-        chartSub: 'Student distribution across academic achievement tiers',
-      };
-    case 'PARENT_REPORT':
-      return {
-        card1Title: 'Parent Reports Ready',
-        card1Val: summary?.totalStudentsAssessed ?? 0,
-        card1Sub: 'Available student progress summaries',
-        card2Title: 'Class Average Score',
-        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
-        card2Sub: 'Overall class mean score',
-        card3Title: 'Honor Roll (A/A+)',
-        card3Val: summary?.highestSubject?.score !== undefined ? `${summary.highestSubject.score}` : '0',
-        card3Sub: summary?.highestSubject?.gradeName || 'Distinction students',
-        card4Title: 'Attention Required',
-        card4Val: summary?.lowestSubject?.score !== undefined ? `${summary.lowestSubject.score}` : '0',
-        card4Sub: summary?.lowestSubject?.gradeName || 'Students with low marks',
-        chartTitle: 'Parent Summary Academic Standing',
-        chartSub: 'Subject progress metrics for parent-teacher reporting',
-      };
-    case 'ANNUAL_REPORT':
-      return {
-        card1Title: 'Annual Candidates Assessed',
-        card1Val: summary?.totalStudentsAssessed ?? 0,
-        card1Sub: 'Candidates evaluated for annual promotion',
-        card2Title: 'Cumulative Annual Average',
-        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
-        card2Sub: 'Combined multi-term annual mean',
-        card3Title: 'Eligible for Promotion',
-        card3Val: summary?.highestSubject?.score !== undefined ? `${summary.highestSubject.score}` : '0',
-        card3Sub: summary?.highestSubject?.gradeName || 'Met promotion criteria',
-        card4Title: 'Detained / Incomplete',
-        card4Val: summary?.lowestSubject?.score !== undefined ? `${summary.lowestSubject.score}` : '0',
-        card4Sub: summary?.lowestSubject?.gradeName || 'Failed or missing terms',
-        chartTitle: 'Annual Combined Academic Performance',
-        chartSub: 'Cumulative annual assessment metrics across grades and subjects',
-      };
-    case 'SUBJECT_PERFORMANCE':
-    default:
-      return {
-        card1Title: 'Total Subjects',
-        card1Val: summary?.totalSubjects ?? 0,
-        card1Sub: 'Across all grades and sections',
-        card2Title: 'Average Subject Score',
-        card2Val: summary?.averageSubjectScore ? `${summary.averageSubjectScore}%` : '0%',
-        card2Sub: 'School-wide subject average',
-        card3Title: 'Highest Subject Score',
-        card3Val: summary?.highestSubject?.score ? `${summary.highestSubject.score}%` : 'N/A',
-        card3Sub: summary?.highestSubject ? `${summary.highestSubject.name} (${summary.highestSubject.gradeName || 'All'})` : 'N/A',
-        card4Title: 'Lowest Subject Score',
-        card4Val: summary?.lowestSubject?.score ? `${summary.lowestSubject.score}%` : 'N/A',
-        card4Sub: summary?.lowestSubject ? `${summary.lowestSubject.name} (${summary.lowestSubject.gradeName || 'All'})` : 'N/A',
-        chartTitle: 'Subject Performance Overview',
-        chartSub: 'Average percentage marks across academic subjects',
-      };
-  }
-};
+const REPORT_CATEGORIES: ReportCategoryMeta[] = [
+  {
+    key: 'CLASS_PERFORMANCE',
+    title: 'Class Academic Performance',
+    shortTitle: 'Class Performance',
+    badge: 'Section / Cohort',
+    description: 'Evaluate active and completed counts, class averages, pass rates, and academic support needs.',
+    icon: Users,
+  },
+  {
+    key: 'STUDENT_ACADEMIC',
+    title: 'Student Academic Report',
+    shortTitle: 'Student Report',
+    badge: 'Individual Student',
+    description: "Evaluate an individual student's subject achievement, grading status, and trajectory.",
+    icon: GraduationCap,
+  },
+  {
+    key: 'SUBJECT_PERFORMANCE',
+    title: 'Subject Performance Report',
+    shortTitle: 'Subject Report',
+    badge: 'Curriculum Subject',
+    description: 'Evaluate marks, pass rates, mark distribution across grading scale bands, and section comparisons.',
+    icon: BookOpen,
+  },
+  {
+    key: 'GRADE_LEVEL',
+    title: 'Grade-Level Academic Report',
+    shortTitle: 'Grade-Level',
+    badge: 'Inter-Section',
+    description: 'Review academic performance and benchmark comparisons across all sections within a grade.',
+    icon: Layers,
+  },
+  {
+    key: 'PERFORMANCE_ANALYSIS',
+    title: 'Academic Performance Analysis',
+    shortTitle: 'Analysis & Trends',
+    badge: 'Leadership Trends',
+    description: 'Longitudinal performance trends across terms, competency tiers, and evidence-based recommendations.',
+    icon: TrendingUp,
+  },
+  {
+    key: 'ANNUAL_ACADEMIC',
+    title: 'Annual Academic Report',
+    shortTitle: 'Annual Report',
+    badge: 'Full-Year Promotion',
+    description: 'Consolidated annual review with one record per student and authoritative promotion eligibility.',
+    icon: Award,
+  },
+  {
+    key: 'SCHOOL_SUMMARY',
+    title: 'School Academic Summary',
+    shortTitle: 'School Summary',
+    badge: 'Executive Oversight',
+    description: 'Institutional academic average, grade league tables, subject performance, and completion rates.',
+    icon: School,
+  },
+];
 
 export default function AssessmentReportsPage() {
   const pathname = usePathname();
@@ -207,15 +150,19 @@ export default function AssessmentReportsPage() {
   const [academicYears, setAcademicYears] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
+  const [streams, setStreams] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
 
   // Selected Filters
+  const [selectedCategory, setSelectedCategory] = useState<string>('CLASS_PERFORMANCE');
   const [selectedYearId, setSelectedYearId] = useState('');
   const [selectedTermId, setSelectedTermId] = useState('all');
   const [selectedGradeId, setSelectedGradeId] = useState('all');
   const [selectedSectionId, setSelectedSectionId] = useState('all');
+  const [selectedStreamId, setSelectedStreamId] = useState('all');
   const [selectedSubjectId, setSelectedSubjectId] = useState('all');
-  const [selectedReportType, setSelectedReportType] = useState('SUBJECT_PERFORMANCE');
+  const [selectedStudentId, setSelectedStudentId] = useState('all');
 
   // Analytics Data
   const [analytics, setAnalytics] = useState<AssessmentReportsAnalyticsData | null>(null);
@@ -234,7 +181,25 @@ export default function AssessmentReportsPage() {
   // Hover state for Bar Chart tooltips
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
-  // 1. Initial Load of Metadata (Academic Years, Grades, Subjects)
+  // Check if senior grade selected (Grades 11 or 12 require stream filtering)
+  const isSeniorGrade = useMemo(() => {
+    if (!selectedGradeId || selectedGradeId === 'all') return false;
+    const g = grades.find((gr) => gr.id === selectedGradeId);
+    if (!g) return false;
+    const name = (g.name || '').toLowerCase();
+    return name.includes('11') || name.includes('12') || name.includes('grade 11') || name.includes('grade 12');
+  }, [selectedGradeId, grades]);
+
+  // Current Academic Year & Terms
+  const activeYearObj = useMemo(() => {
+    return academicYears.find((y) => y.id === selectedYearId) || academicYears[0] || null;
+  }, [academicYears, selectedYearId]);
+
+  const availableTerms = useMemo(() => {
+    return activeYearObj?.terms || [];
+  }, [activeYearObj]);
+
+  // 1. Initial Load of Metadata (Academic Years, Grades, Streams, Subjects)
   useEffect(() => {
     loadInitialMetadata();
   }, []);
@@ -249,9 +214,10 @@ export default function AssessmentReportsPage() {
       const { getApiUrl } = await import('@/lib/api-config');
       const API_URL = getApiUrl();
 
-      const [ayRes, gradesRes, subjectsRes] = await Promise.all([
+      const [ayRes, gradesRes, streamsRes, subjectsRes] = await Promise.all([
         fetch(`${API_URL}/api/academic-years`, { headers }).then((r) => r.json()).catch(() => ({ success: false })),
         fetch(`${API_URL}/api/schools/grades`, { headers }).then((r) => r.json()).catch(() => ({ success: false })),
+        fetch(`${API_URL}/api/schools/me/streams`, { headers }).then((r) => r.json()).catch(() => ({ success: false })),
         fetch(`${API_URL}/api/settings/subjects`, { headers }).then((r) => r.json()).catch(() => ({ success: false })),
       ]);
 
@@ -267,6 +233,10 @@ export default function AssessmentReportsPage() {
 
       if (gradesRes?.success && Array.isArray(gradesRes.data)) {
         setGrades(gradesRes.data);
+      }
+
+      if (streamsRes?.success && Array.isArray(streamsRes.data)) {
+        setStreams(streamsRes.data);
       }
 
       if (subjectsRes?.success && Array.isArray(subjectsRes.data)) {
@@ -307,18 +277,52 @@ export default function AssessmentReportsPage() {
     fetchSections();
   }, [selectedGradeId]);
 
-  // 3. Load or Generate Analytics Report
+  // 3. Dynamic Students when Grade/Section changes (for Student Academic Report)
+  useEffect(() => {
+    if (selectedCategory !== 'STUDENT_ACADEMIC') return;
+
+    const fetchStudents = async () => {
+      try {
+        const token = localStorage.getItem('attendance_token');
+        const { getApiUrl } = await import('@/lib/api-config');
+        const query = new URLSearchParams();
+        if (selectedGradeId && selectedGradeId !== 'all') query.set('gradeId', selectedGradeId);
+        if (selectedSectionId && selectedSectionId !== 'all') query.set('sectionId', selectedSectionId);
+
+        const res = await fetch(`${getApiUrl()}/api/students?${query.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }).then((r) => r.json());
+
+        if (res?.success && Array.isArray(res.data)) {
+          setStudents(res.data);
+          if (res.data.length > 0 && selectedStudentId === 'all') {
+            setSelectedStudentId(res.data[0].id);
+          }
+        } else {
+          setStudents([]);
+        }
+      } catch {
+        setStudents([]);
+      }
+    };
+
+    fetchStudents();
+  }, [selectedCategory, selectedGradeId, selectedSectionId]);
+
+  // 4. Load or Generate Analytics Report
   const loadReportAnalytics = useCallback(async () => {
     if (!selectedYearId) return;
     try {
       setGenerating(true);
       const data = await gradebookService.getAssessmentReportsAnalytics({
         academicYearId: selectedYearId,
-        academicTermId: selectedTermId !== 'all' ? selectedTermId : undefined,
+        academicTermId: selectedCategory === 'ANNUAL_ACADEMIC' ? undefined : (selectedTermId !== 'all' ? selectedTermId : undefined),
         gradeId: selectedGradeId !== 'all' ? selectedGradeId : undefined,
         sectionId: selectedSectionId !== 'all' ? selectedSectionId : undefined,
+        streamId: isSeniorGrade && selectedStreamId !== 'all' ? selectedStreamId : undefined,
         subjectId: selectedSubjectId !== 'all' ? selectedSubjectId : undefined,
-        reportType: selectedReportType,
+        studentId: selectedCategory === 'STUDENT_ACADEMIC' && selectedStudentId !== 'all' ? selectedStudentId : undefined,
+        reportType: selectedCategory,
       });
 
       setAnalytics(data);
@@ -328,313 +332,381 @@ export default function AssessmentReportsPage() {
     } finally {
       setGenerating(false);
     }
-  }, [selectedYearId, selectedTermId, selectedGradeId, selectedSectionId, selectedSubjectId, selectedReportType]);
+  }, [
+    selectedYearId,
+    selectedTermId,
+    selectedGradeId,
+    selectedSectionId,
+    selectedStreamId,
+    selectedSubjectId,
+    selectedStudentId,
+    selectedCategory,
+    isSeniorGrade,
+  ]);
 
   useEffect(() => {
     if (selectedYearId) {
       loadReportAnalytics();
     }
-  }, [selectedYearId, loadReportAnalytics]);
+  }, [selectedYearId, selectedCategory, loadReportAnalytics]);
 
   // Reset Filters
   const handleResetFilters = () => {
     if (academicYears.length > 0) {
       const currentYear = academicYears.find((y: any) => y.isCurrent) || academicYears[0];
       setSelectedYearId(currentYear.id);
-      setSelectedTermId('all');
+      if (currentYear.terms && currentYear.terms.length > 0) {
+        setSelectedTermId(currentYear.terms[0].id);
+      } else {
+        setSelectedTermId('all');
+      }
     }
     setSelectedGradeId('all');
     setSelectedSectionId('all');
+    setSelectedStreamId('all');
     setSelectedSubjectId('all');
-    setSelectedReportType('SUBJECT_PERFORMANCE');
+    setSelectedStudentId('all');
   };
 
-  // Filtered available reports based on search query
+  // Inspect Detailed Report Modal
+  const handleOpenDetail = async (reportItem: any) => {
+    setSelectedReportItem(reportItem);
+    setDetailModalOpen(true);
+    setDetailLoading(true);
+
+    try {
+      const detail = await gradebookService.getDetailedAssessmentReport(reportItem.id, {
+        academicYearId: selectedYearId,
+        academicTermId: selectedCategory === 'ANNUAL_ACADEMIC' ? undefined : (selectedTermId !== 'all' ? selectedTermId : undefined),
+        gradeId: selectedGradeId !== 'all' ? selectedGradeId : undefined,
+        sectionId: selectedSectionId !== 'all' ? selectedSectionId : undefined,
+        streamId: isSeniorGrade && selectedStreamId !== 'all' ? selectedStreamId : undefined,
+        subjectId: selectedSubjectId !== 'all' ? selectedSubjectId : undefined,
+        studentId: selectedCategory === 'STUDENT_ACADEMIC' && selectedStudentId !== 'all' ? selectedStudentId : undefined,
+        reportType: selectedCategory,
+      });
+      setDetailData(detail);
+    } catch (err: any) {
+      notifications.error('Detail Error', 'Failed to load detailed report data');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Export to CSV
+  const handleExportCSV = (customRows?: any[], customFilename?: string) => {
+    const rows = customRows || detailData?.studentRows || analytics?.availableReports || [];
+    if (!rows || rows.length === 0) {
+      notifications.warning('Export Alert', 'No report records available to export.');
+      return;
+    }
+
+    const filename = customFilename || `${selectedReportItem?.reportName || selectedCategory}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const headers = Object.keys(rows[0]).filter((k) => typeof rows[0][k] !== 'object');
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: any) =>
+        headers
+          .map((h) => {
+            const val = row[h] ?? '';
+            const escaped = String(val).replace(/"/g, '""');
+            return `"${escaped}"`;
+          })
+          .join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_'));
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    notifications.success('Export Successful', `Saved as ${filename}`);
+  };
+
+  // Active Category Meta
+  const activeCategoryMeta = useMemo(() => {
+    return REPORT_CATEGORIES.find((c) => c.key === selectedCategory) || REPORT_CATEGORIES[0];
+  }, [selectedCategory]);
+
+  // Filtered & Paginated Reports in the Catalog Table
   const filteredReports = useMemo(() => {
-    if (!analytics?.availableReports) return [];
-    if (!searchQuery.trim()) return analytics.availableReports;
+    const reports = analytics?.availableReports || [];
+    if (!searchQuery.trim()) return reports;
     const q = searchQuery.toLowerCase();
-    return analytics.availableReports.filter(
+    return reports.filter(
       (r) =>
         r.reportName.toLowerCase().includes(q) ||
         r.type.toLowerCase().includes(q) ||
         r.grade.toLowerCase().includes(q) ||
         r.subjectOrStream.toLowerCase().includes(q)
     );
-  }, [analytics, searchQuery]);
+  }, [analytics?.availableReports, searchQuery]);
 
-  // Paginated Reports
+  const totalPages = Math.ceil(filteredReports.length / pageSize) || 1;
   const paginatedReports = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredReports.slice(start, start + pageSize);
-  }, [filteredReports, currentPage]);
+  }, [filteredReports, currentPage, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredReports.length / pageSize));
-
-  // View Detailed Report Action
-  const handleOpenDetailModal = async (reportItem: any) => {
-    setSelectedReportItem(reportItem);
-    setDetailModalOpen(true);
-    setDetailLoading(true);
-    try {
-      const data = await gradebookService.getDetailedAssessmentReport(reportItem.id, {
-        academicYearId: selectedYearId,
-        academicTermId: selectedTermId,
-        gradeId: selectedGradeId,
-      });
-      setDetailData(data);
-    } catch (err: any) {
-      notifications.error('Report Details', err?.message || 'Failed to load details');
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  // Export CSV Action
-  const handleExportCSV = (reportItem?: any) => {
-    const target = reportItem || selectedReportItem;
-    const title = target?.reportName || 'academic_report';
-    const typeKey = target?.typeKey || selectedReportType;
-    const rows = detailData?.studentRows || [];
-
-    let headers: string[] = [];
-    let rowsFormatted: string[][] = [];
-
-    if (typeKey === 'ANNUAL_REPORT') {
-      headers = ['Rank', 'Student ID', 'Full Name', 'Grade', 'Section', 'Sem 1 (%)', 'Sem 2 (%)', 'Annual Final (%)', 'Grade Letter', 'Promotion Status'];
-      rowsFormatted = rows.map((r: any) => [
-        r.rank,
-        r.studentId,
-        `"${r.fullName}"`,
-        r.grade,
-        r.section,
-        r.term1Score ?? r.score,
-        r.term2Score ?? r.score,
-        r.score,
-        r.gradeLetter,
-        r.promotionStatus || r.status,
-      ]);
-    } else if (typeKey === 'PARENT_REPORT') {
-      headers = ['Rank', 'Student ID', 'Student Name', 'Parent Name', 'Parent Phone', 'Grade', 'Section', 'Average (%)', 'Grade Letter', 'Conduct', 'Status'];
-      rowsFormatted = rows.map((r: any) => [
-        r.rank,
-        r.studentId,
-        `"${r.fullName}"`,
-        `"${r.parentName || 'N/A'}"`,
-        `"${r.parentPhone || 'N/A'}"`,
-        r.grade,
-        r.section,
-        r.score,
-        r.gradeLetter,
-        r.conduct || 'Good',
-        r.status,
-      ]);
-    } else if (typeKey === 'PERFORMANCE_ANALYSIS') {
-      headers = ['Rank', 'Student ID', 'Student Name', 'Grade', 'Section', 'Score (%)', 'Performance Tier', 'Grade Letter', 'Status'];
-      rowsFormatted = rows.map((r: any) => [
-        r.rank,
-        r.studentId,
-        `"${r.fullName}"`,
-        r.grade,
-        r.section,
-        r.score,
-        r.performanceTier || 'Average',
-        r.gradeLetter,
-        r.status,
-      ]);
-    } else {
-      headers = ['Rank', 'Student ID', 'Full Name', 'Grade', 'Section', 'Score (%)', 'Grade Letter', 'Status'];
-      rowsFormatted = rows.map((r: any) => [
-        r.rank,
-        r.studentId,
-        `"${r.fullName}"`,
-        r.grade,
-        r.section,
-        r.score,
-        r.gradeLetter,
-        r.status,
-      ]);
-    }
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rowsFormatted.map((row) => row.join(','))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${title.replace(/\s+/g, '_')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    notifications.success('CSV Exported', `Downloaded ${title}.csv`);
-  };
-
-  // Current terms for selected academic year
-  const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
-  const currentTerms = currentYearObj?.terms || [];
-
-  // Subject Performance Data
-  const subjectsChartData = analytics?.subjectPerformance?.slice(0, 8) || [];
-
-  // Donut chart calculations
+  // Donut Chart Math for SVG Slices
   const distributionBands = analytics?.distribution?.bands || [];
-  const totalResults = analytics?.distribution?.totalResults || 1248;
+  const totalResults = analytics?.distribution?.totalResults || 0;
 
-  // Compute SVG Donut paths
   const donutPaths = useMemo(() => {
+    if (totalResults === 0 || distributionBands.length === 0) return [];
     let cumulativeAngle = 0;
-    const radius = 64;
-    const innerRadius = 46;
-    const cx = 80;
-    const cy = 80;
+    const radius = 70;
+    const innerRadius = 45;
+    const centerX = 80;
+    const centerY = 80;
 
     return distributionBands.map((band) => {
-      const percentage = band.percentage || 1;
-      const angle = (percentage / 100) * 360;
+      const sliceAngle = (band.percentage / 100) * 360;
       const startAngle = cumulativeAngle;
-      const endAngle = cumulativeAngle + angle;
-      cumulativeAngle += angle;
+      const endAngle = cumulativeAngle + sliceAngle;
+      cumulativeAngle += sliceAngle;
 
-      const startRad = ((startAngle - 90) * Math.PI) / 180;
-      const endRad = ((endAngle - 90) * Math.PI) / 180;
+      const startRad = (startAngle * Math.PI) / 180;
+      const endRad = (endAngle * Math.PI) / 180;
 
-      const x1 = cx + radius * Math.cos(startRad);
-      const y1 = cy + radius * Math.sin(startRad);
-      const x2 = cx + radius * Math.cos(endRad);
-      const y2 = cy + radius * Math.sin(endRad);
+      const x1 = centerX + radius * Math.cos(startRad);
+      const y1 = centerY + radius * Math.sin(startRad);
+      const x2 = centerX + radius * Math.cos(endRad);
+      const y2 = centerY + radius * Math.sin(endRad);
 
-      const ix1 = cx + innerRadius * Math.cos(startRad);
-      const iy1 = cy + innerRadius * Math.sin(startRad);
-      const ix2 = cx + innerRadius * Math.cos(endRad);
-      const iy2 = cy + innerRadius * Math.sin(endRad);
+      const x3 = centerX + innerRadius * Math.cos(endRad);
+      const y3 = centerY + innerRadius * Math.sin(endRad);
+      const x4 = centerX + innerRadius * Math.cos(startRad);
+      const y4 = centerY + innerRadius * Math.sin(startRad);
 
-      const largeArc = angle > 180 ? 1 : 0;
-
-      const pathData = [
-        `M ${x1} ${y1}`,
-        `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
-        `L ${ix2} ${iy2}`,
-        `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${ix1} ${iy1}`,
-        'Z',
-      ].join(' ');
+      const largeArc = sliceAngle > 180 ? 1 : 0;
+      const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
 
       return {
         pathData,
         color: band.color,
         name: band.name,
+        percentage: band.percentage,
+        count: band.count,
       };
     });
-  }, [distributionBands]);
+  }, [distributionBands, totalResults]);
+
+  const subjectsChartData = (analytics?.subjectPerformance || []).slice(0, 10);
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-      {/* ─── Breadcrumb Back Link & Header ───────────────────────────────── */}
-      <div className="space-y-2">
-        <Link
-          href={assessmentsBackHref}
-          className={cn(
-            "inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:underline transition-colors group",
-            isAcademicHead
-              ? "hover:text-violet-600 dark:hover:text-violet-400"
-              : "hover:text-blue-600 dark:hover:text-blue-400"
-          )}
-        >
-          <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-1" />
-          <span>Back to Assessments</span>
-        </Link>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/70">
-          <div className="flex items-center gap-3">
-            <div
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen text-foreground print:p-0 print:max-w-none">
+      {/* ─── Breadcrumbs & Header ────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2 border-b border-border/60">
+        <div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium mb-1">
+            <Link
+              href={assessmentsBackHref}
               className={cn(
-                "p-2.5 rounded-2xl border shadow-2xs",
-                isAcademicHead
-                  ? "bg-gradient-to-br from-violet-500/20 to-indigo-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
-                  : "bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
+                "inline-flex items-center gap-1 hover:underline transition-colors",
+                isAcademicHead ? "hover:text-violet-600 dark:hover:text-violet-400" : "hover:text-blue-600 dark:hover:text-blue-400"
               )}
             >
-              <BarChart3 className="w-6 h-6" />
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Academic Workspace</span>
+            </Link>
+            <span>/</span>
+            <span className="text-foreground font-semibold">Standard Academic Reports</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs",
+              isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+            )}>
+              <activeCategoryMeta.icon className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                Assessment Reports
+              <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
+                <span>{analytics?.schoolInfo?.name || 'Bright Path School'}</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                  Official Reporting
+                </span>
               </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                View and generate detailed reports for assessment results, subject performance and academic progress.
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {activeCategoryMeta.title} • {analytics?.schoolInfo?.academicYear || 'Academic Year'} ({analytics?.schoolInfo?.term || 'Term'})
               </p>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadReportAnalytics}
-              disabled={generating || loading}
-              className="gap-2 bg-card border-border hover:bg-muted text-foreground text-xs"
-            >
-              <RefreshCw className={cn("w-3.5 h-3.5", generating ? "animate-spin text-primary" : "")} />
-              Refresh
-            </Button>
-          </div>
+        {/* Global Actions */}
+        <div className="flex items-center gap-2 w-full sm:w-auto print:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadReportAnalytics}
+            disabled={generating || loading}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl border-border bg-card text-foreground hover:bg-muted"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", generating ? "animate-spin" : "")} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl border-border bg-card text-foreground hover:bg-muted"
+          >
+            <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>Print Report</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleExportCSV()}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl border-border bg-card text-foreground hover:bg-muted"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </Button>
         </div>
       </div>
 
-      {/* ─── Top Filter Controls Bar ─────────────────────────────────────── */}
-      <div className="p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+      {/* ─── 7 Standard Academic Report Categories Navigation ────────────── */}
+      <div className="space-y-2 print:hidden">
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Select Standard Report Category</span>
+          </label>
+          <span className="text-[11px] text-muted-foreground font-medium">
+            Category: <strong className="text-foreground">{activeCategoryMeta.shortTitle}</strong>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+          {REPORT_CATEGORIES.map((cat) => {
+            const isSelected = selectedCategory === cat.key;
+            const Icon = cat.icon;
+            return (
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => setSelectedCategory(cat.key)}
+                className={cn(
+                  "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between group relative overflow-hidden",
+                  isSelected
+                    ? isAcademicHead
+                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs"
+                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs"
+                    : "bg-card border-border hover:bg-muted/50 text-foreground"
+                )}
+              >
+                <div className="flex items-center justify-between w-full mb-1.5">
+                  <span className={cn(
+                    "p-1.5 rounded-lg shrink-0",
+                    isSelected
+                      ? isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+                      : "bg-muted text-muted-foreground group-hover:text-foreground"
+                  )}>
+                    <Icon className="w-3.5 h-3.5" />
+                  </span>
+                  <span className={cn(
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate max-w-[80px]",
+                    isSelected
+                      ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10" : "border-blue-500/30 bg-blue-500/10"
+                      : "border-border text-muted-foreground"
+                  )}>
+                    {cat.badge}
+                  </span>
+                </div>
+                <span className="text-xs font-bold leading-tight line-clamp-1">
+                  {cat.shortTitle}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="p-3 rounded-xl bg-muted/40 border border-border flex items-start gap-2.5 text-xs text-muted-foreground">
+          <Info className="w-4 h-4 shrink-0 text-muted-foreground mt-0.5" />
+          <p>
+            <strong className="text-foreground">{activeCategoryMeta.title}: </strong>
+            {activeCategoryMeta.description}
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Contextual Filters Bar ──────────────────────────────────────── */}
+      <div className="p-4 rounded-2xl bg-card border border-border shadow-xs print:hidden">
+        <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/60">
+          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>Report Scope & Context Filters</span>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetFilters}
+            className="h-7 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground gap-1"
+          >
+            <X className="w-3 h-3" />
+            <span>Reset Scope</span>
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           {/* Academic Year */}
           <div>
             <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               Academic Year
             </label>
-            <div className="relative">
-              <select
-                value={selectedYearId}
-                onChange={(e) => {
-                  setSelectedYearId(e.target.value);
-                  const y = academicYears.find((ay) => ay.id === e.target.value);
-                  if (y?.terms?.length > 0) {
-                    setSelectedTermId(y.terms[0].id);
-                  } else {
-                    setSelectedTermId('all');
-                  }
-                }}
-                className={cn(
-                  "w-full h-9 pl-3 pr-8 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
-                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-                )}
-              >
-                {academicYears.map((ay) => (
-                  <option key={ay.id} value={ay.id}>
-                    {ay.name} {ay.isCurrent ? '(Current)' : ''}
-                  </option>
-                ))}
-              </select>
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Term */}
-          <div>
-            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Term
-            </label>
             <select
-              value={selectedTermId}
-              onChange={(e) => setSelectedTermId(e.target.value)}
+              value={selectedYearId}
+              onChange={(e) => setSelectedYearId(e.target.value)}
               className={cn(
                 "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
                 isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
               )}
             >
-              <option value="all">All Terms</option>
-              {currentTerms.map((t: any) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+              {academicYears.map((ay) => (
+                <option key={ay.id} value={ay.id}>
+                  {ay.name} {ay.isCurrent ? '(Current)' : ''}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Academic Term */}
+          <div>
+            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              Reporting Term
+            </label>
+            <select
+              disabled={selectedCategory === 'ANNUAL_ACADEMIC'}
+              value={selectedCategory === 'ANNUAL_ACADEMIC' ? 'full_year' : selectedTermId}
+              onChange={(e) => setSelectedTermId(e.target.value)}
+              className={cn(
+                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
+                isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+              )}
+            >
+              {selectedCategory === 'ANNUAL_ACADEMIC' ? (
+                <option value="full_year">Full Academic Year (Annual)</option>
+              ) : (
+                <>
+                  <option value="all">All Configured Terms</option>
+                  {availableTerms.map((term: any) => (
+                    <option key={term.id} value={term.id}>
+                      {term.name} {term.isCurrent ? '(Current)' : ''}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -645,7 +717,11 @@ export default function AssessmentReportsPage() {
             </label>
             <select
               value={selectedGradeId}
-              onChange={(e) => setSelectedGradeId(e.target.value)}
+              onChange={(e) => {
+                setSelectedGradeId(e.target.value);
+                setSelectedSectionId('all');
+                setSelectedStreamId('all');
+              }}
               className={cn(
                 "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
                 isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
@@ -660,16 +736,42 @@ export default function AssessmentReportsPage() {
             </select>
           </div>
 
+          {/* Stream - Visible only for Senior Grades 11/12 */}
+          {isSeniorGrade && (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Stream</span>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">Gr 11-12</span>
+              </label>
+              <select
+                value={selectedStreamId}
+                onChange={(e) => setSelectedStreamId(e.target.value)}
+                className={cn(
+                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
+                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                )}
+              >
+                <option value="all">All Streams</option>
+                {streams.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Section */}
           <div>
             <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
               Section
             </label>
             <select
+              disabled={selectedGradeId === 'all'}
               value={selectedSectionId}
               onChange={(e) => setSelectedSectionId(e.target.value)}
               className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
+                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
                 isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
               )}
             >
@@ -682,242 +784,290 @@ export default function AssessmentReportsPage() {
             </select>
           </div>
 
-          {/* Subject */}
-          <div>
-            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Subject
-            </label>
-            <select
-              value={selectedSubjectId}
-              onChange={(e) => setSelectedSubjectId(e.target.value)}
-              className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
-                isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-              )}
-            >
-              <option value="all">All Subjects</option>
-              {subjects.map((sub) => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Subject Filter (Relevant for Subject Performance & Performance Analysis) */}
+          {selectedCategory === 'SUBJECT_PERFORMANCE' ? (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Subject
+              </label>
+              <select
+                value={selectedSubjectId}
+                onChange={(e) => setSelectedSubjectId(e.target.value)}
+                className={cn(
+                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
+                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                )}
+              >
+                <option value="all">All Subjects</option>
+                {subjects.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : selectedCategory === 'STUDENT_ACADEMIC' ? (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Individual Student
+              </label>
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                className={cn(
+                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
+                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                )}
+              >
+                <option value="all">Select Student...</option>
+                {students.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.fullName} ({st.student_id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <Button
+                onClick={loadReportAnalytics}
+                disabled={generating || loading}
+                className={cn(
+                  "w-full h-9 gap-1.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center text-white",
+                  isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
+                )}
+              >
+                <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
+                <span>{generating ? 'Calculating...' : 'Generate Report'}</span>
+              </Button>
+            </div>
+          )}
 
-          {/* Report Type */}
-          <div>
-            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Report Type
-            </label>
-            <select
-              value={selectedReportType}
-              onChange={(e) => setSelectedReportType(e.target.value)}
-              className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
-                isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-              )}
-            >
-              <option value="SUBJECT_PERFORMANCE">Subject Performance</option>
-              <option value="GRADE_REPORT">Grade Report</option>
-              <option value="SUBJECT_COMPARISON">Subject Comparison</option>
-              <option value="PERFORMANCE_ANALYSIS">Performance Analysis</option>
-              <option value="PARENT_REPORT">Parent Summary</option>
-              <option value="ANNUAL_REPORT">Annual Assessment</option>
-            </select>
-          </div>
-
-          {/* Generate Button */}
-          <div>
-            <Button
-              onClick={loadReportAnalytics}
-              disabled={generating || loading}
-              className={cn(
-                "w-full h-9 gap-1.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center text-white",
-                isAcademicHead
-                  ? "bg-violet-600 hover:bg-violet-700"
-                  : "bg-blue-600 hover:bg-blue-700"
-              )}
-            >
-              <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
-              <span>{generating ? 'Generating...' : 'Generate Report'}</span>
-            </Button>
-          </div>
+          {/* Action button if subject/student dropdown took the 6th slot */}
+          {(selectedCategory === 'SUBJECT_PERFORMANCE' || selectedCategory === 'STUDENT_ACADEMIC') && (
+            <div className="col-span-full sm:col-span-1">
+              <Button
+                onClick={loadReportAnalytics}
+                disabled={generating || loading}
+                className={cn(
+                  "w-full h-9 gap-1.5 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center text-white",
+                  isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
+                )}
+              >
+                <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
+                <span>{generating ? 'Calculating...' : 'Apply Filters'}</span>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ─── 4 Assessment Summary Cards ──────────────────────────────────── */}
-      {(() => {
-        const summaryCfg = getReportSummaryConfig(selectedReportType, analytics?.summary);
-        return (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1 */}
-              <div className={cn(
-                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-              )}>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card1Title}</p>
-                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-                  {summaryCfg.card1Val}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{summaryCfg.card1Sub}</p>
-              </div>
+      {/* ─── 4 Executive KPI Cards ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1 */}
+        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {analytics?.summary?.card1Title || 'Active Enrolled'}
+          </p>
+          <p className="text-2xl font-black text-foreground tracking-tight mt-1">
+            {analytics?.summary?.card1Val ?? '0'}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+            {analytics?.summary?.card1Sub || 'Total active population'}
+          </p>
+        </div>
 
-              {/* Card 2 */}
-              <div className={cn(
-                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-              )}>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card2Title}</p>
-                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-                  {summaryCfg.card2Val}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{summaryCfg.card2Sub}</p>
-              </div>
+        {/* Card 2 */}
+        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {analytics?.summary?.card2Title || 'Cohort Average'}
+          </p>
+          <p className={cn(
+            "text-2xl font-black tracking-tight mt-1",
+            isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+          )}>
+            {analytics?.summary?.card2Val ?? '0%'}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+            {analytics?.summary?.card2Sub || 'Institutional benchmark'}
+          </p>
+        </div>
 
-              {/* Card 3 */}
-              <div className={cn(
-                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-              )}>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card3Title}</p>
-                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-                  {summaryCfg.card3Val}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                  {summaryCfg.card3Sub}
-                </p>
-              </div>
+        {/* Card 3 */}
+        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {analytics?.summary?.card3Title || 'Pass Rate'}
+          </p>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-1">
+            {analytics?.summary?.card3Val ?? '0%'}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+            {analytics?.summary?.card3Sub || 'Assessed candidates meeting criteria'}
+          </p>
+        </div>
 
-              {/* Card 4 */}
-              <div className={cn(
-                "p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs transition-all hover:shadow-md",
-                isAcademicHead ? "hover:border-violet-500/40" : "hover:border-blue-500/40"
-              )}>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{summaryCfg.card4Title}</p>
-                <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-                  {summaryCfg.card4Val}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                  {summaryCfg.card4Sub}
-                </p>
-              </div>
+        {/* Card 4 */}
+        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {analytics?.summary?.card4Title || 'Academic Support'}
+          </p>
+          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight mt-1">
+            {analytics?.summary?.card4Val ?? '0'}
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+            {analytics?.summary?.card4Sub || 'Requires academic intervention'}
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Evidence-Based Academic Recommendations Banner ──────────────── */}
+      {analytics?.recommendations && analytics.recommendations.length > 0 && (
+        <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className={cn(
+              "p-2 rounded-xl shrink-0 mt-0.5",
+              isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+            )}>
+              <Sparkles className="w-4 h-4" />
+            </span>
+            <div>
+              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                Evidence-Based Findings & Recommendations
+              </h4>
+              <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 list-disc list-inside">
+                {analytics.recommendations.map((rec, i) => (
+                  <li key={i}>{rec}</li>
+                ))}
+              </ul>
             </div>
+          </div>
+          <div className="text-[11px] text-muted-foreground shrink-0 sm:text-right">
+            Evaluated by Authoritative Engine
+          </div>
+        </div>
+      )}
 
-            {/* ─── Two Chart Columns: Performance & Result Distribution ─ */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left: Performance Overview (Bar Chart) */}
-              <div className="lg:col-span-7 p-6 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs flex flex-col justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-foreground tracking-tight">
-                    {summaryCfg.chartTitle}
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {summaryCfg.chartSub}
-                  </p>
-                </div>
+      {/* ─── Visual Analytics: Bar Chart & Distribution Donut ────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left: Performance Overview (Bar Chart) */}
+        <div className="lg:col-span-7 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-foreground tracking-tight">
+                  {analytics?.summary?.chartTitle || 'Performance Overview'}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts'}
+                </p>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                Scale: 0–100%
+              </span>
+            </div>
+          </div>
 
           {/* Bar Chart Container */}
           <div className="mt-8 relative pt-4">
             {/* Y-Axis Guidelines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-              <div className="flex items-center gap-2 border-b border-border/50 dark:border-border/30 w-full pb-1">
-                <span className="w-8 text-right font-mono">100%</span>
-              </div>
-              <div className="flex items-center gap-2 border-b border-border/50 dark:border-border/30 w-full pb-1">
-                <span className="w-8 text-right font-mono">80%</span>
-              </div>
-              <div className="flex items-center gap-2 border-b border-border/50 dark:border-border/30 w-full pb-1">
-                <span className="w-8 text-right font-mono">60%</span>
-              </div>
-              <div className="flex items-center gap-2 border-b border-border/50 dark:border-border/30 w-full pb-1">
-                <span className="w-8 text-right font-mono">40%</span>
-              </div>
-              <div className="flex items-center gap-2 border-b border-border/50 dark:border-border/30 w-full pb-1">
-                <span className="w-8 text-right font-mono">20%</span>
-              </div>
-              <div className="flex items-center gap-2 border-b border-border w-full pb-1">
-                <span className="w-8 text-right font-mono">0%</span>
-              </div>
+              {[100, 80, 60, 40, 20, 0].map((tick) => (
+                <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
+                  <span className="w-8 text-right font-mono">{tick}%</span>
+                </div>
+              ))}
             </div>
 
             {/* Bars Column Rendering */}
-            <div className="pl-12 pr-4 h-64 flex items-end justify-between gap-3 relative z-10 pb-8">
-              {subjectsChartData.map((item, idx) => {
-                const color = BAR_COLORS[idx % BAR_COLORS.length];
-                const heightPct = Math.min(100, Math.max(8, item.averageScore));
-                const isHovered = hoveredBarIndex === idx;
+            <div className="pl-12 pr-4 h-64 flex items-end justify-between gap-2 sm:gap-3 relative z-10 pb-8">
+              {subjectsChartData.length === 0 ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                  <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+                  <span>No completed assessment benchmarks recorded in this scope</span>
+                </div>
+              ) : (
+                subjectsChartData.map((item, idx) => {
+                  const color = BAR_COLORS[idx % BAR_COLORS.length];
+                  const heightPct = Math.min(100, Math.max(6, item.averageScore));
+                  const isHovered = hoveredBarIndex === idx;
 
-                return (
-                  <div
-                    key={item.subjectId || idx}
-                    className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
-                    onMouseEnter={() => setHoveredBarIndex(idx)}
-                    onMouseLeave={() => setHoveredBarIndex(null)}
-                  >
-                    {/* Tooltip */}
-                    {isHovered && (
-                      <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
-                        <p>{item.subjectName}: <span className="font-bold text-emerald-500 dark:text-emerald-400">{item.averageScore}%</span></p>
-                        <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
-                      </div>
-                    )}
-
-                    {/* Percentage Label on top of bar */}
-                    <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110">
-                      {Math.round(item.averageScore)}%
-                    </span>
-
-                    {/* The Bar */}
+                  return (
                     <div
-                      className="w-full max-w-[48px] rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md"
-                      style={{
-                        height: `${heightPct}%`,
-                        backgroundColor: color,
-                      }}
-                    />
+                      key={item.subjectId || idx}
+                      className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
+                      onMouseEnter={() => setHoveredBarIndex(idx)}
+                      onMouseLeave={() => setHoveredBarIndex(null)}
+                    >
+                      {/* Tooltip */}
+                      {isHovered && (
+                        <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
+                          <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
+                          <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
+                        </div>
+                      )}
 
-                    {/* X-Axis Label */}
-                    <span className="absolute -bottom-6 text-[11px] font-medium text-muted-foreground truncate max-w-[56px] text-center">
-                      {item.subjectName}
-                    </span>
-                  </div>
-                );
-              })}
+                      {/* Percentage Label on top of bar */}
+                      <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110">
+                        {Math.round(item.averageScore)}%
+                      </span>
+
+                      {/* The Bar */}
+                      <div
+                        className="w-full max-w-[44px] rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md"
+                        style={{
+                          height: `${heightPct}%`,
+                          backgroundColor: color,
+                        }}
+                      />
+
+                      {/* X-Axis Label */}
+                      <span className="absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate max-w-[56px] text-center">
+                        {item.subjectCode || item.subjectName}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
 
         {/* Right: Result Distribution (Donut Chart) */}
-        <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs flex flex-col justify-between">
+        <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between">
           <div>
             <h2 className="text-base font-bold text-foreground tracking-tight">
               Result Distribution
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Grade scale distribution breakdown
+              Breakdown across official institutional grading scale bands
             </p>
           </div>
 
           {/* SVG Donut — centered */}
           <div className="mt-6 flex justify-center">
             <div className="relative w-36 h-36 flex items-center justify-center">
-              <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
-                {donutPaths.map((slice, i) => (
-                  <path
-                    key={i}
-                    d={slice.pathData}
-                    fill={slice.color}
-                    className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
-                  />
-                ))}
-              </svg>
+              {donutPaths.length > 0 ? (
+                <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
+                  {donutPaths.map((slice, i) => (
+                    <path
+                      key={i}
+                      d={slice.pathData}
+                      fill={slice.color}
+                      className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
+                    />
+                  ))}
+                </svg>
+              ) : (
+                <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
+                  No graded results
+                </div>
+              )}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
                 <span className="text-xl font-black text-foreground tracking-tight leading-tight">
                   {totalResults.toLocaleString()}
                 </span>
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Total Results
+                  Evaluated
                 </span>
               </div>
             </div>
@@ -929,7 +1079,7 @@ export default function AssessmentReportsPage() {
               <div key={idx} className="flex items-center justify-between text-xs gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
-                    className="w-2 h-2 rounded-full shrink-0"
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: band.color }}
                   />
                   <span className="font-medium text-foreground truncate">
@@ -944,20 +1094,17 @@ export default function AssessmentReportsPage() {
           </div>
         </div>
       </div>
-          </>
-        );
-      })()}
 
-      {/* ─── Available Reports Table Section ─────────────────────────────── */}
-      <div className="rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs overflow-hidden">
-        {/* Table Card Header with Search & Filter */}
+      {/* ─── Available Reports Catalog Table Section ─────────────────────── */}
+      <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
+        {/* Table Header with Search & Reset */}
         <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-base font-bold text-foreground tracking-tight">
-              Available Reports
+              Standard Academic Reports Catalog
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Comprehensive report catalog ready for analysis, print, and export
+              Available reports in <strong className="text-foreground">{activeCategoryMeta.title}</strong> ready for review, print, and export
             </p>
           </div>
 
@@ -965,7 +1112,7 @@ export default function AssessmentReportsPage() {
             <div className="relative flex-1 sm:w-64">
               <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
-                placeholder="Search reports..."
+                placeholder="Search report roster..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -993,15 +1140,15 @@ export default function AssessmentReportsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-border bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              <tr className="border-b border-border bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 <th className="py-3 px-4 w-12 text-center">#</th>
-                <th className="py-3 px-4">Report Name</th>
-                <th className="py-3 px-4">Type</th>
+                <th className="py-3 px-4">Report Title</th>
+                <th className="py-3 px-4">Standard Category</th>
                 <th className="py-3 px-4">Academic Year</th>
                 <th className="py-3 px-4">Term</th>
-                <th className="py-3 px-4">Grade</th>
-                <th className="py-3 px-4">Subject / Stream</th>
-                <th className="py-3 px-4">Generated On</th>
+                <th className="py-3 px-4">Scope</th>
+                <th className="py-3 px-4 text-right">Cohort Average</th>
+                <th className="py-3 px-4 text-center">Students</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -1009,94 +1156,94 @@ export default function AssessmentReportsPage() {
               {paginatedReports.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-muted-foreground">
-                    No reports found matching your criteria. Try adjusting the search or filters.
+                    <FileText className="w-8 h-8 stroke-1 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="font-semibold text-sm">No report records found in this scope</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Adjust your academic year, grade, or section filter to evaluate matching cohorts.
+                    </p>
                   </td>
                 </tr>
               ) : (
-                paginatedReports.map((row, idx) => {
-                  const absoluteIndex = (currentPage - 1) * pageSize + idx + 1;
+                paginatedReports.map((report, idx) => {
+                  const globalIdx = (currentPage - 1) * pageSize + idx + 1;
                   return (
-                    <tr
-                      key={row.id || idx}
-                      className="hover:bg-muted/40 transition-colors"
-                    >
-                      <td className="py-3.5 px-4 text-center font-mono text-muted-foreground font-medium">
-                        {absoluteIndex}
+                    <tr key={report.id || idx} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-4 text-center font-mono text-muted-foreground">
+                        {globalIdx}
                       </td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <FileText
-                            className={cn(
-                              "w-4 h-4 shrink-0",
-                              isAcademicHead
-                                ? "text-violet-600 dark:text-violet-400"
-                                : "text-blue-600 dark:text-blue-400"
-                            )}
-                          />
-                          <span className="font-semibold text-foreground">
-                            {row.reportName}
-                          </span>
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-foreground">
+                          {report.reportName}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Generated: {report.generatedOn}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getTypeBadgeStyle(
-                            row.type
-                          )}`}
-                        >
-                          {row.type}
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-foreground">
+                          {report.type}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-muted-foreground font-medium">
-                        {row.academicYear}
+                      <td className="py-3 px-4 font-medium text-foreground">
+                        {report.academicYear}
                       </td>
-                      <td className="py-3.5 px-4 text-muted-foreground">
-                        {row.term}
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {report.term}
                       </td>
-                      <td className="py-3.5 px-4 font-semibold text-foreground">
-                        {row.grade}
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-foreground">{report.grade}</div>
+                        <div className="text-[11px] text-muted-foreground">{report.subjectOrStream}</div>
                       </td>
-                      <td className="py-3.5 px-4 text-muted-foreground">
-                        {row.subjectOrStream}
+                      <td className="py-3 px-4 text-right font-mono font-bold">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-lg",
+                          (report.averageScore || 0) >= 50
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                            : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        )}>
+                          {report.averageScore !== undefined ? `${report.averageScore}%` : 'N/A'}
+                        </span>
                       </td>
-                      <td className="py-3.5 px-4 text-muted-foreground font-mono text-[11px]">
-                        {row.generatedOn}
+                      <td className="py-3 px-4 text-center font-mono text-muted-foreground">
+                        {report.studentCount}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleOpenDetailModal(row)}
+                            onClick={() => handleOpenDetail(report)}
                             className={cn(
-                              "h-7 px-2.5 text-xs font-semibold rounded-lg gap-1",
+                              "h-7 px-2.5 rounded-lg text-xs font-semibold gap-1",
                               isAcademicHead
-                                ? "text-violet-600 dark:text-violet-400 hover:text-violet-700 hover:bg-violet-500/10"
-                                : "text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-500/10"
+                                ? "text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/30 border-violet-200 dark:border-violet-800"
+                                : "text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 border-blue-200 dark:border-blue-800"
                             )}
                           >
+                            <Eye className="w-3.5 h-3.5" />
                             <span>View</span>
-                            <ChevronDown className="w-3 h-3 opacity-60" />
                           </Button>
 
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground rounded-lg"
-                              >
-                                <MoreVertical className="w-3.5 h-3.5" />
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-muted-foreground hover:text-foreground">
+                                <MoreVertical className="w-4 h-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="text-xs bg-popover text-popover-foreground border-border">
-                              <DropdownMenuItem onClick={() => handleOpenDetailModal(row)} className="gap-2 cursor-pointer">
-                                <Eye className={cn("w-3.5 h-3.5", isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400")} /> View Detailed Roster
+                            <DropdownMenuContent align="end" className="w-40 text-xs">
+                              <DropdownMenuItem onClick={() => handleOpenDetail(report)} className="gap-2">
+                                <Eye className="w-3.5 h-3.5 text-muted-foreground" /> View Roster
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleExportCSV(row)} className="gap-2 cursor-pointer">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedReportItem(report);
+                                  handleExportCSV([report], `${report.reportName}.csv`);
+                                }}
+                                className="gap-2"
+                              >
                                 <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Export CSV
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => window.print()} className="gap-2 cursor-pointer">
+                              <DropdownMenuItem onClick={() => window.print()} className="gap-2">
                                 <Printer className="w-3.5 h-3.5 text-muted-foreground" /> Print Summary
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -1162,7 +1309,7 @@ export default function AssessmentReportsPage() {
         </div>
       </div>
 
-      {/* ─── Detailed Report Inspection & Print Dialog ───────────────────── */}
+      {/* ─── Standard Detailed Report Inspection & Print Dialog ──────────── */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6 bg-card text-card-foreground border-border">
           <DialogHeader>
@@ -1174,14 +1321,14 @@ export default function AssessmentReportsPage() {
                     isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
                   )}
                 />
-                <span>{selectedReportItem?.reportName || 'Assessment Report Details'}</span>
+                <span>{selectedReportItem?.reportName || 'Academic Report Details'}</span>
               </div>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getTypeBadgeStyle(selectedReportItem?.type || '')}`}>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-muted text-foreground">
                 {selectedReportItem?.type}
               </span>
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
-              {selectedReportItem?.academicYear} | {selectedReportItem?.term} | {selectedReportItem?.grade} ({selectedReportItem?.subjectOrStream})
+              {detailData?.schoolInfo?.name || 'Bright Path School'} • {selectedReportItem?.academicYear} | {selectedReportItem?.term} | {selectedReportItem?.grade} ({selectedReportItem?.subjectOrStream})
             </DialogDescription>
           </DialogHeader>
 
@@ -1193,41 +1340,34 @@ export default function AssessmentReportsPage() {
                   isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
                 )}
               />
-              <p className="text-xs text-muted-foreground font-semibold">Loading student roster and mark breakdown...</p>
+              <p className="text-xs text-muted-foreground font-semibold">
+                Loading official student assessment roster and calculations...
+              </p>
             </div>
           ) : (
             <div className="space-y-5 py-2">
               {/* Quick Metric Bar */}
-              <div className="grid grid-cols-4 gap-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
                 <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Total Enrolled</span>
-                  <span className="text-base font-extrabold text-foreground">{detailData?.studentRows?.length || 25}</span>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Candidates Evaluated</span>
+                  <span className="text-base font-extrabold text-foreground">{detailData?.studentRows?.length || 0}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Average Score</span>
-                  <span
-                    className={cn(
-                      "text-base font-extrabold",
-                      isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
-                    )}
-                  >
-                    {selectedReportItem?.averageScore || 78.4}%
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Cohort Benchmark</span>
+                  <span className={cn(
+                    "text-base font-extrabold",
+                    isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+                  )}>
+                    {selectedReportItem?.averageScore ?? 0}%
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Pass Rate</span>
-                  <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">92%</span>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Engine Calculation</span>
+                  <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">Authoritative</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Report Status</span>
-                  <span
-                    className={cn(
-                      "text-base font-extrabold",
-                      isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-purple-600 dark:text-purple-400"
-                    )}
-                  >
-                    Verified
-                  </span>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Audit Status</span>
+                  <span className="text-base font-extrabold text-foreground">Verified</span>
                 </div>
               </div>
 
@@ -1238,148 +1378,124 @@ export default function AssessmentReportsPage() {
                     <tr className="bg-muted/60 border-b border-border text-[10px] font-bold text-muted-foreground uppercase">
                       <th className="py-2.5 px-3 w-12 text-center">Rank</th>
                       <th className="py-2.5 px-3">Student ID</th>
-                      <th className="py-2.5 px-3">Student Name</th>
-                      {selectedReportItem?.typeKey === 'PARENT_REPORT' ? (
+                      <th className="py-2.5 px-3">Candidate Name</th>
+
+                      {selectedReportItem?.typeKey === 'STUDENT_ACADEMIC' ? (
                         <>
-                          <th className="py-2.5 px-3">Parent Name</th>
-                          <th className="py-2.5 px-3">Parent Contact</th>
-                          <th className="py-2.5 px-3">Section</th>
-                          <th className="py-2.5 px-3 text-right">Avg Score</th>
-                          <th className="py-2.5 px-3 text-center">Conduct</th>
+                          <th className="py-2.5 px-3">Subject</th>
+                          <th className="py-2.5 px-3 text-right">Mark</th>
                           <th className="py-2.5 px-3 text-center">Grade</th>
                           <th className="py-2.5 px-3 text-center">Status</th>
+                          <th className="py-2.5 px-3">Teacher Remarks</th>
                         </>
-                      ) : selectedReportItem?.typeKey === 'ANNUAL_REPORT' ? (
+                      ) : selectedReportItem?.typeKey === 'ANNUAL_ACADEMIC' ? (
                         <>
-                          <th className="py-2.5 px-3">Grade & Sec</th>
-                          <th className="py-2.5 px-3 text-right">Sem 1</th>
-                          <th className="py-2.5 px-3 text-right">Sem 2</th>
-                          <th className="py-2.5 px-3 text-right">Annual Final</th>
+                          <th className="py-2.5 px-3">Grade & Section</th>
+                          <th className="py-2.5 px-3 text-right">Term 1</th>
+                          <th className="py-2.5 px-3 text-right">Term 2</th>
+                          <th className="py-2.5 px-3 text-right">Annual Mean</th>
                           <th className="py-2.5 px-3 text-center">Grade</th>
                           <th className="py-2.5 px-3 text-center">Promotion Status</th>
                         </>
-                      ) : selectedReportItem?.typeKey === 'PERFORMANCE_ANALYSIS' ? (
-                        <>
-                          <th className="py-2.5 px-3">Section</th>
-                          <th className="py-2.5 px-3 text-right">Score</th>
-                          <th className="py-2.5 px-3 text-center">Grade</th>
-                          <th className="py-2.5 px-3 text-center">Performance Tier</th>
-                          <th className="py-2.5 px-3 text-center">Status</th>
-                        </>
                       ) : (
                         <>
-                          <th className="py-2.5 px-3">Gender</th>
                           <th className="py-2.5 px-3">Section</th>
                           <th className="py-2.5 px-3 text-right">Score</th>
                           <th className="py-2.5 px-3 text-center">Grade</th>
                           <th className="py-2.5 px-3 text-center">Status</th>
+                          <th className="py-2.5 px-3">Academic Recommendation</th>
                         </>
                       )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {(detailData?.studentRows || []).slice(0, 30).map((s: any, i: number) => (
-                      <tr key={s.id || i} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-2 px-3 text-center font-mono font-bold text-muted-foreground">{s.rank}</td>
-                        <td className="py-2 px-3 font-mono text-muted-foreground">{s.studentId}</td>
-                        <td className="py-2 px-3 font-semibold text-foreground">{s.fullName}</td>
-
-                        {selectedReportItem?.typeKey === 'PARENT_REPORT' ? (
-                          <>
-                            <td className="py-2 px-3 text-foreground font-medium">{s.parentName || 'N/A'}</td>
-                            <td className="py-2 px-3 font-mono text-muted-foreground text-[11px]">{s.parentPhone || 'N/A'}</td>
-                            <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
-                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
-                            <td className="py-2 px-3 text-center text-muted-foreground">{s.conduct || 'Good'}</td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
-                                {s.gradeLetter}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
-                                s.status === 'PASS'
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                              )}>
-                                {s.status}
-                              </span>
-                            </td>
-                          </>
-                        ) : selectedReportItem?.typeKey === 'ANNUAL_REPORT' ? (
-                          <>
-                            <td className="py-2 px-3 text-muted-foreground">{s.grade} - {s.section}</td>
-                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term1Score ?? s.score}%</td>
-                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term2Score ?? s.score}%</td>
-                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
-                                {s.gradeLetter}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
-                                s.promotionStatus === 'PROMOTED' || s.status === 'PROMOTED'
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : s.promotionStatus === 'INCOMPLETE' || s.status === 'INCOMPLETE'
-                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                              )}>
-                                {s.promotionStatus || s.status}
-                              </span>
-                            </td>
-                          </>
-                        ) : selectedReportItem?.typeKey === 'PERFORMANCE_ANALYSIS' ? (
-                          <>
-                            <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
-                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
-                                {s.gradeLetter}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded text-[10px]">
-                                {s.performanceTier || 'Average'}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
-                                s.status === 'PASS'
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                              )}>
-                                {s.status}
-                              </span>
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="py-2 px-3 text-muted-foreground">{s.gender}</td>
-                            <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
-                            <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.score}%</td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/20">
-                                {s.gradeLetter}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold border",
-                                s.status === 'PASS'
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                              )}>
-                                {s.status}
-                              </span>
-                            </td>
-                          </>
-                        )}
+                    {(detailData?.studentRows || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                          No candidate records recorded in this cohort.
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      (detailData?.studentRows || []).map((s: any, i: number) => (
+                        <tr key={s.id || i} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-2 px-3 text-center font-mono font-bold text-muted-foreground">{s.rank || i + 1}</td>
+                          <td className="py-2 px-3 font-mono text-muted-foreground">{s.studentId}</td>
+                          <td className="py-2 px-3 font-semibold text-foreground">{s.fullName}</td>
+
+                          {selectedReportItem?.typeKey === 'STUDENT_ACADEMIC' ? (
+                            <>
+                              <td className="py-2 px-3 font-medium text-foreground">{s.subjectName}</td>
+                              <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.percentage !== null ? `${s.percentage}%` : 'N/A'}</td>
+                              <td className="py-2 px-3 text-center">
+                                <span className="font-bold px-2 py-0.5 rounded-full text-[10px] bg-muted border border-border">
+                                  {s.gradeLetter}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                  s.status === 'Passed'
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                    : s.status === 'Incomplete'
+                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                )}>
+                                  {s.status}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-muted-foreground text-[11px]">{s.teacherRemarks}</td>
+                            </>
+                          ) : selectedReportItem?.typeKey === 'ANNUAL_ACADEMIC' ? (
+                            <>
+                              <td className="py-2 px-3 text-muted-foreground">{s.grade} - {s.section}</td>
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term1Score !== null ? `${s.term1Score}%` : '—'}</td>
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term2Score !== null ? `${s.term2Score}%` : '—'}</td>
+                              <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.percentage}%</td>
+                              <td className="py-2 px-3 text-center">
+                                <span className="font-bold px-2 py-0.5 rounded-full text-[10px] bg-muted border border-border">
+                                  {s.gradeLetter}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                  s.promotionStatus === 'PROMOTED'
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                    : s.promotionStatus === 'INCOMPLETE'
+                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                )}>
+                                  {s.promotionStatus}
+                                </span>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="py-2 px-3 text-muted-foreground">{s.section}</td>
+                              <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.percentage !== null ? `${s.percentage}%` : '—'}</td>
+                              <td className="py-2 px-3 text-center">
+                                <span className="font-bold px-2 py-0.5 rounded-full text-[10px] bg-muted border border-border">
+                                  {s.gradeLetter}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                  s.status === 'Passed'
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                    : s.status === 'Incomplete'
+                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                )}>
+                                  {s.status}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-muted-foreground text-[11px]">{s.recommendation || 'Regular academic tracking'}</td>
+                            </>
+                          )}
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1391,7 +1507,7 @@ export default function AssessmentReportsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleExportCSV()}
+                onClick={() => handleExportCSV(detailData?.studentRows, `${selectedReportItem?.reportName || 'Report'}.csv`)}
                 className="gap-1.5 text-xs font-semibold border-border bg-card text-foreground hover:bg-muted"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Export CSV
