@@ -2,9 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rollbackPromotion = exports.getPromotionHistory = exports.promoteStudents = exports.getStudentsByGrade = exports.getPromotionPreview = void 0;
 const promotion_service_1 = require("../services/promotion.service");
-const getPromotionPreview = async (_req, res) => {
+const getPromotionPreview = async (req, res) => {
     try {
-        const preview = await promotion_service_1.promotionService.getPromotionPreview();
+        const { fromAcademicYear } = req.query;
+        const preview = await promotion_service_1.promotionService.getPromotionPreview(undefined, fromAcademicYear);
         res.status(200).json({ success: true, data: preview });
     }
     catch (error) {
@@ -14,9 +15,9 @@ const getPromotionPreview = async (_req, res) => {
 exports.getPromotionPreview = getPromotionPreview;
 const getStudentsByGrade = async (req, res) => {
     const { gradeId } = req.params;
-    const { sectionId, streamId } = req.query;
+    const { sectionId, streamId, fromAcademicYear } = req.query;
     try {
-        const students = await promotion_service_1.promotionService.getStudentsByGrade(undefined, gradeId, sectionId, streamId);
+        const students = await promotion_service_1.promotionService.getStudentsByGrade(undefined, gradeId, sectionId, streamId, fromAcademicYear);
         res.status(200).json({ success: true, data: students });
     }
     catch (error) {
@@ -57,13 +58,28 @@ const promoteStudents = async (req, res) => {
     }
     try {
         const result = await promotion_service_1.promotionService.promoteStudents(req.body, undefined, userId);
-        res.status(201).json({ success: true, data: result });
+        res.status(201).json({
+            success: true,
+            data: result,
+            promotedCount: result.promotedCount ?? (Array.isArray(result) ? result.length : 0),
+            blockedCount: result.blockedCount ?? 0,
+            blockedStudents: result.blockedStudents ?? [],
+        });
     }
     catch (error) {
-        if (error.message.includes('Duplicate promotion')) {
-            return res.status(409).json({ success: false, error: error.message });
+        const msg = error.message || 'Promotion failed';
+        if (msg.includes('Duplicate promotion')) {
+            return res.status(409).json({ success: false, error: msg });
         }
-        res.status(500).json({ success: false, error: error.message });
+        if (msg.includes('Cannot promote') ||
+            msg.includes('No students in this cohort are eligible') ||
+            msg.includes('Invalid promotion') ||
+            msg.includes('Target grade') ||
+            msg.includes('Stream assignment') ||
+            msg.includes('No students selected')) {
+            return res.status(400).json({ success: false, error: msg });
+        }
+        res.status(500).json({ success: false, error: msg });
     }
 };
 exports.promoteStudents = promoteStudents;

@@ -64,7 +64,7 @@ export const APP_URL =
   window.location.origin !== "http://localhost" &&
   window.location.origin !== "https://localhost"
     ? window.location.origin
-    : ANDROID_BACKEND_URL);
+    : BACKEND_URL);
 
 export const apiUrl = getApiUrl();
 export const socketUrl = SOCKET_URL;
