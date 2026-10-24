@@ -601,9 +601,8 @@ export default function AssessmentReportsPage() {
       {/* ─── 7 Standard Academic Report Categories Navigation ────────────── */}
       <div className="space-y-2 print:hidden">
         <div className="flex items-center justify-between">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Select Standard Report Category</span>
+          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            Select Standard Report Category
           </label>
           <span className="text-[11px] text-muted-foreground font-medium">
             Category: <strong className="text-foreground">{activeCategoryMeta.shortTitle}</strong>
@@ -613,14 +612,13 @@ export default function AssessmentReportsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
           {REPORT_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.key;
-            const Icon = cat.icon;
             return (
               <button
                 key={cat.key}
                 type="button"
                 onClick={() => setSelectedCategory(cat.key)}
                 className={cn(
-                  "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between group relative overflow-hidden",
+                  "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 group relative overflow-hidden",
                   isSelected
                     ? isAcademicHead
                       ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs"
@@ -628,38 +626,20 @@ export default function AssessmentReportsPage() {
                     : "bg-card border-border hover:bg-muted/50 text-foreground"
                 )}
               >
-                <div className="flex items-center justify-between w-full mb-1.5">
-                  <span className={cn(
-                    "p-1.5 rounded-lg shrink-0",
-                    isSelected
-                      ? isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
-                      : "bg-muted text-muted-foreground group-hover:text-foreground"
-                  )}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </span>
-                  <span className={cn(
-                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate max-w-[80px]",
-                    isSelected
-                      ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10" : "border-blue-500/30 bg-blue-500/10"
-                      : "border-border text-muted-foreground"
-                  )}>
-                    {cat.badge}
-                  </span>
-                </div>
                 <span className="text-xs font-bold leading-tight line-clamp-1">
                   {cat.shortTitle}
+                </span>
+                <span className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate w-fit max-w-full",
+                  isSelected
+                    ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300" : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                    : "border-border text-muted-foreground"
+                )}>
+                  {cat.badge}
                 </span>
               </button>
             );
           })}
-        </div>
-
-        <div className="p-3 rounded-xl bg-muted/40 border border-border flex items-start gap-2.5 text-xs text-muted-foreground">
-          <Info className="w-4 h-4 shrink-0 text-muted-foreground mt-0.5" />
-          <p>
-            <strong className="text-foreground">{activeCategoryMeta.title}: </strong>
-            {activeCategoryMeta.description}
-          </p>
         </div>
       </div>
 
