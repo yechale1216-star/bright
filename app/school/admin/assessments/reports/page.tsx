@@ -513,9 +513,13 @@ export default function AssessmentReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChartExpanded]);
 
+  const COLLAPSED_BAR_LIMIT = 6;
+  const totalChartCohorts = analytics?.subjectPerformance?.length || 0;
+  const hasMoreCohorts = totalChartCohorts > COLLAPSED_BAR_LIMIT;
+
   const subjectsChartData = useMemo(() => {
     const list = analytics?.subjectPerformance || [];
-    return isChartExpanded ? list : list.slice(0, 10);
+    return isChartExpanded ? list : list.slice(0, COLLAPSED_BAR_LIMIT);
   }, [analytics?.subjectPerformance, isChartExpanded]);
 
   return (
@@ -970,8 +974,8 @@ export default function AssessmentReportsPage() {
         {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled */}
         <div
           className={cn(
-            "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out",
-            isChartExpanded ? "lg:col-span-12" : "lg:col-span-7"
+            "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out min-w-0",
+            isChartExpanded ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
           )}
         >
           <div>
@@ -1012,12 +1016,12 @@ export default function AssessmentReportsPage() {
                   aria-label={
                     isChartExpanded
                       ? "Collapse bar chart and restore side-by-side distribution chart"
-                      : "Expand bar chart over adjacent pie chart to occupy full width"
+                      : "View more - expand bar chart over adjacent pie chart to occupy full width"
                   }
                   title={
                     isChartExpanded
                       ? "Collapse to side-by-side layout (Press Esc)"
-                      : "Expand chart across full width (temporarily hides pie chart)"
+                      : "View more cohorts across full width (temporarily hides pie chart)"
                   }
                   className={cn(
                     "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
@@ -1036,7 +1040,7 @@ export default function AssessmentReportsPage() {
                   ) : (
                     <>
                       <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
-                      <span className="text-[11px] font-bold hidden sm:inline">Expand</span>
+                      <span className="text-[11px] font-bold hidden sm:inline">View More</span>
                     </>
                   )}
                 </button>
@@ -1045,12 +1049,12 @@ export default function AssessmentReportsPage() {
           </div>
 
           {/* Bar Chart Container */}
-          <div className="mt-8 relative pt-4">
+          <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
             {/* Y-Axis Guidelines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
               {[100, 80, 60, 40, 20, 0].map((tick) => (
                 <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                  <span className="w-8 text-right font-mono">{tick}%</span>
+                  <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
                 </div>
               ))}
             </div>
@@ -1059,7 +1063,7 @@ export default function AssessmentReportsPage() {
             <div
               className={cn(
                 "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
-                isChartExpanded ? "overflow-x-auto min-w-full" : ""
+                isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
               )}
             >
               {subjectsChartData.length === 0 ? (
@@ -1076,7 +1080,10 @@ export default function AssessmentReportsPage() {
                   return (
                     <div
                       key={item.subjectId || idx}
-                      className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-[36px]"
+                      className={cn(
+                        "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
+                        isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
+                      )}
                       onMouseEnter={() => setHoveredBarIndex(idx)}
                       onMouseLeave={() => setHoveredBarIndex(null)}
                     >
@@ -1089,7 +1096,7 @@ export default function AssessmentReportsPage() {
                       )}
 
                       {/* Percentage Label on top of bar */}
-                      <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110">
+                      <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
                         {Math.round(item.averageScore)}%
                       </span>
 
@@ -1108,9 +1115,10 @@ export default function AssessmentReportsPage() {
                       {/* X-Axis Label */}
                       <span
                         className={cn(
-                          "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all",
-                          isChartExpanded ? "max-w-[80px]" : "max-w-[56px]"
+                          "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
+                          isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
                         )}
+                        title={item.subjectName}
                       >
                         {item.subjectCode || item.subjectName}
                       </span>
@@ -1120,11 +1128,28 @@ export default function AssessmentReportsPage() {
               )}
             </div>
           </div>
+
+          {/* Collapsed view indicator and View More action */}
+          {!isChartExpanded && hasMoreCohorts && (
+            <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+              <span className="text-[11px]">
+                Showing top {COLLAPSED_BAR_LIMIT} of {totalChartCohorts} cohorts
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsChartExpanded(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer focus:outline-none"
+              >
+                <span>View More</span>
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded */}
         {!isChartExpanded && (
-          <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95">
+          <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95 min-w-0 overflow-hidden">
             <div>
               <h2 className="text-base font-bold text-foreground tracking-tight">
                 Result Distribution
