@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   GraduationCap, Layers, Award, FileText, User, MessageSquare, UserCheck,
-  ChevronRight, X, LayoutDashboard, CalendarDays
+  ChevronRight, X, LayoutDashboard, CalendarDays, BarChart3
 } from 'lucide-react'
 import { cn } from '@/lib/utils/utils'
 import { useAuth } from '@/lib/context/auth-context'
@@ -31,14 +31,13 @@ const navItems: NavItem[] = [
     label: 'Assessments',
     children: [
       { href: '/school/academic-head/assessments/policy', label: 'Assessment Policy' },
-      { href: '/school/academic-head/assessments/configurations', label: 'Grade & Subject Config' },
       { href: '/school/academic-head/assessments/bulk-assignment', label: 'Bulk Assessment Assignment' },
       { href: '/school/academic-head/assessments/submissions', label: 'Mark Submissions & Approval' },
-      { href: '/school/academic-head/assessments/reports', label: 'Assessment Reports' },
     ],
   },
   { href: '/school/academic-head/exams', icon: Award, label: 'Exams & Grades' },
   { href: '/school/academic-head/report-cards', icon: FileText, label: 'Report Cards' },
+  { href: '/school/academic-head/assessments/reports', icon: BarChart3, label: 'Academic Reports' },
   { href: '/school/academic-head/staff-attendance', icon: UserCheck, label: 'My Attendance' },
   { href: '/school/academic-head/communication', icon: MessageSquare, label: 'Communication' },
   { href: '/school/academic-head/profile', icon: User, label: 'My Profile' },
