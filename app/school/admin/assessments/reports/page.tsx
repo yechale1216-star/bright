@@ -181,6 +181,36 @@ export default function AssessmentReportsPage() {
   // Hover state for Bar Chart tooltips
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
+  // Horizontal scroll ref and handlers for category cards
+  const categoryScrollRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    if (categoryScrollRef.current) {
+      const scrollAmount = 260;
+      categoryScrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  const handleCategoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (Math.abs(e.deltaX) > 0) return;
+    if (categoryScrollRef.current && e.deltaY !== 0) {
+      const container = categoryScrollRef.current;
+      const atStart = container.scrollLeft <= 0;
+      const atEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 1;
+
+      if ((e.deltaY > 0 && !atEnd) || (e.deltaY < 0 && !atStart)) {
+        container.scrollBy({
+          left: e.deltaY * 1.5,
+          behavior: 'auto',
+        });
+        e.preventDefault();
+      }
+    }
+  };
+
   // Check if senior grade selected (Grades 11 or 12 require stream filtering)
   const isSeniorGrade = useMemo(() => {
     if (!selectedGradeId || selectedGradeId === 'all') return false;
@@ -577,18 +607,49 @@ export default function AssessmentReportsPage() {
       </div>
 
       {/* ─── 7 Standard Academic Report Categories Navigation ────────────── */}
-      <div className="space-y-2 print:hidden">
+      <div className="space-y-2 print:hidden w-full min-w-0">
         <div className="flex items-center justify-between">
           <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Select Standard Report Category</span>
           </label>
-          <span className="text-[11px] text-muted-foreground font-medium">
-            Category: <strong className="text-foreground">{activeCategoryMeta.shortTitle}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline">
+              Category: <strong className="text-foreground">{activeCategoryMeta.shortTitle}</strong>
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => scrollCategories('left')}
+                className="h-7 w-7 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                title="Scroll categories left"
+                aria-label="Scroll categories left"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => scrollCategories('right')}
+                className="h-7 w-7 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                title="Scroll categories right"
+                aria-label="Scroll categories right"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+        {/* Horizontally scrollable row with flex-shrink-0 cards */}
+        <div
+          ref={categoryScrollRef}
+          onWheel={handleCategoryWheel}
+          className="flex items-stretch gap-3 overflow-x-auto pb-2.5 pt-1 px-1 w-full min-w-0 scroll-smooth snap-x snap-mandatory [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [scrollbar-color:rgba(156,163,175,0.4)_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50"
+        >
           {REPORT_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.key;
             const Icon = cat.icon;
@@ -596,37 +657,49 @@ export default function AssessmentReportsPage() {
               <button
                 key={cat.key}
                 type="button"
-                onClick={() => setSelectedCategory(cat.key)}
+                onClick={(e) => {
+                  setSelectedCategory(cat.key);
+                  (e.currentTarget as HTMLElement).scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'nearest',
+                  });
+                }}
                 className={cn(
-                  "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between group relative overflow-hidden",
+                  "w-[210px] sm:w-[230px] min-w-[210px] sm:min-w-[230px] flex-shrink-0 snap-start p-3 rounded-2xl text-left border transition-all flex flex-col justify-between group relative overflow-hidden",
                   isSelected
                     ? isAcademicHead
-                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs"
-                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs"
-                    : "bg-card border-border hover:bg-muted/50 text-foreground"
+                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-sm ring-1 ring-violet-500/30"
+                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-sm ring-1 ring-blue-500/30"
+                    : "bg-card border-border hover:bg-muted/50 hover:border-border/80 text-foreground"
                 )}
               >
-                <div className="flex items-center justify-between w-full mb-1.5">
-                  <span className={cn(
-                    "p-1.5 rounded-lg shrink-0",
-                    isSelected
-                      ? isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
-                      : "bg-muted text-muted-foreground group-hover:text-foreground"
-                  )}>
-                    <Icon className="w-3.5 h-3.5" />
-                  </span>
-                  <span className={cn(
-                    "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate max-w-[80px]",
-                    isSelected
-                      ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10" : "border-blue-500/30 bg-blue-500/10"
-                      : "border-border text-muted-foreground"
-                  )}>
-                    {cat.badge}
-                  </span>
+                <div className="w-full">
+                  <div className="flex items-center justify-between w-full mb-2">
+                    <span className={cn(
+                      "p-1.5 rounded-xl shrink-0 shadow-xs transition-colors",
+                      isSelected
+                        ? isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+                        : "bg-muted text-muted-foreground group-hover:text-foreground"
+                    )}>
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <span className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full border truncate max-w-[110px]",
+                      isSelected
+                        ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300" : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                        : "border-border text-muted-foreground bg-muted/30"
+                    )}>
+                      {cat.badge}
+                    </span>
+                  </div>
+                  <h4 className="text-xs sm:text-[13px] font-bold leading-snug text-foreground">
+                    {cat.shortTitle}
+                  </h4>
                 </div>
-                <span className="text-xs font-bold leading-tight line-clamp-1">
-                  {cat.shortTitle}
-                </span>
+                <p className="text-[11px] text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
+                  {cat.description}
+                </p>
               </button>
             );
           })}
