@@ -152,6 +152,66 @@ async function runTests() {
       update: {}
     });
 
+    // Create published report card to satisfy academic promotion requirements
+    const activeTerms = await prisma.academicTerm.findMany({ where: { academicYearId: activeYear.id } });
+    const termToUse = activeTerms[0] || await prisma.academicTerm.upsert({
+      where: { academicYearId_name: { academicYearId: activeYear.id, name: 'Term 1' } },
+      create: { academicYearId: activeYear.id, name: 'Term 1', startDate: new Date('2025-09-11'), endDate: new Date('2026-02-05') },
+      update: {}
+    });
+
+    const testSubject = await prisma.subject.findFirst() || await prisma.subject.create({
+      data: { name: 'Mathematics', code: 'MATH-AY-TEST' }
+    });
+
+    for (const term of (activeTerms.length > 0 ? activeTerms : [termToUse])) {
+      const rc = await prisma.reportCard.upsert({
+        where: {
+          studentId_academicYearId_academicTermId: {
+            studentId: createdStudent.id,
+            academicYearId: activeYear.id,
+            academicTermId: term.id
+          }
+        },
+        create: {
+          studentId: createdStudent.id,
+          academicYearId: activeYear.id,
+          academicTermId: term.id,
+          gradeId: testGrade.id,
+          sectionId: testSection.id,
+          status: 'PUBLISHED',
+          publishedAt: new Date(),
+          totalScore: 85,
+          maxPossibleScore: 100,
+          averageScore: 85,
+        },
+        update: {
+          status: 'PUBLISHED',
+          publishedAt: new Date(),
+          averageScore: 85
+        }
+      });
+
+      await prisma.reportCardSubjectScore.upsert({
+        where: {
+          reportCardId_subjectId: {
+            reportCardId: rc.id,
+            subjectId: testSubject.id
+          }
+        },
+        create: {
+          reportCardId: rc.id,
+          subjectId: testSubject.id,
+          score: 85,
+          status: 'APPROVED'
+        },
+        update: {
+          score: 85,
+          status: 'APPROVED'
+        }
+      });
+    }
+
     const promoResults = await promotionService.promoteStudents({
       studentIds: [createdStudent.id],
       toGradeId: grade10.id,
