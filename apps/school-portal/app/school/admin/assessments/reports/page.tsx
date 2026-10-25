@@ -1027,6 +1027,15 @@ export default function AssessmentReportsPage() {
                                   <span className="font-bold text-emerald-500">{item.studentCount}</span> student{item.studentCount !== 1 ? 's' : ''} ({item.averageScore}%) | {item.passRate && item.passRate > 0 ? 'Passing range' : 'Below passing'}
                                 </p>
                               </>
+                            ) : selectedCategory === 'GRADE_LEVEL' ? (
+                              <>
+                                <p className="font-bold text-foreground">
+                                  {item.subjectName}: <span className="text-emerald-500 font-bold">{item.averageScore > 0 ? `${item.averageScore}%` : '0%'}</span>
+                                </p>
+                                <p className="text-muted-foreground font-normal">
+                                  {item.studentCount} active students | Pass Rate: {item.passRate !== undefined ? `${item.passRate}%` : 'N/A'}
+                                </p>
+                              </>
                             ) : (
                               <>
                                 <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
@@ -1175,8 +1184,51 @@ export default function AssessmentReportsPage() {
         </div>
       )}
 
-      {/* ─── Available Reports Catalog Table Section ─────────────────────── */}
-      <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
+      {/* ─── Available Reports Catalog Table Section / Generalized View Info ─────────────── */}
+      {selectedCategory === 'GRADE_LEVEL' ? (
+        <div className="p-6 rounded-2xl bg-card border border-border shadow-xs">
+          <div className="flex items-start gap-4">
+            <span
+              className={cn(
+                "p-3 rounded-2xl shrink-0 mt-0.5",
+                isAcademicHead
+                  ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20"
+                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+              )}
+            >
+              <Info className="w-5 h-5" />
+            </span>
+            <div className="space-y-1.5 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">
+                  Generalized Comparison View
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                  High-Level Benchmarking Only
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                The Grade-Level report provides a generalized academic comparison across grade cohorts and sections to benchmark institutional academic performance. Detailed student rosters, individual marks, and granular section drill-downs are intentionally excluded from this view.
+              </p>
+              <div className="pt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Need section or student-level results?</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('CLASS_PERFORMANCE')}
+                  className={cn(
+                    "font-bold hover:underline inline-flex items-center gap-1 cursor-pointer focus:outline-none",
+                    isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+                  )}
+                >
+                  <span>Switch to Class Performance Report</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
         {/* Table Header with Search & Reset */}
         <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
@@ -1388,6 +1440,7 @@ export default function AssessmentReportsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── Standard Detailed Report Inspection & Print Dialog ──────────── */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
