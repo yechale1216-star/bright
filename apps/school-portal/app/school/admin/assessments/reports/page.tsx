@@ -995,52 +995,64 @@ export default function AssessmentReportsPage() {
                   </button>
                 </div>
               ) : (
-                /* Controls: Scale Badge + Expand/Collapse Arrow Button */
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
+                /* Controls: Legend + Scale Badge + Expand/Collapse Arrow Button */
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-1.5 select-none">
+                    <span className="w-3 h-3 rounded-xs bg-[#3b82f6] shrink-0" />
+                    <span className="text-xs font-medium text-muted-foreground hidden sm:inline">
+                      {selectedCategory === 'GRADE_LEVEL'
+                        ? 'Academic Performance (%)'
+                        : selectedCategory === 'SUBJECT_PERFORMANCE'
+                        ? 'Average Score (%)'
+                        : 'Academic Average (%)'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden md:inline-block">
                     Scale: 0–100%
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsChartExpanded((prev) => !prev)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setIsChartExpanded((prev) => !prev);
+                  {hasMoreCohorts && (
+                    <button
+                      type="button"
+                      onClick={() => setIsChartExpanded((prev) => !prev)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setIsChartExpanded((prev) => !prev);
+                        }
+                      }}
+                      aria-expanded={isChartExpanded}
+                      aria-label={
+                        isChartExpanded
+                          ? "Collapse bar chart and restore standard view"
+                          : "View more cohorts across full width"
                       }
-                    }}
-                    aria-expanded={isChartExpanded}
-                    aria-label={
-                      isChartExpanded
-                        ? "Collapse bar chart and restore side-by-side distribution chart"
-                        : "View more - expand bar chart over adjacent pie chart to occupy full width"
-                    }
-                    title={
-                      isChartExpanded
-                        ? "Collapse to side-by-side layout (Press Esc)"
-                        : "View more cohorts across full width (temporarily hides pie chart)"
-                    }
-                    className={cn(
-                      "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
-                      isChartExpanded
-                        ? isAcademicHead
-                          ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
-                          : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
-                        : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
-                    )}
-                  >
-                    {isChartExpanded ? (
-                      <>
-                        <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
-                        <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
-                        <span className="text-[11px] font-bold hidden sm:inline">View More</span>
-                      </>
-                    )}
-                  </button>
+                      title={
+                        isChartExpanded
+                          ? "Collapse to top cohorts (Press Esc)"
+                          : "View more cohorts across full width"
+                      }
+                      className={cn(
+                        "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
+                        isChartExpanded
+                          ? isAcademicHead
+                            ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
+                            : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
+                          : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
+                      )}
+                    >
+                      {isChartExpanded ? (
+                        <>
+                          <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
+                          <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
+                          <span className="text-[11px] font-bold hidden sm:inline">View More</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1137,84 +1149,109 @@ export default function AssessmentReportsPage() {
               </div>
             </div>
           ) : (
-            /* ─── Cohort Comparison Bar Chart (Subject/Grade/Annual) ─── */
-            <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
-              {/* Y-Axis Guidelines */}
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-                {[100, 80, 60, 40, 20, 0].map((tick) => (
-                  <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                    <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
-                  </div>
-                ))}
+            /* ─── Cohort Comparison Bar Chart (Grade Level / Subject / Annual) ─── */
+            <div className="mt-8 flex gap-2 sm:gap-4 w-full min-w-0">
+              {/* Rotated Y-Axis Label: "Academic Performance (%)" */}
+              <div className="w-6 sm:w-8 shrink-0 flex items-center justify-center relative select-none">
+                <span className="transform -rotate-90 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                  {selectedCategory === 'GRADE_LEVEL'
+                    ? 'Academic Performance (%)'
+                    : selectedCategory === 'SUBJECT_PERFORMANCE'
+                    ? 'Average Score (%)'
+                    : 'Academic Average (%)'}
+                </span>
               </div>
 
-              {/* Bars Column Rendering */}
-              <div
-                className={cn(
-                  "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
-                  isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
-                )}
-              >
-                {subjectsChartData.length === 0 ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
-                    <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-                    <span>No completed assessment benchmarks recorded in this scope</span>
-                  </div>
-                ) : (
-                  subjectsChartData.map((item, idx) => {
-                    const color = BAR_COLORS[idx % BAR_COLORS.length];
-                    const heightPct = Math.min(100, Math.max(6, item.averageScore));
-                    const isHovered = hoveredBarIndex === idx;
-
-                    return (
-                      <div
-                        key={item.subjectId || idx}
-                        className={cn(
-                          "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
-                          isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
-                        )}
-                        onMouseEnter={() => setHoveredBarIndex(idx)}
-                        onMouseLeave={() => setHoveredBarIndex(null)}
-                      >
-                        {/* Tooltip */}
-                        {isHovered && (
-                          <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
-                            <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
-                            <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
-                          </div>
-                        )}
-
-                        {/* Percentage Label on top of bar */}
-                        <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
-                          {Math.round(item.averageScore)}%
+              {/* Chart Body */}
+              <div className="flex-1 flex flex-col min-w-0">
+                {/* Ticks & Horizontal Gridlines Container */}
+                <div className="relative h-64 sm:h-72 w-full">
+                  {/* Horizontal gridlines with Y tick numbers */}
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-0">
+                    {[100, 80, 60, 40, 20, 0].map((tick) => (
+                      <div key={tick} className="flex items-center gap-2.5 w-full">
+                        <span className="w-7 text-right text-xs font-normal text-muted-foreground shrink-0 font-mono">
+                          {tick}%
                         </span>
-
-                        {/* The Bar */}
-                        <div
-                          className={cn(
-                            "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
-                            isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
-                          )}
-                          style={{
-                            height: `${heightPct}%`,
-                            backgroundColor: color,
-                          }}
-                        />
-
-                        {/* X-Axis Label */}
-                        <span
-                          className={cn(
-                            "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
-                            isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
-                          )}
-                          title={item.subjectName}
-                        >
-                          {item.subjectCode || item.subjectName}
-                        </span>
+                        <div className="flex-1 border-b border-border/60" />
                       </div>
-                    );
-                  })
-                )}
+                    ))}
+                  </div>
+
+                  {/* Bars Container */}
+                  <div className="absolute inset-0 pl-9 pr-2 flex items-end justify-around gap-2 sm:gap-6 z-10 pb-0">
+                    {subjectsChartData.length === 0 ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                        <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+                        <span>No completed assessment benchmarks recorded in this scope</span>
+                      </div>
+                    ) : (
+                      subjectsChartData.map((item, idx) => {
+                        const color = item.color || BAR_COLORS[idx % BAR_COLORS.length];
+                        const heightPct = Math.min(100, Math.max(0, item.averageScore));
+                        const isHovered = hoveredBarIndex === idx;
+
+                        return (
+                          <div
+                            key={item.subjectId || idx}
+                            className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative max-w-[84px]"
+                            onMouseEnter={() => setHoveredBarIndex(idx)}
+                            onMouseLeave={() => setHoveredBarIndex(null)}
+                          >
+                            {/* Tooltip */}
+                            {isHovered && (
+                              <div className="absolute -top-14 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
+                                <p className="font-bold text-foreground">{item.subjectName}: <span className="text-emerald-500">{item.averageScore}%</span></p>
+                                <p className="text-muted-foreground font-normal">
+                                  Students: <span className="font-semibold text-foreground">{item.studentCount}</span>
+                                  {item.highestScore ? ` | High: ${item.highestScore}%` : ''}
+                                  {item.lowestScore ? ` | Low: ${item.lowestScore}%` : ''}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Percentage Label on top of bar */}
+                            <span className="text-xs sm:text-sm font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110">
+                              {Math.round(item.averageScore)}%
+                            </span>
+
+                            {/* The Bar */}
+                            <div
+                              className="w-full rounded-t-md transition-all duration-500 ease-out group-hover:brightness-105 group-hover:shadow-md"
+                              style={{
+                                height: `${heightPct}%`,
+                                backgroundColor: color,
+                                minHeight: item.averageScore > 0 ? '4px' : '0px',
+                              }}
+                            />
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* X-Axis labels underneath the bars */}
+                <div className="pl-9 pr-2 mt-3 flex items-center justify-around gap-2 sm:gap-6">
+                  {subjectsChartData.map((item, idx) => (
+                    <div key={item.subjectId || idx} className="flex-1 text-center max-w-[84px]">
+                      <span className="text-xs font-medium text-foreground select-none truncate block" title={item.subjectName}>
+                        {item.subjectCode || item.subjectName}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Centered Category at bottom (Grade Level / Class Sections / Curriculum Subjects) */}
+                <div className="mt-4 text-center">
+                  <span className="text-xs font-semibold text-muted-foreground select-none">
+                    {selectedCategory === 'GRADE_LEVEL'
+                      ? (selectedGradeId === 'all' ? 'Grade Level' : 'Class Sections')
+                      : selectedCategory === 'SUBJECT_PERFORMANCE'
+                      ? 'Curriculum Subjects'
+                      : 'Academic Cohorts'}
+                  </span>
+                </div>
               </div>
             </div>
           )}

@@ -592,65 +592,129 @@ export class AssessmentReportService {
       }
 
       case 'GRADE_LEVEL': {
-        // Group by Sections within Grade
-        const sectionMap = new Map<string, { sectionName: string; scores: number[]; activeCount: number; completeCount: number; passCount: number }>();
+        const isAllGrades = !gradeId || gradeId === 'all';
 
-        for (const s of activeStudents) {
-          const secName = s.section?.name || 'A';
-          if (!sectionMap.has(secName)) {
-            sectionMap.set(secName, { sectionName: secName, scores: [], activeCount: 0, completeCount: 0, passCount: 0 });
+        if (isAllGrades) {
+          // Scope: All Grades -> Group by Grade (e.g., Grade 9, Grade 10, Grade 11, Grade 12)
+          const gradeMap = new Map<string, { gradeName: string; scores: number[]; activeCount: number; completeCount: number; passCount: number }>();
+
+          for (const s of activeStudents) {
+            const gName = s.grade?.name || 'Grade';
+            if (!gradeMap.has(gName)) {
+              gradeMap.set(gName, { gradeName: gName, scores: [], activeCount: 0, completeCount: 0, passCount: 0 });
+            }
+            gradeMap.get(gName)!.activeCount++;
           }
-          sectionMap.get(secName)!.activeCount++;
-        }
 
-        for (const r of completedRecords) {
-          const secName = r.student.section?.name || 'A';
-          if (sectionMap.has(secName) && r.overallAverage !== null) {
-            const entry = sectionMap.get(secName)!;
-            entry.scores.push(r.overallAverage);
-            entry.completeCount++;
-            if (r.status === 'Passed') entry.passCount++;
+          for (const r of completedRecords) {
+            const gName = r.student.grade?.name || 'Grade';
+            if (gradeMap.has(gName) && r.overallAverage !== null) {
+              const entry = gradeMap.get(gName)!;
+              entry.scores.push(r.overallAverage);
+              entry.completeCount++;
+              if (r.status === 'Passed') entry.passCount++;
+            }
           }
-        }
 
-        const sectionComparisonList = Array.from(sectionMap.entries()).map(([secName, data]) => {
-          const avg = data.scores.length > 0 ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10 : 0;
-          const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
-          return {
-            subjectId: secName,
-            subjectName: `Section ${secName}`,
-            subjectCode: `Sec ${secName}`,
-            averageScore: avg,
-            studentCount: data.activeCount,
-            highestScore: data.scores.length > 0 ? Math.max(...data.scores) : 0,
-            lowestScore: data.scores.length > 0 ? Math.min(...data.scores) : 0,
-            passRate: pRate,
-            gradeName: 'Grade Cohort',
+          const gradeComparisonList = Array.from(gradeMap.entries()).map(([gName, data]) => {
+            const avg = data.scores.length > 0 ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10 : 0;
+            const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
+            return {
+              subjectId: gName,
+              subjectName: gName,
+              subjectCode: gName,
+              averageScore: avg,
+              studentCount: data.activeCount,
+              highestScore: data.scores.length > 0 ? Math.round(Math.max(...data.scores)) : 0,
+              lowestScore: data.scores.length > 0 ? Math.round(Math.min(...data.scores)) : 0,
+              passRate: pRate,
+              gradeName: 'Grade Level',
+            };
+          });
+
+          summary = {
+            card1Title: 'Active Cohort',
+            card1Val: totalActiveCount,
+            card1Sub: `Across ${gradeMap.size} grades in school`,
+            card2Title: 'School Average',
+            card2Val: `${cohortAverage}%`,
+            card2Sub: 'Unified benchmark across all grades',
+            card3Title: 'Grades Evaluated',
+            card3Val: gradeMap.size,
+            card3Sub: `${completeCount} completed results`,
+            card4Title: 'Cohort Pass Rate',
+            card4Val: `${passRate}%`,
+            card4Sub: `${incompleteCount} pending/incomplete records`,
+            chartTitle: 'Grade-Level Academic Performance',
+            chartSub: 'Average academic performance percentage across evaluated grades',
           };
-        });
 
-        summary = {
-          card1Title: 'Active Cohort',
-          card1Val: totalActiveCount,
-          card1Sub: `Across ${sectionMap.size} sections in grade`,
-          card2Title: 'Grade Average',
-          card2Val: `${cohortAverage}%`,
-          card2Sub: 'Unified benchmark across sections',
-          card3Title: 'Sections Evaluated',
-          card3Val: sectionMap.size,
-          card3Sub: `${completeCount} completed results`,
-          card4Title: 'Cohort Pass Rate',
-          card4Val: `${passRate}%`,
-          card4Sub: `${incompleteCount} pending/incomplete records`,
-          chartTitle: 'Section-Wise Benchmark Comparison',
-          chartSub: 'Average performance comparison across grade sections',
-        };
+          chartPerformance = gradeComparisonList;
+          recommendations = [
+            'Consistent academic benchmark tracking maintained across all grade cohorts.',
+            'Review lower-performing grades to allocate targeted instructional interventions.',
+          ];
+        } else {
+          // Scope: Specific Grade -> Group by Sections (e.g., Section A, Section B, Section C)
+          const sectionMap = new Map<string, { sectionName: string; scores: number[]; activeCount: number; completeCount: number; passCount: number }>();
 
-        chartPerformance = sectionComparisonList.length > 0 ? sectionComparisonList : subjectPerformanceArray;
-        recommendations = [
-          'Consistent assessment marking rules verified across all sections.',
-          'Identify discrepancies between section averages to balance teacher allocation and student support.',
-        ];
+          for (const s of activeStudents) {
+            const secName = s.section?.name || 'A';
+            if (!sectionMap.has(secName)) {
+              sectionMap.set(secName, { sectionName: secName, scores: [], activeCount: 0, completeCount: 0, passCount: 0 });
+            }
+            sectionMap.get(secName)!.activeCount++;
+          }
+
+          for (const r of completedRecords) {
+            const secName = r.student.section?.name || 'A';
+            if (sectionMap.has(secName) && r.overallAverage !== null) {
+              const entry = sectionMap.get(secName)!;
+              entry.scores.push(r.overallAverage);
+              entry.completeCount++;
+              if (r.status === 'Passed') entry.passCount++;
+            }
+          }
+
+          const sectionComparisonList = Array.from(sectionMap.entries()).map(([secName, data]) => {
+            const avg = data.scores.length > 0 ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10 : 0;
+            const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
+            return {
+              subjectId: secName,
+              subjectName: `Section ${secName}`,
+              subjectCode: `Sec ${secName}`,
+              averageScore: avg,
+              studentCount: data.activeCount,
+              highestScore: data.scores.length > 0 ? Math.round(Math.max(...data.scores)) : 0,
+              lowestScore: data.scores.length > 0 ? Math.round(Math.min(...data.scores)) : 0,
+              passRate: pRate,
+              gradeName: 'Grade Cohort',
+            };
+          });
+
+          summary = {
+            card1Title: 'Active Cohort',
+            card1Val: totalActiveCount,
+            card1Sub: `Across ${sectionMap.size} sections in grade`,
+            card2Title: 'Grade Average',
+            card2Val: `${cohortAverage}%`,
+            card2Sub: 'Unified benchmark across sections',
+            card3Title: 'Sections Evaluated',
+            card3Val: sectionMap.size,
+            card3Sub: `${completeCount} completed results`,
+            card4Title: 'Cohort Pass Rate',
+            card4Val: `${passRate}%`,
+            card4Sub: `${incompleteCount} pending/incomplete records`,
+            chartTitle: 'Section-Wise Benchmark Comparison',
+            chartSub: 'Average performance comparison across grade sections',
+          };
+
+          chartPerformance = sectionComparisonList;
+          recommendations = [
+            'Consistent assessment marking rules verified across all sections.',
+            'Identify discrepancies between section averages to balance teacher allocation and student support.',
+          ];
+        }
         break;
       }
 
