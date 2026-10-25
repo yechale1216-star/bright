@@ -499,6 +499,56 @@ export class AssessmentReportService {
       }
 
       case 'CLASS_PERFORMANCE': {
+        // Group students into standard score ranges:
+        // 90–100, 85–89.99, 80–84.99, 75–79.99, 70–74.99, 60–69.99, 50–59.99, and below 50.
+        // Calculated strictly from each student's overall class performance (r.overallAverage), not individual subject scores.
+        // Missing or incomplete records are handled separately (incompleteCount) and not treated as zero.
+        const classScoreRanges = [
+          { rangeKey: 'range_90_100', name: '90–100', rangeLabel: '90–100', minScore: 90, maxScore: 100, color: '#10b981', isPassing: true },
+          { rangeKey: 'range_85_89', name: '85–89.99', rangeLabel: '85–89.99', minScore: 85, maxScore: 89.999, color: '#06b6d4', isPassing: true },
+          { rangeKey: 'range_80_84', name: '80–84.99', rangeLabel: '80–84.99', minScore: 80, maxScore: 84.999, color: '#3b82f6', isPassing: true },
+          { rangeKey: 'range_75_79', name: '75–79.99', rangeLabel: '75–79.99', minScore: 75, maxScore: 79.999, color: '#6366f1', isPassing: true },
+          { rangeKey: 'range_70_74', name: '70–74.99', rangeLabel: '70–74.99', minScore: 70, maxScore: 74.999, color: '#8b5cf6', isPassing: true },
+          { rangeKey: 'range_60_69', name: '60–69.99', rangeLabel: '60–69.99', minScore: 60, maxScore: 69.999, color: '#f59e0b', isPassing: true },
+          { rangeKey: 'range_50_59', name: '50–59.99', rangeLabel: '50–59.99', minScore: 50, maxScore: 59.999, color: '#f97316', isPassing: true },
+          { rangeKey: 'range_below_50', name: 'Below 50', rangeLabel: '< 50', minScore: 0, maxScore: 49.999, color: '#ef4444', isPassing: false },
+        ];
+
+        const classDistributionBands = classScoreRanges.map((r) => {
+          const count = completedAverages.filter((avg) => avg >= r.minScore && avg <= r.maxScore).length;
+          const percentage = completeCount > 0 ? Math.round((count / completeCount) * 1000) / 10 : 0;
+          return {
+            name: r.name,
+            rangeLabel: r.rangeLabel,
+            minScore: r.minScore,
+            maxScore: r.maxScore,
+            color: r.color,
+            isPassing: r.isPassing,
+            count,
+            percentage,
+          };
+        });
+
+        distribution = {
+          totalResults: completeCount,
+          incompleteCount,
+          bands: classDistributionBands,
+        };
+
+        // When Class Performance is selected, chartPerformance displays the Score Range Result Distribution
+        chartPerformance = classDistributionBands.map((band) => ({
+          subjectId: band.rangeLabel,
+          subjectName: `Score ${band.name}`,
+          subjectCode: band.rangeLabel,
+          averageScore: band.percentage, // Percentage of students in this score range
+          studentCount: band.count,     // Number of students
+          highestScore: band.maxScore,
+          lowestScore: band.minScore,
+          passRate: band.isPassing ? 100 : 0,
+          gradeName: band.name,
+          color: band.color,
+        }));
+
         summary = {
           card1Title: 'Active Enrolled',
           card1Val: totalActiveCount,
@@ -512,20 +562,18 @@ export class AssessmentReportService {
           card4Title: 'Support Required',
           card4Val: `${failedCount + incompleteCount}`,
           card4Sub: `${failedCount} academic fail, ${incompleteCount} missing marks`,
-          chartTitle: 'Subject Class Averages & Benchmark',
-          chartSub: 'Average percentage marks across class curriculum subjects',
+          chartTitle: 'Class Result Distribution',
+          chartSub: 'Student distribution across overall class performance score ranges',
         };
 
-        chartPerformance = subjectPerformanceArray;
-
-        const lowSubjects = subjectPerformanceArray.filter((s) => s.averageScore < policyPassingMinScore);
         recommendations = [
-          lowSubjects.length > 0
-            ? `Special academic support is required for ${lowSubjects.map((s) => s.subjectName).join(', ')} where class averages are below ${policyPassingMinScore}%.`
-            : 'Class curriculum averages meet or exceed the institutional benchmark threshold.',
+          `Overall class average is ${cohortAverage}%, with ${passedCount} of ${completeCount} completed students (${passRate}%) meeting passing benchmarks.`,
+          failedCount > 0
+            ? `${failedCount} students scored below 50% and require remedial interventions and structured academic plans.`
+            : 'All evaluated students achieved satisfactory or higher benchmark outcomes.',
           incompleteCount > 0
-            ? `${incompleteCount} students have missing required marks and must be followed up before term closure.`
-            : 'All enrolled candidates have completed their assessment evaluations.',
+            ? `${incompleteCount} students have incomplete or missing assessment records and are excluded from score ranges pending submission.`
+            : 'Assessment submission is complete across all enrolled students in the scope.',
         ];
         break;
       }

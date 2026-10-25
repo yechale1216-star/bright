@@ -487,7 +487,7 @@ export default function AssessmentReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChartExpanded]);
 
-  const COLLAPSED_BAR_LIMIT = selectedCategory === 'GRADE_LEVEL' ? 12 : 6;
+  const COLLAPSED_BAR_LIMIT = selectedCategory === 'GRADE_LEVEL' || selectedCategory === 'CLASS_PERFORMANCE' ? 12 : 6;
   const totalChartCohorts = analytics?.subjectPerformance?.length || 0;
   const hasMoreCohorts = totalChartCohorts > COLLAPSED_BAR_LIMIT;
 
@@ -570,7 +570,12 @@ export default function AssessmentReportsPage() {
               <button
                 key={cat.key}
                 type="button"
-                onClick={() => setSelectedCategory(cat.key)}
+                onClick={() => {
+                  if (selectedCategory !== cat.key) {
+                    setAnalytics(null);
+                    setSelectedCategory(cat.key);
+                  }
+                }}
                 className={cn(
                   "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 group relative overflow-hidden",
                   isSelected
@@ -885,251 +890,288 @@ export default function AssessmentReportsPage() {
       )}
 
       {/* ─── Visual Analytics: Bar Chart & Distribution Donut ────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
-        {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled */}
-        <div
-          className={cn(
-            "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out min-w-0",
-            isChartExpanded ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
-          )}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-foreground tracking-tight">
-                    {analytics?.summary?.chartTitle || 'Performance Overview'}
-                  </h2>
-                  {isChartExpanded && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                      Full Width View
-                    </span>
-                  )}
+      {generating && !analytics ? (
+        <div className="p-12 rounded-2xl bg-card border border-border shadow-xs flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in">
+          <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-sm font-semibold text-foreground">Loading {activeCategoryMeta.title}...</p>
+          <p className="text-xs text-muted-foreground">Evaluating student records and calculating distribution benchmarks</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
+          {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled */}
+          <div
+            className={cn(
+              "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out min-w-0",
+              isChartExpanded ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
+            )}
+          >
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-foreground tracking-tight">
+                      {analytics?.summary?.chartTitle || 'Performance Overview'}
+                    </h2>
+                    {isChartExpanded && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        Full Width View
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isChartExpanded
+                      ? `Expanded view showing all ${subjectsChartData.length} evaluated cohorts across full width`
+                      : (analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts')}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isChartExpanded
-                    ? `Expanded view showing all ${subjectsChartData.length} evaluated cohorts across full width`
-                    : (analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts')}
-                </p>
+
+                {/* Controls: Scale Badge + Expand/Collapse Arrow Button */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
+                    {selectedCategory === 'CLASS_PERFORMANCE' ? 'Distribution Scale: 0–100%' : 'Scale: 0–100%'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsChartExpanded((prev) => !prev)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setIsChartExpanded((prev) => !prev);
+                      }
+                    }}
+                    aria-expanded={isChartExpanded}
+                    aria-label={
+                      isChartExpanded
+                        ? "Collapse bar chart and restore side-by-side distribution chart"
+                        : "View more - expand bar chart over adjacent pie chart to occupy full width"
+                    }
+                    title={
+                      isChartExpanded
+                        ? "Collapse to side-by-side layout (Press Esc)"
+                        : "View more cohorts across full width (temporarily hides pie chart)"
+                    }
+                    className={cn(
+                      "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
+                      isChartExpanded
+                        ? isAcademicHead
+                          ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
+                          : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
+                        : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
+                    )}
+                  >
+                    {isChartExpanded ? (
+                      <>
+                        <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
+                        <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
+                        <span className="text-[11px] font-bold hidden sm:inline">View More</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Bar Chart Container */}
+            <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
+              {/* Y-Axis Guidelines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
+                {[100, 80, 60, 40, 20, 0].map((tick) => (
+                  <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
+                    <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
+                  </div>
+                ))}
               </div>
 
-              {/* Controls: Scale Badge + Expand/Collapse Arrow Button */}
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
-                  Scale: 0–100%
+              {/* Bars Column Rendering */}
+              <div
+                className={cn(
+                  "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
+                  isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
+                )}
+              >
+                {subjectsChartData.length === 0 ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                    <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+                    <span>No completed assessment benchmarks recorded in this scope</span>
+                  </div>
+                ) : (
+                  subjectsChartData.map((item, idx) => {
+                    const color = (item as any).color || BAR_COLORS[idx % BAR_COLORS.length];
+                    const hasScore = item.averageScore > 0;
+                    const heightPct = hasScore ? Math.min(100, Math.max(6, item.averageScore)) : 0;
+                    const isHovered = hoveredBarIndex === idx;
+
+                    return (
+                      <div
+                        key={item.subjectId || idx}
+                        className={cn(
+                          "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
+                          isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
+                        )}
+                        onMouseEnter={() => setHoveredBarIndex(idx)}
+                        onMouseLeave={() => setHoveredBarIndex(null)}
+                      >
+                        {/* Tooltip */}
+                        {isHovered && (
+                          <div className="absolute -top-14 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
+                            {selectedCategory === 'CLASS_PERFORMANCE' ? (
+                              <>
+                                <p className="font-bold text-foreground">
+                                  Score Range {item.subjectCode}: <span className="font-bold text-emerald-500">{item.averageScore}%</span>
+                                </p>
+                                <p className="text-muted-foreground font-normal">
+                                  Students: {item.studentCount} of {totalResults} evaluated | Status: {item.passRate && item.passRate > 0 ? 'Passing' : 'Below Passing'}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
+                                <p className="text-muted-foreground font-normal">
+                                  Students: {item.studentCount} | High: {item.highestScore}%{item.passRate !== undefined ? ` | Pass: ${item.passRate}%` : ''}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Percentage Label on top of bar */}
+                        <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
+                          {item.averageScore > 0 ? `${Math.round(item.averageScore)}%` : '0%'}
+                        </span>
+
+                        {/* The Bar */}
+                        <div
+                          className={cn(
+                            "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
+                            !hasScore && "opacity-25",
+                            isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
+                          )}
+                          style={{
+                            height: hasScore ? `${heightPct}%` : '2px',
+                            backgroundColor: color,
+                          }}
+                        />
+
+                        {/* X-Axis Label */}
+                        <span
+                          className={cn(
+                            "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
+                            isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
+                          )}
+                          title={item.subjectName}
+                        >
+                          {item.subjectCode || item.subjectName}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Collapsed view indicator and View More action */}
+            {!isChartExpanded && hasMoreCohorts && (
+              <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+                <span className="text-[11px]">
+                  Showing top {COLLAPSED_BAR_LIMIT} of {totalChartCohorts} cohorts
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIsChartExpanded((prev) => !prev)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setIsChartExpanded((prev) => !prev);
-                    }
-                  }}
-                  aria-expanded={isChartExpanded}
-                  aria-label={
-                    isChartExpanded
-                      ? "Collapse bar chart and restore side-by-side distribution chart"
-                      : "View more - expand bar chart over adjacent pie chart to occupy full width"
-                  }
-                  title={
-                    isChartExpanded
-                      ? "Collapse to side-by-side layout (Press Esc)"
-                      : "View more cohorts across full width (temporarily hides pie chart)"
-                  }
-                  className={cn(
-                    "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
-                    isChartExpanded
-                      ? isAcademicHead
-                        ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
-                        : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
-                      : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
-                  )}
+                  onClick={() => setIsChartExpanded(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer focus:outline-none"
                 >
-                  {isChartExpanded ? (
-                    <>
-                      <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
-                      <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
-                      <span className="text-[11px] font-bold hidden sm:inline">View More</span>
-                    </>
-                  )}
+                  <span>View More</span>
+                  <ChevronsRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Bar Chart Container */}
-          <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
-            {/* Y-Axis Guidelines */}
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-              {[100, 80, 60, 40, 20, 0].map((tick) => (
-                <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                  <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
+          {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded */}
+          {!isChartExpanded && (
+            <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95 min-w-0 overflow-hidden">
+              <div>
+                <h2 className="text-base font-bold text-foreground tracking-tight">
+                  {selectedCategory === 'CLASS_PERFORMANCE' ? 'Score Range Distribution' : 'Result Distribution'}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {selectedCategory === 'CLASS_PERFORMANCE'
+                    ? 'Student distribution across 8 standard score ranges'
+                    : 'Breakdown across official institutional grading scale bands'}
+                </p>
+              </div>
+
+              {/* SVG Donut — centered */}
+              <div className="mt-6 flex justify-center">
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  {donutPaths.length > 0 ? (
+                    <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
+                      {donutPaths.map((slice, i) => (
+                        <path
+                          key={i}
+                          d={slice.pathData}
+                          fill={slice.color}
+                          className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
+                        />
+                      ))}
+                    </svg>
+                  ) : (
+                    <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
+                      No graded results
+                    </div>
+                  )}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                    <span className="text-xl font-black text-foreground tracking-tight leading-tight">
+                      {totalResults.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Evaluated
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {/* Bars Column Rendering */}
-            <div
-              className={cn(
-                "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
-                isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
-              )}
-            >
-              {subjectsChartData.length === 0 ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
-                  <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-                  <span>No completed assessment benchmarks recorded in this scope</span>
-                </div>
-              ) : (
-                subjectsChartData.map((item, idx) => {
-                  const color = BAR_COLORS[idx % BAR_COLORS.length];
-                  const hasScore = item.averageScore > 0;
-                  const heightPct = hasScore ? Math.min(100, Math.max(6, item.averageScore)) : 0;
-                  const isHovered = hoveredBarIndex === idx;
-
-                  return (
-                    <div
-                      key={item.subjectId || idx}
-                      className={cn(
-                        "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
-                        isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
-                      )}
-                      onMouseEnter={() => setHoveredBarIndex(idx)}
-                      onMouseLeave={() => setHoveredBarIndex(null)}
-                    >
-                      {/* Tooltip */}
-                      {isHovered && (
-                        <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
-                          <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
-                          <p className="text-muted-foreground font-normal">
-                            Students: {item.studentCount} | High: {item.highestScore}%{item.passRate !== undefined ? ` | Pass: ${item.passRate}%` : ''}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Percentage Label on top of bar */}
-                      <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
-                        {item.averageScore > 0 ? `${Math.round(item.averageScore)}%` : '0%'}
-                      </span>
-
-                      {/* The Bar */}
-                      <div
-                        className={cn(
-                          "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
-                          !hasScore && "opacity-25",
-                          isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
-                        )}
-                        style={{
-                          height: hasScore ? `${heightPct}%` : '2px',
-                          backgroundColor: color,
-                        }}
-                      />
-
-                      {/* X-Axis Label */}
+              {/* Legend */}
+              <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
+                {distributionBands.map((band, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between text-xs gap-1.5"
+                    title={`${band.name}: ${band.count !== undefined ? band.count : 0} students (${band.percentage}%)`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <span
-                        className={cn(
-                          "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
-                          isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
-                        )}
-                        title={item.subjectName}
-                      >
-                        {item.subjectCode || item.subjectName}
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: band.color }}
+                      />
+                      <span className="font-medium text-foreground truncate">
+                        {band.name}
                       </span>
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+                    <span className="font-semibold text-muted-foreground shrink-0 text-[11px]">
+                      {band.count !== undefined ? `${band.count} (${band.percentage}%)` : `${band.percentage}%`}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-          {/* Collapsed view indicator and View More action */}
-          {!isChartExpanded && hasMoreCohorts && (
-            <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-              <span className="text-[11px]">
-                Showing top {COLLAPSED_BAR_LIMIT} of {totalChartCohorts} cohorts
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsChartExpanded(true)}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer focus:outline-none"
-              >
-                <span>View More</span>
-                <ChevronsRight className="w-3.5 h-3.5" />
-              </button>
+              {/* Incomplete / Missing note */}
+              {Boolean(analytics?.distribution?.incompleteCount) && (
+                <div className="mt-3 pt-2.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
+                  <span>Incomplete / Pending:</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">
+                    {analytics?.distribution?.incompleteCount} records excluded
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded */}
-        {!isChartExpanded && (
-          <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95 min-w-0 overflow-hidden">
-            <div>
-              <h2 className="text-base font-bold text-foreground tracking-tight">
-                Result Distribution
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Breakdown across official institutional grading scale bands
-              </p>
-            </div>
-
-            {/* SVG Donut — centered */}
-            <div className="mt-6 flex justify-center">
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                {donutPaths.length > 0 ? (
-                  <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
-                    {donutPaths.map((slice, i) => (
-                      <path
-                        key={i}
-                        d={slice.pathData}
-                        fill={slice.color}
-                        className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
-                      />
-                    ))}
-                  </svg>
-                ) : (
-                  <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
-                    No graded results
-                  </div>
-                )}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                  <span className="text-xl font-black text-foreground tracking-tight leading-tight">
-                    {totalResults.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Evaluated
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Legend */}
-            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
-              {distributionBands.map((band, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs gap-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: band.color }}
-                    />
-                    <span className="font-medium text-foreground truncate">
-                      {band.name}
-                    </span>
-                  </div>
-                  <span className="font-semibold text-muted-foreground shrink-0">
-                    {band.percentage}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* ─── Available Reports Catalog Table Section ─────────────────────── */}
       <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">

@@ -1022,9 +1022,11 @@ export interface AssessmentReportsAnalyticsData {
     passRate?: number;
     incompleteCount?: number;
     gradeName?: string;
+    color?: string;
   }>;
   distribution: {
     totalResults: number;
+    incompleteCount?: number;
     bands: Array<{
       name: string;
       rangeLabel: string;
