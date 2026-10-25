@@ -487,14 +487,14 @@ export default function AssessmentReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChartExpanded]);
 
-  const COLLAPSED_BAR_LIMIT = 6;
+  const COLLAPSED_BAR_LIMIT = selectedCategory === 'GRADE_LEVEL' ? 12 : 6;
   const totalChartCohorts = analytics?.subjectPerformance?.length || 0;
   const hasMoreCohorts = totalChartCohorts > COLLAPSED_BAR_LIMIT;
 
   const subjectsChartData = useMemo(() => {
     const list = analytics?.subjectPerformance || [];
     return isChartExpanded ? list : list.slice(0, COLLAPSED_BAR_LIMIT);
-  }, [analytics?.subjectPerformance, isChartExpanded]);
+  }, [analytics?.subjectPerformance, isChartExpanded, COLLAPSED_BAR_LIMIT]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen text-foreground print:p-0 print:max-w-none">
@@ -989,7 +989,8 @@ export default function AssessmentReportsPage() {
               ) : (
                 subjectsChartData.map((item, idx) => {
                   const color = BAR_COLORS[idx % BAR_COLORS.length];
-                  const heightPct = Math.min(100, Math.max(6, item.averageScore));
+                  const hasScore = item.averageScore > 0;
+                  const heightPct = hasScore ? Math.min(100, Math.max(6, item.averageScore)) : 0;
                   const isHovered = hoveredBarIndex === idx;
 
                   return (
@@ -1006,23 +1007,26 @@ export default function AssessmentReportsPage() {
                       {isHovered && (
                         <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
                           <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
-                          <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
+                          <p className="text-muted-foreground font-normal">
+                            Students: {item.studentCount} | High: {item.highestScore}%{item.passRate !== undefined ? ` | Pass: ${item.passRate}%` : ''}
+                          </p>
                         </div>
                       )}
 
                       {/* Percentage Label on top of bar */}
                       <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
-                        {Math.round(item.averageScore)}%
+                        {item.averageScore > 0 ? `${Math.round(item.averageScore)}%` : '0%'}
                       </span>
 
                       {/* The Bar */}
                       <div
                         className={cn(
                           "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
+                          !hasScore && "opacity-25",
                           isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
                         )}
                         style={{
-                          height: `${heightPct}%`,
+                          height: hasScore ? `${heightPct}%` : '2px',
                           backgroundColor: color,
                         }}
                       />
