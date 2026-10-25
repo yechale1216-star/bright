@@ -505,6 +505,33 @@ export default function AssessmentReportsPage() {
     return isChartExpanded ? list : list.slice(0, COLLAPSED_BAR_LIMIT);
   }, [analytics?.subjectPerformance, isChartExpanded, COLLAPSED_BAR_LIMIT]);
 
+  // Dynamic Y-axis scale and tick calculation
+  const maxStudentInDistribution = useMemo(() => {
+    if (selectedCategory !== 'CLASS_PERFORMANCE') return 100;
+    const maxVal = Math.max(...(analytics?.subjectPerformance || []).map((d) => d.studentCount || 0), 0);
+    if (maxVal <= 5) return 5;
+    if (maxVal <= 10) return 10;
+    if (maxVal <= 20) return 20;
+    if (maxVal <= 50) return 50;
+    if (maxVal <= 100) return 100;
+    return Math.ceil(maxVal / 10) * 10;
+  }, [selectedCategory, analytics?.subjectPerformance]);
+
+  const yAxisTicks = useMemo(() => {
+    if (selectedCategory === 'CLASS_PERFORMANCE') {
+      const step = maxStudentInDistribution / 5;
+      return [
+        maxStudentInDistribution,
+        Math.round(step * 4),
+        Math.round(step * 3),
+        Math.round(step * 2),
+        Math.round(step * 1),
+        0,
+      ];
+    }
+    return [100, 80, 60, 40, 20, 0];
+  }, [selectedCategory, maxStudentInDistribution]);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen text-foreground print:p-0 print:max-w-none">
       {/* ─── Header & Global Actions ────────────────────────────────────────── */}
@@ -937,7 +964,11 @@ export default function AssessmentReportsPage() {
                 {/* Controls: Scale Badge + Expand/Collapse Arrow Button */}
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
-                    {selectedCategory === 'CLASS_PERFORMANCE' ? 'Distribution Scale: 0–100%' : 'Scale: 0–100%'}
+                    {selectedCategory === 'CLASS_PERFORMANCE'
+                      ? 'Y-Axis: No. of Students'
+                      : selectedCategory === 'GRADE_LEVEL'
+                      ? 'Y-Axis: Average Academic Score (0–100%)'
+                      : 'Y-Axis: Score (0–100%)'}
                   </span>
                   <button
                     type="button"
@@ -985,12 +1016,28 @@ export default function AssessmentReportsPage() {
             </div>
 
             {/* Bar Chart Container */}
-            <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
-              {/* Y-Axis Guidelines */}
+            <div className="mt-8 relative pt-5 w-full min-w-0 overflow-hidden">
+              {/* Y-Axis Guidelines & Axis Unit Label */}
               <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-                {[100, 80, 60, 40, 20, 0].map((tick) => (
-                  <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                    <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
+                {/* Prominent Y-Axis Label */}
+                <div className="absolute -top-4 left-0 pointer-events-none z-10">
+                  <span
+                    className={cn(
+                      "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-2xs",
+                      isAcademicHead
+                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20"
+                        : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                    )}
+                  >
+                    {selectedCategory === 'CLASS_PERFORMANCE' ? 'No of stu' : 'Avg Score (%)'}
+                  </span>
+                </div>
+
+                {yAxisTicks.map((tick, idx) => (
+                  <div key={idx} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
+                    <span className="w-10 text-right font-mono font-medium text-muted-foreground shrink-0">
+                      {selectedCategory === 'CLASS_PERFORMANCE' ? tick : `${tick}%`}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -998,7 +1045,7 @@ export default function AssessmentReportsPage() {
               {/* Bars Column Rendering */}
               <div
                 className={cn(
-                  "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
+                  "pl-14 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
                   isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
                 )}
               >
@@ -1009,9 +1056,16 @@ export default function AssessmentReportsPage() {
                   </div>
                 ) : (
                   subjectsChartData.map((item, idx) => {
+                    const isClassDist = selectedCategory === 'CLASS_PERFORMANCE';
                     const color = (item as any).color || BAR_COLORS[idx % BAR_COLORS.length];
-                    const hasScore = item.averageScore > 0;
-                    const heightPct = hasScore ? Math.min(100, Math.max(6, item.averageScore)) : 0;
+                    const hasValue = isClassDist ? ((item.studentCount || 0) > 0) : (item.averageScore > 0);
+                    const heightPct = isClassDist
+                      ? (maxStudentInDistribution > 0 && (item.studentCount || 0) > 0
+                          ? Math.min(100, Math.max(8, ((item.studentCount || 0) / maxStudentInDistribution) * 100))
+                          : 0)
+                      : (item.averageScore > 0
+                          ? Math.min(100, Math.max(6, item.averageScore))
+                          : 0);
                     const isHovered = hoveredBarIndex === idx;
 
                     return (
@@ -1067,24 +1121,26 @@ export default function AssessmentReportsPage() {
                         <div
                           className={cn(
                             "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
-                            !hasScore && "opacity-25",
+                            !hasValue && "opacity-25",
                             isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
                           )}
                           style={{
-                            height: hasScore ? `${heightPct}%` : '2px',
+                            height: hasValue ? `${heightPct}%` : '2px',
                             backgroundColor: color,
                           }}
                         />
 
-                        {/* X-Axis Label */}
+                        {/* X-Axis Label - Compressed to G1, G2, etc. for Grade-Level */}
                         <span
                           className={cn(
-                            "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
+                            "absolute -bottom-6 text-[10px] font-semibold text-muted-foreground truncate text-center transition-all px-0.5",
                             isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
                           )}
                           title={item.subjectName}
                         >
-                          {item.subjectCode || item.subjectName}
+                          {selectedCategory === 'GRADE_LEVEL' && (!selectedGradeId || selectedGradeId === 'all')
+                            ? (item.subjectCode || item.subjectName).replace(/^Grade\s*/i, 'G')
+                            : (item.subjectCode || item.subjectName)}
                         </span>
                       </div>
                     );

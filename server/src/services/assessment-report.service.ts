@@ -796,10 +796,12 @@ export class AssessmentReportService {
             const passCount = gradeCompleted.filter((r) => r.status === 'Passed').length;
             const pRate = gradeCompleted.length > 0 ? Math.round((passCount / gradeCompleted.length) * 100) : 0;
 
+            const compressedGrade = g.name.replace(/^Grade\s*/i, 'G');
+
             return {
               subjectId: g.id,
               subjectName: g.name,
-              subjectCode: g.name,
+              subjectCode: compressedGrade,
               averageScore: avg,
               studentCount: gradeStudents.length,
               highestScore: scores.length > 0 ? Math.round(Math.max(...scores)) : 0,
