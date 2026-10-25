@@ -1021,10 +1021,10 @@ export default function AssessmentReportsPage() {
                             {selectedCategory === 'CLASS_PERFORMANCE' ? (
                               <>
                                 <p className="font-bold text-foreground">
-                                  Score Range {item.subjectCode}: <span className="font-bold text-emerald-500">{item.averageScore}%</span>
+                                  Score Range <span className="text-primary">{item.subjectCode}</span>
                                 </p>
                                 <p className="text-muted-foreground font-normal">
-                                  Students: {item.studentCount} of {totalResults} evaluated | Status: {item.passRate && item.passRate > 0 ? 'Passing' : 'Below Passing'}
+                                  <span className="font-bold text-emerald-500">{item.studentCount}</span> student{item.studentCount !== 1 ? 's' : ''} ({item.averageScore}%) | {item.passRate && item.passRate > 0 ? 'Passing range' : 'Below passing'}
                                 </p>
                               </>
                             ) : (
@@ -1038,9 +1038,11 @@ export default function AssessmentReportsPage() {
                           </div>
                         )}
 
-                        {/* Percentage Label on top of bar */}
+                        {/* Label on top of bar: student count for CLASS_PERFORMANCE, percentage otherwise */}
                         <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
-                          {item.averageScore > 0 ? `${Math.round(item.averageScore)}%` : '0%'}
+                          {selectedCategory === 'CLASS_PERFORMANCE'
+                            ? item.studentCount
+                            : (item.averageScore > 0 ? `${Math.round(item.averageScore)}%` : '0%')}
                         </span>
 
                         {/* The Bar */}
