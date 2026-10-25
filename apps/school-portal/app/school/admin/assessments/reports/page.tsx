@@ -32,6 +32,7 @@ import {
   Info,
   ChevronsLeft,
   ChevronsRight,
+  Loader2,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -596,19 +597,28 @@ export default function AssessmentReportsPage() {
               <button
                 key={cat.key}
                 type="button"
-                onClick={() => setSelectedCategory(cat.key)}
+                onClick={() => {
+                  if (selectedCategory !== cat.key) {
+                    setSelectedCategory(cat.key);
+                  }
+                }}
                 className={cn(
                   "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 group relative overflow-hidden",
                   isSelected
                     ? isAcademicHead
-                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs"
-                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs"
+                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs ring-1 ring-violet-500/30"
+                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs ring-1 ring-blue-500/30"
                     : "bg-card border-border hover:bg-muted/50 text-foreground"
                 )}
               >
-                <span className="text-xs font-bold leading-tight line-clamp-1">
-                  {cat.shortTitle}
-                </span>
+                <div className="flex items-center justify-between gap-1 w-full">
+                  <span className="text-xs font-bold leading-tight line-clamp-1">
+                    {cat.shortTitle}
+                  </span>
+                  {isSelected && generating && (
+                    <Loader2 className="w-3 h-3 animate-spin text-current shrink-0" />
+                  )}
+                </div>
                 <span className={cn(
                   "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate w-fit max-w-full",
                   isSelected
@@ -630,16 +640,31 @@ export default function AssessmentReportsPage() {
             <Filter className="w-3.5 h-3.5 text-muted-foreground" />
             <span>Report Scope & Context Filters</span>
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleResetFilters}
-            className="h-7 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground gap-1"
-          >
-            <X className="w-3 h-3" />
-            <span>Reset Scope</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {generating && (
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-primary animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Evaluating Scope...</span>
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetFilters}
+              disabled={generating}
+              className="h-7 px-2 text-[11px] font-semibold text-muted-foreground hover:text-foreground gap-1"
+            >
+              <X className="w-3 h-3" />
+              <span>Reset Scope</span>
+            </Button>
+          </div>
         </div>
+
+        {generating && (
+          <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full mb-3">
+            <div className="h-full bg-primary w-full animate-pulse" />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           {/* Academic Year */}
@@ -800,8 +825,17 @@ export default function AssessmentReportsPage() {
                   isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
               >
-                <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
-                <span>{generating ? 'Calculating...' : 'Generate Report'}</span>
+                {generating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Evaluating...</span>
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Generate Report</span>
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -817,8 +851,17 @@ export default function AssessmentReportsPage() {
                   isAcademicHead ? "bg-violet-600 hover:bg-violet-700" : "bg-blue-600 hover:bg-blue-700"
                 )}
               >
-                <BarChart3 className={cn("w-3.5 h-3.5", generating ? "animate-spin" : "")} />
-                <span>{generating ? 'Calculating...' : 'Apply Filters'}</span>
+                {generating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Evaluating...</span>
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Apply Filters</span>
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -827,87 +870,112 @@ export default function AssessmentReportsPage() {
 
       {/* ─── 4 Executive KPI Cards ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1 */}
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            {analytics?.summary?.card1Title || 'Active Enrolled'}
-          </p>
-          <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-            {analytics?.summary?.card1Val ?? '0'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {analytics?.summary?.card1Sub || 'Total active population'}
-          </p>
-        </div>
+        {generating ? (
+          [1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs animate-pulse">
+              <div className="h-3 w-24 bg-muted/80 rounded" />
+              <div className="h-7 w-28 bg-muted rounded mt-2.5" />
+              <div className="h-3 w-36 bg-muted/60 rounded mt-2" />
+            </div>
+          ))
+        ) : (
+          <>
+            {/* Card 1 */}
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {analytics?.summary?.card1Title || 'Active Enrolled'}
+              </p>
+              <p className="text-2xl font-black text-foreground tracking-tight mt-1">
+                {analytics?.summary?.card1Val ?? '0'}
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {analytics?.summary?.card1Sub || 'Total active population'}
+              </p>
+            </div>
 
-        {/* Card 2 */}
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            {analytics?.summary?.card2Title || 'Cohort Average'}
-          </p>
-          <p className={cn(
-            "text-2xl font-black tracking-tight mt-1",
-            isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
-          )}>
-            {analytics?.summary?.card2Val ?? '0%'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {analytics?.summary?.card2Sub || 'Institutional benchmark'}
-          </p>
-        </div>
+            {/* Card 2 */}
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {analytics?.summary?.card2Title || 'Cohort Average'}
+              </p>
+              <p className={cn(
+                "text-2xl font-black tracking-tight mt-1",
+                isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+              )}>
+                {analytics?.summary?.card2Val ?? '0%'}
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {analytics?.summary?.card2Sub || 'Institutional benchmark'}
+              </p>
+            </div>
 
-        {/* Card 3 */}
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            {analytics?.summary?.card3Title || 'Pass Rate'}
-          </p>
-          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-1">
-            {analytics?.summary?.card3Val ?? '0%'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {analytics?.summary?.card3Sub || 'Assessed candidates meeting criteria'}
-          </p>
-        </div>
+            {/* Card 3 */}
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {analytics?.summary?.card3Title || 'Pass Rate'}
+              </p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-1">
+                {analytics?.summary?.card3Val ?? '0%'}
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {analytics?.summary?.card3Sub || 'Assessed candidates meeting criteria'}
+              </p>
+            </div>
 
-        {/* Card 4 */}
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            {analytics?.summary?.card4Title || 'Academic Support'}
-          </p>
-          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight mt-1">
-            {analytics?.summary?.card4Val ?? '0'}
-          </p>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {analytics?.summary?.card4Sub || 'Requires academic intervention'}
-          </p>
-        </div>
+            {/* Card 4 */}
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {analytics?.summary?.card4Title || 'Academic Support'}
+              </p>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight mt-1">
+                {analytics?.summary?.card4Val ?? '0'}
+              </p>
+              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                {analytics?.summary?.card4Sub || 'Requires academic intervention'}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ─── Evidence-Based Academic Recommendations Banner ──────────────── */}
-      {analytics?.recommendations && analytics.recommendations.length > 0 && (
-        <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <span className={cn(
-              "p-2 rounded-xl shrink-0 mt-0.5",
-              isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
-            )}>
-              <Sparkles className="w-4 h-4" />
-            </span>
-            <div>
-              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Evidence-Based Findings & Recommendations
-              </h4>
-              <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 list-disc list-inside">
-                {analytics.recommendations.map((rec, i) => (
-                  <li key={i}>{rec}</li>
-                ))}
-              </ul>
+      {generating ? (
+        <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex items-center justify-between gap-3 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-muted/80" />
+            <div className="space-y-1.5">
+              <div className="h-3.5 w-48 bg-muted/80 rounded" />
+              <div className="h-3 w-72 bg-muted/60 rounded" />
             </div>
           </div>
-          <div className="text-[11px] text-muted-foreground shrink-0 sm:text-right">
-            Evaluated by Authoritative Engine
-          </div>
+          <div className="h-3 w-28 bg-muted/50 rounded hidden sm:block" />
         </div>
+      ) : (
+        analytics?.recommendations && analytics.recommendations.length > 0 && (
+          <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className={cn(
+                "p-2 rounded-xl shrink-0 mt-0.5",
+                isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+              )}>
+                <Sparkles className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Evidence-Based Findings & Recommendations
+                </h4>
+                <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 list-disc list-inside">
+                  {analytics.recommendations.map((rec, i) => (
+                    <li key={i}>{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground shrink-0 sm:text-right">
+              Evaluated by Authoritative Engine
+            </div>
+          </div>
+        )
       )}
 
       {/* ─── Visual Analytics: Bar Chart & Distribution Donut ────────────── */}
@@ -1058,7 +1126,32 @@ export default function AssessmentReportsPage() {
             </div>
           </div>
 
-          {selectedCategory === 'CLASS_PERFORMANCE' ? (
+          {generating ? (
+            /* ─── Skeleton Loading State for Bar Chart ─── */
+            <div className="mt-8 flex gap-2 sm:gap-4 w-full min-w-0">
+              <div className="w-6 sm:w-8 shrink-0 flex items-center justify-center relative select-none">
+                <span className="transform -rotate-90 whitespace-nowrap text-xs font-medium text-muted-foreground animate-pulse">
+                  Evaluating...
+                </span>
+              </div>
+              <div className="flex-1 flex flex-col min-w-0">
+                <div className="relative h-64 sm:h-72 w-full rounded-2xl bg-muted/20 border border-border/40 flex flex-col items-center justify-center gap-3">
+                  <div className="flex items-end justify-center gap-3 sm:gap-6 h-40 w-full px-6">
+                    <div className="flex-1 max-w-[84px] h-14 bg-muted/50 rounded-t-md animate-pulse" />
+                    <div className="flex-1 max-w-[84px] h-28 bg-muted/70 rounded-t-md animate-pulse" />
+                    <div className="flex-1 max-w-[84px] h-36 bg-muted rounded-t-md animate-pulse" />
+                    <div className="flex-1 max-w-[84px] h-24 bg-muted/70 rounded-t-md animate-pulse" />
+                    <div className="flex-1 max-w-[84px] h-16 bg-muted/50 rounded-t-md animate-pulse" />
+                    <div className="flex-1 max-w-[84px] h-10 bg-muted/40 rounded-t-md animate-pulse" />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mt-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span>Computing {activeCategoryMeta.shortTitle} benchmarks across selected scope...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : selectedCategory === 'CLASS_PERFORMANCE' ? (
             /* ─── Exact Screenshot Bar Chart for CLASS_PERFORMANCE ─── */
             <div className="mt-8 flex gap-2 sm:gap-4 w-full min-w-0">
               {/* Rotated Y-Axis Label: "Number of Students" */}
@@ -1286,55 +1379,68 @@ export default function AssessmentReportsPage() {
               </p>
             </div>
 
-            {/* SVG Donut — centered */}
-            <div className="mt-6 flex justify-center">
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                {donutPaths.length > 0 ? (
-                  <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
-                    {donutPaths.map((slice, i) => (
-                      <path
-                        key={i}
-                        d={slice.pathData}
-                        fill={slice.color}
-                        className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
-                      />
-                    ))}
-                  </svg>
-                ) : (
-                  <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
-                    No graded results
-                  </div>
-                )}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                  <span className="text-xl font-black text-foreground tracking-tight leading-tight">
-                    {totalResults.toLocaleString()}
-                  </span>
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Evaluated
-                  </span>
+            {generating ? (
+              <div className="my-8 flex flex-col items-center justify-center gap-3">
+                <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-xs text-muted-foreground animate-pulse">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
+                <span className="text-xs font-medium text-muted-foreground animate-pulse">
+                  Evaluating distribution bands...
+                </span>
               </div>
-            </div>
-
-            {/* Legend */}
-            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
-              {distributionBands.map((band, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs gap-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: band.color }}
-                    />
-                    <span className="font-medium text-foreground truncate">
-                      {band.name}
-                    </span>
+            ) : (
+              <>
+                {/* SVG Donut — centered */}
+                <div className="mt-6 flex justify-center">
+                  <div className="relative w-36 h-36 flex items-center justify-center">
+                    {donutPaths.length > 0 ? (
+                      <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
+                        {donutPaths.map((slice, i) => (
+                          <path
+                            key={i}
+                            d={slice.pathData}
+                            fill={slice.color}
+                            className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
+                          />
+                        ))}
+                      </svg>
+                    ) : (
+                      <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
+                        No graded results
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                      <span className="text-xl font-black text-foreground tracking-tight leading-tight">
+                        {totalResults.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Evaluated
+                      </span>
+                    </div>
                   </div>
-                  <span className="font-semibold text-muted-foreground shrink-0">
-                    {band.percentage}%
-                  </span>
                 </div>
-              ))}
-            </div>
+
+                {/* Legend */}
+                <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
+                  {distributionBands.map((band, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: band.color }}
+                        />
+                        <span className="font-medium text-foreground truncate">
+                          {band.name}
+                        </span>
+                      </div>
+                      <span className="font-semibold text-muted-foreground shrink-0">
+                        {band.percentage}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1397,7 +1503,21 @@ export default function AssessmentReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {paginatedReports.length === 0 ? (
+              {generating ? (
+                <tr>
+                  <td colSpan={9} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2.5 text-muted-foreground">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      <p className="text-xs font-semibold text-foreground">
+                        Loading reports for {activeCategoryMeta.shortTitle}...
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Evaluating report roster across selected scope and filters
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedReports.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-muted-foreground">
                     <FileText className="w-8 h-8 stroke-1 mx-auto mb-2 text-muted-foreground/40" />
