@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 
 @source "../components";
+@source "../app";
 @source "../apps";
 @source "../lib";
 @source "../hooks";
@@ -168,6 +169,7 @@
     @apply border-border outline-ring/50;
     transition: background-color 0.08s ease, color 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -199,12 +201,10 @@
 .auth-bg-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(14, 42, 77, 0.08) 0%,
-    rgba(15, 23, 42, 0.12) 50%,
-    rgba(15, 23, 42, 0.35) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(14, 42, 77, 0.08) 0%,
+      rgba(15, 23, 42, 0.12) 50%,
+      rgba(15, 23, 42, 0.35) 100%);
   z-index: 1;
 }
 
@@ -606,6 +606,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -613,39 +614,49 @@
 }
 
 /* Ensure content and theme toggle are correctly layered */
-.auth-page-wrapper > * {
+.auth-page-wrapper>* {
   position: relative;
 }
 
 @layer utilities {
+
   /* Enterprise SaaS Typography Tokens */
   .typography-display {
     @apply text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-foreground;
   }
+
   .typography-page-title {
     @apply text-2xl md:text-3xl font-bold tracking-tight leading-snug text-foreground;
   }
+
   .typography-section-title {
     @apply text-lg md:text-xl font-semibold tracking-tight leading-snug text-foreground;
   }
+
   .typography-card-title {
     @apply text-base md:text-lg font-semibold tracking-tight leading-snug text-foreground;
   }
+
   .typography-body {
     @apply text-sm md:text-base font-normal text-slate-700 dark:text-slate-300 leading-relaxed;
   }
+
   .typography-label {
     @apply text-xs md:text-sm font-medium text-slate-800 dark:text-slate-200 leading-snug;
   }
+
   .typography-helper {
     @apply text-xs md:text-sm font-normal text-muted-foreground leading-relaxed;
   }
+
   .typography-caption {
     @apply text-[11px] md:text-xs font-normal text-muted-foreground leading-normal;
   }
+
   .typography-table-header {
     @apply text-xs font-bold uppercase tracking-wider text-muted-foreground;
   }
+
   .typography-stat-number {
     @apply text-2xl md:text-3xl font-extrabold tracking-tight text-foreground leading-none;
   }
@@ -653,7 +664,8 @@
   .auth-background {
     background: var(--auth-background);
     min-height: 100vh;
-    min-height: 100dvh; /* Dynamic viewport height for mobile */
+    min-height: 100dvh;
+    /* Dynamic viewport height for mobile */
     position: relative;
     width: 100vw;
     overflow-x: hidden;
@@ -675,6 +687,7 @@
     backdrop-filter: blur(10px);
     box-shadow: 0 8px 32px var(--auth-card-shadow);
     border: 1px solid oklch(0.8 0.02 240 / 0.2);
+
     /* Full screen on mobile, card on desktop */
     @media (max-width: 768px) {
       min-height: 100vh;
@@ -694,6 +707,7 @@
     .auth-background {
       min-height: -webkit-fill-available;
     }
+
     .auth-card {
       @media (max-width: 768px) {
         min-height: -webkit-fill-available;
@@ -705,15 +719,19 @@
   .p-safe {
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
+
   .pt-safe {
     padding-top: env(safe-area-inset-top);
   }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
   .pl-safe {
     padding-left: env(safe-area-inset-left);
   }
+
   .pr-safe {
     padding-right: env(safe-area-inset-right);
   }
@@ -727,9 +745,11 @@
   .chat-bubble {
     @apply relative px-4 py-2.5 rounded-2xl text-[15px] font-normal leading-[1.4] max-w-[85%] shadow-sm transition-all;
   }
+
   .chat-bubble-sent {
     @apply bg-primary text-primary-foreground rounded-br-none self-end;
   }
+
   .chat-bubble-received {
     @apply bg-muted text-foreground rounded-bl-none self-start;
   }
@@ -738,6 +758,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -747,6 +768,7 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -764,6 +786,7 @@
   .mobile-card-list {
     @apply space-y-3 px-4 pb-20 md:pb-0;
   }
+
   .mobile-card {
     @apply bg-card backdrop-blur-xl border border-border rounded-3xl p-4 shadow-md active:scale-[0.98] transition-all duration-200;
   }
@@ -773,6 +796,7 @@
     overflow: hidden !important;
     touch-action: none;
   }
+
   body.video-fullscreen-active header {
     display: none !important;
   }

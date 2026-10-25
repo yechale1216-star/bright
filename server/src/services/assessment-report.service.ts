@@ -103,23 +103,23 @@ export class AssessmentReportService {
     const gradingScales: GradingScaleItem[] =
       dbGradingScales.length > 0
         ? dbGradingScales.map((gs) => ({
-            grade: gs.grade,
-            minScore: gs.minScore,
-            maxScore: gs.maxScore,
-            gpaPoint: gs.gpaPoint,
-            description: gs.description,
-            isPassing: gs.isPassing,
-          }))
+          grade: gs.grade,
+          minScore: gs.minScore,
+          maxScore: gs.maxScore,
+          gpaPoint: gs.gpaPoint,
+          description: gs.description,
+          isPassing: gs.isPassing,
+        }))
         : [
-            { grade: 'A+', minScore: 90, maxScore: 100, gpaPoint: 4.0, description: 'Outstanding', isPassing: true },
-            { grade: 'A', minScore: 85, maxScore: 89.99, gpaPoint: 4.0, description: 'Excellent', isPassing: true },
-            { grade: 'B+', minScore: 80, maxScore: 84.99, gpaPoint: 3.5, description: 'Very Good', isPassing: true },
-            { grade: 'B', minScore: 75, maxScore: 79.99, gpaPoint: 3.0, description: 'Good', isPassing: true },
-            { grade: 'C+', minScore: 65, maxScore: 74.99, gpaPoint: 2.5, description: 'Satisfactory', isPassing: true },
-            { grade: 'C', minScore: 60, maxScore: 64.99, gpaPoint: 2.0, description: 'Average', isPassing: true },
-            { grade: 'D', minScore: 50, maxScore: 59.99, gpaPoint: 1.0, description: 'Passing', isPassing: true },
-            { grade: 'F', minScore: 0, maxScore: 49.99, gpaPoint: 0.0, description: 'Failing', isPassing: false },
-          ];
+          { grade: 'A+', minScore: 90, maxScore: 100, gpaPoint: 4.0, description: 'Outstanding', isPassing: true },
+          { grade: 'A', minScore: 85, maxScore: 89.99, gpaPoint: 4.0, description: 'Excellent', isPassing: true },
+          { grade: 'B+', minScore: 80, maxScore: 84.99, gpaPoint: 3.5, description: 'Very Good', isPassing: true },
+          { grade: 'B', minScore: 75, maxScore: 79.99, gpaPoint: 3.0, description: 'Good', isPassing: true },
+          { grade: 'C+', minScore: 65, maxScore: 74.99, gpaPoint: 2.5, description: 'Satisfactory', isPassing: true },
+          { grade: 'C', minScore: 60, maxScore: 64.99, gpaPoint: 2.0, description: 'Average', isPassing: true },
+          { grade: 'D', minScore: 50, maxScore: 59.99, gpaPoint: 1.0, description: 'Passing', isPassing: true },
+          { grade: 'F', minScore: 0, maxScore: 49.99, gpaPoint: 0.0, description: 'Failing', isPassing: false },
+        ];
 
     const passingScaleItem = [...gradingScales].filter((s) => s.isPassing).sort((a, b) => a.minScore - b.minScore)[0];
     const policyPassingMinScore = passingScaleItem ? passingScaleItem.minScore : 50;
@@ -452,7 +452,6 @@ export class AssessmentReportService {
       bands: distributionBands,
     };
     let recommendations: string[] = [];
-    let insights: any[] = [];
     let longitudinalTrends: any[] = [];
 
     switch (category) {
@@ -494,62 +493,12 @@ export class AssessmentReportService {
         recommendations = studentRecord?.status === 'Passed'
           ? ['Student demonstrates sound mastery across evaluated subjects.', 'Recommended to maintain consistent study habits and participate in academic enrichment.']
           : studentRecord?.status === 'Failed'
-          ? ['Provide targeted tutorial sessions in underperforming subjects.', 'Schedule an academic review meeting with parents to align on homework monitoring.']
-          : ['Immediate priority: coordinate with teachers to administer missing assessment components to resolve Incomplete status.'];
+            ? ['Provide targeted tutorial sessions in underperforming subjects.', 'Schedule an academic review meeting with parents to align on homework monitoring.']
+            : ['Immediate priority: coordinate with teachers to administer missing assessment components to resolve Incomplete status.'];
         break;
       }
 
       case 'CLASS_PERFORMANCE': {
-        // Group students into standard score ranges:
-        // 90–100, 85–89.99, 80–84.99, 75–79.99, 70–74.99, 60–69.99, 50–59.99, and below 50.
-        // Calculated strictly from each student's overall class performance (r.overallAverage), not individual subject scores.
-        // Missing or incomplete records are handled separately (incompleteCount) and not treated as zero.
-        const classScoreRanges = [
-          { rangeKey: 'range_90_100', name: '90–100', rangeLabel: '90–100', minScore: 90, maxScore: 100, color: '#10b981', isPassing: true },
-          { rangeKey: 'range_85_89', name: '85–89.99', rangeLabel: '85–89.99', minScore: 85, maxScore: 89.999, color: '#06b6d4', isPassing: true },
-          { rangeKey: 'range_80_84', name: '80–84.99', rangeLabel: '80–84.99', minScore: 80, maxScore: 84.999, color: '#3b82f6', isPassing: true },
-          { rangeKey: 'range_75_79', name: '75–79.99', rangeLabel: '75–79.99', minScore: 75, maxScore: 79.999, color: '#6366f1', isPassing: true },
-          { rangeKey: 'range_70_74', name: '70–74.99', rangeLabel: '70–74.99', minScore: 70, maxScore: 74.999, color: '#8b5cf6', isPassing: true },
-          { rangeKey: 'range_60_69', name: '60–69.99', rangeLabel: '60–69.99', minScore: 60, maxScore: 69.999, color: '#f59e0b', isPassing: true },
-          { rangeKey: 'range_50_59', name: '50–59.99', rangeLabel: '50–59.99', minScore: 50, maxScore: 59.999, color: '#f97316', isPassing: true },
-          { rangeKey: 'range_below_50', name: 'Below 50', rangeLabel: '< 50', minScore: 0, maxScore: 49.999, color: '#ef4444', isPassing: false },
-        ];
-
-        const classDistributionBands = classScoreRanges.map((r) => {
-          const count = completedAverages.filter((avg) => avg >= r.minScore && avg <= r.maxScore).length;
-          const percentage = completeCount > 0 ? Math.round((count / completeCount) * 1000) / 10 : 0;
-          return {
-            name: r.name,
-            rangeLabel: r.rangeLabel,
-            minScore: r.minScore,
-            maxScore: r.maxScore,
-            color: r.color,
-            isPassing: r.isPassing,
-            count,
-            percentage,
-          };
-        });
-
-        distribution = {
-          totalResults: completeCount,
-          incompleteCount,
-          bands: classDistributionBands,
-        };
-
-        // When Class Performance is selected, chartPerformance displays the Score Range Result Distribution
-        chartPerformance = classDistributionBands.map((band) => ({
-          subjectId: band.rangeLabel,
-          subjectName: `Score ${band.name}`,
-          subjectCode: band.rangeLabel,
-          averageScore: band.percentage, // Percentage of students in this score range
-          studentCount: band.count,     // Number of students
-          highestScore: band.maxScore,
-          lowestScore: band.minScore,
-          passRate: band.isPassing ? 100 : 0,
-          gradeName: band.name,
-          color: band.color,
-        }));
-
         summary = {
           card1Title: 'Active Enrolled',
           card1Val: totalActiveCount,
@@ -563,18 +512,20 @@ export class AssessmentReportService {
           card4Title: 'Support Required',
           card4Val: `${failedCount + incompleteCount}`,
           card4Sub: `${failedCount} academic fail, ${incompleteCount} missing marks`,
-          chartTitle: 'Class Result Distribution',
-          chartSub: 'Student distribution across overall class performance score ranges',
+          chartTitle: 'Subject Class Averages & Benchmark',
+          chartSub: 'Average percentage marks across class curriculum subjects',
         };
 
+        chartPerformance = subjectPerformanceArray;
+
+        const lowSubjects = subjectPerformanceArray.filter((s) => s.averageScore < policyPassingMinScore);
         recommendations = [
-          `Overall class average is ${cohortAverage}%, with ${passedCount} of ${completeCount} completed students (${passRate}%) meeting passing benchmarks.`,
-          failedCount > 0
-            ? `${failedCount} students scored below 50% and require remedial interventions and structured academic plans.`
-            : 'All evaluated students achieved satisfactory or higher benchmark outcomes.',
+          lowSubjects.length > 0
+            ? `Special academic support is required for ${lowSubjects.map((s) => s.subjectName).join(', ')} where class averages are below ${policyPassingMinScore}%.`
+            : 'Class curriculum averages meet or exceed the institutional benchmark threshold.',
           incompleteCount > 0
-            ? `${incompleteCount} students have incomplete or missing assessment records and are excluded from score ranges pending submission.`
-            : 'Assessment submission is complete across all enrolled students in the scope.',
+            ? `${incompleteCount} students have missing required marks and must be followed up before term closure.`
+            : 'All enrolled candidates have completed their assessment evaluations.',
         ];
         break;
       }
@@ -613,250 +564,65 @@ export class AssessmentReportService {
       }
 
       case 'GRADE_LEVEL': {
-        const isSpecificGrade = Boolean(gradeId && gradeId !== 'all');
+        // Group by Sections within Grade
+        const sectionMap = new Map<string, { sectionName: string; scores: number[]; activeCount: number; completeCount: number; passCount: number }>();
 
-        if (isSpecificGrade) {
-          // Scope = a Specific Grade: Display the sections within the selected grade
-          const selectedGrade = await prisma.grade.findUnique({
-            where: { id: gradeId },
-            include: {
-              sections: {
-                where: {
-                  ...(streamId && streamId !== 'all' ? { streamId } : {}),
-                },
-                include: { stream: true },
-                orderBy: { name: 'asc' },
-              },
-            },
-          });
-          const selectedGradeName = selectedGrade?.name || 'Selected Grade';
-
-          // Group by Sections belonging to this specific grade
-          const sectionMap = new Map<
-            string,
-            {
-              sectionId: string;
-              sectionName: string;
-              sectionCode: string;
-              scores: number[];
-              activeCount: number;
-              completeCount: number;
-              passCount: number;
-            }
-          >();
-
-          // Pre-populate configured sections from DB so order and naming are authoritative
-          if (selectedGrade?.sections) {
-            const sortedSections = selectedGrade.sections.slice().sort((a, b) =>
-              a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-            );
-            for (const sec of sortedSections) {
-              const secStreamName = (sec as any).stream?.name;
-              const streamSuffix = secStreamName ? ` (${secStreamName})` : '';
-              const streamCode = secStreamName
-                ? ` (${secStreamName.toLowerCase().includes('natural') ? 'Nat' : secStreamName.toLowerCase().includes('social') ? 'Soc' : secStreamName.substring(0, 3)})`
-                : '';
-              sectionMap.set(sec.id, {
-                sectionId: sec.id,
-                sectionName: `Section ${sec.name}${streamSuffix}`,
-                sectionCode: `Sec ${sec.name}${streamCode}`,
-                scores: [],
-                activeCount: 0,
-                completeCount: 0,
-                passCount: 0,
-              });
-            }
+        for (const s of activeStudents) {
+          const secName = s.section?.name || 'A';
+          if (!sectionMap.has(secName)) {
+            sectionMap.set(secName, { sectionName: secName, scores: [], activeCount: 0, completeCount: 0, passCount: 0 });
           }
-
-          // Count active students in each section (only within this selected grade)
-          for (const s of activeStudents) {
-            if (s.gradeId !== gradeId) continue;
-            const secKey = s.sectionId || (s.section?.name ? `name_${s.section.name}` : 'unassigned');
-            if (!sectionMap.has(secKey)) {
-              const streamSuffix = s.stream?.name ? ` (${s.stream.name})` : '';
-              const streamCode = s.stream?.name
-                ? ` (${s.stream.name.toLowerCase().includes('natural') ? 'Nat' : s.stream.name.toLowerCase().includes('social') ? 'Soc' : s.stream.name.substring(0, 3)})`
-                : '';
-              const baseName = s.section?.name || 'A';
-              sectionMap.set(secKey, {
-                sectionId: s.sectionId || secKey,
-                sectionName: `Section ${baseName}${streamSuffix}`,
-                sectionCode: `Sec ${baseName}${streamCode}`,
-                scores: [],
-                activeCount: 0,
-                completeCount: 0,
-                passCount: 0,
-              });
-            }
-            sectionMap.get(secKey)!.activeCount++;
-          }
-
-          // Aggregate completed records for students in this grade
-          for (const r of completedRecords) {
-            if (r.student.gradeId !== gradeId || r.overallAverage === null) continue;
-            const secKey = r.student.sectionId || (r.student.section?.name ? `name_${r.student.section.name}` : 'unassigned');
-            if (sectionMap.has(secKey)) {
-              const entry = sectionMap.get(secKey)!;
-              entry.scores.push(r.overallAverage);
-              entry.completeCount++;
-              if (r.status === 'Passed') entry.passCount++;
-            }
-          }
-
-          const sectionComparisonList = Array.from(sectionMap.values())
-            .filter((data) => data.activeCount > 0 || data.completeCount > 0)
-            .map((data) => {
-              const avg = data.scores.length > 0
-                ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10
-                : 0;
-              const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
-              return {
-                subjectId: data.sectionId,
-                subjectName: data.sectionName,
-                subjectCode: data.sectionCode,
-                averageScore: avg,
-                studentCount: data.activeCount,
-                highestScore: data.scores.length > 0 ? Math.round(Math.max(...data.scores)) : 0,
-                lowestScore: data.scores.length > 0 ? Math.round(Math.min(...data.scores)) : 0,
-                passRate: pRate,
-                gradeName: selectedGradeName,
-              };
-            });
-
-          // Summary Metrics: Only essential comparison information
-          const sectionsWithScores = sectionComparisonList.filter((s) => s.averageScore > 0);
-          const displayedSectionsAvg = sectionsWithScores.length > 0
-            ? Math.round((sectionsWithScores.reduce((acc, s) => acc + s.averageScore, 0) / sectionsWithScores.length) * 10) / 10
-            : cohortAverage;
-
-          const sortedSections = [...sectionsWithScores].sort((a, b) => b.averageScore - a.averageScore);
-          const highestSection = sortedSections.length > 0 ? sortedSections[0] : null;
-          const lowestSection = sortedSections.length > 0 ? sortedSections[sortedSections.length - 1] : null;
-
-          summary = {
-            card1Title: 'Sections Compared',
-            card1Val: sectionComparisonList.length,
-            card1Sub: `Sections within ${selectedGradeName}`,
-            card2Title: 'Overall Average',
-            card2Val: `${displayedSectionsAvg}%`,
-            card2Sub: `Average across ${sectionsWithScores.length} evaluated sections`,
-            card3Title: 'Highest Performing',
-            card3Val: highestSection ? `${highestSection.averageScore}%` : 'N/A',
-            card3Sub: highestSection ? highestSection.subjectName : 'No data',
-            card4Title: 'Lowest Performing',
-            card4Val: lowestSection ? `${lowestSection.averageScore}%` : 'N/A',
-            card4Sub: lowestSection ? lowestSection.subjectName : 'No data',
-            chartTitle: `${selectedGradeName} Section Comparison`,
-            chartSub: `Average academic performance comparison across sections within ${selectedGradeName}`,
-          };
-
-          chartPerformance = sectionComparisonList;
-          recommendations = [
-            highestSection && lowestSection
-              ? `Highest section average is ${highestSection.subjectName} (${highestSection.averageScore}%), compared to ${lowestSection.subjectName} (${lowestSection.averageScore}%).`
-              : `Performance comparison benchmark established for ${selectedGradeName}.`,
-            'This report provides a generalized comparison view. For detailed student records and score breakdowns, switch to Class Performance.',
-          ];
-
-          insights = this.generateGradeLevelInsights({
-            isSpecificGrade: true,
-            selectedGradeName,
-            totalActiveCount,
-            completeCount,
-            incompleteCount,
-            cohortAverage,
-            displayedAverage: displayedSectionsAvg,
-            cohorts: sectionComparisonList,
-          });
-        } else {
-          // Scope = All Grades: Display one bar per grade (e.g. Grade 9, Grade 10, Grade 11, Grade 12). Do NOT display sections.
-          const allDbGrades = await prisma.grade.findMany({
-            orderBy: { name: 'asc' },
-          });
-
-          // Sort grades naturally (e.g. Grade 1, Grade 2 ... Grade 9, Grade 10, Grade 11, Grade 12)
-          const sortedGrades = allDbGrades.slice().sort((a, b) =>
-            a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-          );
-
-          // If stream is filtered, only show grades that have active students in that stream
-          const relevantGrades = (streamId && streamId !== 'all')
-            ? sortedGrades.filter((g) => activeStudents.some((s) => s.gradeId === g.id))
-            : sortedGrades;
-
-          const gradeComparisonList = relevantGrades.map((g) => {
-            const gradeStudents = activeStudents.filter((s) => s.gradeId === g.id);
-            const gradeCompleted = completedRecords.filter(
-              (r) => r.student.gradeId === g.id && r.overallAverage !== null
-            );
-            const scores = gradeCompleted.map((r) => r.overallAverage as number);
-            const avg = scores.length > 0
-              ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-              : 0;
-            const passCount = gradeCompleted.filter((r) => r.status === 'Passed').length;
-            const pRate = gradeCompleted.length > 0 ? Math.round((passCount / gradeCompleted.length) * 100) : 0;
-
-            const compressedGrade = g.name.replace(/^Grade\s*/i, 'G');
-
-            return {
-              subjectId: g.id,
-              subjectName: g.name,
-              subjectCode: compressedGrade,
-              averageScore: avg,
-              studentCount: gradeStudents.length,
-              highestScore: scores.length > 0 ? Math.round(Math.max(...scores)) : 0,
-              lowestScore: scores.length > 0 ? Math.round(Math.min(...scores)) : 0,
-              passRate: pRate,
-              gradeName: g.name,
-            };
-          });
-
-          // Summary Metrics: Only essential comparison information
-          const gradesWithScores = gradeComparisonList.filter((g) => g.averageScore > 0);
-          const displayedGradesAvg = gradesWithScores.length > 0
-            ? Math.round((gradesWithScores.reduce((acc, g) => acc + g.averageScore, 0) / gradesWithScores.length) * 10) / 10
-            : cohortAverage;
-
-          const sortedGradeItems = [...gradesWithScores].sort((a, b) => b.averageScore - a.averageScore);
-          const highestGrade = sortedGradeItems.length > 0 ? sortedGradeItems[0] : null;
-          const lowestGrade = sortedGradeItems.length > 0 ? sortedGradeItems[sortedGradeItems.length - 1] : null;
-
-          summary = {
-            card1Title: 'Grades Compared',
-            card1Val: gradeComparisonList.length,
-            card1Sub: 'Total grade cohorts evaluated',
-            card2Title: 'Overall Average',
-            card2Val: `${displayedGradesAvg}%`,
-            card2Sub: `Benchmark across ${gradesWithScores.length} active grades`,
-            card3Title: 'Highest Performing',
-            card3Val: highestGrade ? `${highestGrade.averageScore}%` : 'N/A',
-            card3Sub: highestGrade ? highestGrade.subjectName : 'No data',
-            card4Title: 'Lowest Performing',
-            card4Val: lowestGrade ? `${lowestGrade.averageScore}%` : 'N/A',
-            card4Sub: lowestGrade ? lowestGrade.subjectName : 'No data',
-            chartTitle: 'Grade-Level Academic Comparison',
-            chartSub: 'Average academic performance comparison across grade levels',
-          };
-
-          chartPerformance = gradeComparisonList;
-          recommendations = [
-            highestGrade && lowestGrade
-              ? `Highest-performing cohort is ${highestGrade.subjectName} (${highestGrade.averageScore}%), while ${lowestGrade.subjectName} recorded ${lowestGrade.averageScore}%.`
-              : 'School-wide grade comparison benchmarks curriculum progression milestones.',
-            'This report provides a generalized comparison view. For detailed student records and score breakdowns, switch to Class Performance.',
-          ];
-
-          insights = this.generateGradeLevelInsights({
-            isSpecificGrade: false,
-            selectedGradeName: 'All Grades',
-            totalActiveCount,
-            completeCount,
-            incompleteCount,
-            cohortAverage,
-            displayedAverage: displayedGradesAvg,
-            cohorts: gradeComparisonList,
-          });
+          sectionMap.get(secName)!.activeCount++;
         }
+
+        for (const r of completedRecords) {
+          const secName = r.student.section?.name || 'A';
+          if (sectionMap.has(secName) && r.overallAverage !== null) {
+            const entry = sectionMap.get(secName)!;
+            entry.scores.push(r.overallAverage);
+            entry.completeCount++;
+            if (r.status === 'Passed') entry.passCount++;
+          }
+        }
+
+        const sectionComparisonList = Array.from(sectionMap.entries()).map(([secName, data]) => {
+          const avg = data.scores.length > 0 ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10 : 0;
+          const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
+          return {
+            subjectId: secName,
+            subjectName: `Section ${secName}`,
+            subjectCode: `Sec ${secName}`,
+            averageScore: avg,
+            studentCount: data.activeCount,
+            highestScore: data.scores.length > 0 ? Math.max(...data.scores) : 0,
+            lowestScore: data.scores.length > 0 ? Math.min(...data.scores) : 0,
+            passRate: pRate,
+            gradeName: 'Grade Cohort',
+          };
+        });
+
+        summary = {
+          card1Title: 'Active Cohort',
+          card1Val: totalActiveCount,
+          card1Sub: `Across ${sectionMap.size} sections in grade`,
+          card2Title: 'Grade Average',
+          card2Val: `${cohortAverage}%`,
+          card2Sub: 'Unified benchmark across sections',
+          card3Title: 'Sections Evaluated',
+          card3Val: sectionMap.size,
+          card3Sub: `${completeCount} completed results`,
+          card4Title: 'Cohort Pass Rate',
+          card4Val: `${passRate}%`,
+          card4Sub: `${incompleteCount} pending/incomplete records`,
+          chartTitle: 'Section-Wise Benchmark Comparison',
+          chartSub: 'Average performance comparison across grade sections',
+        };
+
+        chartPerformance = sectionComparisonList.length > 0 ? sectionComparisonList : subjectPerformanceArray;
+        recommendations = [
+          'Consistent assessment marking rules verified across all sections.',
+          'Identify discrepancies between section averages to balance teacher allocation and student support.',
+        ];
         break;
       }
 
@@ -1052,7 +818,6 @@ export class AssessmentReportService {
       subjectPerformance: chartPerformance,
       distribution,
       recommendations,
-      insights,
       availableReports,
     };
   }
@@ -1185,34 +950,6 @@ export class AssessmentReportService {
 
     // Category D: GRADE_LEVEL
     if (category === 'GRADE_LEVEL') {
-      if (gradeId && gradeId !== 'all') {
-        const selectedG = grades.find((g) => g.id === gradeId) || grades[0];
-        if (selectedG) {
-          for (const s of selectedG.sections) {
-            const secStudents = activeStudents.filter((st) => st.sectionId === s.id);
-            const secCompleted = completedRecords.filter((r) => r.student.sectionId === s.id);
-            const avg = secCompleted.length > 0
-              ? Math.round((secCompleted.reduce((acc, r) => acc + (r.overallAverage || 0), 0) / secCompleted.length) * 10) / 10
-              : 0;
-
-            catalog.push({
-              id: `grade_sec_${selectedG.id}_${s.id}`,
-              reportName: `${selectedG.name} (Section ${s.name}) - Section Academic Report`,
-              type: 'Grade-Level Academic Report',
-              typeKey: 'GRADE_LEVEL',
-              academicYear: yearName,
-              term: termName,
-              grade: selectedG.name,
-              subjectOrStream: `Section ${s.name}`,
-              generatedOn: nowFormatted,
-              averageScore: avg,
-              studentCount: secStudents.length,
-            });
-          }
-          return catalog;
-        }
-      }
-
       for (const g of grades) {
         const gradeStudents = activeStudents.filter((st) => st.gradeId === g.id);
         const gradeCompleted = completedRecords.filter((r) => r.student.gradeId === g.id);
@@ -1374,13 +1111,13 @@ export class AssessmentReportService {
     const gradingScales: GradingScaleItem[] = dbScales.length > 0
       ? dbScales.map((s) => ({ grade: s.grade, minScore: s.minScore, maxScore: s.maxScore, gpaPoint: s.gpaPoint, isPassing: s.isPassing, description: s.description }))
       : [
-          { grade: 'A+', minScore: 90, maxScore: 100, isPassing: true },
-          { grade: 'A', minScore: 85, maxScore: 89.99, isPassing: true },
-          { grade: 'B', minScore: 75, maxScore: 84.99, isPassing: true },
-          { grade: 'C', minScore: 60, maxScore: 74.99, isPassing: true },
-          { grade: 'D', minScore: 50, maxScore: 59.99, isPassing: true },
-          { grade: 'F', minScore: 0, maxScore: 49.99, isPassing: false },
-        ];
+        { grade: 'A+', minScore: 90, maxScore: 100, isPassing: true },
+        { grade: 'A', minScore: 85, maxScore: 89.99, isPassing: true },
+        { grade: 'B', minScore: 75, maxScore: 84.99, isPassing: true },
+        { grade: 'C', minScore: 60, maxScore: 74.99, isPassing: true },
+        { grade: 'D', minScore: 50, maxScore: 59.99, isPassing: true },
+        { grade: 'F', minScore: 0, maxScore: 49.99, isPassing: false },
+      ];
     const passThreshold = gradingScales.find((s) => s.isPassing)?.minScore ?? 50;
 
     let studentRows: any[] = [];
@@ -1516,8 +1253,8 @@ export class AssessmentReportService {
           recommendation: hasMissing
             ? 'Complete missing assessment papers'
             : scale.isPassing
-            ? 'Maintain commendable standard'
-            : 'Targeted tutorial support needed',
+              ? 'Maintain commendable standard'
+              : 'Targeted tutorial support needed',
         };
       }).sort((a, b) => b.score - a.score).map((r, i) => ({ ...r, rank: i + 1 }));
     }
@@ -1532,229 +1269,6 @@ export class AssessmentReportService {
       recommendations: analytics.recommendations,
       generatedAt: new Date().toISOString(),
     };
-  }
-
-  /**
-   * Evidence-based Academic Insights generator for Grade-Level report
-   */
-  private generateGradeLevelInsights(params: {
-    isSpecificGrade: boolean;
-    selectedGradeName: string;
-    totalActiveCount: number;
-    completeCount: number;
-    incompleteCount: number;
-    cohortAverage: number;
-    displayedAverage: number;
-    cohorts: Array<{
-      subjectId: string;
-      subjectName: string;
-      subjectCode: string;
-      averageScore: number;
-      studentCount: number;
-      highestScore: number;
-      lowestScore: number;
-      passRate?: number;
-    }>;
-  }): Array<{
-    id: string;
-    category: 'KEY_FINDING' | 'STRENGTH' | 'WARNING' | 'RECOMMENDATION' | 'DATA_QUALITY';
-    categoryLabel: string;
-    title: string;
-    description: string;
-    evidence: string;
-    severity: 'info' | 'success' | 'warning' | 'danger';
-    metric?: string;
-  }> {
-    const {
-      isSpecificGrade,
-      selectedGradeName,
-      totalActiveCount,
-      completeCount,
-      incompleteCount,
-      displayedAverage,
-      cohorts,
-    } = params;
-
-    const insights: Array<{
-      id: string;
-      category: 'KEY_FINDING' | 'STRENGTH' | 'WARNING' | 'RECOMMENDATION' | 'DATA_QUALITY';
-      categoryLabel: string;
-      title: string;
-      description: string;
-      evidence: string;
-      severity: 'info' | 'success' | 'warning' | 'danger';
-      metric?: string;
-    }> = [];
-
-    const cohortsWithScores = cohorts.filter((c) => c.averageScore > 0);
-    const sortedCohorts = [...cohortsWithScores].sort((a, b) => b.averageScore - a.averageScore);
-    const highestCohort = sortedCohorts.length > 0 ? sortedCohorts[0] : null;
-    const lowestCohort = sortedCohorts.length > 0 ? sortedCohorts[sortedCohorts.length - 1] : null;
-    const gap = highestCohort && lowestCohort
-      ? Math.round((highestCohort.averageScore - lowestCohort.averageScore) * 10) / 10
-      : 0;
-
-    // ─── 1. DATA QUALITY INSIGHT ──────────────────────────────────────────────
-    if (completeCount === 0) {
-      insights.push({
-        id: 'dq_no_data',
-        category: 'DATA_QUALITY',
-        categoryLabel: 'Data Quality',
-        title: 'No Completed Assessment Records',
-        description: 'There are currently no finalized report card evaluations in this scope. Cohort comparison benchmarks cannot be computed until teacher marks are submitted.',
-        evidence: `0 of ${totalActiveCount} active students have finalized evaluations.`,
-        severity: 'warning',
-        metric: '0% Evaluated',
-      });
-      return insights;
-    }
-
-    if (incompleteCount > 0) {
-      const incompleteRate = totalActiveCount > 0 ? Math.round((incompleteCount / totalActiveCount) * 100) : 0;
-      insights.push({
-        id: 'dq_pending',
-        category: 'DATA_QUALITY',
-        categoryLabel: 'Data Quality',
-        title: `${incompleteCount} Pending or Incomplete Evaluation${incompleteCount > 1 ? 's' : ''}`,
-        description: `${incompleteCount} student${incompleteCount > 1 ? 's' : ''} (${incompleteRate}%) have missing marks or unsubmitted assessment components that are excluded from cohort averages.`,
-        evidence: `${completeCount} completed vs ${incompleteCount} incomplete records across ${cohorts.length} ${isSpecificGrade ? 'sections' : 'grades'}.`,
-        severity: incompleteRate >= 20 ? 'danger' : 'warning',
-        metric: `${incompleteRate}% Incomplete`,
-      });
-    } else {
-      insights.push({
-        id: 'dq_complete',
-        category: 'DATA_QUALITY',
-        categoryLabel: 'Data Quality',
-        title: 'Full Assessment Coverage Verified',
-        description: 'All active enrolled candidates have 100% complete evaluation records for this academic reporting scope.',
-        evidence: `100% completion rate (${completeCount}/${totalActiveCount} verified records).`,
-        severity: 'info',
-        metric: '100% Coverage',
-      });
-    }
-
-    // ─── 2. WARNINGS (High Priority) ──────────────────────────────────────────
-    const underperforming = cohortsWithScores.filter((c) => c.averageScore < 50);
-    if (underperforming.length > 0) {
-      const names = underperforming.map((c) => `${c.subjectName} (${c.averageScore}%)`).join(', ');
-      insights.push({
-        id: 'warn_sub_passing',
-        category: 'WARNING',
-        categoryLabel: 'Warning',
-        title: underperforming.length === 1
-          ? `Performance Alert: ${underperforming[0].subjectName} Below Passing Standard`
-          : `${underperforming.length} ${isSpecificGrade ? 'Sections' : 'Grade Cohorts'} Below Passing Standard`,
-        description: underperforming.length === 1
-          ? `${underperforming[0].subjectName} recorded a cohort average of ${underperforming[0].averageScore}%, falling below the institutional 50% threshold.`
-          : `The following cohorts recorded averages below 50%: ${names}. Targeted academic interventions are recommended.`,
-        evidence: `Minimum passing standard is 50.0%; lowest recorded average is ${underperforming[0].averageScore}%.`,
-        severity: 'danger',
-        metric: underperforming.length === 1 ? `${underperforming[0].averageScore}% Avg` : `${underperforming.length} Below 50%`,
-      });
-    }
-
-    if (cohortsWithScores.length >= 2 && gap >= 12 && highestCohort && lowestCohort) {
-      insights.push({
-        id: 'warn_gap',
-        category: 'WARNING',
-        categoryLabel: 'Warning',
-        title: `Significant Performance Disparity (${gap}% Gap)`,
-        description: `A notable gap of ${gap} percentage points exists between ${highestCohort.subjectName} (${highestCohort.averageScore}%) and ${lowestCohort.subjectName} (${lowestCohort.averageScore}%).`,
-        evidence: `Cohort variance: ${highestCohort.averageScore}% top score vs ${lowestCohort.averageScore}% lowest score.`,
-        severity: gap >= 20 ? 'danger' : 'warning',
-        metric: `${gap}% Disparity`,
-      });
-    }
-
-    // ─── 3. RECOMMENDATIONS (Actionable) ───────────────────────────────────────
-    if (gap >= 12 && lowestCohort && highestCohort) {
-      insights.push({
-        id: 'rec_alignment',
-        category: 'RECOMMENDATION',
-        categoryLabel: 'Recommendation',
-        title: `Align Instructional Support for ${lowestCohort.subjectName}`,
-        description: `Organize pedagogical cross-cohort coordination to share successful teaching strategies and assessment rubrics from ${highestCohort.subjectName} to ${lowestCohort.subjectName}.`,
-        evidence: `Closing the ${gap}% gap will raise the overall ${isSpecificGrade ? selectedGradeName : 'institutional'} average above ${displayedAverage}%.`,
-        severity: 'info',
-        metric: 'Pedagogical Alignment',
-      });
-    } else if (cohortsWithScores.length >= 2 && gap < 12 && displayedAverage >= 60) {
-      insights.push({
-        id: 'rec_balance',
-        category: 'RECOMMENDATION',
-        categoryLabel: 'Recommendation',
-        title: 'Maintain Consistent Cohort Pacing',
-        description: `Performance variance across ${isSpecificGrade ? 'sections' : 'grades'} is balanced (${gap}% spread). Maintain current instructional pacing and shared curriculum milestones.`,
-        evidence: `Uniform performance distribution observed across all ${cohortsWithScores.length} active groups.`,
-        severity: 'info',
-        metric: `${gap}% Spread`,
-      });
-    }
-
-    if (incompleteCount > 0) {
-      insights.push({
-        id: 'rec_missing_marks',
-        category: 'RECOMMENDATION',
-        categoryLabel: 'Recommendation',
-        title: 'Resolve Missing Marks Prior to Final Publication',
-        description: `Audit teacher submissions to resolve marks for ${incompleteCount} students before releasing official semester rankings.`,
-        evidence: `${incompleteCount} student evaluation cards currently have missing component scores.`,
-        severity: 'warning',
-        metric: 'Submission Audit',
-      });
-    }
-
-    // ─── 4. KEY FINDINGS ───────────────────────────────────────────────────────
-    if (cohortsWithScores.length > 0) {
-      const passingCohortCount = cohortsWithScores.filter((c) => c.averageScore >= 50).length;
-      insights.push({
-        id: 'kf_distribution',
-        category: 'KEY_FINDING',
-        categoryLabel: 'Key Finding',
-        title: isSpecificGrade
-          ? `${selectedGradeName} Section Performance Distribution`
-          : 'Institutional Grade Progression Benchmark',
-        description: isSpecificGrade
-          ? `${passingCohortCount} of ${cohortsWithScores.length} evaluated sections in ${selectedGradeName} meet or exceed the institutional 50% benchmark, yielding an overall section average of ${displayedAverage}%.`
-          : `${passingCohortCount} of ${cohortsWithScores.length} grade levels are performing above the passing standard, establishing a school-wide average of ${displayedAverage}%.`,
-        evidence: `Overall mean score: ${displayedAverage}% across ${completeCount} completed student assessments.`,
-        severity: displayedAverage >= 65 ? 'info' : 'warning',
-        metric: `${displayedAverage}% Mean`,
-      });
-    }
-
-    // ─── 5. STRENGTHS ──────────────────────────────────────────────────────────
-    if (highestCohort) {
-      insights.push({
-        id: 'str_top_performer',
-        category: 'STRENGTH',
-        categoryLabel: 'Strength',
-        title: `Leading Academic Cohort: ${highestCohort.subjectName}`,
-        description: `${highestCohort.subjectName} demonstrated top academic performance with a cohort average of ${highestCohort.averageScore}%${highestCohort.passRate !== undefined ? ` and a pass rate of ${highestCohort.passRate}%` : ''}.`,
-        evidence: `Ranked 1st among ${cohorts.length} evaluated ${isSpecificGrade ? 'sections' : 'grades'} with ${highestCohort.studentCount} active students.`,
-        severity: 'success',
-        metric: `${highestCohort.averageScore}% Top Avg`,
-      });
-    }
-
-    // Sort order: Danger first, then Warning, then Recommendation, then Key Finding, then Strength
-    const severityOrder: Record<string, number> = { danger: 0, warning: 1, info: 2, success: 3 };
-    const categoryOrder: Record<string, number> = {
-      WARNING: 0,
-      DATA_QUALITY: 1,
-      RECOMMENDATION: 2,
-      KEY_FINDING: 3,
-      STRENGTH: 4,
-    };
-
-    insights.sort((a, b) => {
-      const sevDiff = (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99);
-      if (sevDiff !== 0) return sevDiff;
-      return (categoryOrder[a.category] ?? 99) - (categoryOrder[b.category] ?? 99);
-    });
-
-    return insights;
   }
 
   private emptyAnalytics(schoolName: string) {
@@ -1786,7 +1300,6 @@ export class AssessmentReportService {
         bands: [],
       },
       recommendations: ['No assessment records found for the selected scope.'],
-      insights: [],
       availableReports: [],
     };
   }

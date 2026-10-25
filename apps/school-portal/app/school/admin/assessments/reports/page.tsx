@@ -157,15 +157,6 @@ export default function AssessmentReportsPage() {
   // Hover state for Bar Chart tooltips
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
-  // Academic Insights Category Filter (Grade-Level Report)
-  const [insightCategoryFilter, setInsightCategoryFilter] = useState<string>('ALL');
-
-  const filteredInsights = useMemo(() => {
-    const list = analytics?.insights || [];
-    if (insightCategoryFilter === 'ALL') return list;
-    return list.filter((item) => item.category === insightCategoryFilter);
-  }, [analytics?.insights, insightCategoryFilter]);
-
   // Check if senior grade selected (Grades 11 or 12 require stream filtering)
   const isSeniorGrade = useMemo(() => {
     if (!selectedGradeId || selectedGradeId === 'all') return false;
@@ -496,41 +487,29 @@ export default function AssessmentReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChartExpanded]);
 
-  const COLLAPSED_BAR_LIMIT = selectedCategory === 'GRADE_LEVEL' || selectedCategory === 'CLASS_PERFORMANCE' ? 12 : 6;
+  const COLLAPSED_BAR_LIMIT = 6;
   const totalChartCohorts = analytics?.subjectPerformance?.length || 0;
   const hasMoreCohorts = totalChartCohorts > COLLAPSED_BAR_LIMIT;
 
   const subjectsChartData = useMemo(() => {
     const list = analytics?.subjectPerformance || [];
     return isChartExpanded ? list : list.slice(0, COLLAPSED_BAR_LIMIT);
-  }, [analytics?.subjectPerformance, isChartExpanded, COLLAPSED_BAR_LIMIT]);
+  }, [analytics?.subjectPerformance, isChartExpanded]);
 
-  // Dynamic Y-axis scale and tick calculation
-  const maxStudentInDistribution = useMemo(() => {
-    if (selectedCategory !== 'CLASS_PERFORMANCE') return 100;
-    const maxVal = Math.max(...(analytics?.subjectPerformance || []).map((d) => d.studentCount || 0), 0);
-    if (maxVal <= 5) return 5;
-    if (maxVal <= 10) return 10;
-    if (maxVal <= 20) return 20;
-    if (maxVal <= 50) return 50;
-    if (maxVal <= 100) return 100;
-    return Math.ceil(maxVal / 10) * 10;
-  }, [selectedCategory, analytics?.subjectPerformance]);
+  // For CLASS_PERFORMANCE: compute dynamic Y-axis ticks based on max student count
+  const distributionChartTicks = useMemo(() => {
+    const bands = analytics?.distribution?.bands || [];
+    const maxCount = Math.max(0, ...bands.map((b) => b.count));
+    // Choose a nice step that keeps ~5-6 grid lines
+    const steps = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    let step = steps.find((s) => Math.ceil(maxCount / s) <= 6) || steps[steps.length - 1];
+    const maxTick = Math.ceil(maxCount / step) * step || step;
+    const ticks: number[] = [];
+    for (let v = maxTick; v >= 0; v -= step) ticks.push(v);
+    return { ticks, maxTick, step };
+  }, [analytics?.distribution?.bands]);
 
-  const yAxisTicks = useMemo(() => {
-    if (selectedCategory === 'CLASS_PERFORMANCE') {
-      const step = maxStudentInDistribution / 5;
-      return [
-        maxStudentInDistribution,
-        Math.round(step * 4),
-        Math.round(step * 3),
-        Math.round(step * 2),
-        Math.round(step * 1),
-        0,
-      ];
-    }
-    return [100, 80, 60, 40, 20, 0];
-  }, [selectedCategory, maxStudentInDistribution]);
+  const isClassPerformanceChart = selectedCategory === 'CLASS_PERFORMANCE';
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen text-foreground print:p-0 print:max-w-none">
@@ -606,12 +585,7 @@ export default function AssessmentReportsPage() {
               <button
                 key={cat.key}
                 type="button"
-                onClick={() => {
-                  if (selectedCategory !== cat.key) {
-                    setAnalytics(null);
-                    setSelectedCategory(cat.key);
-                  }
-                }}
+                onClick={() => setSelectedCategory(cat.key)}
                 className={cn(
                   "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 group relative overflow-hidden",
                   isSelected
@@ -926,547 +900,332 @@ export default function AssessmentReportsPage() {
       )}
 
       {/* ─── Visual Analytics: Bar Chart & Distribution Donut ────────────── */}
-      {generating && !analytics ? (
-        <div className="p-12 rounded-2xl bg-card border border-border shadow-xs flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in">
-          <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-sm font-semibold text-foreground">Loading {activeCategoryMeta.title}...</p>
-          <p className="text-xs text-muted-foreground">Evaluating student records and calculating distribution benchmarks</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
-          {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled */}
-          <div
-            className={cn(
-              "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out min-w-0",
-              isChartExpanded ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
-            )}
-          >
-            <div>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-foreground tracking-tight">
-                      {analytics?.summary?.chartTitle || 'Performance Overview'}
-                    </h2>
-                    {isChartExpanded && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                        Full Width View
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {isChartExpanded
-                      ? `Expanded view showing all ${subjectsChartData.length} evaluated cohorts across full width`
-                      : (analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts')}
-                  </p>
-                </div>
-
-                {/* Controls: Scale Badge + Expand/Collapse Arrow Button */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
-                    {selectedCategory === 'CLASS_PERFORMANCE'
-                      ? 'Y-Axis: No. of Students'
-                      : selectedCategory === 'GRADE_LEVEL'
-                      ? 'Y-Axis: Average Academic Score (0–100%)'
-                      : 'Y-Axis: Score (0–100%)'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsChartExpanded((prev) => !prev)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setIsChartExpanded((prev) => !prev);
-                      }
-                    }}
-                    aria-expanded={isChartExpanded}
-                    aria-label={
-                      isChartExpanded
-                        ? "Collapse bar chart and restore side-by-side distribution chart"
-                        : "View more - expand bar chart over adjacent pie chart to occupy full width"
-                    }
-                    title={
-                      isChartExpanded
-                        ? "Collapse to side-by-side layout (Press Esc)"
-                        : "View more cohorts across full width (temporarily hides pie chart)"
-                    }
-                    className={cn(
-                      "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
-                      isChartExpanded
-                        ? isAcademicHead
-                          ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
-                          : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
-                        : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
-                    )}
-                  >
-                    {isChartExpanded ? (
-                      <>
-                        <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
-                        <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
-                        <span className="text-[11px] font-bold hidden sm:inline">View More</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Bar Chart Container */}
-            <div className="mt-8 relative pt-5 w-full min-w-0 overflow-hidden">
-              {/* Y-Axis Guidelines & Axis Unit Label */}
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-                {/* Prominent Y-Axis Label */}
-                <div className="absolute -top-4 left-0 pointer-events-none z-10">
-                  <span
-                    className={cn(
-                      "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-2xs",
-                      isAcademicHead
-                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20"
-                        : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                    )}
-                  >
-                    {selectedCategory === 'CLASS_PERFORMANCE' ? 'No of stu' : 'Avg Score (%)'}
-                  </span>
-                </div>
-
-                {yAxisTicks.map((tick, idx) => (
-                  <div key={idx} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                    <span className="w-10 text-right font-mono font-medium text-muted-foreground shrink-0">
-                      {selectedCategory === 'CLASS_PERFORMANCE' ? tick : `${tick}%`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bars Column Rendering */}
-              <div
-                className={cn(
-                  "pl-14 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
-                  isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
-                )}
-              >
-                {subjectsChartData.length === 0 ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
-                    <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-                    <span>No completed assessment benchmarks recorded in this scope</span>
-                  </div>
-                ) : (
-                  subjectsChartData.map((item, idx) => {
-                    const isClassDist = selectedCategory === 'CLASS_PERFORMANCE';
-                    const color = (item as any).color || BAR_COLORS[idx % BAR_COLORS.length];
-                    const hasValue = isClassDist ? ((item.studentCount || 0) > 0) : (item.averageScore > 0);
-                    const heightPct = isClassDist
-                      ? (maxStudentInDistribution > 0 && (item.studentCount || 0) > 0
-                          ? Math.min(100, Math.max(8, ((item.studentCount || 0) / maxStudentInDistribution) * 100))
-                          : 0)
-                      : (item.averageScore > 0
-                          ? Math.min(100, Math.max(6, item.averageScore))
-                          : 0);
-                    const isHovered = hoveredBarIndex === idx;
-
-                    return (
-                      <div
-                        key={item.subjectId || idx}
-                        className={cn(
-                          "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
-                          isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
-                        )}
-                        onMouseEnter={() => setHoveredBarIndex(idx)}
-                        onMouseLeave={() => setHoveredBarIndex(null)}
-                      >
-                        {/* Tooltip */}
-                        {isHovered && (
-                          <div className="absolute -top-14 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
-                            {selectedCategory === 'CLASS_PERFORMANCE' ? (
-                              <>
-                                <p className="font-bold text-foreground">
-                                  Score Range <span className="text-primary">{item.subjectCode}</span>
-                                </p>
-                                <p className="text-muted-foreground font-normal">
-                                  <span className="font-bold text-emerald-500">{item.studentCount}</span> student{item.studentCount !== 1 ? 's' : ''} ({item.averageScore}%) | {item.passRate && item.passRate > 0 ? 'Passing range' : 'Below passing'}
-                                </p>
-                              </>
-                            ) : selectedCategory === 'GRADE_LEVEL' ? (
-                              <>
-                                <p className="font-bold text-foreground">
-                                  {item.subjectName}: <span className="text-emerald-500 font-bold">{item.averageScore > 0 ? `${item.averageScore}%` : '0%'}</span>
-                                </p>
-                                <p className="text-muted-foreground font-normal">
-                                  {item.studentCount} active students | Pass Rate: {item.passRate !== undefined ? `${item.passRate}%` : 'N/A'}
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
-                                <p className="text-muted-foreground font-normal">
-                                  Students: {item.studentCount} | High: {item.highestScore}%{item.passRate !== undefined ? ` | Pass: ${item.passRate}%` : ''}
-                                </p>
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Label on top of bar: student count for CLASS_PERFORMANCE, percentage otherwise */}
-                        <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
-                          {selectedCategory === 'CLASS_PERFORMANCE'
-                            ? item.studentCount
-                            : (item.averageScore > 0 ? `${Math.round(item.averageScore)}%` : '0%')}
-                        </span>
-
-                        {/* The Bar */}
-                        <div
-                          className={cn(
-                            "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
-                            !hasValue && "opacity-25",
-                            isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
-                          )}
-                          style={{
-                            height: hasValue ? `${heightPct}%` : '2px',
-                            backgroundColor: color,
-                          }}
-                        />
-
-                        {/* X-Axis Label - Compressed to G1, G2, etc. for Grade-Level */}
-                        <span
-                          className={cn(
-                            "absolute -bottom-6 text-[10px] font-semibold text-muted-foreground truncate text-center transition-all px-0.5",
-                            isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
-                          )}
-                          title={item.subjectName}
-                        >
-                          {selectedCategory === 'GRADE_LEVEL' && (!selectedGradeId || selectedGradeId === 'all')
-                            ? (item.subjectCode || item.subjectName).replace(/^Grade\s*/i, 'G')
-                            : (item.subjectCode || item.subjectName)}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Collapsed view indicator and View More action */}
-            {!isChartExpanded && hasMoreCohorts && (
-              <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="text-[11px]">
-                  Showing top {COLLAPSED_BAR_LIMIT} of {totalChartCohorts} cohorts
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsChartExpanded(true)}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer focus:outline-none"
-                >
-                  <span>View More</span>
-                  <ChevronsRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded */}
-          {!isChartExpanded && (
-            <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95 min-w-0 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
+        {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled */}
+        <div
+          className={cn(
+            "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out min-w-0",
+            isChartExpanded ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
+          )}
+        >
+          <div>
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold text-foreground tracking-tight">
-                  {selectedCategory === 'CLASS_PERFORMANCE' ? 'Score Range Distribution' : 'Result Distribution'}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-foreground tracking-tight">
+                    {analytics?.summary?.chartTitle || 'Performance Overview'}
+                  </h2>
+                  {isChartExpanded && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      Full Width View
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {selectedCategory === 'CLASS_PERFORMANCE'
-                    ? 'Student distribution across 8 standard score ranges'
-                    : 'Breakdown across official institutional grading scale bands'}
+                  {isChartExpanded
+                    ? `Expanded view showing all ${subjectsChartData.length} evaluated cohorts across full width`
+                    : (analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts')}
                 </p>
               </div>
 
-              {/* SVG Donut — centered */}
-              <div className="mt-6 flex justify-center">
-                <div className="relative w-36 h-36 flex items-center justify-center">
-                  {donutPaths.length > 0 ? (
-                    <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
-                      {donutPaths.map((slice, i) => (
-                        <path
-                          key={i}
-                          d={slice.pathData}
-                          fill={slice.color}
-                          className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
-                        />
-                      ))}
-                    </svg>
-                  ) : (
-                    <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
-                      No graded results
-                    </div>
+              {/* Controls: Scale Badge + Expand/Collapse Arrow Button */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
+                  {isClassPerformanceChart ? `Scale: 0–${distributionChartTicks.maxTick} Students` : 'Scale: 0–100%'}
+                </span>
+                {!isClassPerformanceChart && (
+                <button
+                  type="button"
+                  onClick={() => setIsChartExpanded((prev) => !prev)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIsChartExpanded((prev) => !prev);
+                    }
+                  }}
+                  aria-expanded={isChartExpanded}
+                  aria-label={
+                    isChartExpanded
+                      ? "Collapse bar chart and restore side-by-side distribution chart"
+                      : "View more - expand bar chart over adjacent pie chart to occupy full width"
+                  }
+                  title={
+                    isChartExpanded
+                      ? "Collapse to side-by-side layout (Press Esc)"
+                      : "View more cohorts across full width (temporarily hides pie chart)"
+                  }
+                  className={cn(
+                    "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
+                    isChartExpanded
+                      ? isAcademicHead
+                        ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
+                        : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
+                      : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
                   )}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                    <span className="text-xl font-black text-foreground tracking-tight leading-tight">
-                      {totalResults.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Evaluated
-                    </span>
-                  </div>
-                </div>
+                >
+                  {isChartExpanded ? (
+                    <>
+                      <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
+                      <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
+                      <span className="text-[11px] font-bold hidden sm:inline">View More</span>
+                    </>
+                  )}
+                </button>
+                )}
               </div>
+            </div>
+          </div>
 
-              {/* Legend */}
-              <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
-                {distributionBands.map((band, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between text-xs gap-1.5"
-                    title={`${band.name}: ${band.count !== undefined ? band.count : 0} students (${band.percentage}%)`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: band.color }}
-                      />
-                      <span className="font-medium text-foreground truncate">
-                        {band.name}
-                      </span>
+          {/* Bar Chart Container */}
+          <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
+            {isClassPerformanceChart ? (
+              /* ── CLASS PERFORMANCE: Score-Range Distribution (student count Y-axis) ── */
+              <>
+                {/* Y-Axis Guidelines — dynamic student count scale */}
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
+                  {distributionChartTicks.ticks.map((tick) => (
+                    <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
+                      <span className="w-10 text-right font-mono shrink-0">{tick}</span>
                     </div>
-                    <span className="font-semibold text-muted-foreground shrink-0 text-[11px]">
-                      {band.count !== undefined ? `${band.count} (${band.percentage}%)` : `${band.percentage}%`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Incomplete / Missing note */}
-              {Boolean(analytics?.distribution?.incompleteCount) && (
-                <div className="mt-3 pt-2.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
-                  <span>Incomplete / Pending:</span>
-                  <span className="font-semibold text-amber-600 dark:text-amber-400">
-                    {analytics?.distribution?.incompleteCount} records excluded
-                  </span>
+                  ))}
                 </div>
-              )}
+
+                {/* Bars */}
+                <div className="pl-14 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-3 relative z-10 pb-8">
+                  {(analytics?.distribution?.bands || []).length === 0 ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                      <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+                      <span>No score distribution data available in this scope</span>
+                    </div>
+                  ) : (
+                    (analytics?.distribution?.bands || []).map((band, idx) => {
+                      const color = BAR_COLORS[idx % BAR_COLORS.length];
+                      const heightPct = distributionChartTicks.maxTick > 0
+                        ? Math.min(100, Math.max(band.count > 0 ? 4 : 0, (band.count / distributionChartTicks.maxTick) * 100))
+                        : 0;
+                      const isHovered = hoveredBarIndex === idx;
+
+                      return (
+                        <div
+                          key={band.name || idx}
+                          className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-0"
+                          onMouseEnter={() => setHoveredBarIndex(idx)}
+                          onMouseLeave={() => setHoveredBarIndex(null)}
+                        >
+                          {/* Tooltip */}
+                          {isHovered && (
+                            <div className="absolute -top-14 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
+                              <p className="font-bold" style={{ color }}>{band.name}</p>
+                              <p>Range: <span className="font-bold">{band.rangeLabel}</span></p>
+                              <p>Students: <span className="font-bold text-emerald-500">{band.count}</span> ({band.percentage}%)</p>
+                            </div>
+                          )}
+
+                          {/* Student count label on top of bar */}
+                          <span className="text-[11px] font-bold text-foreground mb-1 transition-transform group-hover:scale-110">
+                            {band.count > 0 ? band.count : ''}
+                          </span>
+
+                          {/* The Bar */}
+                          <div
+                            className="w-full max-w-[48px] rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md"
+                            style={{
+                              height: `${heightPct}%`,
+                              backgroundColor: color,
+                            }}
+                          />
+
+                          {/* X-Axis Label: score range */}
+                          <span
+                            className="absolute -bottom-8 text-[9px] font-medium text-muted-foreground text-center w-full px-0.5 leading-tight"
+                            title={`${band.name}: ${band.rangeLabel}`}
+                          >
+                            {band.rangeLabel}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* X-axis label */}
+                <div className="mt-10 pl-14 text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Number of Students
+                </div>
+              </>
+            ) : (
+              /* ── OTHER CATEGORIES: Percentage-based subject/cohort bar chart ── */
+              <>
+                {/* Y-Axis Guidelines */}
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
+                  {[100, 80, 60, 40, 20, 0].map((tick) => (
+                    <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
+                      <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bars Column Rendering */}
+                <div
+                  className={cn(
+                    "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
+                    isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
+                  )}
+                >
+                  {subjectsChartData.length === 0 ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                      <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+                      <span>No completed assessment benchmarks recorded in this scope</span>
+                    </div>
+                  ) : (
+                    subjectsChartData.map((item, idx) => {
+                      const color = BAR_COLORS[idx % BAR_COLORS.length];
+                      const heightPct = Math.min(100, Math.max(6, item.averageScore));
+                      const isHovered = hoveredBarIndex === idx;
+
+                      return (
+                        <div
+                          key={item.subjectId || idx}
+                          className={cn(
+                            "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
+                            isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
+                          )}
+                          onMouseEnter={() => setHoveredBarIndex(idx)}
+                          onMouseLeave={() => setHoveredBarIndex(null)}
+                        >
+                          {/* Tooltip */}
+                          {isHovered && (
+                            <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
+                              <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
+                              <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
+                            </div>
+                          )}
+
+                          {/* Percentage Label on top of bar */}
+                          <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
+                            {Math.round(item.averageScore)}%
+                          </span>
+
+                          {/* The Bar */}
+                          <div
+                            className={cn(
+                              "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
+                              isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
+                            )}
+                            style={{
+                              height: `${heightPct}%`,
+                              backgroundColor: color,
+                            }}
+                          />
+
+                          {/* X-Axis Label */}
+                          <span
+                            className={cn(
+                              "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
+                              isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
+                            )}
+                            title={item.subjectName}
+                          >
+                            {item.subjectCode || item.subjectName}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Collapsed view indicator and View More action */}
+          {!isClassPerformanceChart && !isChartExpanded && hasMoreCohorts && (
+            <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+              <span className="text-[11px]">
+                Showing top {COLLAPSED_BAR_LIMIT} of {totalChartCohorts} cohorts
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsChartExpanded(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer focus:outline-none"
+              >
+                <span>View More</span>
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
-      )}
 
-      {/* ─── Available Reports Catalog Table Section / Generalized View Info ─────────────── */}
-      {selectedCategory === 'GRADE_LEVEL' ? (
-        <div className="space-y-6">
-          {/* ─── Academic Insights Section ──────────────────────────────── */}
-          <div className="p-6 rounded-2xl bg-card border border-border shadow-xs space-y-5">
-            {/* Header: Title, Description, and Category Filter Chips */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
-                    <Sparkles
-                      className={cn(
-                        "w-4 h-4",
-                        isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
-                      )}
-                    />
-                    Academic Insights
-                  </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
-                    Evidence-Based Analysis
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Actionable, data-driven summaries derived from calculated academic performance across {selectedGradeId && selectedGradeId !== 'all' ? 'sections' : 'grade levels'}
-                </p>
-              </div>
-
-              {/* Filter Tabs / Chips */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { key: 'ALL', label: 'All Insights' },
-                  { key: 'WARNING', label: 'Warnings' },
-                  { key: 'RECOMMENDATION', label: 'Recommendations' },
-                  { key: 'STRENGTH', label: 'Strengths' },
-                  { key: 'DATA_QUALITY', label: 'Data Quality' },
-                ].map((chip) => {
-                  const isActive = insightCategoryFilter === chip.key;
-                  const count = chip.key === 'ALL'
-                    ? (analytics?.insights?.length || 0)
-                    : (analytics?.insights?.filter((ins) => ins.category === chip.key).length || 0);
-
-                  return (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      onClick={() => setInsightCategoryFilter(chip.key)}
-                      className={cn(
-                        "h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all flex items-center gap-1.5 cursor-pointer",
-                        isActive
-                          ? (isAcademicHead
-                              ? "bg-violet-600 text-white border-violet-600 shadow-xs"
-                              : "bg-blue-600 text-white border-blue-600 shadow-xs")
-                          : "bg-muted/60 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
-                      )}
-                    >
-                      <span>{chip.label}</span>
-                      <span
-                        className={cn(
-                          "px-1.5 py-0.2 rounded-full text-[9px] font-bold",
-                          isActive ? "bg-white/20 text-white" : "bg-background text-muted-foreground"
-                        )}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+        {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded */}
+        {!isChartExpanded && (
+          <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95 min-w-0 overflow-hidden">
+            <div>
+              <h2 className="text-base font-bold text-foreground tracking-tight">
+                Result Distribution
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Breakdown across official institutional grading scale bands
+              </p>
             </div>
 
-            {/* Insight Cards Grid */}
-            {filteredInsights.length === 0 ? (
-              <div className="py-12 border border-dashed border-border rounded-xl flex flex-col items-center justify-center text-center p-4">
-                <HelpCircle className="w-8 h-8 text-muted-foreground/40 mb-2 stroke-1" />
-                <p className="text-xs font-semibold text-foreground">No Academic Insights in This Category</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 max-w-sm">
-                  {analytics?.insights && analytics.insights.length > 0
-                    ? 'No items matched the selected filter. Switch to "All Insights" to view generated findings.'
-                    : 'Select an academic year and term with evaluated student report cards to generate automated academic insights.'}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredInsights.map((insight) => {
-                  const isDanger = insight.severity === 'danger';
-                  const isWarning = insight.severity === 'warning';
-                  const isSuccess = insight.severity === 'success';
-
-                  const badgeClass = isDanger
-                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                    : isWarning
-                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                    : isSuccess
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                    : isAcademicHead
-                    ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20"
-                    : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
-
-                  const IconComp = isDanger || isWarning
-                    ? AlertTriangle
-                    : isSuccess
-                    ? Award
-                    : insight.category === 'RECOMMENDATION'
-                    ? Sparkles
-                    : insight.category === 'DATA_QUALITY'
-                    ? CheckCircle2
-                    : Layers;
-
-                  return (
-                    <div
-                      key={insight.id}
-                      className={cn(
-                        "p-4 rounded-xl border flex flex-col justify-between transition-all hover:shadow-xs",
-                        isDanger
-                          ? "bg-rose-50/30 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/40"
-                          : isWarning
-                          ? "bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/40"
-                          : "bg-card border-border"
-                      )}
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            className={cn(
-                              "text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider flex items-center gap-1",
-                              badgeClass
-                            )}
-                          >
-                            <IconComp className="w-3 h-3" />
-                            <span>{insight.categoryLabel}</span>
-                          </span>
-
-                          {insight.metric && (
-                            <span
-                              className={cn(
-                                "text-[11px] font-mono font-bold px-2 py-0.5 rounded-md",
-                                isDanger
-                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                  : isWarning
-                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                  : isSuccess
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  : "bg-muted text-muted-foreground"
-                              )}
-                            >
-                              {insight.metric}
-                            </span>
-                          )}
-                        </div>
-
-                        <div>
-                          <h4 className="text-xs font-bold text-foreground leading-snug">
-                            {insight.title}
-                          </h4>
-                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                            {insight.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Evidence footer */}
-                      <div className="mt-3 pt-2.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
-                        <span className="truncate pr-2">
-                          <strong className="text-foreground font-semibold">Evidence:</strong> {insight.evidence}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ─── Generalized View Information Panel ─────────────────────── */}
-          <div className="p-6 rounded-2xl bg-card border border-border shadow-xs">
-            <div className="flex items-start gap-4">
-              <span
-                className={cn(
-                  "p-3 rounded-2xl shrink-0 mt-0.5",
-                  isAcademicHead
-                    ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20"
-                    : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+            {/* SVG Donut — centered */}
+            <div className="mt-6 flex justify-center">
+              <div className="relative w-36 h-36 flex items-center justify-center">
+                {donutPaths.length > 0 ? (
+                  <svg width="144" height="144" viewBox="0 0 160 160" className="transform -rotate-90">
+                    {donutPaths.map((slice, i) => (
+                      <path
+                        key={i}
+                        d={slice.pathData}
+                        fill={slice.color}
+                        className="transition-all hover:opacity-85 hover:scale-[1.02] cursor-pointer origin-center"
+                      />
+                    ))}
+                  </svg>
+                ) : (
+                  <div className="w-32 h-32 rounded-full border-4 border-dashed border-border flex items-center justify-center text-[10px] text-muted-foreground text-center p-2">
+                    No graded results
+                  </div>
                 )}
-              >
-                <Info className="w-5 h-5" />
-              </span>
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-foreground">
-                    Generalized Comparison View
-                  </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
-                    High-Level Benchmarking Only
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                  <span className="text-xl font-black text-foreground tracking-tight leading-tight">
+                    {totalResults.toLocaleString()}
                   </span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  The Grade-Level report provides a generalized academic comparison across grade cohorts and sections to benchmark institutional academic performance. Detailed student rosters, individual marks, and granular section drill-downs are intentionally excluded from this view.
-                </p>
-                <div className="pt-2 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-muted-foreground">Need section or student-level results?</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('CLASS_PERFORMANCE')}
-                    className={cn(
-                      "font-bold hover:underline inline-flex items-center gap-1 cursor-pointer focus:outline-none",
-                      isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
-                    )}
-                  >
-                    <span>Switch to Class Performance Report</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Evaluated
+                  </span>
                 </div>
               </div>
             </div>
+
+            {/* Legend */}
+            <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
+              {distributionBands.map((band, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs gap-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: band.color }}
+                    />
+                    <span className="font-medium text-foreground truncate">
+                      {band.name}
+                    </span>
+                  </div>
+                  <span className="font-semibold text-muted-foreground shrink-0">
+                    {band.percentage}%
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
+        )}
+      </div>
+
+      {/* ─── Available Reports Catalog Table Section ─────────────────────── */}
+      <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
         {/* Table Header with Search & Reset */}
         <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
@@ -1657,8 +1416,8 @@ export default function AssessmentReportsPage() {
                   "h-8 w-8 p-0 rounded-lg text-xs font-bold",
                   currentPage === page
                     ? (isAcademicHead
-                        ? "bg-violet-600 hover:bg-violet-700 text-white"
-                        : "bg-blue-600 hover:bg-blue-700 text-white")
+                      ? "bg-violet-600 hover:bg-violet-700 text-white"
+                      : "bg-blue-600 hover:bg-blue-700 text-white")
                     : "border-border text-foreground hover:bg-muted"
                 )}
               >
@@ -1678,7 +1437,6 @@ export default function AssessmentReportsPage() {
           </div>
         </div>
       </div>
-      )}
 
       {/* ─── Standard Detailed Report Inspection & Print Dialog ──────────── */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
@@ -1808,8 +1566,8 @@ export default function AssessmentReportsPage() {
                                   s.status === 'Passed'
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                                     : s.status === 'Incomplete'
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                 )}>
                                   {s.status}
                                 </span>
@@ -1833,8 +1591,8 @@ export default function AssessmentReportsPage() {
                                   s.promotionStatus === 'PROMOTED'
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                                     : s.promotionStatus === 'INCOMPLETE'
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                 )}>
                                   {s.promotionStatus}
                                 </span>
@@ -1855,8 +1613,8 @@ export default function AssessmentReportsPage() {
                                   s.status === 'Passed'
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                                     : s.status === 'Incomplete'
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                 )}>
                                   {s.status}
                                 </span>

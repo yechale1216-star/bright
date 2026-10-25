@@ -10,13 +10,13 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "next dev apps/school-portal -p 3000 --webpack",
-    "dev:turbo": "next dev apps/school-portal -p 3000 --turbo",
+    "dev": "next dev --turbo",
+    "dev:stable": "next dev --webpack",
     "dev:school": "next dev apps/school-portal -p 3000 --webpack",
     "dev:school:turbo": "next dev apps/school-portal -p 3000 --turbo",
     "dev:portal": "next dev apps/student-parent-portal -p 3001 --webpack",
     "dev:portal:turbo": "next dev apps/student-parent-portal -p 3001 --turbo",
-    "build": "next build apps/school-portal --webpack",
+    "build": "next build --webpack",
     "build:school": "next build apps/school-portal --webpack",
     "build:portal": "next build apps/student-parent-portal --webpack",
     "start:school": "next start apps/school-portal -p 3000",
@@ -31,7 +31,7 @@
     "mobile": "powershell -ExecutionPolicy Bypass -File ./scripts/mobile-dev.ps1",
     "mobile:forward": "adb reverse tcp:3000 tcp:3000 && adb reverse tcp:5000 tcp:5000",
     "lint": "next lint",
-    "start": "next start apps/school-portal -p 3000",
+    "start": "next start",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },

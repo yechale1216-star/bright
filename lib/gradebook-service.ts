@@ -13,7 +13,7 @@ function getAuthHeaders(): Record<string, string> {
       const u = JSON.parse(userStr);
       userRole = u?.role || null;
     }
-  } catch {}
+  } catch { }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -983,20 +983,6 @@ export const gradebookService = {
   },
 };
 
-export type AcademicInsightCategory = 'KEY_FINDING' | 'STRENGTH' | 'WARNING' | 'RECOMMENDATION' | 'DATA_QUALITY';
-export type AcademicInsightSeverity = 'info' | 'success' | 'warning' | 'danger';
-
-export interface AcademicInsightItem {
-  id: string;
-  category: AcademicInsightCategory;
-  categoryLabel: string;
-  title: string;
-  description: string;
-  evidence: string;
-  severity: AcademicInsightSeverity;
-  metric?: string;
-}
-
 export interface AssessmentReportsAnalyticsData {
   schoolInfo?: {
     name: string;
@@ -1036,11 +1022,9 @@ export interface AssessmentReportsAnalyticsData {
     passRate?: number;
     incompleteCount?: number;
     gradeName?: string;
-    color?: string;
   }>;
   distribution: {
     totalResults: number;
-    incompleteCount?: number;
     bands: Array<{
       name: string;
       rangeLabel: string;
@@ -1052,7 +1036,6 @@ export interface AssessmentReportsAnalyticsData {
     }>;
   };
   recommendations?: string[];
-  insights?: AcademicInsightItem[];
   availableReports: Array<{
     id: string;
     reportName: string;
