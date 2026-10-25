@@ -25,8 +25,6 @@ import {
   Award,
   Layers,
   BookOpen,
-  TrendingUp,
-  School,
   CheckCircle2,
   AlertTriangle,
   HelpCircle,
@@ -105,28 +103,12 @@ const REPORT_CATEGORIES: ReportCategoryMeta[] = [
     icon: Layers,
   },
   {
-    key: 'PERFORMANCE_ANALYSIS',
-    title: 'Academic Performance Analysis',
-    shortTitle: 'Analysis & Trends',
-    badge: 'Leadership Trends',
-    description: 'Longitudinal performance trends across terms, competency tiers, and evidence-based recommendations.',
-    icon: TrendingUp,
-  },
-  {
     key: 'ANNUAL_ACADEMIC',
     title: 'Annual Academic Report',
     shortTitle: 'Annual Report',
     badge: 'Full-Year Promotion',
     description: 'Consolidated annual review with one record per student and authoritative promotion eligibility.',
     icon: Award,
-  },
-  {
-    key: 'SCHOOL_SUMMARY',
-    title: 'School Academic Summary',
-    shortTitle: 'School Summary',
-    badge: 'Executive Oversight',
-    description: 'Institutional academic average, grade league tables, subject performance, and completion rates.',
-    icon: School,
   },
 ];
 
@@ -312,7 +294,7 @@ export default function AssessmentReportsPage() {
         academicYearId: selectedYearId,
         academicTermId: selectedCategory === 'ANNUAL_ACADEMIC' ? undefined : (selectedTermId !== 'all' ? selectedTermId : undefined),
         gradeId: selectedGradeId !== 'all' ? selectedGradeId : undefined,
-        sectionId: selectedSectionId !== 'all' ? selectedSectionId : undefined,
+        sectionId: selectedCategory === 'GRADE_LEVEL' ? undefined : (selectedSectionId !== 'all' ? selectedSectionId : undefined),
         streamId: isSeniorGrade && selectedStreamId !== 'all' ? selectedStreamId : undefined,
         subjectId: selectedSubjectId !== 'all' ? selectedSubjectId : undefined,
         studentId: selectedCategory === 'STUDENT_ACADEMIC' && selectedStudentId !== 'all' ? selectedStudentId : undefined,
@@ -373,7 +355,7 @@ export default function AssessmentReportsPage() {
         academicYearId: selectedYearId,
         academicTermId: selectedCategory === 'ANNUAL_ACADEMIC' ? undefined : (selectedTermId !== 'all' ? selectedTermId : undefined),
         gradeId: selectedGradeId !== 'all' ? selectedGradeId : undefined,
-        sectionId: selectedSectionId !== 'all' ? selectedSectionId : undefined,
+        sectionId: selectedCategory === 'GRADE_LEVEL' ? undefined : (selectedSectionId !== 'all' ? selectedSectionId : undefined),
         streamId: isSeniorGrade && selectedStreamId !== 'all' ? selectedStreamId : undefined,
         subjectId: selectedSubjectId !== 'all' ? selectedSubjectId : undefined,
         studentId: selectedCategory === 'STUDENT_ACADEMIC' && selectedStudentId !== 'all' ? selectedStudentId : undefined,
@@ -581,7 +563,7 @@ export default function AssessmentReportsPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {REPORT_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.key;
             return (
@@ -735,28 +717,30 @@ export default function AssessmentReportsPage() {
             </div>
           )}
 
-          {/* Section */}
-          <div>
-            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Section
-            </label>
-            <select
-              disabled={selectedGradeId === 'all'}
-              value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
-              className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
-                isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
-              )}
-            >
-              <option value="all">All Sections</option>
-              {sections.map((sec) => (
-                <option key={sec.id} value={sec.id}>
-                  Section {sec.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Section (Hidden for Grade-Level inter-section reports) */}
+          {selectedCategory !== 'GRADE_LEVEL' && (
+            <div>
+              <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Section
+              </label>
+              <select
+                disabled={selectedGradeId === 'all'}
+                value={selectedSectionId}
+                onChange={(e) => setSelectedSectionId(e.target.value)}
+                className={cn(
+                  "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
+                  isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                )}
+              >
+                <option value="all">All Sections</option>
+                {sections.map((sec) => (
+                  <option key={sec.id} value={sec.id}>
+                    Section {sec.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Subject Filter (Relevant for Subject Performance) */}
           {selectedCategory === 'SUBJECT_PERFORMANCE' ? (
