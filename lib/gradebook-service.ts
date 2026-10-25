@@ -983,6 +983,20 @@ export const gradebookService = {
   },
 };
 
+export type AcademicInsightCategory = 'KEY_FINDING' | 'STRENGTH' | 'WARNING' | 'RECOMMENDATION' | 'DATA_QUALITY';
+export type AcademicInsightSeverity = 'info' | 'success' | 'warning' | 'danger';
+
+export interface AcademicInsightItem {
+  id: string;
+  category: AcademicInsightCategory;
+  categoryLabel: string;
+  title: string;
+  description: string;
+  evidence: string;
+  severity: AcademicInsightSeverity;
+  metric?: string;
+}
+
 export interface AssessmentReportsAnalyticsData {
   schoolInfo?: {
     name: string;
@@ -1038,6 +1052,7 @@ export interface AssessmentReportsAnalyticsData {
     }>;
   };
   recommendations?: string[];
+  insights?: AcademicInsightItem[];
   availableReports: Array<{
     id: string;
     reportName: string;

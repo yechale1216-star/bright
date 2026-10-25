@@ -157,6 +157,15 @@ export default function AssessmentReportsPage() {
   // Hover state for Bar Chart tooltips
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
+  // Academic Insights Category Filter (Grade-Level Report)
+  const [insightCategoryFilter, setInsightCategoryFilter] = useState<string>('ALL');
+
+  const filteredInsights = useMemo(() => {
+    const list = analytics?.insights || [];
+    if (insightCategoryFilter === 'ALL') return list;
+    return list.filter((item) => item.category === insightCategoryFilter);
+  }, [analytics?.insights, insightCategoryFilter]);
+
   // Check if senior grade selected (Grades 11 or 12 require stream filtering)
   const isSeniorGrade = useMemo(() => {
     if (!selectedGradeId || selectedGradeId === 'all') return false;
@@ -1186,43 +1195,216 @@ export default function AssessmentReportsPage() {
 
       {/* ─── Available Reports Catalog Table Section / Generalized View Info ─────────────── */}
       {selectedCategory === 'GRADE_LEVEL' ? (
-        <div className="p-6 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-start gap-4">
-            <span
-              className={cn(
-                "p-3 rounded-2xl shrink-0 mt-0.5",
-                isAcademicHead
-                  ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20"
-                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-              )}
-            >
-              <Info className="w-5 h-5" />
-            </span>
-            <div className="space-y-1.5 flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-foreground">
-                  Generalized Comparison View
-                </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
-                  High-Level Benchmarking Only
-                </span>
+        <div className="space-y-6">
+          {/* ─── Academic Insights Section ──────────────────────────────── */}
+          <div className="p-6 rounded-2xl bg-card border border-border shadow-xs space-y-5">
+            {/* Header: Title, Description, and Category Filter Chips */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
+                    <Sparkles
+                      className={cn(
+                        "w-4 h-4",
+                        isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+                      )}
+                    />
+                    Academic Insights
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                    Evidence-Based Analysis
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Actionable, data-driven summaries derived from calculated academic performance across {selectedGradeId && selectedGradeId !== 'all' ? 'sections' : 'grade levels'}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                The Grade-Level report provides a generalized academic comparison across grade cohorts and sections to benchmark institutional academic performance. Detailed student rosters, individual marks, and granular section drill-downs are intentionally excluded from this view.
-              </p>
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-muted-foreground">Need section or student-level results?</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory('CLASS_PERFORMANCE')}
-                  className={cn(
-                    "font-bold hover:underline inline-flex items-center gap-1 cursor-pointer focus:outline-none",
-                    isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
-                  )}
-                >
-                  <span>Switch to Class Performance Report</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+
+              {/* Filter Tabs / Chips */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { key: 'ALL', label: 'All Insights' },
+                  { key: 'WARNING', label: 'Warnings' },
+                  { key: 'RECOMMENDATION', label: 'Recommendations' },
+                  { key: 'STRENGTH', label: 'Strengths' },
+                  { key: 'DATA_QUALITY', label: 'Data Quality' },
+                ].map((chip) => {
+                  const isActive = insightCategoryFilter === chip.key;
+                  const count = chip.key === 'ALL'
+                    ? (analytics?.insights?.length || 0)
+                    : (analytics?.insights?.filter((ins) => ins.category === chip.key).length || 0);
+
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={() => setInsightCategoryFilter(chip.key)}
+                      className={cn(
+                        "h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all flex items-center gap-1.5 cursor-pointer",
+                        isActive
+                          ? (isAcademicHead
+                              ? "bg-violet-600 text-white border-violet-600 shadow-xs"
+                              : "bg-blue-600 text-white border-blue-600 shadow-xs")
+                          : "bg-muted/60 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
+                      )}
+                    >
+                      <span>{chip.label}</span>
+                      <span
+                        className={cn(
+                          "px-1.5 py-0.2 rounded-full text-[9px] font-bold",
+                          isActive ? "bg-white/20 text-white" : "bg-background text-muted-foreground"
+                        )}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Insight Cards Grid */}
+            {filteredInsights.length === 0 ? (
+              <div className="py-12 border border-dashed border-border rounded-xl flex flex-col items-center justify-center text-center p-4">
+                <HelpCircle className="w-8 h-8 text-muted-foreground/40 mb-2 stroke-1" />
+                <p className="text-xs font-semibold text-foreground">No Academic Insights in This Category</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 max-w-sm">
+                  {analytics?.insights && analytics.insights.length > 0
+                    ? 'No items matched the selected filter. Switch to "All Insights" to view generated findings.'
+                    : 'Select an academic year and term with evaluated student report cards to generate automated academic insights.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredInsights.map((insight) => {
+                  const isDanger = insight.severity === 'danger';
+                  const isWarning = insight.severity === 'warning';
+                  const isSuccess = insight.severity === 'success';
+
+                  const badgeClass = isDanger
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                    : isWarning
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                    : isSuccess
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : isAcademicHead
+                    ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20"
+                    : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
+
+                  const IconComp = isDanger || isWarning
+                    ? AlertTriangle
+                    : isSuccess
+                    ? Award
+                    : insight.category === 'RECOMMENDATION'
+                    ? Sparkles
+                    : insight.category === 'DATA_QUALITY'
+                    ? CheckCircle2
+                    : Layers;
+
+                  return (
+                    <div
+                      key={insight.id}
+                      className={cn(
+                        "p-4 rounded-xl border flex flex-col justify-between transition-all hover:shadow-xs",
+                        isDanger
+                          ? "bg-rose-50/30 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/40"
+                          : isWarning
+                          ? "bg-amber-50/30 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/40"
+                          : "bg-card border-border"
+                      )}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider flex items-center gap-1",
+                              badgeClass
+                            )}
+                          >
+                            <IconComp className="w-3 h-3" />
+                            <span>{insight.categoryLabel}</span>
+                          </span>
+
+                          {insight.metric && (
+                            <span
+                              className={cn(
+                                "text-[11px] font-mono font-bold px-2 py-0.5 rounded-md",
+                                isDanger
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                  : isWarning
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                  : isSuccess
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {insight.metric}
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground leading-snug">
+                            {insight.title}
+                          </h4>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            {insight.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Evidence footer */}
+                      <div className="mt-3 pt-2.5 border-t border-border/50 text-[10px] text-muted-foreground flex items-center justify-between">
+                        <span className="truncate pr-2">
+                          <strong className="text-foreground font-semibold">Evidence:</strong> {insight.evidence}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ─── Generalized View Information Panel ─────────────────────── */}
+          <div className="p-6 rounded-2xl bg-card border border-border shadow-xs">
+            <div className="flex items-start gap-4">
+              <span
+                className={cn(
+                  "p-3 rounded-2xl shrink-0 mt-0.5",
+                  isAcademicHead
+                    ? "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20"
+                    : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                )}
+              >
+                <Info className="w-5 h-5" />
+              </span>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-foreground">
+                    Generalized Comparison View
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">
+                    High-Level Benchmarking Only
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  The Grade-Level report provides a generalized academic comparison across grade cohorts and sections to benchmark institutional academic performance. Detailed student rosters, individual marks, and granular section drill-downs are intentionally excluded from this view.
+                </p>
+                <div className="pt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Need section or student-level results?</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategory('CLASS_PERFORMANCE')}
+                    className={cn(
+                      "font-bold hover:underline inline-flex items-center gap-1 cursor-pointer focus:outline-none",
+                      isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+                    )}
+                  >
+                    <span>Switch to Class Performance Report</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

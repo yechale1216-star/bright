@@ -452,6 +452,7 @@ export class AssessmentReportService {
       bands: distributionBands,
     };
     let recommendations: string[] = [];
+    let insights: any[] = [];
     let longitudinalTrends: any[] = [];
 
     switch (category) {
@@ -756,6 +757,17 @@ export class AssessmentReportService {
               : `Performance comparison benchmark established for ${selectedGradeName}.`,
             'This report provides a generalized comparison view. For detailed student records and score breakdowns, switch to Class Performance.',
           ];
+
+          insights = this.generateGradeLevelInsights({
+            isSpecificGrade: true,
+            selectedGradeName,
+            totalActiveCount,
+            completeCount,
+            incompleteCount,
+            cohortAverage,
+            displayedAverage: displayedSectionsAvg,
+            cohorts: sectionComparisonList,
+          });
         } else {
           // Scope = All Grades: Display one bar per grade (e.g. Grade 9, Grade 10, Grade 11, Grade 12). Do NOT display sections.
           const allDbGrades = await prisma.grade.findMany({
@@ -831,6 +843,17 @@ export class AssessmentReportService {
               : 'School-wide grade comparison benchmarks curriculum progression milestones.',
             'This report provides a generalized comparison view. For detailed student records and score breakdowns, switch to Class Performance.',
           ];
+
+          insights = this.generateGradeLevelInsights({
+            isSpecificGrade: false,
+            selectedGradeName: 'All Grades',
+            totalActiveCount,
+            completeCount,
+            incompleteCount,
+            cohortAverage,
+            displayedAverage: displayedGradesAvg,
+            cohorts: gradeComparisonList,
+          });
         }
         break;
       }
@@ -1027,6 +1050,7 @@ export class AssessmentReportService {
       subjectPerformance: chartPerformance,
       distribution,
       recommendations,
+      insights,
       availableReports,
     };
   }
@@ -1508,6 +1532,229 @@ export class AssessmentReportService {
     };
   }
 
+  /**
+   * Evidence-based Academic Insights generator for Grade-Level report
+   */
+  private generateGradeLevelInsights(params: {
+    isSpecificGrade: boolean;
+    selectedGradeName: string;
+    totalActiveCount: number;
+    completeCount: number;
+    incompleteCount: number;
+    cohortAverage: number;
+    displayedAverage: number;
+    cohorts: Array<{
+      subjectId: string;
+      subjectName: string;
+      subjectCode: string;
+      averageScore: number;
+      studentCount: number;
+      highestScore: number;
+      lowestScore: number;
+      passRate?: number;
+    }>;
+  }): Array<{
+    id: string;
+    category: 'KEY_FINDING' | 'STRENGTH' | 'WARNING' | 'RECOMMENDATION' | 'DATA_QUALITY';
+    categoryLabel: string;
+    title: string;
+    description: string;
+    evidence: string;
+    severity: 'info' | 'success' | 'warning' | 'danger';
+    metric?: string;
+  }> {
+    const {
+      isSpecificGrade,
+      selectedGradeName,
+      totalActiveCount,
+      completeCount,
+      incompleteCount,
+      displayedAverage,
+      cohorts,
+    } = params;
+
+    const insights: Array<{
+      id: string;
+      category: 'KEY_FINDING' | 'STRENGTH' | 'WARNING' | 'RECOMMENDATION' | 'DATA_QUALITY';
+      categoryLabel: string;
+      title: string;
+      description: string;
+      evidence: string;
+      severity: 'info' | 'success' | 'warning' | 'danger';
+      metric?: string;
+    }> = [];
+
+    const cohortsWithScores = cohorts.filter((c) => c.averageScore > 0);
+    const sortedCohorts = [...cohortsWithScores].sort((a, b) => b.averageScore - a.averageScore);
+    const highestCohort = sortedCohorts.length > 0 ? sortedCohorts[0] : null;
+    const lowestCohort = sortedCohorts.length > 0 ? sortedCohorts[sortedCohorts.length - 1] : null;
+    const gap = highestCohort && lowestCohort
+      ? Math.round((highestCohort.averageScore - lowestCohort.averageScore) * 10) / 10
+      : 0;
+
+    // ─── 1. DATA QUALITY INSIGHT ──────────────────────────────────────────────
+    if (completeCount === 0) {
+      insights.push({
+        id: 'dq_no_data',
+        category: 'DATA_QUALITY',
+        categoryLabel: 'Data Quality',
+        title: 'No Completed Assessment Records',
+        description: 'There are currently no finalized report card evaluations in this scope. Cohort comparison benchmarks cannot be computed until teacher marks are submitted.',
+        evidence: `0 of ${totalActiveCount} active students have finalized evaluations.`,
+        severity: 'warning',
+        metric: '0% Evaluated',
+      });
+      return insights;
+    }
+
+    if (incompleteCount > 0) {
+      const incompleteRate = totalActiveCount > 0 ? Math.round((incompleteCount / totalActiveCount) * 100) : 0;
+      insights.push({
+        id: 'dq_pending',
+        category: 'DATA_QUALITY',
+        categoryLabel: 'Data Quality',
+        title: `${incompleteCount} Pending or Incomplete Evaluation${incompleteCount > 1 ? 's' : ''}`,
+        description: `${incompleteCount} student${incompleteCount > 1 ? 's' : ''} (${incompleteRate}%) have missing marks or unsubmitted assessment components that are excluded from cohort averages.`,
+        evidence: `${completeCount} completed vs ${incompleteCount} incomplete records across ${cohorts.length} ${isSpecificGrade ? 'sections' : 'grades'}.`,
+        severity: incompleteRate >= 20 ? 'danger' : 'warning',
+        metric: `${incompleteRate}% Incomplete`,
+      });
+    } else {
+      insights.push({
+        id: 'dq_complete',
+        category: 'DATA_QUALITY',
+        categoryLabel: 'Data Quality',
+        title: 'Full Assessment Coverage Verified',
+        description: 'All active enrolled candidates have 100% complete evaluation records for this academic reporting scope.',
+        evidence: `100% completion rate (${completeCount}/${totalActiveCount} verified records).`,
+        severity: 'info',
+        metric: '100% Coverage',
+      });
+    }
+
+    // ─── 2. WARNINGS (High Priority) ──────────────────────────────────────────
+    const underperforming = cohortsWithScores.filter((c) => c.averageScore < 50);
+    if (underperforming.length > 0) {
+      const names = underperforming.map((c) => `${c.subjectName} (${c.averageScore}%)`).join(', ');
+      insights.push({
+        id: 'warn_sub_passing',
+        category: 'WARNING',
+        categoryLabel: 'Warning',
+        title: underperforming.length === 1
+          ? `Performance Alert: ${underperforming[0].subjectName} Below Passing Standard`
+          : `${underperforming.length} ${isSpecificGrade ? 'Sections' : 'Grade Cohorts'} Below Passing Standard`,
+        description: underperforming.length === 1
+          ? `${underperforming[0].subjectName} recorded a cohort average of ${underperforming[0].averageScore}%, falling below the institutional 50% threshold.`
+          : `The following cohorts recorded averages below 50%: ${names}. Targeted academic interventions are recommended.`,
+        evidence: `Minimum passing standard is 50.0%; lowest recorded average is ${underperforming[0].averageScore}%.`,
+        severity: 'danger',
+        metric: underperforming.length === 1 ? `${underperforming[0].averageScore}% Avg` : `${underperforming.length} Below 50%`,
+      });
+    }
+
+    if (cohortsWithScores.length >= 2 && gap >= 12 && highestCohort && lowestCohort) {
+      insights.push({
+        id: 'warn_gap',
+        category: 'WARNING',
+        categoryLabel: 'Warning',
+        title: `Significant Performance Disparity (${gap}% Gap)`,
+        description: `A notable gap of ${gap} percentage points exists between ${highestCohort.subjectName} (${highestCohort.averageScore}%) and ${lowestCohort.subjectName} (${lowestCohort.averageScore}%).`,
+        evidence: `Cohort variance: ${highestCohort.averageScore}% top score vs ${lowestCohort.averageScore}% lowest score.`,
+        severity: gap >= 20 ? 'danger' : 'warning',
+        metric: `${gap}% Disparity`,
+      });
+    }
+
+    // ─── 3. RECOMMENDATIONS (Actionable) ───────────────────────────────────────
+    if (gap >= 12 && lowestCohort && highestCohort) {
+      insights.push({
+        id: 'rec_alignment',
+        category: 'RECOMMENDATION',
+        categoryLabel: 'Recommendation',
+        title: `Align Instructional Support for ${lowestCohort.subjectName}`,
+        description: `Organize pedagogical cross-cohort coordination to share successful teaching strategies and assessment rubrics from ${highestCohort.subjectName} to ${lowestCohort.subjectName}.`,
+        evidence: `Closing the ${gap}% gap will raise the overall ${isSpecificGrade ? selectedGradeName : 'institutional'} average above ${displayedAverage}%.`,
+        severity: 'info',
+        metric: 'Pedagogical Alignment',
+      });
+    } else if (cohortsWithScores.length >= 2 && gap < 12 && displayedAverage >= 60) {
+      insights.push({
+        id: 'rec_balance',
+        category: 'RECOMMENDATION',
+        categoryLabel: 'Recommendation',
+        title: 'Maintain Consistent Cohort Pacing',
+        description: `Performance variance across ${isSpecificGrade ? 'sections' : 'grades'} is balanced (${gap}% spread). Maintain current instructional pacing and shared curriculum milestones.`,
+        evidence: `Uniform performance distribution observed across all ${cohortsWithScores.length} active groups.`,
+        severity: 'info',
+        metric: `${gap}% Spread`,
+      });
+    }
+
+    if (incompleteCount > 0) {
+      insights.push({
+        id: 'rec_missing_marks',
+        category: 'RECOMMENDATION',
+        categoryLabel: 'Recommendation',
+        title: 'Resolve Missing Marks Prior to Final Publication',
+        description: `Audit teacher submissions to resolve marks for ${incompleteCount} students before releasing official semester rankings.`,
+        evidence: `${incompleteCount} student evaluation cards currently have missing component scores.`,
+        severity: 'warning',
+        metric: 'Submission Audit',
+      });
+    }
+
+    // ─── 4. KEY FINDINGS ───────────────────────────────────────────────────────
+    if (cohortsWithScores.length > 0) {
+      const passingCohortCount = cohortsWithScores.filter((c) => c.averageScore >= 50).length;
+      insights.push({
+        id: 'kf_distribution',
+        category: 'KEY_FINDING',
+        categoryLabel: 'Key Finding',
+        title: isSpecificGrade
+          ? `${selectedGradeName} Section Performance Distribution`
+          : 'Institutional Grade Progression Benchmark',
+        description: isSpecificGrade
+          ? `${passingCohortCount} of ${cohortsWithScores.length} evaluated sections in ${selectedGradeName} meet or exceed the institutional 50% benchmark, yielding an overall section average of ${displayedAverage}%.`
+          : `${passingCohortCount} of ${cohortsWithScores.length} grade levels are performing above the passing standard, establishing a school-wide average of ${displayedAverage}%.`,
+        evidence: `Overall mean score: ${displayedAverage}% across ${completeCount} completed student assessments.`,
+        severity: displayedAverage >= 65 ? 'info' : 'warning',
+        metric: `${displayedAverage}% Mean`,
+      });
+    }
+
+    // ─── 5. STRENGTHS ──────────────────────────────────────────────────────────
+    if (highestCohort) {
+      insights.push({
+        id: 'str_top_performer',
+        category: 'STRENGTH',
+        categoryLabel: 'Strength',
+        title: `Leading Academic Cohort: ${highestCohort.subjectName}`,
+        description: `${highestCohort.subjectName} demonstrated top academic performance with a cohort average of ${highestCohort.averageScore}%${highestCohort.passRate !== undefined ? ` and a pass rate of ${highestCohort.passRate}%` : ''}.`,
+        evidence: `Ranked 1st among ${cohorts.length} evaluated ${isSpecificGrade ? 'sections' : 'grades'} with ${highestCohort.studentCount} active students.`,
+        severity: 'success',
+        metric: `${highestCohort.averageScore}% Top Avg`,
+      });
+    }
+
+    // Sort order: Danger first, then Warning, then Recommendation, then Key Finding, then Strength
+    const severityOrder: Record<string, number> = { danger: 0, warning: 1, info: 2, success: 3 };
+    const categoryOrder: Record<string, number> = {
+      WARNING: 0,
+      DATA_QUALITY: 1,
+      RECOMMENDATION: 2,
+      KEY_FINDING: 3,
+      STRENGTH: 4,
+    };
+
+    insights.sort((a, b) => {
+      const sevDiff = (severityOrder[a.severity] ?? 99) - (severityOrder[b.severity] ?? 99);
+      if (sevDiff !== 0) return sevDiff;
+      return (categoryOrder[a.category] ?? 99) - (categoryOrder[b.category] ?? 99);
+    });
+
+    return insights;
+  }
+
   private emptyAnalytics(schoolName: string) {
     return {
       schoolInfo: {
@@ -1537,6 +1784,7 @@ export class AssessmentReportService {
         bands: [],
       },
       recommendations: ['No assessment records found for the selected scope.'],
+      insights: [],
       availableReports: [],
     };
   }
