@@ -499,6 +499,33 @@ export class AssessmentReportService {
       }
 
       case 'CLASS_PERFORMANCE': {
+        const rangesConfig = [
+          { code: '90–100', name: '90–100', min: 90, max: 100, color: '#22c55e' },
+          { code: '80–89', name: '80–89', min: 80, max: 89.999, color: '#3b82f6' },
+          { code: '70–79', name: '70–79', min: 70, max: 79.999, color: '#8b5cf6' },
+          { code: '60–69', name: '60–69', min: 60, max: 69.999, color: '#fbbf24' },
+          { code: '50–59', name: '50–59', min: 50, max: 59.999, color: '#f97316' },
+          { code: 'Below 50', name: 'Below 50', min: 0, max: 49.999, color: '#ef4444' },
+        ];
+
+        const scoreRangePerformance = rangesConfig.map((rg) => {
+          const matchingScores = completedAverages.filter((avg) => avg >= rg.min && avg <= rg.max);
+          const count = matchingScores.length;
+          const percentage = completeCount > 0 ? Math.round((count / completeCount) * 1000) / 10 : 0;
+          return {
+            subjectId: rg.code,
+            subjectName: rg.name,
+            subjectCode: rg.code,
+            averageScore: percentage,
+            studentCount: count,
+            highestScore: matchingScores.length > 0 ? Math.round(Math.max(...matchingScores)) : 0,
+            lowestScore: matchingScores.length > 0 ? Math.round(Math.min(...matchingScores)) : 0,
+            passRate: rg.min >= policyPassingMinScore ? 100 : 0,
+            color: rg.color,
+            gradeName: 'Score Range',
+          };
+        });
+
         summary = {
           card1Title: 'Active Enrolled',
           card1Val: totalActiveCount,
@@ -512,20 +539,21 @@ export class AssessmentReportService {
           card4Title: 'Support Required',
           card4Val: `${failedCount + incompleteCount}`,
           card4Sub: `${failedCount} academic fail, ${incompleteCount} missing marks`,
-          chartTitle: 'Subject Class Averages & Benchmark',
-          chartSub: 'Average percentage marks across class curriculum subjects',
+          chartTitle: 'Student Performance by Score Range',
+          chartSub: 'Number of students across performance score ranges',
         };
 
-        chartPerformance = subjectPerformanceArray;
+        chartPerformance = scoreRangePerformance;
 
-        const lowSubjects = subjectPerformanceArray.filter((s) => s.averageScore < policyPassingMinScore);
+        const atRiskRange = scoreRangePerformance.find((r) => r.subjectCode === 'Below 50');
+        const topRange = scoreRangePerformance.find((r) => r.subjectCode === '90–100');
         recommendations = [
-          lowSubjects.length > 0
-            ? `Special academic support is required for ${lowSubjects.map((s) => s.subjectName).join(', ')} where class averages are below ${policyPassingMinScore}%.`
-            : 'Class curriculum averages meet or exceed the institutional benchmark threshold.',
-          incompleteCount > 0
-            ? `${incompleteCount} students have missing required marks and must be followed up before term closure.`
-            : 'All enrolled candidates have completed their assessment evaluations.',
+          topRange && topRange.studentCount > 0
+            ? `${topRange.studentCount} student${topRange.studentCount > 1 ? 's' : ''} achieved excellence (90–100 range).`
+            : 'Distribution of students across score ranges calculated from overall class performance.',
+          atRiskRange && atRiskRange.studentCount > 0
+            ? `${atRiskRange.studentCount} student${atRiskRange.studentCount > 1 ? 's' : ''} scored below 50% and require academic intervention.`
+            : 'No students currently fall below the 50% passing threshold.',
         ];
         break;
       }

@@ -491,25 +491,36 @@ export default function AssessmentReportsPage() {
   const totalChartCohorts = analytics?.subjectPerformance?.length || 0;
   const hasMoreCohorts = totalChartCohorts > COLLAPSED_BAR_LIMIT;
 
+  const DEFAULT_SCORE_RANGES = useMemo(() => [
+    { subjectId: '90–100', subjectName: '90–100', subjectCode: '90–100', averageScore: 0, studentCount: 0, color: '#22c55e' },
+    { subjectId: '80–89', subjectName: '80–89', subjectCode: '80–89', averageScore: 0, studentCount: 0, color: '#3b82f6' },
+    { subjectId: '70–79', subjectName: '70–79', subjectCode: '70–79', averageScore: 0, studentCount: 0, color: '#8b5cf6' },
+    { subjectId: '60–69', subjectName: '60–69', subjectCode: '60–69', averageScore: 0, studentCount: 0, color: '#fbbf24' },
+    { subjectId: '50–59', subjectName: '50–59', subjectCode: '50–59', averageScore: 0, studentCount: 0, color: '#f97316' },
+    { subjectId: 'Below 50', subjectName: 'Below 50', subjectCode: 'Below 50', averageScore: 0, studentCount: 0, color: '#ef4444' },
+  ], []);
+
   const subjectsChartData = useMemo(() => {
     const list = analytics?.subjectPerformance || [];
+    if (selectedCategory === 'CLASS_PERFORMANCE') {
+      return list.length > 0 ? list : DEFAULT_SCORE_RANGES;
+    }
     return isChartExpanded ? list : list.slice(0, COLLAPSED_BAR_LIMIT);
-  }, [analytics?.subjectPerformance, isChartExpanded]);
+  }, [analytics?.subjectPerformance, isChartExpanded, selectedCategory, DEFAULT_SCORE_RANGES]);
 
-  // For CLASS_PERFORMANCE: compute dynamic Y-axis ticks based on max student count
-  const distributionChartTicks = useMemo(() => {
-    const bands = analytics?.distribution?.bands || [];
-    const maxCount = Math.max(0, ...bands.map((b) => b.count));
-    // Choose a nice step that keeps ~5-6 grid lines
-    const steps = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
-    let step = steps.find((s) => Math.ceil(maxCount / s) <= 6) || steps[steps.length - 1];
-    const maxTick = Math.ceil(maxCount / step) * step || step;
-    const ticks: number[] = [];
-    for (let v = maxTick; v >= 0; v -= step) ticks.push(v);
-    return { ticks, maxTick, step };
-  }, [analytics?.distribution?.bands]);
-
-  const isClassPerformanceChart = selectedCategory === 'CLASS_PERFORMANCE';
+  // For CLASS_PERFORMANCE: Dynamic student count scale
+  // Matches the screenshot ticks: 20, 15, 10, 5, 0 (or adaptive multiple of 5 if max > 20)
+  const classPerformanceYAxis = useMemo(() => {
+    if (selectedCategory !== 'CLASS_PERFORMANCE') {
+      return { yMax: 100, ticks: [100, 80, 60, 40, 20, 0] };
+    }
+    const maxStudents = Math.max(...subjectsChartData.map((d) => d.studentCount || 0), 0);
+    // Base max is 20 (matching the screenshot) or rounded up to next multiple of 5
+    const yMax = maxStudents <= 20 ? 20 : Math.ceil(maxStudents / 5) * 5;
+    const step = yMax / 4;
+    const ticks = [yMax, Math.round(step * 3), Math.round(step * 2), Math.round(step * 1), 0];
+    return { yMax, ticks };
+  }, [selectedCategory, subjectsChartData]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen text-foreground print:p-0 print:max-w-none">
@@ -901,248 +912,272 @@ export default function AssessmentReportsPage() {
 
       {/* ─── Visual Analytics: Bar Chart & Distribution Donut ────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
-        {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled */}
+        {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled or for CLASS_PERFORMANCE */}
         <div
           className={cn(
             "p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 ease-in-out min-w-0",
-            isChartExpanded ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
+            (isChartExpanded || selectedCategory === 'CLASS_PERFORMANCE') ? "lg:col-span-12" : "lg:col-span-7 overflow-hidden"
           )}
         >
           <div>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-foreground tracking-tight">
-                    {analytics?.summary?.chartTitle || 'Performance Overview'}
+                  <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
+                    {selectedCategory === 'CLASS_PERFORMANCE'
+                      ? 'Student Performance by Score Range'
+                      : (analytics?.summary?.chartTitle || 'Performance Overview')}
                   </h2>
-                  {isChartExpanded && (
+                  {isChartExpanded && selectedCategory !== 'CLASS_PERFORMANCE' && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                       Full Width View
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isChartExpanded
-                    ? `Expanded view showing all ${subjectsChartData.length} evaluated cohorts across full width`
-                    : (analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts')}
-                </p>
-              </div>
-
-              {/* Controls: Scale Badge + Expand/Collapse Arrow Button */}
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
-                  {isClassPerformanceChart ? `Scale: 0–${distributionChartTicks.maxTick} Students` : 'Scale: 0–100%'}
-                </span>
-                {!isClassPerformanceChart && (
-                <button
-                  type="button"
-                  onClick={() => setIsChartExpanded((prev) => !prev)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setIsChartExpanded((prev) => !prev);
-                    }
-                  }}
-                  aria-expanded={isChartExpanded}
-                  aria-label={
-                    isChartExpanded
-                      ? "Collapse bar chart and restore side-by-side distribution chart"
-                      : "View more - expand bar chart over adjacent pie chart to occupy full width"
-                  }
-                  title={
-                    isChartExpanded
-                      ? "Collapse to side-by-side layout (Press Esc)"
-                      : "View more cohorts across full width (temporarily hides pie chart)"
-                  }
-                  className={cn(
-                    "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
-                    isChartExpanded
-                      ? isAcademicHead
-                        ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
-                        : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
-                      : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
-                  )}
-                >
-                  {isChartExpanded ? (
-                    <>
-                      <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
-                      <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
-                      <span className="text-[11px] font-bold hidden sm:inline">View More</span>
-                    </>
-                  )}
-                </button>
+                {selectedCategory !== 'CLASS_PERFORMANCE' && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isChartExpanded
+                      ? `Expanded view showing all ${subjectsChartData.length} evaluated cohorts across full width`
+                      : (analytics?.summary?.chartSub || 'Percentage achievement comparisons across cohorts')}
+                  </p>
                 )}
               </div>
+
+              {selectedCategory === 'CLASS_PERFORMANCE' ? (
+                /* Screenshot Legend: Blue square + "Number of Students" */
+                <div className="flex items-center gap-2 select-none">
+                  <span className="w-3 h-3 rounded-xs bg-[#3b82f6] shrink-0" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Number of Students
+                  </span>
+                </div>
+              ) : (
+                /* Controls: Scale Badge + Expand/Collapse Arrow Button */
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground hidden sm:inline-block">
+                    Scale: 0–100%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsChartExpanded((prev) => !prev)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setIsChartExpanded((prev) => !prev);
+                      }
+                    }}
+                    aria-expanded={isChartExpanded}
+                    aria-label={
+                      isChartExpanded
+                        ? "Collapse bar chart and restore side-by-side distribution chart"
+                        : "View more - expand bar chart over adjacent pie chart to occupy full width"
+                    }
+                    title={
+                      isChartExpanded
+                        ? "Collapse to side-by-side layout (Press Esc)"
+                        : "View more cohorts across full width (temporarily hides pie chart)"
+                    }
+                    className={cn(
+                      "h-8 px-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all focus:outline-none focus:ring-2 select-none cursor-pointer",
+                      isChartExpanded
+                        ? isAcademicHead
+                          ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 focus:ring-violet-500/30 shadow-xs"
+                          : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500/30 shadow-xs"
+                        : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border focus:ring-primary/20"
+                    )}
+                  >
+                    {isChartExpanded ? (
+                      <>
+                        <ChevronsLeft className="w-3.5 h-3.5 transition-transform" />
+                        <span className="text-[11px] font-bold hidden sm:inline">Collapse</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronsRight className="w-3.5 h-3.5 transition-transform" />
+                        <span className="text-[11px] font-bold hidden sm:inline">View More</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Bar Chart Container */}
-          <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
-            {isClassPerformanceChart ? (
-              /* ── CLASS PERFORMANCE: Score-Range Distribution (student count Y-axis) ── */
-              <>
-                {/* Y-Axis Guidelines — dynamic student count scale */}
-                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-                  {distributionChartTicks.ticks.map((tick) => (
-                    <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                      <span className="w-10 text-right font-mono shrink-0">{tick}</span>
-                    </div>
-                  ))}
-                </div>
+          {selectedCategory === 'CLASS_PERFORMANCE' ? (
+            /* ─── Exact Screenshot Bar Chart for CLASS_PERFORMANCE ─── */
+            <div className="mt-8 flex gap-2 sm:gap-4 w-full min-w-0">
+              {/* Rotated Y-Axis Label: "Number of Students" */}
+              <div className="w-6 sm:w-8 shrink-0 flex items-center justify-center relative select-none">
+                <span className="transform -rotate-90 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                  Number of Students
+                </span>
+              </div>
 
-                {/* Bars */}
-                <div className="pl-14 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-3 relative z-10 pb-8">
-                  {(analytics?.distribution?.bands || []).length === 0 ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
-                      <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-                      <span>No score distribution data available in this scope</span>
-                    </div>
-                  ) : (
-                    (analytics?.distribution?.bands || []).map((band, idx) => {
-                      const color = BAR_COLORS[idx % BAR_COLORS.length];
-                      const heightPct = distributionChartTicks.maxTick > 0
-                        ? Math.min(100, Math.max(band.count > 0 ? 4 : 0, (band.count / distributionChartTicks.maxTick) * 100))
-                        : 0;
+              {/* Chart Body */}
+              <div className="flex-1 flex flex-col min-w-0">
+                {/* Ticks & Horizontal Gridlines Container */}
+                <div className="relative h-64 sm:h-72 w-full">
+                  {/* Horizontal gridlines with Y tick numbers */}
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-0">
+                    {classPerformanceYAxis.ticks.map((tick) => (
+                      <div key={tick} className="flex items-center gap-2.5 w-full">
+                        <span className="w-5 text-right text-xs font-normal text-muted-foreground shrink-0 font-mono">
+                          {tick}
+                        </span>
+                        <div className="flex-1 border-b border-border/60" />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 6 Score Range Bars */}
+                  <div className="absolute inset-0 pl-8 pr-2 flex items-end justify-around gap-2 sm:gap-6 z-10 pb-0">
+                    {subjectsChartData.map((item, idx) => {
+                      const count = item.studentCount || 0;
+                      const heightPct = Math.min(100, Math.max(0, (count / classPerformanceYAxis.yMax) * 100));
+                      const barColor = item.color || BAR_COLORS[idx % BAR_COLORS.length];
                       const isHovered = hoveredBarIndex === idx;
 
                       return (
                         <div
-                          key={band.name || idx}
-                          className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative min-w-0"
+                          key={item.subjectId || idx}
+                          className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative max-w-[84px]"
                           onMouseEnter={() => setHoveredBarIndex(idx)}
                           onMouseLeave={() => setHoveredBarIndex(null)}
                         >
                           {/* Tooltip */}
                           {isHovered && (
                             <div className="absolute -top-14 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
-                              <p className="font-bold" style={{ color }}>{band.name}</p>
-                              <p>Range: <span className="font-bold">{band.rangeLabel}</span></p>
-                              <p>Students: <span className="font-bold text-emerald-500">{band.count}</span> ({band.percentage}%)</p>
+                              <p className="font-bold text-foreground">Score Range: {item.subjectName}</p>
+                              <p className="text-muted-foreground font-normal">
+                                Students: <span className="font-bold text-foreground">{count}</span> ({item.averageScore}% of class)
+                              </p>
                             </div>
                           )}
 
-                          {/* Student count label on top of bar */}
-                          <span className="text-[11px] font-bold text-foreground mb-1 transition-transform group-hover:scale-110">
-                            {band.count > 0 ? band.count : ''}
+                          {/* Student Count Label directly above the bar */}
+                          <span className="text-xs sm:text-sm font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110">
+                            {count}
                           </span>
 
-                          {/* The Bar */}
+                          {/* Bar */}
                           <div
-                            className="w-full max-w-[48px] rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md"
+                            className="w-full rounded-t-md transition-all duration-500 ease-out group-hover:brightness-105 group-hover:shadow-md"
                             style={{
                               height: `${heightPct}%`,
-                              backgroundColor: color,
+                              backgroundColor: barColor,
+                              minHeight: count > 0 ? '4px' : '0px',
                             }}
                           />
-
-                          {/* X-Axis Label: score range */}
-                          <span
-                            className="absolute -bottom-8 text-[9px] font-medium text-muted-foreground text-center w-full px-0.5 leading-tight"
-                            title={`${band.name}: ${band.rangeLabel}`}
-                          >
-                            {band.rangeLabel}
-                          </span>
                         </div>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
                 </div>
 
-                {/* X-axis label */}
-                <div className="mt-10 pl-14 text-center text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Number of Students
-                </div>
-              </>
-            ) : (
-              /* ── OTHER CATEGORIES: Percentage-based subject/cohort bar chart ── */
-              <>
-                {/* Y-Axis Guidelines */}
-                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
-                  {[100, 80, 60, 40, 20, 0].map((tick) => (
-                    <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
-                      <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
+                {/* X-Axis labels underneath the bars */}
+                <div className="pl-8 pr-2 mt-3 flex items-center justify-around gap-2 sm:gap-6">
+                  {subjectsChartData.map((item, idx) => (
+                    <div key={item.subjectId || idx} className="flex-1 text-center max-w-[84px]">
+                      <span className="text-xs font-medium text-foreground select-none">
+                        {item.subjectName}
+                      </span>
                     </div>
                   ))}
                 </div>
 
-                {/* Bars Column Rendering */}
-                <div
-                  className={cn(
-                    "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
-                    isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
-                  )}
-                >
-                  {subjectsChartData.length === 0 ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
-                      <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-                      <span>No completed assessment benchmarks recorded in this scope</span>
-                    </div>
-                  ) : (
-                    subjectsChartData.map((item, idx) => {
-                      const color = BAR_COLORS[idx % BAR_COLORS.length];
-                      const heightPct = Math.min(100, Math.max(6, item.averageScore));
-                      const isHovered = hoveredBarIndex === idx;
-
-                      return (
-                        <div
-                          key={item.subjectId || idx}
-                          className={cn(
-                            "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
-                            isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
-                          )}
-                          onMouseEnter={() => setHoveredBarIndex(idx)}
-                          onMouseLeave={() => setHoveredBarIndex(null)}
-                        >
-                          {/* Tooltip */}
-                          {isHovered && (
-                            <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
-                              <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
-                              <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
-                            </div>
-                          )}
-
-                          {/* Percentage Label on top of bar */}
-                          <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
-                            {Math.round(item.averageScore)}%
-                          </span>
-
-                          {/* The Bar */}
-                          <div
-                            className={cn(
-                              "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
-                              isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
-                            )}
-                            style={{
-                              height: `${heightPct}%`,
-                              backgroundColor: color,
-                            }}
-                          />
-
-                          {/* X-Axis Label */}
-                          <span
-                            className={cn(
-                              "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
-                              isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
-                            )}
-                            title={item.subjectName}
-                          >
-                            {item.subjectCode || item.subjectName}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
+                {/* Centered "Score Range" at bottom */}
+                <div className="mt-4 text-center">
+                  <span className="text-xs font-semibold text-muted-foreground select-none">
+                    Score Range
+                  </span>
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            /* ─── Cohort Comparison Bar Chart (Subject/Grade/Annual) ─── */
+            <div className="mt-8 relative pt-4 w-full min-w-0 overflow-hidden">
+              {/* Y-Axis Guidelines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-muted-foreground pb-8">
+                {[100, 80, 60, 40, 20, 0].map((tick) => (
+                  <div key={tick} className="flex items-center gap-2 border-b border-border/50 w-full pb-1">
+                    <span className="w-8 text-right font-mono shrink-0">{tick}%</span>
+                  </div>
+                ))}
+              </div>
 
-          {/* Collapsed view indicator and View More action */}
-          {!isClassPerformanceChart && !isChartExpanded && hasMoreCohorts && (
+              {/* Bars Column Rendering */}
+              <div
+                className={cn(
+                  "pl-12 pr-4 h-64 sm:h-72 flex items-end justify-between gap-2 sm:gap-4 relative z-10 pb-8 transition-all duration-300",
+                  isChartExpanded ? "overflow-x-auto min-w-full" : "w-full overflow-hidden"
+                )}
+              >
+                {subjectsChartData.length === 0 ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                    <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+                    <span>No completed assessment benchmarks recorded in this scope</span>
+                  </div>
+                ) : (
+                  subjectsChartData.map((item, idx) => {
+                    const color = BAR_COLORS[idx % BAR_COLORS.length];
+                    const heightPct = Math.min(100, Math.max(6, item.averageScore));
+                    const isHovered = hoveredBarIndex === idx;
+
+                    return (
+                      <div
+                        key={item.subjectId || idx}
+                        className={cn(
+                          "flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative",
+                          isChartExpanded ? "min-w-[40px] max-w-[64px]" : "min-w-0 max-w-[56px]"
+                        )}
+                        onMouseEnter={() => setHoveredBarIndex(idx)}
+                        onMouseLeave={() => setHoveredBarIndex(null)}
+                      >
+                        {/* Tooltip */}
+                        {isHovered && (
+                          <div className="absolute -top-12 z-20 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground border border-border text-[10px] font-semibold shadow-lg whitespace-nowrap animate-in fade-in zoom-in-95 pointer-events-none">
+                            <p>{item.subjectName}: <span className="font-bold text-emerald-500">{item.averageScore}%</span></p>
+                            <p className="text-muted-foreground font-normal">Students: {item.studentCount} | High: {item.highestScore}%</p>
+                          </div>
+                        )}
+
+                        {/* Percentage Label on top of bar */}
+                        <span className="text-[11px] font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 truncate max-w-full">
+                          {Math.round(item.averageScore)}%
+                        </span>
+
+                        {/* The Bar */}
+                        <div
+                          className={cn(
+                            "w-full rounded-t-xl transition-all duration-500 ease-out group-hover:brightness-110 group-hover:shadow-md",
+                            isChartExpanded ? "max-w-[56px]" : "max-w-[44px]"
+                          )}
+                          style={{
+                            height: `${heightPct}%`,
+                            backgroundColor: color,
+                          }}
+                        />
+
+                        {/* X-Axis Label */}
+                        <span
+                          className={cn(
+                            "absolute -bottom-6 text-[10px] font-medium text-muted-foreground truncate text-center transition-all px-0.5",
+                            isChartExpanded ? "w-full max-w-[80px]" : "w-full max-w-[56px]"
+                          )}
+                          title={item.subjectName}
+                        >
+                          {item.subjectCode || item.subjectName}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Collapsed view indicator and View More action (only for non-Class Performance) */}
+          {!isChartExpanded && selectedCategory !== 'CLASS_PERFORMANCE' && hasMoreCohorts && (
             <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
               <span className="text-[11px]">
                 Showing top {COLLAPSED_BAR_LIMIT} of {totalChartCohorts} cohorts
@@ -1159,8 +1194,8 @@ export default function AssessmentReportsPage() {
           )}
         </div>
 
-        {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded */}
-        {!isChartExpanded && (
+        {/* Right: Result Distribution (Donut Chart) - Temporarily hidden when bar chart is expanded OR for CLASS_PERFORMANCE */}
+        {!isChartExpanded && selectedCategory !== 'CLASS_PERFORMANCE' && (
           <div className="lg:col-span-5 p-6 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between transition-all duration-300 animate-in fade-in zoom-in-95 min-w-0 overflow-hidden">
             <div>
               <h2 className="text-base font-bold text-foreground tracking-tight">
