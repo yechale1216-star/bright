@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
-import "../../../app/globals.css"
+import "@/styles/globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/lib/context/language-context"

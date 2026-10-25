@@ -1,6 +1,6 @@
 'use client'
 
-import StudentPromotionPage from '@/app/school/admin/promotion/page'
+import StudentPromotionPage from '../../admin/promotion/page'
 
 export default function RegistrarPromotionPage() {
   return <StudentPromotionPage />
