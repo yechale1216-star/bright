@@ -34,6 +34,22 @@ export function normalizeReportCategory(type?: string): StandardReportCategory {
   return 'CLASS_PERFORMANCE';
 }
 
+export function getGradeScaleColor(grade: string, isPassing: boolean = true): string {
+  if (!isPassing) return '#ef4444'; // Red is strictly for failed students
+  const g = (grade || '').trim().toUpperCase();
+  if (g.startsWith('F') || g.startsWith('E') || g.includes('FAIL') || g.includes('BELOW')) {
+    return '#ef4444'; // Red is strictly for failed students
+  }
+  if (g === 'A+' || g === '90–100' || g === '90-100') return '#10b981'; // Emerald
+  if (g.startsWith('A')) return '#22c55e'; // Green
+  if (g === 'B+' || g === '80–89' || g === '80-89') return '#2563eb'; // Royal Blue
+  if (g.startsWith('B')) return '#3b82f6'; // Sky Blue
+  if (g === 'C+' || g === '70–79' || g === '70-79') return '#f59e0b'; // Amber
+  if (g.startsWith('C') || g === '60–69' || g === '60-69') return '#eab308'; // Warm Yellow
+  if (g.startsWith('D') || g === '50–59' || g === '50-59') return '#8b5cf6'; // Purple
+  return '#06b6d4'; // Cyan
+}
+
 export class AssessmentReportService {
   /**
    * Aggregate assessment analytics and available reports for the filtered scope and standard category
@@ -127,7 +143,7 @@ export class AssessmentReportService {
       rangeLabel: `${gs.minScore}–${gs.maxScore}`,
       minScore: gs.minScore,
       maxScore: gs.maxScore,
-      color: gs.grade.startsWith('A') ? '#10b981' : gs.grade.startsWith('B') ? '#3b82f6' : gs.grade.startsWith('C') ? '#f59e0b' : gs.grade.startsWith('D') ? '#06b6d4' : '#ef4444',
+      color: getGradeScaleColor(gs.grade, gs.isPassing),
       isPassing: gs.isPassing,
     }));
 
@@ -564,34 +580,117 @@ export class AssessmentReportService {
       }
 
       case 'SUBJECT_PERFORMANCE': {
-        const selectedSubStats = subjectPerformanceArray[0] || null;
-        const subAvg = selectedSubStats?.averageScore || cohortAverage;
-        const subPass = selectedSubStats?.passRate || passRate;
-        const assessedCount = selectedSubStats?.studentCount || completeCount;
+        // Compute per-student subject scores for the selected subject (or all subjects aggregated)
+        const subjectScoresForDist: number[] = [];
+        let subTotalValidStudents = 0;
+        let subPassedCount = 0;
+        let subFailedCount = 0;
+        let subScoreSum = 0;
+        let subHighestScore = 0;
+        let subHighestGrade = '';
+
+        for (const rec of allRecordsForTerm) {
+          const relevantScores = rec.subjectScores.filter((ss) =>
+            (!subjectId || subjectId === 'all' || ss.subjectId === subjectId) &&
+            ss.percentage !== null
+          );
+          if (relevantScores.length === 0) continue;
+          // Use average across relevant subject scores for this student
+          const avg = relevantScores.reduce((a, b) => a + (b.percentage ?? 0), 0) / relevantScores.length;
+          subjectScoresForDist.push(avg);
+          subTotalValidStudents++;
+          subScoreSum += avg;
+          if (avg > subHighestScore) {
+            subHighestScore = avg;
+            const hs = findGradeScale(avg, gradingScales, policyPassingMinScore);
+            subHighestGrade = hs.grade;
+          }
+          const scaleItem = findGradeScale(avg, gradingScales, policyPassingMinScore);
+          if (scaleItem.isPassing) subPassedCount++;
+          else subFailedCount++;
+        }
+
+        const subAvgScore = subTotalValidStudents > 0
+          ? Math.round((subScoreSum / subTotalValidStudents) * 10) / 10
+          : 0;
+        const subPassRatePct = subTotalValidStudents > 0
+          ? Math.round((subPassedCount / subTotalValidStudents) * 1000) / 10
+          : 0;
+
+        // Build grade-distribution chart: colors based on academic grade (red strictly for failing)
+        const gradeDist = gradingScales.map((gs) => {
+          const count = subjectScoresForDist.filter(
+            (avg) => avg >= gs.minScore && avg <= gs.maxScore
+          ).length;
+          const pct = subTotalValidStudents > 0
+            ? Math.round((count / subTotalValidStudents) * 1000) / 10
+            : 0;
+          const formattedRange = gs.minScore <= 0
+            ? `Below ${Math.round(gs.maxScore + 1)}`
+            : gs.maxScore >= 100
+              ? `${Math.round(gs.minScore)} – 100`
+              : `${Math.round(gs.minScore)} – ${Math.round(gs.maxScore)}`;
+
+          return {
+            subjectId: gs.grade,
+            subjectName: gs.grade,
+            subjectCode: gs.grade,
+            scoreRange: formattedRange,
+            averageScore: pct,   // re-used as "percentage" for bar height calc
+            studentCount: count,
+            highestScore: pct,
+            lowestScore: pct,
+            passRate: gs.isPassing ? 100 : 0,
+            color: getGradeScaleColor(gs.grade, gs.isPassing),
+            gradeName: gs.description || gs.grade,
+            isPassing: gs.isPassing,
+          };
+        });
+
+        let subjectName = 'All Subjects';
+        if (subjectId && subjectId !== 'all') {
+          const matchSub = allSubjects.find((s: any) => s.id === subjectId) || subjectPerformanceArray.find((s) => s.subjectId === subjectId);
+          if (matchSub) {
+            subjectName = matchSub.name || matchSub.subjectName;
+          } else {
+            subjectName = 'Selected Subject';
+          }
+        }
+
+        const scaleRangeLabel = gradingScales.length > 0
+          ? `(${gradingScales[0].grade}–${gradingScales[gradingScales.length - 1].grade})`
+          : '(A–F)';
 
         summary = {
-          card1Title: 'Students Assessed',
-          card1Val: assessedCount,
-          card1Sub: `${selectedSubStats?.incompleteCount || incompleteCount} incomplete results`,
+          card1Title: 'Total Students',
+          card1Val: subTotalValidStudents,
+          card1Sub: 'with valid results',
           card2Title: 'Subject Average',
-          card2Val: `${subAvg}%`,
-          card2Sub: `Highest: ${selectedSubStats?.highestScore || 0}% | Lowest: ${selectedSubStats?.lowestScore || 0}%`,
-          card3Title: 'Subject Pass Rate',
-          card3Val: `${subPass}%`,
-          card3Sub: `Calculated over completed results`,
-          card4Title: 'Needs Support',
-          card4Val: `${Math.round(assessedCount * (1 - subPass / 100))}`,
-          card4Sub: 'Scores below passing threshold',
-          chartTitle: 'Curriculum Subject Performance Comparison',
-          chartSub: 'Comparison of class average marks across curriculum subjects',
+          card2Val: `${subAvgScore}`,
+          card2Sub: 'out of 100',
+          card3Title: 'Highest Grade',
+          card3Val: subHighestGrade || (subTotalValidStudents > 0 ? gradingScales[0]?.grade || 'N/A' : 'N/A'),
+          card3Sub: subHighestGrade ? `(${gradeDist.find(g => g.subjectName === subHighestGrade)?.scoreRange || ''})` : 'No results',
+          card4Title: 'Pass Rate',
+          card4Val: `${subPassRatePct}%`,
+          card4Sub: `(${subPassedCount} of ${subTotalValidStudents})`,
+          // Extra fields for 6-card UI
+          card5Title: 'Passed',
+          card5Val: subPassedCount,
+          card5Sub: 'students',
+          card6Title: 'Failed',
+          card6Val: subFailedCount,
+          card6Sub: 'students',
+          chartTitle: `Student Grade Distribution — ${subjectName}`,
+          chartSub: `Based on school grading policy ${scaleRangeLabel}.`,
         };
 
-        chartPerformance = subjectPerformanceArray;
+        chartPerformance = gradeDist;
         recommendations = [
-          `Overall subject pass rate stands at ${subPass}%.`,
-          subPass < 70
-            ? 'Curriculum delivery review and remedial coaching are recommended for lower scoring student cohorts.'
-            : 'Satisfactory mastery level achieved across evaluated learning objectives.',
+          `Subject pass rate: ${subPassRatePct}% (${subPassedCount} of ${subTotalValidStudents} students passed).`,
+          subPassRatePct < 70
+            ? 'Curriculum review and remedial sessions are recommended for underperforming students.'
+            : 'Students demonstrate satisfactory mastery of evaluated learning objectives.',
         ];
         break;
       }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Calendar,
@@ -32,6 +32,10 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Loader2,
+  TrendingUp,
+  Star,
+  CheckCheck,
+  XCircle,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -67,6 +71,24 @@ const BAR_COLORS = [
   '#6366f1', // Indigo
   '#f43f5e', // Rose
 ];
+
+// Grade-based semantic color mapping: Green (A), Blue (B), Amber (C), Purple (D), Red (Fail/E/F)
+function getGradeColor(grade?: string, isPassing?: boolean, fallbackColor?: string): string {
+  if (isPassing === false) return '#ef4444'; // Red is strictly for failed students
+  if (!grade) return fallbackColor || '#3b82f6';
+  const g = grade.trim().toUpperCase();
+  if (g.startsWith('F') || g.startsWith('E') || g.includes('FAIL') || g.includes('BELOW')) {
+    return '#ef4444'; // Red is strictly for failed students
+  }
+  if (g === 'A+' || g === '90–100' || g === '90-100') return '#10b981'; // Emerald
+  if (g.startsWith('A')) return '#22c55e'; // Green
+  if (g === 'B+' || g === '80–89' || g === '80-89') return '#2563eb'; // Royal Blue
+  if (g.startsWith('B')) return '#3b82f6'; // Sky Blue
+  if (g === 'C+' || g === '70–79' || g === '70-79') return '#f59e0b'; // Amber
+  if (g.startsWith('C') || g === '60–69' || g === '60-69') return '#eab308'; // Warm Yellow
+  if (g.startsWith('D') || g === '50–59' || g === '50-59') return '#8b5cf6'; // Purple
+  return fallbackColor || '#06b6d4';
+}
 
 export interface ReportCategoryMeta {
   key: string;
@@ -104,8 +126,9 @@ const REPORT_CATEGORIES: ReportCategoryMeta[] = [
   },
 ];
 
-export default function AssessmentReportsPage() {
+function AssessmentReportsContent() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isAcademicHead = pathname?.startsWith('/school/academic-head');
   const assessmentsBackHref = isAcademicHead
     ? '/school/academic-head/assessments'
@@ -119,11 +142,32 @@ export default function AssessmentReportsPage() {
   const [grades, setGrades] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
   const [streams, setStreams] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
+  const [allSubjects, setAllSubjects] = useState<any[]>([]); // master list (all active subjects)
+  const [subjects, setSubjects] = useState<any[]>([]); // filtered by selected grade
   const [students, setStudents] = useState<any[]>([]);
 
-  // Selected Filters
-  const [selectedCategory, setSelectedCategory] = useState<string>('CLASS_PERFORMANCE');
+  // Selected Category derived/synced with ?tab= or ?category=
+  const tabParam = searchParams.get('tab') || searchParams.get('category');
+  const getCategoryFromTab = useCallback((param: string | null) => {
+    if (!param) return 'CLASS_PERFORMANCE';
+    const normalized = param.toLowerCase().replace(/_/g, '-');
+    if (normalized === 'subject-report' || normalized === 'subject-performance' || normalized === 'subject') {
+      return 'SUBJECT_PERFORMANCE';
+    }
+    if (normalized === 'grade-level' || normalized === 'grade') {
+      return 'GRADE_LEVEL';
+    }
+    return 'CLASS_PERFORMANCE';
+  }, []);
+
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => getCategoryFromTab(tabParam));
+
+  useEffect(() => {
+    const matched = getCategoryFromTab(tabParam);
+    if (matched !== selectedCategory) {
+      setSelectedCategory(matched);
+    }
+  }, [tabParam, getCategoryFromTab, selectedCategory]);
   const [selectedYearId, setSelectedYearId] = useState('');
   const [selectedTermId, setSelectedTermId] = useState('all');
   const [selectedGradeId, setSelectedGradeId] = useState('all');
@@ -208,7 +252,8 @@ export default function AssessmentReportsPage() {
       }
 
       if (subjectsRes?.success && Array.isArray(subjectsRes.data)) {
-        setSubjects(subjectsRes.data);
+        setAllSubjects(subjectsRes.data);
+        setSubjects(subjectsRes.data); // initially show all subjects
       }
     } catch (err: any) {
       notifications.error('Metadata Error', err?.message || 'Failed to load filters');
@@ -244,6 +289,48 @@ export default function AssessmentReportsPage() {
 
     fetchSections();
   }, [selectedGradeId]);
+
+  // 2b. Dynamic Subjects when selectedGradeId changes — filter to only grade-assigned subjects
+  useEffect(() => {
+    if (!selectedGradeId || selectedGradeId === 'all') {
+      // Restore full subject list when no grade is selected
+      setSubjects(allSubjects);
+      return;
+    }
+
+    const fetchGradeSubjects = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('attendance_token') : null;
+        const { getApiUrl } = await import('@/lib/api-config');
+        const res = await fetch(
+          `${getApiUrl()}/api/schools/grade-subjects?gradeId=${selectedGradeId}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        ).then((r) => r.json());
+
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          // Extract the subject objects, deduplicate by subject id
+          const mapped = res.data.map((gs: any) => gs.subject).filter(Boolean);
+          const unique = Array.from(
+            new Map(mapped.map((s: any) => [s.id, s])).values()
+          ) as any[];
+          setSubjects(unique);
+
+          // If currently selected subject is no longer in the filtered list, reset it
+          setSelectedSubjectId((prev) =>
+            prev !== 'all' && !unique.some((s: any) => s.id === prev) ? 'all' : prev
+          );
+        } else {
+          // No explicit GradeSubject records — fall back to full subject list
+          setSubjects(allSubjects);
+        }
+      } catch {
+        setSubjects(allSubjects);
+      }
+    };
+
+    fetchGradeSubjects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGradeId, allSubjects]);
 
   // 3. Dynamic Students when Grade/Section changes (for Student Academic Report)
   useEffect(() => {
@@ -539,115 +626,412 @@ export default function AssessmentReportsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto min-h-screen text-foreground print:p-0 print:max-w-none">
-      {/* ─── Header & Global Actions ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2 border-b border-border/60">
-        <div className="flex items-center gap-3">
-          <Link
-            href={assessmentsBackHref}
-            className={cn(
-              "p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all shadow-xs",
-              isAcademicHead ? "hover:text-violet-600 dark:hover:text-violet-400" : "hover:text-blue-600 dark:hover:text-blue-400"
-            )}
-            title="Back to Assessments"
-            aria-label="Back to Assessments"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-            Academic Reports
-          </h1>
-        </div>
 
-        {/* Global Actions */}
-        <div className="flex items-center gap-2 w-full sm:w-auto print:hidden">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadReportAnalytics}
-            disabled={generating || loading}
-            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl border-border bg-card text-foreground hover:bg-muted"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", generating ? "animate-spin" : "")} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
+      {/* ─── SUBJECT PERFORMANCE: Clean Bright Path Dashboard ───────────── */}
+      {selectedCategory === 'SUBJECT_PERFORMANCE' && (
+        <div className="space-y-6 print:block">
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl border-border bg-card text-foreground hover:bg-muted"
-          >
-            <Printer className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>Print Report</span>
-          </Button>
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 print:hidden">
+            <div>
+              <h2 className="text-lg font-bold text-foreground tracking-tight">
+                Student Result Distribution
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                View how students are distributed across grade categories for a specific subject
+              </p>
+            </div>
+          </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExportCSV()}
-            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl border-border bg-card text-foreground hover:bg-muted"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* ─── Standard Academic Report Categories Navigation ────────────── */}
-      <div className="space-y-2 print:hidden">
-        <div className="flex items-center justify-between">
-          <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            Select Standard Report Category
-          </label>
-          <span className="text-[11px] text-muted-foreground font-medium">
-            Category: <strong className="text-foreground">{activeCategoryMeta.shortTitle}</strong>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {REPORT_CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat.key;
-            return (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => {
-                  if (selectedCategory !== cat.key) {
-                    setSelectedCategory(cat.key);
-                  }
-                }}
-                className={cn(
-                  "p-2.5 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 group relative overflow-hidden",
-                  isSelected
-                    ? isAcademicHead
-                      ? "bg-violet-500/10 border-violet-500/40 text-violet-700 dark:text-violet-300 shadow-xs ring-1 ring-violet-500/30"
-                      : "bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 shadow-xs ring-1 ring-blue-500/30"
-                    : "bg-card border-border hover:bg-muted/50 text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-between gap-1 w-full">
-                  <span className="text-xs font-bold leading-tight line-clamp-1">
-                    {cat.shortTitle}
-                  </span>
-                  {isSelected && generating && (
-                    <Loader2 className="w-3 h-3 animate-spin text-current shrink-0" />
+          {/* Bright Path Standard Filter Toolbar */}
+          <div className="p-4 rounded-2xl bg-card border border-border shadow-xs print:hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+              {/* Academic Year */}
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Academic Year
+                </label>
+                <select
+                  value={selectedYearId}
+                  onChange={(e) => setSelectedYearId(e.target.value)}
+                  className={cn(
+                    "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-semibold text-foreground focus:outline-none focus:ring-2",
+                    isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
                   )}
-                </div>
-                <span className={cn(
-                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full border truncate w-fit max-w-full",
-                  isSelected
-                    ? isAcademicHead ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300" : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
-                    : "border-border text-muted-foreground"
-                )}>
-                  {cat.badge}
-                </span>
-              </button>
+                >
+                  {academicYears.map((ay) => (
+                    <option key={ay.id} value={ay.id}>
+                      {ay.name} {ay.isCurrent ? '(Current)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Academic Term */}
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Academic Term
+                </label>
+                <select
+                  value={selectedTermId}
+                  onChange={(e) => setSelectedTermId(e.target.value)}
+                  className={cn(
+                    "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-semibold text-foreground focus:outline-none focus:ring-2",
+                    isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                  )}
+                >
+                  <option value="all">All Terms</option>
+                  {availableTerms.map((term: any) => (
+                    <option key={term.id} value={term.id}>
+                      {term.name} {term.isCurrent ? '(Current)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Grade */}
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Grade
+                </label>
+                <select
+                  value={selectedGradeId}
+                  onChange={(e) => {
+                    setSelectedGradeId(e.target.value);
+                    setSelectedSectionId('all');
+                    setSelectedSubjectId('all');
+                  }}
+                  className={cn(
+                    "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-semibold text-foreground focus:outline-none focus:ring-2",
+                    isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                  )}
+                >
+                  <option value="all">All Grades</option>
+                  {grades.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Section */}
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Section
+                </label>
+                <select
+                  disabled={selectedGradeId === 'all'}
+                  value={selectedSectionId}
+                  onChange={(e) => setSelectedSectionId(e.target.value)}
+                  className={cn(
+                    "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-semibold text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
+                    isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                  )}
+                >
+                  <option value="all">All Sections</option>
+                  {sections.map((sec) => (
+                    <option key={sec.id} value={sec.id}>
+                      Section {sec.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  Subject
+                </label>
+                <select
+                  value={selectedSubjectId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value)}
+                  className={cn(
+                    "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-semibold text-foreground focus:outline-none focus:ring-2",
+                    isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
+                  )}
+                >
+                  <option value="all">All Subjects</option>
+                  {subjects.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* 1. Summary KPI Cards (At Top of Chart) */}
+          {(() => {
+            const s = analytics?.summary;
+            const cards = [
+              {
+                title: s?.card1Title || 'Total Students',
+                value: s?.card1Val ?? (generating ? '—' : '0'),
+                sub: s?.card1Sub || 'with valid results',
+                valueClass: 'text-foreground',
+              },
+              {
+                title: s?.card2Title || 'Subject Average',
+                value: s?.card2Val ?? (generating ? '—' : '0'),
+                sub: s?.card2Sub || 'out of 100',
+                valueClass: 'text-emerald-600 dark:text-emerald-400',
+              },
+              {
+                title: s?.card4Title || 'Pass Rate',
+                value: s?.card4Val ?? (generating ? '—' : '0%'),
+                sub: s?.card4Sub || '',
+                valueClass: isAcademicHead ? 'text-violet-600 dark:text-violet-400' : 'text-blue-600 dark:text-blue-400',
+              },
+              {
+                title: s?.card5Title || 'Passed',
+                value: s?.card5Val ?? (generating ? '—' : '0'),
+                sub: s?.card5Sub || 'students',
+                valueClass: 'text-emerald-600 dark:text-emerald-400',
+              },
+              {
+                title: s?.card6Title || 'Failed',
+                value: s?.card6Val ?? (generating ? '—' : '0'),
+                sub: s?.card6Sub || 'students',
+                valueClass: 'text-rose-600 dark:text-rose-400',
+              },
+            ];
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {cards.map((card, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      'p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md min-w-0',
+                      generating && 'animate-pulse'
+                    )}
+                  >
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                      {card.title}
+                    </p>
+                    <p className={cn("text-2xl font-black tracking-tight mt-1 truncate", card.valueClass)}>
+                      {generating ? '—' : card.value}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {card.sub}
+                    </p>
+                  </div>
+                ))}
+              </div>
             );
-          })}
+          })()}
+
+          {/* 2. Evidence-Based Academic Recommendations Banner (At Top of Chart) */}
+          {generating ? (
+            <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex items-center justify-between gap-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-muted/80" />
+                <div className="space-y-1.5">
+                  <div className="h-3.5 w-48 bg-muted/80 rounded" />
+                  <div className="h-3 w-72 bg-muted/60 rounded" />
+                </div>
+              </div>
+              <div className="h-3 w-28 bg-muted/50 rounded hidden sm:block" />
+            </div>
+          ) : (
+            analytics?.recommendations && analytics.recommendations.length > 0 && (
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <span className={cn(
+                    "p-2 rounded-xl shrink-0 mt-0.5",
+                    isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+                  )}>
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                      Evidence-Based Findings & Recommendations
+                    </h4>
+                    <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 list-disc list-inside">
+                      {analytics.recommendations.map((rec, i) => (
+                        <li key={i}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="text-[11px] text-muted-foreground shrink-0 sm:text-right">
+                  Evaluated by Authoritative Engine
+                </div>
+              </div>
+            )
+          )}
+
+          {/* 3. Grade Distribution Chart Card */}
+          <div className="bg-card border border-border rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-5 sm:p-6 pb-2">
+              {/* Chart Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-border/50">
+                <div>
+                  <h3 className="text-base font-bold text-foreground tracking-tight">
+                    {analytics?.summary?.chartTitle || 'Student Grade Distribution'}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {analytics?.summary?.chartSub || 'Based on school grading policy (A–F)'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground self-end sm:self-auto">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#3b82f6]" />
+                    <span className="font-medium text-foreground/80">Number of Students</span>
+                  </div>
+                  <span className="text-border">|</span>
+                  <span className="font-medium text-muted-foreground">
+                    Total: <strong className="font-bold text-foreground">{analytics?.summary?.card1Val ?? 0}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Bar Chart */}
+              {generating ? (
+                <div className="mt-8 mb-8 flex gap-4">
+                  <div className="w-8 shrink-0 flex items-center justify-center">
+                    <span className="transform -rotate-90 whitespace-nowrap text-xs text-muted-foreground animate-pulse">Number of Students</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="h-64 rounded-xl bg-muted/20 border border-border/40 flex items-center justify-center">
+                      <div className="flex items-end gap-4 h-40 px-8">
+                        {[0.6, 0.9, 0.7, 0.45, 0.2, 0.15].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-t-md animate-pulse" style={{ height: `${h * 100}%`, backgroundColor: 'hsl(var(--muted))' }} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                (() => {
+                  const chartData = (analytics?.subjectPerformance || []) as any[];
+                  const validData = chartData.filter(d => typeof d.studentCount === 'number');
+                  const maxCount = Math.max(...validData.map(d => d.studentCount || 0), 1);
+                  // Y-axis ticks: clean rounded steps
+                  const yTicks = (() => {
+                    const step = Math.ceil(maxCount / 4) || 1;
+                    const rounded = Math.ceil(maxCount / step) * step;
+                    const ticks: number[] = [];
+                    for (let i = rounded; i >= 0; i -= step) ticks.push(i);
+                    if (ticks[ticks.length - 1] !== 0) ticks.push(0);
+                    return ticks;
+                  })();
+                  const yMax = yTicks[0] || 1;
+
+                  return (
+                    <div className="mt-6 mb-3 flex gap-2 sm:gap-3">
+                      {/* Y-axis label */}
+                      <div className="w-8 shrink-0 flex items-center justify-center select-none">
+                        <span className="transform -rotate-90 whitespace-nowrap text-[11px] font-medium text-muted-foreground">Number of Students</span>
+                      </div>
+
+                      <div className="flex-1 min-w-0 overflow-x-auto">
+                        <div className="min-w-[440px]">
+                          {/* Plot Area: Gridlines + Bars sharing the exact same baseline */}
+                          <div className="relative h-64 sm:h-72 w-full">
+                            {/* Grid lines + Y ticks */}
+                            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                              {yTicks.map((tick) => (
+                                <div key={tick} className="flex items-center gap-2 w-full">
+                                  <span className="w-6 text-right text-[11px] font-mono text-muted-foreground shrink-0">{tick}</span>
+                                  <div className="flex-1 border-b border-border/40" />
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Bars resting directly on 0 baseline */}
+                            <div className="absolute inset-0 pl-8 pr-2 flex items-end gap-3 sm:gap-6 z-10">
+                              {validData.length === 0 ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                  <BarChart3 className="w-8 h-8 stroke-1 opacity-30" />
+                                  <span className="text-sm font-semibold text-foreground">No results in selected scope</span>
+                                  <span className="text-xs">Select a subject and grade to view grade distribution</span>
+                                </div>
+                              ) : validData.map((item: any, idx: number) => {
+                                const count = item.studentCount || 0;
+                                const total = analytics?.summary?.card1Val as number || 1;
+                                const pct = total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
+                                const heightPct = yMax > 0 ? Math.max(0, Math.min(100, (count / yMax) * 100)) : 0;
+                                const barColor = getGradeColor(item.subjectName || item.grade, item.isPassing, item.color);
+                                const isHov = hoveredBarIndex === idx;
+                                return (
+                                  <div
+                                    key={item.subjectId || idx}
+                                    className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer relative"
+                                    onMouseEnter={() => setHoveredBarIndex(idx)}
+                                    onMouseLeave={() => setHoveredBarIndex(null)}
+                                  >
+                                    {/* Tooltip */}
+                                    {isHov && (
+                                      <div
+                                        className="absolute z-20 px-3 py-2 rounded-xl bg-popover text-popover-foreground border border-border text-[11px] font-semibold shadow-xl whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95"
+                                        style={{ bottom: `calc(${heightPct}% + 14px)` }}
+                                      >
+                                        <p className="font-bold">{item.subjectName} ({item.scoreRange})</p>
+                                        <p className="text-muted-foreground font-normal">Students: <strong className="text-foreground">{count}</strong> ({pct}%)</p>
+                                      </div>
+                                    )}
+                                    {/* Count + pct label */}
+                                    <span className="text-xs font-bold text-foreground mb-1.5 transition-transform group-hover:scale-110 text-center leading-tight whitespace-nowrap select-none">
+                                      {count > 0 ? `${count} (${pct}%)` : ''}
+                                    </span>
+                                    {/* Bar */}
+                                    <div
+                                      className="w-full rounded-t-sm sm:rounded-t-md transition-all duration-300 group-hover:brightness-110"
+                                      style={{
+                                        height: count > 0 ? `${heightPct}%` : '0%',
+                                        backgroundColor: barColor,
+                                        minHeight: count > 0 ? '4px' : '0',
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* X-axis labels */}
+                          <div className="pl-8 pr-2 flex gap-3 sm:gap-6 mt-3">
+                            {validData.map((item: any, idx: number) => (
+                              <div key={item.subjectId || idx} className="flex-1 text-center">
+                                <p className="text-sm font-bold text-foreground">{item.subjectName}</p>
+                                <p className="text-[11px] text-muted-foreground whitespace-nowrap">({item.scoreRange})</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* X-axis title */}
+                          <div className="text-center mt-3">
+                            <span className="text-xs font-bold text-foreground/80">Grade</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ─── CLASS_PERFORMANCE & GRADE_LEVEL Section Header ─────────────── */}
+      {selectedCategory !== 'SUBJECT_PERFORMANCE' && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 print:hidden">
+          <div>
+            <h2 className="text-lg font-bold text-foreground tracking-tight">
+              {activeCategoryMeta.title}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {activeCategoryMeta.description}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ─── Contextual Filters Bar ──────────────────────────────────────── */}
+      {selectedCategory !== 'SUBJECT_PERFORMANCE' && (
       <div className="p-4 rounded-2xl bg-card border border-border shadow-xs print:hidden">
         <div className="flex items-center justify-between mb-3 pb-2 border-b border-border/60">
           <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -655,12 +1039,7 @@ export default function AssessmentReportsPage() {
             <span>Report Scope & Context Filters</span>
           </span>
           <div className="flex items-center gap-2">
-            {generating && (
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-primary animate-pulse">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>Evaluating Scope...</span>
-              </span>
-            )}
+
             <Button
               variant="ghost"
               size="sm"
@@ -674,11 +1053,7 @@ export default function AssessmentReportsPage() {
           </div>
         </div>
 
-        {generating && (
-          <div className="h-0.5 w-full bg-primary/20 overflow-hidden rounded-full mb-3">
-            <div className="h-full bg-primary w-full animate-pulse" />
-          </div>
-        )}
+
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           {/* Academic Year */}
@@ -735,6 +1110,7 @@ export default function AssessmentReportsPage() {
                 setSelectedGradeId(e.target.value);
                 setSelectedSectionId('all');
                 setSelectedStreamId('all');
+                setSelectedSubjectId('all');
               }}
               className={cn(
                 "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
@@ -874,8 +1250,10 @@ export default function AssessmentReportsPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* ─── 4 Executive KPI Cards ────────────────────────────────────────── */}
+      {selectedCategory !== 'SUBJECT_PERFORMANCE' && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {generating ? (
           [1, 2, 3, 4].map((i) => (
@@ -961,48 +1339,52 @@ export default function AssessmentReportsPage() {
           </>
         )}
       </div>
+      )}
 
-      {/* ─── Evidence-Based Academic Recommendations Banner ──────────────── */}
-      {generating ? (
-        <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex items-center justify-between gap-3 animate-pulse">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-muted/80" />
-            <div className="space-y-1.5">
-              <div className="h-3.5 w-48 bg-muted/80 rounded" />
-              <div className="h-3 w-72 bg-muted/60 rounded" />
-            </div>
-          </div>
-          <div className="h-3 w-28 bg-muted/50 rounded hidden sm:block" />
-        </div>
-      ) : (
-        analytics?.recommendations && analytics.recommendations.length > 0 && (
-          <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span className={cn(
-                "p-2 rounded-xl shrink-0 mt-0.5",
-                isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
-              )}>
-                <Sparkles className="w-4 h-4" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Evidence-Based Findings & Recommendations
-                </h4>
-                <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 list-disc list-inside">
-                  {analytics.recommendations.map((rec, i) => (
-                    <li key={i}>{rec}</li>
-                  ))}
-                </ul>
+      {/* ─── Evidence-Based Academic Recommendations Banner (For Non-Subject Categories) ─── */}
+      {selectedCategory !== 'SUBJECT_PERFORMANCE' && (
+        generating ? (
+          <div className="p-4 rounded-2xl bg-muted/30 border border-border/70 flex items-center justify-between gap-3 animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-muted/80" />
+              <div className="space-y-1.5">
+                <div className="h-3.5 w-48 bg-muted/80 rounded" />
+                <div className="h-3 w-72 bg-muted/60 rounded" />
               </div>
             </div>
-            <div className="text-[11px] text-muted-foreground shrink-0 sm:text-right">
-              Evaluated by Authoritative Engine
-            </div>
+            <div className="h-3 w-28 bg-muted/50 rounded hidden sm:block" />
           </div>
+        ) : (
+          analytics?.recommendations && analytics.recommendations.length > 0 && (
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className={cn(
+                  "p-2 rounded-xl shrink-0 mt-0.5",
+                  isAcademicHead ? "bg-violet-600 text-white" : "bg-blue-600 text-white"
+                )}>
+                  <Sparkles className="w-4 h-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    Evidence-Based Findings & Recommendations
+                  </h4>
+                  <ul className="text-xs text-muted-foreground mt-1 space-y-0.5 list-disc list-inside">
+                    {analytics.recommendations.map((rec, i) => (
+                      <li key={i}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="text-[11px] text-muted-foreground shrink-0 sm:text-right">
+                Evaluated by Authoritative Engine
+              </div>
+            </div>
+          )
         )
       )}
 
       {/* ─── Visual Analytics: Bar Chart & Distribution Donut ────────────── */}
+      {selectedCategory !== 'SUBJECT_PERFORMANCE' && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 transition-all duration-300">
         {/* Left: Performance Overview (Bar Chart) - Expands across full width when toggled or for non-CLASS_PERFORMANCE */}
         <div
@@ -1469,6 +1851,7 @@ export default function AssessmentReportsPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* ─── Available Reports Catalog Table Section (Hidden for Generalized Grade-Level Report) ─── */}
       {selectedCategory !== 'GRADE_LEVEL' && (
@@ -1519,8 +1902,6 @@ export default function AssessmentReportsPage() {
               <tr className="border-b border-border bg-muted/40 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 <th className="py-3 px-4 w-12 text-center">#</th>
                 <th className="py-3 px-4">Report Title</th>
-                <th className="py-3 px-4">Standard Category</th>
-                <th className="py-3 px-4">Academic Year</th>
                 <th className="py-3 px-4">Term</th>
                 <th className="py-3 px-4">Scope</th>
                 <th className="py-3 px-4 text-right">Cohort Average</th>
@@ -1531,7 +1912,7 @@ export default function AssessmentReportsPage() {
             <tbody className="divide-y divide-border">
               {generating ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <div className="flex flex-col items-center justify-center gap-2.5 text-muted-foreground">
                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
                       <p className="text-xs font-semibold text-foreground">
@@ -1545,7 +1926,7 @@ export default function AssessmentReportsPage() {
                 </tr>
               ) : paginatedReports.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
                     <FileText className="w-8 h-8 stroke-1 mx-auto mb-2 text-muted-foreground/40" />
                     <p className="font-semibold text-sm">No report records found in this scope</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -1568,14 +1949,6 @@ export default function AssessmentReportsPage() {
                         <div className="text-[11px] text-muted-foreground">
                           Generated: {report.generatedOn}
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-foreground">
-                          {report.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-medium text-foreground">
-                        {report.academicYear}
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">
                         {report.term}
@@ -1891,5 +2264,19 @@ export default function AssessmentReportsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function AssessmentReportsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="p-8 flex items-center justify-center min-h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <AssessmentReportsContent />
+    </React.Suspense>
   );
 }

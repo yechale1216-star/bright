@@ -339,23 +339,54 @@ export default function StudentPromotionPage() {
     }
   }
 
-  const handleCohortClick = async (cohort: PromotionCohort) => {
-    if (promotionMode === 'bulk') {
+  // Toggle cohort selection (used in Step 2: Grade / Cohort)
+  const toggleCohortSelection = (cohortId: string) => {
+    setSelectedCohortIds(prev => {
+      const next = new Set(prev)
+      if (next.has(cohortId)) {
+        next.delete(cohortId)
+      } else {
+        next.add(cohortId)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAllCohorts = () => {
+    const visibleIds = filteredCohorts.map(c => c.id)
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedCohortIds.has(id))
+    if (allSelected) {
       setSelectedCohortIds(prev => {
         const next = new Set(prev)
-        if (next.has(cohort.id)) {
-          next.delete(cohort.id)
-        } else {
-          next.add(cohort.id)
-        }
+        visibleIds.forEach(id => next.delete(id))
         return next
       })
     } else {
-      setExpandedCohortId(cohort.id)
-      setStudentSearchTerm("")
-      await loadStudentsForCohort(cohort)
+      setSelectedCohortIds(prev => {
+        const next = new Set(prev)
+        visibleIds.forEach(id => next.add(id))
+        return next
+      })
     }
   }
+
+  const handleOpenCohortStudents = async (cohort: PromotionCohort) => {
+    setExpandedCohortId(cohort.id)
+    setStudentSearchTerm("")
+    await loadStudentsForCohort(cohort)
+  }
+
+  // Pre-fetch students when entering Step 3 in selective mode
+  useEffect(() => {
+    if (promotionMode === 'selective' && currentStep >= 3) {
+      selectedCohortIds.forEach(id => {
+        const cohort = cohorts.find(c => c.id === id)
+        if (cohort && !cohortStudents[id]) {
+          loadStudentsForCohort(cohort)
+        }
+      })
+    }
+  }, [promotionMode, currentStep, selectedCohortIds, cohorts])
 
   const toggleStudentSelection = (cohortId: string, studentId: string) => {
     setSelectedStudentIds(prev => {
@@ -386,11 +417,16 @@ export default function StudentPromotionPage() {
   // Selections summary
   const totalSelectedInSelective = useMemo(() => {
     let total = 0
-    for (const id in selectedStudentIds) {
-      total += selectedStudentIds[id].size
-    }
+    selectedCohortIds.forEach(id => {
+      if (selectedStudentIds[id]) {
+        total += selectedStudentIds[id].size
+      } else {
+        const cohort = cohorts.find(c => c.id === id)
+        if (cohort) total += cohort.count
+      }
+    })
     return total
-  }, [selectedStudentIds])
+  }, [selectedCohortIds, selectedStudentIds, cohorts])
 
   const totalSelectedInBulk = useMemo(() => {
     let total = 0
@@ -405,7 +441,12 @@ export default function StudentPromotionPage() {
     if (promotionMode === 'bulk') {
       return Array.from(selectedCohortIds)
     } else {
-      return Object.keys(selectedStudentIds).filter(id => selectedStudentIds[id].size > 0)
+      return Array.from(selectedCohortIds).filter(id => {
+        if (selectedStudentIds[id]) {
+          return selectedStudentIds[id].size > 0
+        }
+        return true
+      })
     }
   }, [promotionMode, selectedCohortIds, selectedStudentIds])
 
@@ -463,7 +504,23 @@ export default function StudentPromotionPage() {
           payload.streamId = cohort.streamId || 'none'
           payload.notes = `Bulk promotion: Grade ${cohort.gradeName} ${cohort.streamName ? cohort.streamName + ' ' : ''}Section ${cohort.sectionName}`
         } else {
-          const studentIds = Array.from(selectedStudentIds[cohortId] || [])
+          let studentIds = Array.from(selectedStudentIds[cohortId] || [])
+          if (studentIds.length === 0 && !cohortStudents[cohortId]) {
+            try {
+              const query = new URLSearchParams({
+                sectionId: cohort.sectionId,
+                streamId: cohort.streamId || 'none'
+              })
+              const resS = await fetch(`${API_URL}/api/promotions/preview/${cohort.gradeId}/students?${query.toString()}`, { headers: headers as any })
+              if (resS.ok) {
+                const resJson = await resS.json()
+                const studs: GradeStudent[] = resJson.data || []
+                studentIds = studs.map(s => s.id)
+              }
+            } catch (e) {
+              console.error("Failed to fetch students for cohort during execute:", e)
+            }
+          }
           if (studentIds.length === 0) continue
           payload.studentIds = studentIds
           payload.notes = `Selective promotion: ${studentIds.length} students from cohort ${cohort.gradeName} ${cohort.streamName ? cohort.streamName + ' ' : ''}Section ${cohort.sectionName}`
@@ -555,10 +612,11 @@ export default function StudentPromotionPage() {
 
   // Stepper steps configuration
   const steps = [
-    { number: 1, label: "Setup" },
-    { number: 2, label: "Selection" },
-    { number: 3, label: "Targets" },
-    { number: 4, label: "Review" }
+    { number: 1, label: "Academic Year" },
+    { number: 2, label: "Grade / Cohort" },
+    { number: 3, label: "Promotion Mode" },
+    { number: 4, label: "Targets" },
+    { number: 5, label: "Review" }
   ]
 
   // Wizard Navigation Handlers
@@ -574,23 +632,28 @@ export default function StudentPromotionPage() {
       }
       setCurrentStep(2)
     } else if (currentStep === 2) {
-      const selectionsCount = promotionMode === 'bulk' ? selectedCohortIds.size : totalSelectedInSelective
-      if (selectionsCount === 0) {
-        notifications.warning("Selection Required", "Please select at least one cohort or student before proceeding.")
+      if (selectedCohortIds.size === 0) {
+        notifications.warning("Selection Required", "Please select at least one grade / cohort before proceeding.")
         return
       }
       setCurrentStep(3)
     } else if (currentStep === 3) {
+      if (promotionMode === 'selective' && totalSelectedInSelective === 0) {
+        notifications.warning("Selection Required", "Please select at least one student before proceeding.")
+        return
+      }
+      setCurrentStep(4)
+    } else if (currentStep === 4) {
       if (!isConfigurationComplete) {
         notifications.warning("Configuration Incomplete", "Please complete all target rule configurations, including mandatory streams where applicable.")
         return
       }
-      setCurrentStep(4)
+      setCurrentStep(5)
     }
   }
 
   const handleBack = () => {
-    if (currentStep === 2 && expandedCohortId !== null) {
+    if (currentStep === 3 && expandedCohortId !== null) {
       setExpandedCohortId(null)
     } else if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
@@ -603,13 +666,16 @@ export default function StudentPromotionPage() {
       return !fromAcademicYear || !toAcademicYear || fromAcademicYear === toAcademicYear
     }
     if (currentStep === 2) {
-      return promotionMode === 'bulk' ? selectedCohortIds.size === 0 : totalSelectedInSelective === 0
+      return selectedCohortIds.size === 0
     }
     if (currentStep === 3) {
+      return promotionMode === 'selective' && totalSelectedInSelective === 0
+    }
+    if (currentStep === 4) {
       return !isConfigurationComplete
     }
     return false
-  }, [currentStep, fromAcademicYear, toAcademicYear, promotionMode, selectedCohortIds, totalSelectedInSelective, isConfigurationComplete])
+  }, [currentStep, fromAcademicYear, toAcademicYear, selectedCohortIds, promotionMode, totalSelectedInSelective, isConfigurationComplete])
 
   return (
     <div className="space-y-6 pt-4 md:pt-6 pb-24 md:pb-12 max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
@@ -712,7 +778,7 @@ export default function StudentPromotionPage() {
             {/* STEP VIEWS */}
             <div className="min-h-[350px]">
               <AnimatePresence mode="wait">
-                {/* STEP 1: SETUP */}
+                {/* STEP 1: ACADEMIC YEAR */}
                 {currentStep === 1 && (
                   <motion.div
                     key="step-1"
@@ -724,13 +790,13 @@ export default function StudentPromotionPage() {
                     <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl">
                       <CardHeader>
                         <CardTitle className="text-lg md:text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                          <Play className="w-5 h-5 text-primary" /> Setup Promotion Parameters
+                          <Play className="w-5 h-5 text-primary" /> Setup Academic Year Parameters
                         </CardTitle>
                         <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                          Choose the target academic year and the advancement scope mode for your school.
+                          Choose the source academic year and the target academic year for student advancement.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="space-y-8">
+                      <CardContent className="space-y-6">
                         {/* Target Academic Year Dropdowns */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
                           <div className="space-y-1.5">
@@ -791,73 +857,12 @@ export default function StudentPromotionPage() {
                             <span><strong>Note:</strong> Promotion advances students into a <strong>new upcoming academic year</strong>. Please select a different Target Academic Year (e.g. {getNextAcademicYearSuggestion(fromAcademicYear) || 'next year'}).</span>
                           </div>
                         )}
-
-                        {/* Mode Select options */}
-                        <div className="space-y-3">
-                          <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                            Promotion Scope Mode
-                          </Label>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Bulk Mode Option */}
-                            <div 
-                              onClick={() => setPromotionMode('bulk')}
-                              className={cn(
-                                "p-6 rounded-2xl border-2 cursor-pointer transition-all flex gap-4 items-start active:scale-[0.99]",
-                                promotionMode === 'bulk' 
-                                  ? "border-primary bg-primary/5 dark:bg-primary/5 shadow-md shadow-primary/5" 
-                                  : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                              )}
-                            >
-                              <div className={cn(
-                                "p-3 rounded-xl shrink-0 mt-0.5",
-                                promotionMode === 'bulk' ? "bg-primary text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                              )}>
-                                <Layers className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">
-                                  Bulk Promotion
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                                  Promote entire cohorts (Grade, Stream, and Section combinations) altogether. Fast and efficient for normal end-of-year rollings.
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Selective Mode Option */}
-                            <div 
-                              onClick={() => setPromotionMode('selective')}
-                              className={cn(
-                                "p-6 rounded-2xl border-2 cursor-pointer transition-all flex gap-4 items-start active:scale-[0.99]",
-                                promotionMode === 'selective' 
-                                  ? "border-primary bg-primary/5 dark:bg-primary/5 shadow-md shadow-primary/5" 
-                                  : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                              )}
-                            >
-                              <div className={cn(
-                                "p-3 rounded-xl shrink-0 mt-0.5",
-                                promotionMode === 'selective' ? "bg-primary text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                              )}>
-                                <UserCheck className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">
-                                  Selective Promotion
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                                  Select specific students from sections to promote while retaining others. Ideal when handling retentions, individual transfers, or custom filters.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
                       </CardContent>
                     </Card>
                   </motion.div>
                 )}
 
-                {/* STEP 2: SELECTION */}
+                {/* STEP 2: GRADE / COHORT SELECTION */}
                 {currentStep === 2 && (
                   <motion.div
                     key="step-2"
@@ -866,8 +871,133 @@ export default function StudentPromotionPage() {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-4"
                   >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                          <GraduationCap className="w-5 h-5 text-primary" /> Select Cohorts for Promotion
+                        </h2>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                          Choose the grade and section combinations you want to advance into {toAcademicYear || 'the target year'}.
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-10 rounded-xl font-bold text-xs gap-1.5 border-slate-200 dark:border-slate-800 px-4 whitespace-nowrap"
+                          onClick={toggleSelectAllCohorts}
+                        >
+                          {filteredCohorts.length > 0 && filteredCohorts.every(c => selectedCohortIds.has(c.id)) ? (
+                            <><UserX className="w-4 h-4" /> Clear All</>
+                          ) : (
+                            <><CheckCircle2 className="w-4 h-4" /> Select All Visible</>
+                          )}
+                        </Button>
+
+                        <div className="relative w-full sm:w-72">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <Input 
+                            placeholder="Filter by grade or section..." 
+                            className="pl-10 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 rounded-xl text-xs"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cohort Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {isLoading ? (
+                        Array(8).fill(0).map((_, i) => (
+                          <div key={i} className="h-36 bg-slate-100 dark:bg-slate-900 animate-pulse rounded-2xl border border-slate-200/60 dark:border-slate-800" />
+                        ))
+                      ) : filteredCohorts.length === 0 ? (
+                        <div className="col-span-full py-16 text-center text-slate-400 bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 font-medium text-xs">
+                          No active cohorts found.
+                        </div>
+                      ) : filteredCohorts.map((cohort) => {
+                        const isSelected = selectedCohortIds.has(cohort.id)
+                        
+                        return (
+                          <div 
+                            key={cohort.id} 
+                            className={cn(
+                              "relative p-5 bg-white dark:bg-slate-900 rounded-2xl border transition-all active:scale-[0.99] cursor-pointer group flex flex-col justify-between h-36 select-none shadow-sm hover:shadow-md",
+                              isSelected 
+                                ? "border-primary ring-1 ring-primary shadow-md shadow-primary/5 bg-primary/[0.02]" 
+                                : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                            )}
+                            onClick={() => toggleCohortSelection(cohort.id)}
+                          >
+                            <div>
+                              <div className="flex items-start justify-between">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-primary tracking-wide mb-0.5">
+                                    {cohort.gradeName}
+                                  </span>
+                                  <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                                    Section {cohort.sectionName}
+                                  </h3>
+                                  {cohort.streamName && (
+                                    <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 mt-0.5">
+                                      {cohort.streamName}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Indicator */}
+                                <div className={cn(
+                                  "w-8 h-8 flex items-center justify-center rounded-xl transition-all",
+                                  isSelected 
+                                    ? "bg-primary text-white" 
+                                    : "bg-slate-50 dark:bg-slate-800 text-slate-400 group-hover:text-slate-600"
+                                )}>
+                                  {isSelected ? <CheckCircle2 className="w-5 h-5" /> : <Box className="w-4 h-4" />}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                              <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                                <Users className="w-3.5 h-3.5 text-slate-400" /> {cohort.count} Students
+                              </span>
+                              
+                              {isSelected && (
+                                <Badge variant="default" className="text-[10px] font-bold h-5 px-2 bg-primary">
+                                  Selected
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    
+                    {/* Selection summary statistics banner */}
+                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/15 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-xs font-bold text-primary">
+                      <span>
+                        {selectedCohortIds.size} Cohort{selectedCohortIds.size !== 1 ? 's' : ''} Selected
+                      </span>
+                      <span>
+                        Total Ready: {totalSelectedInBulk} Students
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* STEP 3: PROMOTION MODE */}
+                {currentStep === 3 && (
+                  <motion.div
+                    key="step-3"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-6"
+                  >
                     <AnimatePresence mode="wait">
-                      {/* Drilldown Sub-view for student selection */}
+                      {/* Drilldown Sub-view for student selection in selective mode */}
                       {promotionMode === 'selective' && expandedCohortId !== null ? (
                         <motion.div
                           key="student-checklist"
@@ -935,7 +1065,6 @@ export default function StudentPromotionPage() {
                                 </div>
                               ) : (
                                 <ScrollArea className="h-[480px]">
-                                  {/* Grid representation on Tablet/Desktop (2-3 cols), vertical stack on mobile */}
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pr-3 pb-2">
                                     {filteredStudents.map((student) => {
                                       const isSelected = selectedStudentIds[expandedCohortId!]?.has(student.id) || false
@@ -994,120 +1123,155 @@ export default function StudentPromotionPage() {
                           </Card>
                         </motion.div>
                       ) : (
-                        /* Cohort Grid Selection */
+                        /* Mode Selection & Preview */
                         <motion.div
-                          key="cohort-grid"
+                          key="mode-selection"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
-                          className="space-y-4"
+                          className="space-y-6"
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div>
-                              <h2 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                                {promotionMode === 'bulk' ? "Select Cohorts for Promotion" : "Select Cohorts to Drilldown"}
-                              </h2>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                {promotionMode === 'bulk' 
-                                  ? "Toggle class cards to select entire sections you want to advance."
-                                  : "Choose a class card to select individual students inside."}
-                              </p>
-                            </div>
-                            
-                            <div className="relative w-full sm:w-72">
-                              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                              <Input 
-                                placeholder="Filter by grade or section..." 
-                                className="pl-10 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 h-10 rounded-xl text-xs"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Grid lists: 1 col on mobile, 2 on sm, 3 on md, 4 on lg/desktop */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {isLoading ? (
-                              Array(8).fill(0).map((_, i) => (
-                                <div key={i} className="h-32 bg-slate-100 dark:bg-slate-900 animate-pulse rounded-2xl border border-slate-200/60 dark:border-slate-800" />
-                              ))
-                            ) : filteredCohorts.length === 0 ? (
-                              <div className="col-span-full py-16 text-center text-slate-400 bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 font-medium text-xs">
-                                No active cohorts found.
-                              </div>
-                            ) : filteredCohorts.map((cohort) => {
-                              const isSelected = promotionMode === 'bulk' 
-                                ? selectedCohortIds.has(cohort.id)
-                                : (selectedStudentIds[cohort.id]?.size || 0) > 0
-                              
-                              const countSelected = selectedStudentIds[cohort.id]?.size || 0
-                              
-                              return (
+                          <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl">
+                            <CardHeader>
+                              <CardTitle className="text-lg md:text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                                <Layers className="w-5 h-5 text-primary" /> Choose Promotion Scope Mode
+                              </CardTitle>
+                              <CardDescription className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                Choose how students within your {selectedCohortIds.size} selected cohort(s) should be advanced.
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Bulk Mode Option */}
                                 <div 
-                                  key={cohort.id} 
+                                  onClick={() => setPromotionMode('bulk')}
                                   className={cn(
-                                    "relative p-5 bg-white dark:bg-slate-900 rounded-2xl border transition-all active:scale-[0.99] cursor-pointer group flex flex-col justify-between h-36 select-none shadow-sm hover:shadow-md",
-                                    isSelected 
-                                      ? "border-primary ring-1 ring-primary shadow-md shadow-primary/5 bg-primary/[0.02]" 
-                                      : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                                    "p-6 rounded-2xl border-2 cursor-pointer transition-all flex gap-4 items-start active:scale-[0.99]",
+                                    promotionMode === 'bulk' 
+                                      ? "border-primary bg-primary/5 dark:bg-primary/5 shadow-md shadow-primary/5" 
+                                      : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
                                   )}
-                                  onClick={() => handleCohortClick(cohort)}
                                 >
-                                  <div>
-                                    <div className="flex items-start justify-between">
-                                      <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-primary tracking-wide mb-0.5">
-                                          {cohort.gradeName}
-                                        </span>
-                                        <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
-                                          Section {cohort.sectionName}
-                                        </h3>
-                                        {cohort.streamName && (
-                                          <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 mt-0.5">
-                                            {cohort.streamName}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Indicator */}
-                                      <div className={cn(
-                                        "w-8 h-8 flex items-center justify-center rounded-xl transition-all",
-                                        isSelected 
-                                          ? "bg-primary text-white" 
-                                          : "bg-slate-50 dark:bg-slate-800 text-slate-400 group-hover:text-slate-600"
-                                      )}>
-                                        {promotionMode === 'bulk' ? (
-                                          isSelected ? <CheckCircle2 className="w-5 h-5" /> : <Box className="w-4 h-4" />
-                                        ) : (
-                                          <ChevronRight className="w-5 h-5" />
-                                        )}
-                                      </div>
-                                    </div>
+                                  <div className={cn(
+                                    "p-3 rounded-xl shrink-0 mt-0.5",
+                                    promotionMode === 'bulk' ? "bg-primary text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                                  )}>
+                                    <Layers className="w-6 h-6" />
                                   </div>
-
-                                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                    <span className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
-                                      <Users className="w-3.5 h-3.5 text-slate-400" /> {cohort.count} Students
-                                    </span>
-                                    
-                                    {promotionMode === 'selective' && isSelected && (
-                                      <Badge variant="default" className="text-[10px] font-bold h-5 px-2">
-                                        {countSelected} Selected
-                                      </Badge>
-                                    )}
+                                  <div>
+                                    <h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">
+                                      Bulk Promotion
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                      Promote entire cohorts (Grade, Stream, and Section combinations) altogether. Fast and efficient for standard end-of-year rollings.
+                                    </p>
                                   </div>
                                 </div>
-                              )
-                            })}
-                          </div>
-                          
-                          {/* Selection summary statistics banner */}
+
+                                {/* Selective Mode Option */}
+                                <div 
+                                  onClick={() => setPromotionMode('selective')}
+                                  className={cn(
+                                    "p-6 rounded-2xl border-2 cursor-pointer transition-all flex gap-4 items-start active:scale-[0.99]",
+                                    promotionMode === 'selective' 
+                                      ? "border-primary bg-primary/5 dark:bg-primary/5 shadow-md shadow-primary/5" 
+                                      : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
+                                  )}
+                                >
+                                  <div className={cn(
+                                    "p-3 rounded-xl shrink-0 mt-0.5",
+                                    promotionMode === 'selective' ? "bg-primary text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                                  )}>
+                                    <UserCheck className="w-6 h-6" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-slate-900 dark:text-white text-base mb-1">
+                                      Selective Promotion
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                      Select specific students from sections to promote while retaining others. Ideal when handling retentions, individual transfers, or custom filters.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          {/* Mode Details Section */}
+                          {promotionMode === 'bulk' ? (
+                            <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                  Selected Cohorts ({selectedCohortIds.size} Cohorts • {totalSelectedInBulk} Students Total)
+                                </h3>
+                                <Badge variant="outline" className="text-xs font-semibold">
+                                  Bulk Advancement
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                All students in the following cohorts will be promoted together in Step 4:
+                              </p>
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {cohorts.filter(c => selectedCohortIds.has(c.id)).map(cohort => (
+                                  <Badge key={cohort.id} variant="secondary" className="text-xs font-semibold px-3 py-1 bg-slate-100 dark:bg-slate-800">
+                                    {cohort.gradeName} - Sec {cohort.sectionName} ({cohort.count} students)
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div>
+                                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <UserCheck className="w-4 h-4 text-primary" />
+                                    Customize Students per Cohort ({totalSelectedInSelective} of {totalSelectedInBulk} Students Selected)
+                                  </h3>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Click any cohort below to customize student selection (deselect retained students).
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {cohorts.filter(c => selectedCohortIds.has(c.id)).map(cohort => {
+                                  const selectedCount = selectedStudentIds[cohort.id]?.size ?? cohort.count
+                                  return (
+                                    <div
+                                      key={cohort.id}
+                                      onClick={() => handleOpenCohortStudents(cohort)}
+                                      className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 cursor-pointer transition-all shadow-sm flex flex-col justify-between h-32 group"
+                                    >
+                                      <div className="flex items-start justify-between">
+                                        <div>
+                                          <span className="text-xs font-bold text-primary">{cohort.gradeName}</span>
+                                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Section {cohort.sectionName}</h4>
+                                          {cohort.streamName && (
+                                            <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">{cohort.streamName}</span>
+                                          )}
+                                        </div>
+                                        <Button variant="outline" size="sm" className="h-7 rounded-lg text-xs font-bold gap-1 group-hover:bg-primary group-hover:text-white transition-colors px-2.5">
+                                          <UserCheck className="w-3 h-3" /> Customize
+                                        </Button>
+                                      </div>
+                                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                                        <span className="text-slate-400 font-medium">Total: {cohort.count}</span>
+                                        <Badge variant="default" className="text-[10px] font-bold h-5 px-2">
+                                          {selectedCount} Selected
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Summary Banner */}
                           <div className="p-4 bg-primary/5 rounded-xl border border-primary/15 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-xs font-bold text-primary">
                             <span>
-                              {promotionMode === 'bulk' 
-                                ? `${selectedCohortIds.size} Cohorts Marked for Promotion` 
-                                : `${Object.keys(selectedStudentIds).filter(k => selectedStudentIds[k].size > 0).length} Cohorts Configured`
-                              }
+                              Mode: {promotionMode === 'bulk' ? 'Bulk Promotion (All Students)' : 'Selective Promotion'}
                             </span>
                             <span>
                               Total Ready: {promotionMode === 'bulk' ? totalSelectedInBulk : totalSelectedInSelective} Students
@@ -1119,10 +1283,10 @@ export default function StudentPromotionPage() {
                   </motion.div>
                 )}
 
-                {/* STEP 3: DESTINATION RULES */}
-                {currentStep === 3 && (
+                {/* STEP 4: DESTINATION RULES */}
+                {currentStep === 4 && (
                   <motion.div
-                    key="step-3"
+                    key="step-4"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
@@ -1272,10 +1436,10 @@ export default function StudentPromotionPage() {
                   </motion.div>
                 )}
 
-                {/* STEP 4: REVIEW & EXECUTE */}
-                {currentStep === 4 && (
+                {/* STEP 5: REVIEW & EXECUTE */}
+                {currentStep === 5 && (
                   <motion.div
-                    key="step-4"
+                    key="step-5"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
@@ -1384,7 +1548,7 @@ export default function StudentPromotionPage() {
                 <div />
               )}
 
-              {currentStep < 4 ? (
+              {currentStep < 5 ? (
                 <Button 
                   onClick={handleNext} 
                   disabled={isNextDisabled}

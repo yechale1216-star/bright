@@ -10,5 +10,9 @@ export const metadata = createPageMetadata({
 })
 
 export default function AcademicHeadLayout({ children }: { children: React.ReactNode }) {
-  return <AcademicHeadClientLayout>{children}</AcademicHeadClientLayout>
+  return (
+    <React.Suspense fallback={null}>
+      <AcademicHeadClientLayout>{children}</AcademicHeadClientLayout>
+    </React.Suspense>
+  )
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   GraduationCap, Layers, Award, FileText, User, MessageSquare, UserCheck,
   ChevronRight, X, LayoutDashboard, CalendarDays, BarChart3
@@ -37,7 +37,16 @@ const navItems: NavItem[] = [
   },
   { href: '/school/academic-head/exams', icon: Award, label: 'Exams & Grades' },
   { href: '/school/academic-head/report-cards', icon: FileText, label: 'Report Cards' },
-  { href: '/school/academic-head/assessments/reports', icon: BarChart3, label: 'Academic Reports' },
+  {
+    href: '/school/academic-head/assessments/reports',
+    icon: BarChart3,
+    label: 'Academic Reports',
+    children: [
+      { href: '/school/academic-head/assessments/reports?tab=class-performance', label: 'Class Performance' },
+      { href: '/school/academic-head/assessments/reports?tab=subject-report', label: 'Subject Report' },
+      { href: '/school/academic-head/assessments/reports?tab=grade-level', label: 'Grade-Level' },
+    ],
+  },
   { href: '/school/academic-head/staff-attendance', icon: UserCheck, label: 'My Attendance' },
   { href: '/school/academic-head/communication', icon: MessageSquare, label: 'Communication' },
   { href: '/school/academic-head/profile', icon: User, label: 'My Profile' },
@@ -54,10 +63,15 @@ function AcademicNavItem({
   isCollapsed?: boolean
   onNavigate?: () => void
 }) {
+  const searchParams = useSearchParams()
   const hasChildren = Boolean(item.children && item.children.length > 0)
+  const [parentPath] = item.href.split('?')
   const isParentActive = item.exact
     ? pathname === item.href
-    : (pathname === item.href || pathname.startsWith(item.href + '/') || Boolean(item.children?.some(c => pathname === c.href || pathname.startsWith(c.href + '/'))))
+    : (pathname === parentPath || pathname.startsWith(parentPath + '/') || Boolean(item.children?.some(c => {
+        const [cPath] = c.href.split('?')
+        return pathname === cPath || pathname.startsWith(cPath + '/')
+      })))
 
   const [manuallyExpanded, setManuallyExpanded] = useState<boolean | null>(null)
 
@@ -96,7 +110,21 @@ function AcademicNavItem({
         {expanded && (
           <div className="pl-9 pr-2 py-1 space-y-1">
             {item.children!.map((child) => {
-              const isChildActive = pathname === child.href
+              const [childPath, childQuery] = child.href.split('?')
+              let isChildActive = false
+              if (childQuery) {
+                const childParams = new URLSearchParams(childQuery)
+                const childTab = childParams.get('tab') || childParams.get('category')
+                if (childTab) {
+                  const currentTab = searchParams.get('tab') || searchParams.get('category') || (pathname === childPath ? 'class-performance' : '')
+                  isChildActive = (pathname === childPath) && (currentTab.toLowerCase() === childTab.toLowerCase())
+                } else {
+                  isChildActive = pathname === childPath
+                }
+              } else {
+                isChildActive = pathname === child.href || (Boolean(pathname) && pathname.startsWith(child.href + '/'))
+              }
+
               return (
                 <Link
                   key={child.href}

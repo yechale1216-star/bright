@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   LayoutDashboard, Users, User, CheckSquare, BarChart2, BookOpen,
   Settings, LogOut, MessageSquare, Phone, TrendingUp, Calendar,
@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils/utils"
 import { useAuth } from '@/lib/context/auth-context'
 import { useSchool } from '@/lib/context/school-context'
 import { AuthGuard } from '@/components/auth/auth-guard'
-import { useRouter } from 'next/navigation'
 import { notifications } from '@/lib/utils/notifications'
 import { useUnread } from '@/lib/context/unread-context'
 import { TopNav } from '@/components/layout/top-nav'
@@ -37,6 +36,24 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+function isChildNavActive(
+  childHref: string,
+  currentPath: string | null | undefined,
+  searchParams: any
+) {
+  const [childPath, childQuery] = childHref.split('?');
+  if (childQuery) {
+    const childParams = new URLSearchParams(childQuery);
+    const childTab = childParams.get('tab') || childParams.get('category');
+    if (childTab) {
+      const currentTab = searchParams?.get('tab') || searchParams?.get('category') || (currentPath === childPath ? 'class-performance' : '');
+      return currentPath === childPath && currentTab.toLowerCase() === childTab.toLowerCase();
+    }
+    return currentPath === childPath;
+  }
+  return currentPath === childPath || (Boolean(currentPath) && currentPath!.startsWith(childPath + '/'));
+}
+
 export default function SchoolAdminClientLayout({
   children,
 }: {
@@ -44,6 +61,7 @@ export default function SchoolAdminClientLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const { user, logout } = useAuth()
   const { clearSchoolContext } = useSchool()
@@ -180,7 +198,17 @@ export default function SchoolAdminClientLayout({
           ],
         },
         { href: '/school/admin/report-cards',     icon: <FileText className="w-5 h-5" />,        label: 'Report Cards',      roles: ['admin', 'school_admin', 'super_admin', 'academic_head'] },
-        { href: '/school/admin/assessments/reports', icon: <BarChart3 className="w-5 h-5" />,     label: 'Academic Reports',  roles: ['admin', 'school_admin', 'super_admin', 'academic_head'] },
+        {
+          href: '/school/admin/assessments/reports',
+          icon: <BarChart3 className="w-5 h-5" />,
+          label: 'Academic Reports',
+          roles: ['admin', 'school_admin', 'super_admin', 'academic_head'],
+          children: [
+            { href: '/school/admin/assessments/reports?tab=class-performance', label: 'Class Performance' },
+            { href: '/school/admin/assessments/reports?tab=subject-report', label: 'Subject Report' },
+            { href: '/school/admin/assessments/reports?tab=grade-level', label: 'Grade-Level' },
+          ],
+        },
         { href: '/school/admin/attendance',       icon: <CheckSquare className="w-5 h-5" />,     label: 'Attendance',        roles: ['admin', 'school_admin', 'super_admin', 'academic_head', 'discipline_officer'] },
         { href: '/school/admin/staff-attendance', icon: <Clock className="w-5 h-5" />,           label: 'Staff Attendance',  roles: ['admin', 'school_admin', 'super_admin', 'staff_attendance_officer', 'hr_officer'] },
         { href: '/school/admin/discipline',       icon: <ShieldAlert className="w-5 h-5" />,     label: 'Discipline',        roles: ['admin', 'school_admin', 'super_admin', 'discipline_officer'] },
@@ -319,8 +347,7 @@ export default function SchoolAdminClientLayout({
                             {hasChildren && isExpanded && (
                               <div className="pl-9 pr-2 py-1 space-y-1">
                                 {item.children?.map(child => {
-                                  const [childPath] = child.href.split('?');
-                                  const isChildActive = pathname === childPath || (Boolean(pathname) && pathname.startsWith(childPath + '/'));
+                                  const isChildActive = isChildNavActive(child.href, pathname, searchParams);
                                   return (
                                     <Link key={child.href} href={child.href} onClick={() => setSidebarOpen(false)}>
                                       <div className={cn(
@@ -402,6 +429,7 @@ export default function SchoolAdminClientLayout({
                           badge={(item as any).badge}
                           children={item.children}
                           currentPath={pathname}
+                          searchParams={searchParams}
                         />
                       ))}
                     </div>
@@ -457,6 +485,7 @@ function NavLink({
   badge,
   children,
   currentPath,
+  searchParams,
 }: {
   href: string;
   icon: React.ReactNode;
@@ -466,6 +495,7 @@ function NavLink({
   badge?: number;
   children?: Array<{ href: string; label: string }>;
   currentPath?: string;
+  searchParams?: any;
 }) {
   const hasChildren = Boolean(children && children.length > 0 && !isCollapsed);
 
@@ -558,8 +588,7 @@ function NavLink({
       {hasChildren && isExpanded && (
         <div className="pl-9 pr-2 py-1 space-y-1">
           {children!.map((child) => {
-            const [childPath] = child.href.split('?');
-            const isChildActive = currentPath === childPath || (Boolean(currentPath) && currentPath!.startsWith(childPath + '/'));
+            const isChildActive = isChildNavActive(child.href, currentPath, searchParams);
             return (
               <Link key={child.href} href={child.href}>
                 <div

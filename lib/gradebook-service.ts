@@ -1002,6 +1002,12 @@ export interface AssessmentReportsAnalyticsData {
     card4Title?: string;
     card4Val?: string | number;
     card4Sub?: string;
+    card5Title?: string;
+    card5Val?: string | number;
+    card5Sub?: string;
+    card6Title?: string;
+    card6Val?: string | number;
+    card6Sub?: string;
     chartTitle?: string;
     chartSub?: string;
     totalSubjects?: number;

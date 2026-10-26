@@ -10,5 +10,9 @@ export const metadata = createPageMetadata({
 })
 
 export default function SchoolAdminLayout({ children }: { children: React.ReactNode }) {
-  return <SchoolAdminClientLayout>{children}</SchoolAdminClientLayout>
+  return (
+    <React.Suspense fallback={null}>
+      <SchoolAdminClientLayout>{children}</SchoolAdminClientLayout>
+    </React.Suspense>
+  )
 }
