@@ -372,13 +372,36 @@ export default function AssessmentReportsPage() {
 
   // Export to CSV
   const handleExportCSV = (customRows?: any[], customFilename?: string) => {
-    const rows = customRows || detailData?.studentRows || analytics?.availableReports || [];
+    let rows = customRows;
+    let filename = customFilename;
+
+    if (!rows) {
+      if (selectedCategory === 'GRADE_LEVEL') {
+        const isAll = !selectedGradeId || selectedGradeId === 'all';
+        const groupLabel = isAll ? 'Grade' : 'Section';
+        rows = subjectsChartData.map((d, i) => ({
+          '#': i + 1,
+          [groupLabel]: d.subjectName,
+          'Average Performance (%)': d.averageScore,
+          'Highest Score (%)': d.highestScore,
+          'Lowest Score (%)': d.lowestScore,
+          'Students Evaluated': d.studentCount,
+        }));
+        const gradeName = grades.find((g) => g.id === selectedGradeId)?.name || 'All_Grades';
+        filename = `Grade_Level_Comparison_${gradeName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+      } else {
+        rows = detailData?.studentRows || analytics?.availableReports || [];
+      }
+    }
+
     if (!rows || rows.length === 0) {
       notifications.warning('Export Alert', 'No report records available to export.');
       return;
     }
 
-    const filename = customFilename || `${selectedReportItem?.reportName || selectedCategory}_${new Date().toISOString().slice(0, 10)}.csv`;
+    if (!filename) {
+      filename = `${selectedReportItem?.reportName || selectedCategory}_${new Date().toISOString().slice(0, 10)}.csv`;
+    }
     const headers = Object.keys(rows[0]).filter((k) => typeof rows[0][k] !== 'object');
 
     const csvContent = [
@@ -883,55 +906,72 @@ export default function AssessmentReportsPage() {
             {/* Card 1 */}
             <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {analytics?.summary?.card1Title || 'Active Enrolled'}
+                {analytics?.summary?.card1Title || (selectedCategory === 'GRADE_LEVEL' ? 'Average Academic Performance' : 'Active Enrolled')}
               </p>
-              <p className="text-2xl font-black text-foreground tracking-tight mt-1">
-                {analytics?.summary?.card1Val ?? '0'}
+              <p className={cn(
+                "text-2xl font-black tracking-tight mt-1",
+                selectedCategory === 'GRADE_LEVEL'
+                  ? (isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400")
+                  : "text-foreground"
+              )}>
+                {analytics?.summary?.card1Val ?? (selectedCategory === 'GRADE_LEVEL' ? '0%' : '0')}
               </p>
               <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {analytics?.summary?.card1Sub || 'Total active population'}
+                {analytics?.summary?.card1Sub || (selectedCategory === 'GRADE_LEVEL' ? 'Evaluated benchmark average' : 'Total active population')}
               </p>
             </div>
 
             {/* Card 2 */}
             <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {analytics?.summary?.card2Title || 'Cohort Average'}
+                {analytics?.summary?.card2Title || (selectedCategory === 'GRADE_LEVEL' ? 'Highest-Performing' : 'Cohort Average')}
               </p>
               <p className={cn(
-                "text-2xl font-black tracking-tight mt-1",
-                isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400"
+                "text-2xl font-black tracking-tight mt-1 truncate",
+                selectedCategory === 'GRADE_LEVEL'
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : (isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400")
               )}>
-                {analytics?.summary?.card2Val ?? '0%'}
+                {analytics?.summary?.card2Val ?? (selectedCategory === 'GRADE_LEVEL' ? 'N/A' : '0%')}
               </p>
               <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {analytics?.summary?.card2Sub || 'Institutional benchmark'}
+                {analytics?.summary?.card2Sub || (selectedCategory === 'GRADE_LEVEL' ? 'Top academic benchmark' : 'Institutional benchmark')}
               </p>
             </div>
 
             {/* Card 3 */}
             <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {analytics?.summary?.card3Title || 'Pass Rate'}
+                {analytics?.summary?.card3Title || (selectedCategory === 'GRADE_LEVEL' ? 'Lowest-Performing' : 'Pass Rate')}
               </p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-1">
-                {analytics?.summary?.card3Val ?? '0%'}
+              <p className={cn(
+                "text-2xl font-black tracking-tight mt-1 truncate",
+                selectedCategory === 'GRADE_LEVEL'
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-emerald-600 dark:text-emerald-400"
+              )}>
+                {analytics?.summary?.card3Val ?? (selectedCategory === 'GRADE_LEVEL' ? 'N/A' : '0%')}
               </p>
               <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {analytics?.summary?.card3Sub || 'Assessed candidates meeting criteria'}
+                {analytics?.summary?.card3Sub || (selectedCategory === 'GRADE_LEVEL' ? 'Lowest academic benchmark' : 'Assessed candidates meeting criteria')}
               </p>
             </div>
 
             {/* Card 4 */}
             <div className="p-4 rounded-2xl bg-card border border-border shadow-xs transition-all hover:shadow-md">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {analytics?.summary?.card4Title || 'Academic Support'}
+                {analytics?.summary?.card4Title || (selectedCategory === 'GRADE_LEVEL' ? 'Overall Average' : 'Academic Support')}
               </p>
-              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight mt-1">
-                {analytics?.summary?.card4Val ?? '0'}
+              <p className={cn(
+                "text-2xl font-black tracking-tight mt-1",
+                selectedCategory === 'GRADE_LEVEL'
+                  ? (isAcademicHead ? "text-violet-600 dark:text-violet-400" : "text-blue-600 dark:text-blue-400")
+                  : "text-amber-600 dark:text-amber-400"
+              )}>
+                {analytics?.summary?.card4Val ?? (selectedCategory === 'GRADE_LEVEL' ? '0%' : '0')}
               </p>
               <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                {analytics?.summary?.card4Sub || 'Requires academic intervention'}
+                {analytics?.summary?.card4Sub || (selectedCategory === 'GRADE_LEVEL' ? 'Mean across displayed groups' : 'Requires academic intervention')}
               </p>
             </div>
           </>
@@ -1273,10 +1313,11 @@ export default function AssessmentReportsPage() {
 
                   {/* Bars Container */}
                   <div className="absolute inset-0 pl-9 pr-2 flex items-end justify-around gap-2 sm:gap-6 z-10 pb-0">
-                    {subjectsChartData.length === 0 ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-xs text-muted-foreground">
+                    {subjectsChartData.length === 0 || !subjectsChartData.some((item) => (item.studentCount || 0) > 0 || (item.averageScore || 0) > 0) ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
                         <BarChart3 className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-                        <span>No completed assessment benchmarks recorded in this scope</span>
+                        <span className="font-semibold text-foreground text-xs">No academic performance data recorded in this scope</span>
+                        <span className="text-[11px] text-muted-foreground mt-0.5">Please ensure assessment marks have been entered and published for the selected academic year, term, and grade.</span>
                       </div>
                     ) : (
                       subjectsChartData.map((item, idx) => {
@@ -1339,7 +1380,7 @@ export default function AssessmentReportsPage() {
                 <div className="mt-4 text-center">
                   <span className="text-xs font-semibold text-muted-foreground select-none">
                     {selectedCategory === 'GRADE_LEVEL'
-                      ? (selectedGradeId === 'all' ? 'Grade Level' : 'Class Sections')
+                      ? (selectedGradeId === 'all' ? 'Grade Level' : `${grades.find((g) => g.id === selectedGradeId)?.name || 'Class'} Sections`)
                       : selectedCategory === 'SUBJECT_PERFORMANCE'
                       ? 'Curriculum Subjects'
                       : 'Academic Cohorts'}
@@ -1445,10 +1486,11 @@ export default function AssessmentReportsPage() {
         )}
       </div>
 
-      {/* ─── Available Reports Catalog Table Section ─────────────────────── */}
-      <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
-        {/* Table Header with Search & Reset */}
-        <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      {/* ─── Available Reports Catalog Table Section (Hidden for Generalized Grade-Level Report) ─── */}
+      {selectedCategory !== 'GRADE_LEVEL' && (
+        <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
+          {/* Table Header with Search & Reset */}
+          <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-base font-bold text-foreground tracking-tight">
               Standard Academic Reports Catalog
@@ -1671,7 +1713,7 @@ export default function AssessmentReportsPage() {
             </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ─── Standard Detailed Report Inspection & Print Dialog ──────────── */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>

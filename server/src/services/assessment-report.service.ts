@@ -147,7 +147,9 @@ export class AssessmentReportService {
       where: studentWhere,
       include: {
         grade: true,
-        section: true,
+        section: {
+          include: { stream: true },
+        },
         stream: true,
       },
       orderBy: [{ grade: { name: 'asc' } }, { section: { name: 'asc' } }, { fullName: 'asc' }],
@@ -207,6 +209,7 @@ export class AssessmentReportService {
         isAbsent?: boolean;
       }>;
       overallAverage: number | null;
+      validAverage: number | null;
       gradeLetter: string;
       status: 'Passed' | 'Failed' | 'Incomplete';
       isComplete: boolean;
@@ -296,9 +299,13 @@ export class AssessmentReportService {
       let gradeLetter = 'INC';
       let studentStatus: 'Passed' | 'Failed' | 'Incomplete' = 'Incomplete';
 
+      const validAvg = validPercentages.length > 0
+        ? Math.round((validPercentages.reduce((a, b) => a + b, 0) / validPercentages.length) * 10) / 10
+        : null;
+
       if (!hasIncomplete && validPercentages.length > 0) {
-        overallAvg = Math.round((validPercentages.reduce((a, b) => a + b, 0) / validPercentages.length) * 10) / 10;
-        const finalScale = findGradeScale(overallAvg, gradingScales, policyPassingMinScore);
+        overallAvg = validAvg;
+        const finalScale = findGradeScale(overallAvg!, gradingScales, policyPassingMinScore);
         gradeLetter = finalScale.grade;
         studentStatus = finalScale.isPassing && failedCount === 0 ? 'Passed' : 'Failed';
       } else {
@@ -312,6 +319,7 @@ export class AssessmentReportService {
         termName: rc.academicTerm?.name || 'Term',
         subjectScores: scoredSubjects,
         overallAverage: overallAvg,
+        validAverage: validAvg,
         gradeLetter,
         status: studentStatus,
         isComplete: !hasIncomplete,
@@ -596,124 +604,209 @@ export class AssessmentReportService {
 
         if (isAllGrades) {
           // Scope: All Grades -> Group by Grade (e.g., Grade 9, Grade 10, Grade 11, Grade 12)
-          const gradeMap = new Map<string, { gradeName: string; scores: number[]; activeCount: number; completeCount: number; passCount: number }>();
+          const allSchoolGrades = await prisma.grade.findMany({
+            orderBy: { name: 'asc' },
+            include: {
+              sections: {
+                include: { stream: true },
+              },
+            },
+          });
 
-          for (const s of activeStudents) {
-            const gName = s.grade?.name || 'Grade';
-            if (!gradeMap.has(gName)) {
-              gradeMap.set(gName, { gradeName: gName, scores: [], activeCount: 0, completeCount: 0, passCount: 0 });
+          // Sort naturally (Grade 1, Grade 2, ... Grade 9, Grade 10, Grade 11, Grade 12)
+          const sortedGrades = [...allSchoolGrades].sort((a, b) => {
+            const numA = parseInt(a.name.replace(/\D/g, ''), 10);
+            const numB = parseInt(b.name.replace(/\D/g, ''), 10);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+          });
+
+          const gradeComparisonList = sortedGrades.map((g) => {
+            // Find students in this grade (respecting streamId if stream filter was provided)
+            const gStudents = activeStudents.filter((s) => s.gradeId === g.id);
+            const gStudentScores: number[] = [];
+
+            for (const s of gStudents) {
+              const records = evaluatedStudentsMap.get(s.id) || [];
+              const termRec = records.find((r) => !termId || r.termId === termId);
+              // Handle missing/incomplete results correctly without treating them as zero
+              const score = termRec?.validAverage ?? null;
+              if (score !== null && typeof score === 'number' && !isNaN(score)) {
+                gStudentScores.push(score);
+              }
             }
-            gradeMap.get(gName)!.activeCount++;
-          }
 
-          for (const r of completedRecords) {
-            const gName = r.student.grade?.name || 'Grade';
-            if (gradeMap.has(gName) && r.overallAverage !== null) {
-              const entry = gradeMap.get(gName)!;
-              entry.scores.push(r.overallAverage);
-              entry.completeCount++;
-              if (r.status === 'Passed') entry.passCount++;
-            }
-          }
+            const avg = gStudentScores.length > 0
+              ? Math.round((gStudentScores.reduce((a, b) => a + b, 0) / gStudentScores.length) * 10) / 10
+              : 0;
+            const highest = gStudentScores.length > 0 ? Math.round(Math.max(...gStudentScores)) : 0;
+            const lowest = gStudentScores.length > 0 ? Math.round(Math.min(...gStudentScores)) : 0;
 
-          const gradeComparisonList = Array.from(gradeMap.entries()).map(([gName, data]) => {
-            const avg = data.scores.length > 0 ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10 : 0;
-            const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
             return {
-              subjectId: gName,
-              subjectName: gName,
-              subjectCode: gName,
+              subjectId: g.id,
+              subjectName: g.name,
+              subjectCode: g.name,
               averageScore: avg,
-              studentCount: data.activeCount,
-              highestScore: data.scores.length > 0 ? Math.round(Math.max(...data.scores)) : 0,
-              lowestScore: data.scores.length > 0 ? Math.round(Math.min(...data.scores)) : 0,
-              passRate: pRate,
+              studentCount: gStudentScores.length,
+              highestScore: highest,
+              lowestScore: lowest,
               gradeName: 'Grade Level',
             };
           });
 
+          // Summary metrics: Essential comparison information only
+          const evaluatedGrades = gradeComparisonList.filter((g) => g.studentCount > 0 && g.averageScore > 0);
+          let highestGrade = null;
+          let lowestGrade = null;
+          let overallAverage = 0;
+
+          if (evaluatedGrades.length > 0) {
+            const sortedByScore = [...evaluatedGrades].sort((a, b) => b.averageScore - a.averageScore);
+            highestGrade = sortedByScore[0];
+            lowestGrade = sortedByScore[sortedByScore.length - 1];
+            overallAverage = Math.round((sortedByScore.reduce((acc, it) => acc + it.averageScore, 0) / sortedByScore.length) * 10) / 10;
+          }
+
           summary = {
-            card1Title: 'Active Cohort',
-            card1Val: totalActiveCount,
-            card1Sub: `Across ${gradeMap.size} grades in school`,
-            card2Title: 'School Average',
-            card2Val: `${cohortAverage}%`,
-            card2Sub: 'Unified benchmark across all grades',
-            card3Title: 'Grades Evaluated',
-            card3Val: gradeMap.size,
-            card3Sub: `${completeCount} completed results`,
-            card4Title: 'Cohort Pass Rate',
-            card4Val: `${passRate}%`,
-            card4Sub: `${incompleteCount} pending/incomplete records`,
-            chartTitle: 'Grade-Level Academic Performance',
-            chartSub: 'Average academic performance percentage across evaluated grades',
+            card1Title: 'Average Academic Performance',
+            card1Val: `${overallAverage}%`,
+            card1Sub: `Mean across ${evaluatedGrades.length} evaluated grades`,
+            card2Title: 'Highest-Performing Grade',
+            card2Val: highestGrade ? highestGrade.subjectName : 'N/A',
+            card2Sub: highestGrade ? `${highestGrade.averageScore}% benchmark average` : 'No valid data',
+            card3Title: 'Lowest-Performing Grade',
+            card3Val: lowestGrade ? lowestGrade.subjectName : 'N/A',
+            card3Sub: lowestGrade ? `${lowestGrade.averageScore}% benchmark average` : 'No valid data',
+            card4Title: 'Overall Average',
+            card4Val: `${overallAverage}%`,
+            card4Sub: highestGrade && lowestGrade
+              ? `Performance range: ${lowestGrade.averageScore}% – ${highestGrade.averageScore}%`
+              : 'School-wide grade comparison',
+            chartTitle: 'Grade-Level Academic Performance Comparison',
+            chartSub: 'Average academic performance percentage across all grades',
           };
 
           chartPerformance = gradeComparisonList;
-          recommendations = [
-            'Consistent academic benchmark tracking maintained across all grade cohorts.',
-            'Review lower-performing grades to allocate targeted instructional interventions.',
-          ];
+          recommendations = highestGrade && lowestGrade
+            ? [
+                `${highestGrade.subjectName} is the highest-performing grade at ${highestGrade.averageScore}%, while ${lowestGrade.subjectName} is lowest at ${lowestGrade.averageScore}%.`,
+                `Overall academic performance average across evaluated grades stands at ${overallAverage}%.`,
+              ]
+            : [
+                'High-level visual comparison of academic performance across grades.',
+                'No published assessment marks recorded in the selected scope.',
+              ];
         } else {
-          // Scope: Specific Grade -> Group by Sections (e.g., Section A, Section B, Section C)
-          const sectionMap = new Map<string, { sectionName: string; scores: number[]; activeCount: number; completeCount: number; passCount: number }>();
+          // Scope: Specific Grade -> Group by sections within that grade
+          const selectedGradeObj = await prisma.grade.findUnique({
+            where: { id: gradeId },
+            include: {
+              sections: {
+                where: streamId && streamId !== 'all' ? { streamId } : {},
+                include: { stream: true },
+                orderBy: { name: 'asc' },
+              },
+            },
+          });
 
-          for (const s of activeStudents) {
-            const secName = s.section?.name || 'A';
-            if (!sectionMap.has(secName)) {
-              sectionMap.set(secName, { sectionName: secName, scores: [], activeCount: 0, completeCount: 0, passCount: 0 });
+          const targetGradeName = selectedGradeObj?.name || 'Grade';
+          const isSenior = targetGradeName.toLowerCase().includes('11') || targetGradeName.toLowerCase().includes('12');
+
+          const streamObj = streamId && streamId !== 'all'
+            ? await prisma.stream.findUnique({ where: { id: streamId } }).catch(() => null)
+            : null;
+
+          const gradeSections = selectedGradeObj?.sections || [];
+          const sortedSections = [...gradeSections].sort((a: any, b: any) =>
+            (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+          );
+
+          const sectionComparisonList = sortedSections.map((sec: any) => {
+            const secStudents = activeStudents.filter((s) => s.sectionId === sec.id);
+            const secStudentScores: number[] = [];
+
+            for (const s of secStudents) {
+              const records = evaluatedStudentsMap.get(s.id) || [];
+              const termRec = records.find((r) => !termId || r.termId === termId);
+              // Handle missing/incomplete results correctly without treating them as zero
+              const score = termRec?.validAverage ?? null;
+              if (score !== null && typeof score === 'number' && !isNaN(score)) {
+                secStudentScores.push(score);
+              }
             }
-            sectionMap.get(secName)!.activeCount++;
-          }
 
-          for (const r of completedRecords) {
-            const secName = r.student.section?.name || 'A';
-            if (sectionMap.has(secName) && r.overallAverage !== null) {
-              const entry = sectionMap.get(secName)!;
-              entry.scores.push(r.overallAverage);
-              entry.completeCount++;
-              if (r.status === 'Passed') entry.passCount++;
+            const avg = secStudentScores.length > 0
+              ? Math.round((secStudentScores.reduce((a, b) => a + b, 0) / secStudentScores.length) * 10) / 10
+              : 0;
+            const highest = secStudentScores.length > 0 ? Math.round(Math.max(...secStudentScores)) : 0;
+            const lowest = secStudentScores.length > 0 ? Math.round(Math.min(...secStudentScores)) : 0;
+
+            const streamName = sec.stream?.name || (secStudents.find((s) => s.stream?.name)?.stream?.name);
+            let displayName = `Section ${sec.name}`;
+            let displayCode = `Sec ${sec.name}`;
+
+            if (isSenior && streamName) {
+              displayName = `Section ${sec.name} (${streamName})`;
+              const streamShort = streamName.includes('Natural') ? 'Nat' : streamName.includes('Social') ? 'Soc' : streamName.split(' ')[0];
+              displayCode = `Sec ${sec.name} (${streamShort})`;
             }
-          }
 
-          const sectionComparisonList = Array.from(sectionMap.entries()).map(([secName, data]) => {
-            const avg = data.scores.length > 0 ? Math.round((data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10) / 10 : 0;
-            const pRate = data.completeCount > 0 ? Math.round((data.passCount / data.completeCount) * 100) : 0;
             return {
-              subjectId: secName,
-              subjectName: `Section ${secName}`,
-              subjectCode: `Sec ${secName}`,
+              subjectId: sec.id,
+              subjectName: displayName,
+              subjectCode: displayCode,
               averageScore: avg,
-              studentCount: data.activeCount,
-              highestScore: data.scores.length > 0 ? Math.round(Math.max(...data.scores)) : 0,
-              lowestScore: data.scores.length > 0 ? Math.round(Math.min(...data.scores)) : 0,
-              passRate: pRate,
-              gradeName: 'Grade Cohort',
+              studentCount: secStudentScores.length,
+              highestScore: highest,
+              lowestScore: lowest,
+              gradeName: targetGradeName,
             };
           });
 
+          // Summary metrics: Essential comparison information only
+          const evaluatedSections = sectionComparisonList.filter((s) => s.studentCount > 0 && s.averageScore > 0);
+          let highestSection = null;
+          let lowestSection = null;
+          let overallAverage = 0;
+
+          if (evaluatedSections.length > 0) {
+            const sortedByScore = [...evaluatedSections].sort((a, b) => b.averageScore - a.averageScore);
+            highestSection = sortedByScore[0];
+            lowestSection = sortedByScore[sortedByScore.length - 1];
+            overallAverage = Math.round((sortedByScore.reduce((acc, it) => acc + it.averageScore, 0) / sortedByScore.length) * 10) / 10;
+          }
+
+          const streamScopeLabel = streamObj?.name ? ` (${streamObj.name})` : '';
+
           summary = {
-            card1Title: 'Active Cohort',
-            card1Val: totalActiveCount,
-            card1Sub: `Across ${sectionMap.size} sections in grade`,
-            card2Title: 'Grade Average',
-            card2Val: `${cohortAverage}%`,
-            card2Sub: 'Unified benchmark across sections',
-            card3Title: 'Sections Evaluated',
-            card3Val: sectionMap.size,
-            card3Sub: `${completeCount} completed results`,
-            card4Title: 'Cohort Pass Rate',
-            card4Val: `${passRate}%`,
-            card4Sub: `${incompleteCount} pending/incomplete records`,
-            chartTitle: 'Section-Wise Benchmark Comparison',
-            chartSub: 'Average performance comparison across grade sections',
+            card1Title: 'Average Academic Performance',
+            card1Val: `${overallAverage}%`,
+            card1Sub: `Mean across ${evaluatedSections.length} evaluated sections`,
+            card2Title: 'Highest-Performing Section',
+            card2Val: highestSection ? highestSection.subjectName : 'N/A',
+            card2Sub: highestSection ? `${highestSection.averageScore}% benchmark average` : 'No valid data',
+            card3Title: 'Lowest-Performing Section',
+            card3Val: lowestSection ? lowestSection.subjectName : 'N/A',
+            card3Sub: lowestSection ? `${lowestSection.averageScore}% benchmark average` : 'No valid data',
+            card4Title: 'Overall Average',
+            card4Val: `${overallAverage}%`,
+            card4Sub: highestSection && lowestSection
+              ? `Performance range: ${lowestSection.averageScore}% – ${highestSection.averageScore}%`
+              : `${targetGradeName} sections comparison`,
+            chartTitle: `${targetGradeName} Section Performance Comparison`,
+            chartSub: `Comparing average academic performance of sections within ${targetGradeName}${streamScopeLabel}`,
           };
 
           chartPerformance = sectionComparisonList;
-          recommendations = [
-            'Consistent assessment marking rules verified across all sections.',
-            'Identify discrepancies between section averages to balance teacher allocation and student support.',
-          ];
+          recommendations = highestSection && lowestSection
+            ? [
+                `${highestSection.subjectName} is the highest-performing section at ${highestSection.averageScore}%, while ${lowestSection.subjectName} is lowest at ${lowestSection.averageScore}%.`,
+                `Overall academic performance average across evaluated sections in ${targetGradeName} stands at ${overallAverage}%.`,
+              ]
+            : [
+                `High-level visual comparison of section performance in ${targetGradeName}.`,
+                'No published assessment marks recorded in the selected scope.',
+              ];
         }
         break;
       }
@@ -1042,28 +1135,9 @@ export class AssessmentReportService {
 
     // Category D: GRADE_LEVEL
     if (category === 'GRADE_LEVEL') {
-      for (const g of grades) {
-        const gradeStudents = activeStudents.filter((st) => st.gradeId === g.id);
-        const gradeCompleted = completedRecords.filter((r) => r.student.gradeId === g.id);
-        const avg = gradeCompleted.length > 0
-          ? Math.round((gradeCompleted.reduce((acc, r) => acc + (r.overallAverage || 0), 0) / gradeCompleted.length) * 10) / 10
-          : 0;
-
-        catalog.push({
-          id: `grade_${g.id}`,
-          reportName: `${g.name} - Grade-Level Academic Report`,
-          type: 'Grade-Level Academic Report',
-          typeKey: 'GRADE_LEVEL',
-          academicYear: yearName,
-          term: termName,
-          grade: g.name,
-          subjectOrStream: `${g.sections.length} Sections Combined`,
-          generatedOn: nowFormatted,
-          averageScore: avg,
-          studentCount: gradeStudents.length,
-        });
-      }
-      return catalog;
+      // Grade-Level is a generalized comparison report with visual charts and summary insights only.
+      // It does not produce individual student-level reports or detail drill-down tables.
+      return [];
     }
 
     // Category E: PERFORMANCE_ANALYSIS
@@ -1320,7 +1394,11 @@ export class AssessmentReportService {
         };
       }).sort((a, b) => (b.percentage || 0) - (a.percentage || 0)).map((r, i) => ({ ...r, rank: i + 1 }));
     }
-    // ─── Case 4: CLASS_PERFORMANCE & GRADE_LEVEL ────────────────────────────
+    // ─── Case 4: GRADE_LEVEL (Generalized High-Level Scope, No Student Rows) ──
+    else if (prefix === 'grade' || filters.reportType === 'GRADE_LEVEL') {
+      studentRows = [];
+    }
+    // ─── Case 5: CLASS_PERFORMANCE ──────────────────────────────────────────
     else {
       studentRows = reportCards.map((rc, idx) => {
         const avg = Number(rc.averageScore || 0);
