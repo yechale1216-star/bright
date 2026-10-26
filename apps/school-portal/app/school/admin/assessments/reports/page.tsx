@@ -22,7 +22,6 @@ import {
   SlidersHorizontal,
   GraduationCap,
   Users,
-  Award,
   Layers,
   BookOpen,
   CheckCircle2,
@@ -102,14 +101,6 @@ const REPORT_CATEGORIES: ReportCategoryMeta[] = [
     badge: 'Inter-Section',
     description: 'Review academic performance and benchmark comparisons across all sections within a grade.',
     icon: Layers,
-  },
-  {
-    key: 'ANNUAL_ACADEMIC',
-    title: 'Annual Academic Report',
-    shortTitle: 'Annual Report',
-    badge: 'Full-Year Promotion',
-    description: 'Consolidated annual review with one record per student and authoritative promotion eligibility.',
-    icon: Award,
   },
 ];
 
@@ -293,7 +284,7 @@ export default function AssessmentReportsPage() {
       setGenerating(true);
       const data = await gradebookService.getAssessmentReportsAnalytics({
         academicYearId: selectedYearId,
-        academicTermId: selectedCategory === 'ANNUAL_ACADEMIC' ? undefined : (selectedTermId !== 'all' ? selectedTermId : undefined),
+        academicTermId: selectedTermId !== 'all' ? selectedTermId : undefined,
         gradeId: selectedGradeId !== 'all' ? selectedGradeId : undefined,
         sectionId: selectedCategory === 'GRADE_LEVEL' ? undefined : (selectedSectionId !== 'all' ? selectedSectionId : undefined),
         streamId: isSeniorGrade && selectedStreamId !== 'all' ? selectedStreamId : undefined,
@@ -354,7 +345,7 @@ export default function AssessmentReportsPage() {
     try {
       const detail = await gradebookService.getDetailedAssessmentReport(reportItem.id, {
         academicYearId: selectedYearId,
-        academicTermId: selectedCategory === 'ANNUAL_ACADEMIC' ? undefined : (selectedTermId !== 'all' ? selectedTermId : undefined),
+        academicTermId: selectedTermId !== 'all' ? selectedTermId : undefined,
         gradeId: selectedGradeId !== 'all' ? selectedGradeId : undefined,
         sectionId: selectedCategory === 'GRADE_LEVEL' ? undefined : (selectedSectionId !== 'all' ? selectedSectionId : undefined),
         streamId: isSeniorGrade && selectedStreamId !== 'all' ? selectedStreamId : undefined,
@@ -717,26 +708,19 @@ export default function AssessmentReportsPage() {
               Reporting Term
             </label>
             <select
-              disabled={selectedCategory === 'ANNUAL_ACADEMIC'}
-              value={selectedCategory === 'ANNUAL_ACADEMIC' ? 'full_year' : selectedTermId}
+              value={selectedTermId}
               onChange={(e) => setSelectedTermId(e.target.value)}
               className={cn(
-                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 disabled:opacity-60",
+                "w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2",
                 isAcademicHead ? "focus:ring-violet-500/20 focus:border-violet-500" : "focus:ring-blue-500/20 focus:border-blue-500"
               )}
             >
-              {selectedCategory === 'ANNUAL_ACADEMIC' ? (
-                <option value="full_year">Full Academic Year (Annual)</option>
-              ) : (
-                <>
-                  <option value="all">All Configured Terms</option>
-                  {availableTerms.map((term: any) => (
-                    <option key={term.id} value={term.id}>
-                      {term.name} {term.isCurrent ? '(Current)' : ''}
-                    </option>
-                  ))}
-                </>
-              )}
+              <option value="all">All Configured Terms</option>
+              {availableTerms.map((term: any) => (
+                <option key={term.id} value={term.id}>
+                  {term.name} {term.isCurrent ? '(Current)' : ''}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1713,6 +1697,7 @@ export default function AssessmentReportsPage() {
             </Button>
           </div>
         </div>
+        </div>
       )}
 
       {/* ─── Standard Detailed Report Inspection & Print Dialog ──────────── */}
@@ -1794,15 +1779,6 @@ export default function AssessmentReportsPage() {
                           <th className="py-2.5 px-3 text-center">Status</th>
                           <th className="py-2.5 px-3">Teacher Remarks</th>
                         </>
-                      ) : selectedReportItem?.typeKey === 'ANNUAL_ACADEMIC' ? (
-                        <>
-                          <th className="py-2.5 px-3">Grade & Section</th>
-                          <th className="py-2.5 px-3 text-right">Term 1</th>
-                          <th className="py-2.5 px-3 text-right">Term 2</th>
-                          <th className="py-2.5 px-3 text-right">Annual Mean</th>
-                          <th className="py-2.5 px-3 text-center">Grade</th>
-                          <th className="py-2.5 px-3 text-center">Promotion Status</th>
-                        </>
                       ) : (
                         <>
                           <th className="py-2.5 px-3">Section</th>
@@ -1850,30 +1826,6 @@ export default function AssessmentReportsPage() {
                                 </span>
                               </td>
                               <td className="py-2 px-3 text-muted-foreground text-[11px]">{s.teacherRemarks}</td>
-                            </>
-                          ) : selectedReportItem?.typeKey === 'ANNUAL_ACADEMIC' ? (
-                            <>
-                              <td className="py-2 px-3 text-muted-foreground">{s.grade} - {s.section}</td>
-                              <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term1Score !== null ? `${s.term1Score}%` : '—'}</td>
-                              <td className="py-2 px-3 text-right font-mono text-muted-foreground">{s.term2Score !== null ? `${s.term2Score}%` : '—'}</td>
-                              <td className="py-2 px-3 text-right font-bold font-mono text-foreground">{s.percentage}%</td>
-                              <td className="py-2 px-3 text-center">
-                                <span className="font-bold px-2 py-0.5 rounded-full text-[10px] bg-muted border border-border">
-                                  {s.gradeLetter}
-                                </span>
-                              </td>
-                              <td className="py-2 px-3 text-center">
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-full text-[10px] font-bold border",
-                                  s.promotionStatus === 'PROMOTED'
-                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                    : s.promotionStatus === 'INCOMPLETE'
-                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                                )}>
-                                  {s.promotionStatus}
-                                </span>
-                              </td>
                             </>
                           ) : (
                             <>

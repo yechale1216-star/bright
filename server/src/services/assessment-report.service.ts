@@ -7,7 +7,6 @@ export type StandardReportCategory =
   | 'SUBJECT_PERFORMANCE'
   | 'GRADE_LEVEL'
   | 'PERFORMANCE_ANALYSIS'
-  | 'ANNUAL_ACADEMIC'
   | 'SCHOOL_SUMMARY';
 
 export interface AssessmentReportFilters {
@@ -30,7 +29,7 @@ export function normalizeReportCategory(type?: string): StandardReportCategory {
   if (upper === 'SUBJECT_PERFORMANCE' || upper === 'SUBJECT_COMPARISON') return 'SUBJECT_PERFORMANCE';
   if (upper === 'GRADE_LEVEL' || upper === 'GRADE_REPORT') return 'GRADE_LEVEL';
   if (upper === 'PERFORMANCE_ANALYSIS') return 'PERFORMANCE_ANALYSIS';
-  if (upper === 'ANNUAL_ACADEMIC' || upper === 'ANNUAL_REPORT') return 'ANNUAL_ACADEMIC';
+
   if (upper === 'SCHOOL_SUMMARY') return 'SCHOOL_SUMMARY';
   return 'CLASS_PERFORMANCE';
 }
@@ -90,10 +89,8 @@ export class AssessmentReportService {
     if (!selectedTerm && yearTerms.length > 0) {
       selectedTerm = yearTerms[0];
     }
-    const termId = category === 'ANNUAL_ACADEMIC' ? undefined : (selectedTerm?.id || undefined);
-    const termLabel = category === 'ANNUAL_ACADEMIC'
-      ? 'Full Academic Year'
-      : (selectedTerm?.name || (yearTerms.length > 0 ? yearTerms[0].name : 'Term'));
+    const termId = selectedTerm?.id || undefined;
+    const termLabel = selectedTerm?.name || (yearTerms.length > 0 ? yearTerms[0].name : 'Term');
 
     // 3. Load School's Configured Grading Scales
     const dbGradingScales = await prisma.gradingScale.findMany({
@@ -851,99 +848,6 @@ export class AssessmentReportService {
         break;
       }
 
-      case 'ANNUAL_ACADEMIC': {
-        // Multi-term consolidated evaluation using evaluateStudentPromotion
-        const requiredTermIds = yearTerms.map((t) => t.id);
-        let annualPromotedCount = 0;
-        let annualRetainedCount = 0;
-        let annualIncompleteCount = 0;
-        const annualFinalAverages: number[] = [];
-
-        for (const s of activeStudents) {
-          const studentReports = evaluatedStudentsMap.get(s.id) || [];
-
-          // Build SubjectPeriodScores for evaluateStudentPromotion
-          const subjectScoresInput: SubjectPeriodScores[] = allSubjects.map((sub) => {
-            const scoresObj: Record<string, number | null | undefined> = {};
-            for (const t of yearTerms) {
-              const termReport = studentReports.find((r) => r.termId === t.id);
-              const subScore = termReport?.subjectScores.find((ss) => ss.subjectId === sub.id);
-              scoresObj[t.id] = subScore ? subScore.percentage : null;
-            }
-            return {
-              subjectId: sub.id,
-              subjectName: sub.name,
-              code: sub.code,
-              scores: scoresObj,
-            };
-          }).filter((s) => {
-            // Keep subjects that had at least one evaluation in the year
-            return Object.values(s.scores).some((v) => v !== null && v !== undefined);
-          });
-
-          const promoResult = evaluateStudentPromotion({
-            subjectScores: subjectScoresInput,
-            requiredPeriodIds: requiredTermIds,
-            isSingleTerm: false,
-            policyPassingMinScore,
-            maxAllowedFailedSubjects: 2,
-            gradingScales,
-          });
-
-          if (promoResult.isIncomplete) {
-            annualIncompleteCount++;
-          } else if (promoResult.canPromote) {
-            annualPromotedCount++;
-            if (promoResult.overallAverage !== null) annualFinalAverages.push(promoResult.overallAverage);
-          } else {
-            annualRetainedCount++;
-            if (promoResult.overallAverage !== null) annualFinalAverages.push(promoResult.overallAverage);
-          }
-        }
-
-        const cumulativeAnnualAvg = annualFinalAverages.length > 0
-          ? Math.round((annualFinalAverages.reduce((a, b) => a + b, 0) / annualFinalAverages.length) * 10) / 10
-          : cohortAverage;
-
-        const promotionRate = (annualPromotedCount + annualRetainedCount) > 0
-          ? Math.round((annualPromotedCount / (annualPromotedCount + annualRetainedCount)) * 1000) / 10
-          : 0;
-
-        summary = {
-          card1Title: 'Annual Candidates',
-          card1Val: totalActiveCount,
-          card1Sub: `Multi-term consolidated records`,
-          card2Title: 'Annual Cumulative Average',
-          card2Val: `${cumulativeAnnualAvg}%`,
-          card2Sub: 'Consolidated full-year academic index',
-          card3Title: 'Promotion Eligible',
-          card3Val: `${annualPromotedCount} (${promotionRate}%)`,
-          card3Sub: 'Met official promotion policy',
-          card4Title: 'Retained / Incomplete',
-          card4Val: `${annualRetainedCount + annualIncompleteCount}`,
-          card4Sub: `${annualRetainedCount} Retained, ${annualIncompleteCount} Incomplete`,
-          chartTitle: 'Annual Curriculum Subject Cumulative Performance',
-          chartSub: 'Average cumulative percentage marks across curriculum subjects',
-        };
-
-        const promoBands = [
-          { name: 'Eligible for Promotion', rangeLabel: 'Pass', minScore: policyPassingMinScore, maxScore: 100, color: '#10b981', count: annualPromotedCount, percentage: totalActiveCount > 0 ? Math.round((annualPromotedCount / totalActiveCount) * 100) : 0 },
-          { name: 'Retained / Detained', rangeLabel: 'Fail', minScore: 0, maxScore: policyPassingMinScore - 0.01, color: '#ef4444', count: annualRetainedCount, percentage: totalActiveCount > 0 ? Math.round((annualRetainedCount / totalActiveCount) * 100) : 0 },
-          { name: 'Incomplete Assessment', rangeLabel: 'Incomplete', minScore: 0, maxScore: 0, color: '#f59e0b', count: annualIncompleteCount, percentage: totalActiveCount > 0 ? Math.round((annualIncompleteCount / totalActiveCount) * 100) : 0 },
-        ];
-
-        distribution = {
-          totalResults: totalActiveCount,
-          bands: promoBands,
-        };
-
-        chartPerformance = subjectPerformanceArray;
-        recommendations = [
-          'Annual consolidation calculated as single consolidated record per candidate pursuant to school policy.',
-          `${annualIncompleteCount} students have unfinalized semester assessments and must be cleared prior to final promotion sign-off.`,
-        ];
-        break;
-      }
 
       case 'SCHOOL_SUMMARY':
       default: {
@@ -1160,26 +1064,6 @@ export class AssessmentReportService {
       return catalog;
     }
 
-    // Category F: ANNUAL_ACADEMIC
-    if (category === 'ANNUAL_ACADEMIC') {
-      for (const g of grades) {
-        const gradeStudents = activeStudents.filter((st) => st.gradeId === g.id);
-        catalog.push({
-          id: `annual_${g.id}`,
-          reportName: `${yearName} ${g.name} - Annual Academic Report`,
-          type: 'Annual Academic Report',
-          typeKey: 'ANNUAL_ACADEMIC',
-          academicYear: yearName,
-          term: 'Full Academic Year',
-          grade: g.name,
-          subjectOrStream: 'Annual Consolidated Promotion Review',
-          generatedOn: nowFormatted,
-          averageScore: cohortAverage,
-          studentCount: gradeStudents.length,
-        });
-      }
-      return catalog;
-    }
 
     // Category G: SCHOOL_SUMMARY
     catalog.push({
@@ -1321,52 +1205,7 @@ export class AssessmentReportService {
         });
       }
     }
-    // ─── Case 2: ANNUAL_ACADEMIC ────────────────────────────────────────────
-    else if (prefix === 'annual') {
-      // Group by student across all terms in the year
-      const studentMap = new Map<string, { student: any; grade: any; section: any; termScores: Map<string, number> }>();
-      for (const rc of reportCards) {
-        if (!studentMap.has(rc.studentId)) {
-          studentMap.set(rc.studentId, {
-            student: rc.student,
-            grade: rc.grade,
-            section: rc.section,
-            termScores: new Map(),
-          });
-        }
-        studentMap.get(rc.studentId)!.termScores.set(rc.academicTerm?.name || 'Term', Number(rc.averageScore || 0));
-      }
 
-      studentRows = Array.from(studentMap.values()).map(({ student, grade, section, termScores }, idx) => {
-        const termsArray = Array.from(termScores.entries());
-        const term1 = termsArray[0]?.[1] ?? null;
-        const term2 = termsArray[1]?.[1] ?? null;
-
-        const validVals = termsArray.map((t) => t[1]).filter((v) => typeof v === 'number');
-        const isComplete = termsArray.length >= 2;
-        const annualAvg = validVals.length > 0 ? Math.round((validVals.reduce((a, b) => a + b, 0) / validVals.length) * 10) / 10 : 0;
-        const isPromoted = isComplete && annualAvg >= passThreshold;
-        const scale = findGradeScale(annualAvg, gradingScales, passThreshold);
-
-        return {
-          id: student.id,
-          studentId: student.student_id,
-          fullName: student.fullName,
-          gender: student.gender || 'M',
-          grade: grade?.name || student.grade?.name || 'Grade',
-          section: section?.name || student.section?.name || 'A',
-          stream: student.stream?.name || 'General',
-          term1Score: term1,
-          term2Score: term2,
-          score: annualAvg,
-          percentage: annualAvg,
-          gradeLetter: isComplete ? scale.grade : 'INC',
-          status: !isComplete ? 'Incomplete' : (isPromoted ? 'Passed' : 'Failed'),
-          promotionStatus: !isComplete ? 'INCOMPLETE' : (isPromoted ? 'PROMOTED' : 'RETAINED'),
-          rank: idx + 1,
-        };
-      }).sort((a, b) => b.score - a.score).map((r, i) => ({ ...r, rank: i + 1 }));
-    }
     // ─── Case 3: SUBJECT_PERFORMANCE ────────────────────────────────────────
     else if (prefix === 'subj' && targetSubjectId) {
       studentRows = reportCards.map((rc) => {
