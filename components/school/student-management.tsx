@@ -345,7 +345,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       ARCHIVED: 0,
     }
     students.forEach((s) => {
-      const st = (s.status || s.enrollmentStatus || "ACTIVE").toUpperCase()
+      const st = (s.status || (s as any).enrollmentStatus || "ACTIVE").toUpperCase()
       if (st === "SUSPENDED" || st === "INACTIVE") {
         counts.SUSPENDED = (counts.SUSPENDED || 0) + 1
       } else if (counts[st] !== undefined) {
@@ -375,7 +375,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     if (!isTeacher && statusFilter && statusFilter !== "All" && statusFilter !== "ALL") {
       const target = statusFilter.toUpperCase()
       filtered = filtered.filter((student) => {
-        const studentStatus = (student.status || student.enrollmentStatus || "ACTIVE").toUpperCase()
+        const studentStatus = (student.status || (student as any).enrollmentStatus || "ACTIVE").toUpperCase()
         if (target === "SUSPENDED") {
           return studentStatus === "SUSPENDED" || studentStatus === "INACTIVE"
         }

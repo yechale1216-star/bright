@@ -35,6 +35,7 @@ export interface Student {
   destinationSchool?: string | null
   statusReason?: string | null
   activationSlip?: any
+  enrollmentStatus?: string
 }
 
 export interface AttendanceRecord {
