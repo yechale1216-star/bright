@@ -20,6 +20,32 @@ const sanitizeStudentForRole = (student: any, role?: string) => {
 
 export const getStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    let allowedSectionIds: string[] | undefined = undefined;
+
+    if (userId && userRole === 'teacher') {
+      const { teacherAccessService } = await import('../services/teacher-access.service');
+      const access = await teacherAccessService.validateTeacherActiveAccess(userId);
+      if (!access.allowed) {
+        return res.status(403).json({ success: false, code: access.code, message: access.message });
+      }
+
+      const reqYear = req.query.academicYear as string | undefined;
+      if (reqYear && reqYear !== access.currentYear?.id && reqYear !== access.currentYear?.name) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN_ACADEMIC_YEAR',
+          message: `Access denied. Teachers cannot access historical or future academic year student data (${reqYear}).`,
+        });
+      }
+
+      allowedSectionIds = (access.assignments || []).map((a: any) => a.sectionId).filter(Boolean);
+      if (allowedSectionIds.length === 0) {
+        return res.status(200).json({ success: true, data: [] });
+      }
+    }
+
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const gradeId = req.query.gradeId as string | undefined;
@@ -33,9 +59,28 @@ export const getStudents = async (req: AuthenticatedRequest, res: Response, next
       ? { page, limit }
       : undefined;
 
-    const students = await studentService.getAllStudents(undefined, search, status, gradeId, sectionId, streamId, academicYear, pagination);
-    
-    const userRole = req.user?.role;
+    let effectiveSectionId = sectionId;
+    if (userRole === 'teacher' && allowedSectionIds) {
+      if (sectionId && !allowedSectionIds.includes(sectionId)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You are not assigned to this class section for the active academic year.',
+        });
+      }
+      if (!sectionId && allowedSectionIds.length === 1) {
+        effectiveSectionId = allowedSectionIds[0];
+      }
+    }
+
+    let students = await studentService.getAllStudents(undefined, search, status, gradeId, effectiveSectionId, streamId, academicYear, pagination);
+    if (userRole === 'teacher' && allowedSectionIds && !sectionId && allowedSectionIds.length > 1) {
+      if (Array.isArray(students)) {
+        students = students.filter((s: any) => allowedSectionIds!.includes(s.sectionId));
+      } else if (students && Array.isArray((students as any).items)) {
+        (students as any).items = (students as any).items.filter((s: any) => allowedSectionIds!.includes(s.sectionId));
+      }
+    }
+
     let sanitizedData: any;
     if (Array.isArray(students)) {
       sanitizedData = students.map((s) => sanitizeStudentForRole(s, userRole));
@@ -75,6 +120,13 @@ export const createStudent = async (req: AuthenticatedRequest, res: Response, ne
 export const getStudentById = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const student = await studentService.getStudentById(req.params.id);
+    if (student && req.user?.role === 'teacher' && req.user?.id) {
+      const { teacherAccessService } = await import('../services/teacher-access.service');
+      const scopeCheck = await teacherAccessService.verifyStudentScope(req.user.id, student.id);
+      if (!scopeCheck.allowed) {
+        return res.status(403).json({ success: false, message: scopeCheck.reason });
+      }
+    }
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }

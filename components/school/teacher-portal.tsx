@@ -129,6 +129,7 @@ export function TeacherPortal() {
   const [isLoadingMarksSheet, setIsLoadingMarksSheet] = useState(false)
   const [marksSheetRows, setMarksSheetRows] = useState<StudentMarksRow[]>([])
   const [isSavingBulkMarks, setIsSavingBulkMarks] = useState(false)
+  const [accessError, setAccessError] = useState<string | null>(null)
 
   // -”€-”€ Load Portal Data -”€-”€
   const loadPortalClasses = useCallback(async () => {
@@ -566,6 +567,19 @@ export function TeacherPortal() {
             </Button>
           </div>
         </div>
+
+        {/* Access Error Banner */}
+        {accessError && (
+          <div className="rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-6 text-center space-y-2 mb-6">
+            <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/60 mx-auto flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-amber-900 dark:text-amber-200">Teaching Portal Access Restricted</h3>
+            <p className="text-sm text-amber-700 dark:text-amber-300 max-w-md mx-auto">
+              {accessError}
+            </p>
+          </div>
+        )}
 
         {/* Classes Grid */}
         {filteredAssignments.length === 0 ? (

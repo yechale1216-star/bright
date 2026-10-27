@@ -343,6 +343,56 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
     })
   }
 
+  // ─── Terminate & Reinstate Lifecycle Handlers ───
+  const [terminatingTeacher, setTerminatingTeacher] = useState<Teacher | null>(null);
+  const [terminationReason, setTerminationReason] = useState("");
+  const [isSubmittingTermination, setIsSubmittingTermination] = useState(false);
+
+  const handleOpenTerminateModal = (teacher: Teacher) => {
+    setTerminatingTeacher(teacher);
+    setTerminationReason("");
+  };
+
+  const handleConfirmTerminate = async () => {
+    if (!terminatingTeacher) return;
+    if (!terminationReason.trim()) {
+      notifications.error("Reason Required", "Please enter a reason for the employment termination.");
+      return;
+    }
+
+    try {
+      setIsSubmittingTermination(true);
+      await db.terminateTeacher(terminatingTeacher.id, { reason: terminationReason.trim() });
+      notifications.success(
+        "Employment Terminated",
+        `${terminatingTeacher.full_name}'s employment has been terminated. All active sessions were revoked immediately.`
+      );
+      setTerminatingTeacher(null);
+      loadData(true, true);
+    } catch (err: any) {
+      notifications.error("Termination Failed", err.message || "Failed to terminate teacher employment.");
+    } finally {
+      setIsSubmittingTermination(false);
+    }
+  };
+
+  const handleReinstate = async (teacher: Teacher) => {
+    if (!window.confirm(`Are you sure you want to reinstate ${teacher.full_name}? They will be able to log in, but will require an assignment in the active academic year to access the teaching portal.`)) {
+      return;
+    }
+
+    try {
+      await db.reinstateTeacher(teacher.id);
+      notifications.success(
+        "Teacher Reinstated",
+        `${teacher.full_name} has been reinstated. Please assign them to classes in the Assignments tab to restore portal access.`
+      );
+      loadData(true, true);
+    } catch (err: any) {
+      notifications.error("Reinstatement Failed", err.message || "Failed to reinstate teacher.");
+    }
+  };
+
   const handleToggleStatus = async (teacher: Teacher) => {
     const isActivating = teacher.is_active === false
     const actionText = isActivating ? "Restore" : "Suspend"

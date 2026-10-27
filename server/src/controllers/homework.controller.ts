@@ -20,6 +20,19 @@ export const getHomeworkById = async (req: AuthenticatedRequest, res: Response, 
 
 export const createHomework = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const userId = req.user?.id;
+    const { gradeId, subjectId, sectionId } = req.body;
+    if (userId && req.user?.role === 'teacher') {
+      const { teacherAccessService } = await import('../services/teacher-access.service');
+      const access = await teacherAccessService.validateTeacherActiveAccess(userId);
+      if (!access.allowed) {
+        return res.status(403).json({ success: false, code: access.code, message: access.message });
+      }
+      const scope = await teacherAccessService.verifyClassSubjectScope(userId, { gradeId, subjectId, sectionId });
+      if (!scope.allowed) {
+        return res.status(403).json({ success: false, message: scope.reason });
+      }
+    }
     const hw = await homeworkService.createHomework(req.body);
     res.status(201).json({ success: true, data: hw });
   } catch (error) { next(error); }

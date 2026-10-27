@@ -48,6 +48,18 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
 
   try {
     const decoded = jwt.verify(token, getJwtSecret()) as any;
+
+    // Immediate Session Revocation Check (O(1) Redis lookup)
+    try {
+      const revoked = await cacheGet(`revoked_user:${decoded.id}`);
+      if (revoked) {
+        return res.status(403).json({
+          success: false,
+          code: 'ACCOUNT_TERMINATED',
+          message: 'Your account has been deactivated or employment terminated. Please contact school administration.',
+        });
+      }
+    } catch (e) {}
     let role = decoded.role;
 
     let requestedRole = req.headers['x-requested-role'] as string | undefined;

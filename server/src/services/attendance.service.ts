@@ -153,12 +153,15 @@ export const markAttendance = async (data: any, _schoolId?: string) => {
   }
 
   if (userRole === 'teacher') {
+    const currentYear = await academicYearService.getCurrentAcademicYear();
     const isHomeroom = await prisma.teacherAssignment.findFirst({
       where: {
         teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) as string[] },
         role: 'HOMEROOM_TEACHER',
         gradeId: student.gradeId,
         sectionId: student.sectionId,
+        ...(currentYear ? { academicYearId: currentYear.id } : {}),
+        status: 'ACTIVE',
       },
     });
     if (!isHomeroom) {
@@ -742,10 +745,13 @@ export const bulkMarkAttendance = async (
   const validStudents = candidateStudents;
 
   if (userRole === 'teacher') {
+    const currentYear = await academicYearService.getCurrentAcademicYear();
     const homeroomAssignments = await prisma.teacherAssignment.findMany({
       where: {
         teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) as string[] },
         role: 'HOMEROOM_TEACHER',
+        ...(currentYear ? { academicYearId: currentYear.id } : {}),
+        status: 'ACTIVE',
       },
       select: { gradeId: true, sectionId: true }
     });

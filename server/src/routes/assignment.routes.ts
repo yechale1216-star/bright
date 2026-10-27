@@ -1,3 +1,4 @@
+import { requireActiveTeacher } from '../middleware/teacher-access.middleware';
 import { Router, Response, NextFunction } from 'express';
 import * as assignmentService from '../services/assignment.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -5,7 +6,7 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 const router = Router();
 
 // ─── Teacher Portal ───────────────────────────────────────────────────────────
-router.get('/teacher-portal/classes', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.get('/teacher-portal/classes', requireActiveTeacher, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -14,7 +15,7 @@ router.get('/teacher-portal/classes', async (req: AuthenticatedRequest, res: Res
   } catch (error) { next(error); }
 });
 
-router.get('/teacher-portal/class-details', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+router.get('/teacher-portal/class-details', requireActiveTeacher, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });

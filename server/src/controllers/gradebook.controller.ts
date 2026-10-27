@@ -93,7 +93,19 @@ export const deleteExam = async (req: AuthenticatedRequest, res: Response, next:
  */
 export const getAssessments = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const { examId, gradeId, sectionId, subjectId, academicYearId, academicTermId } = req.query as any;
+    let { examId, gradeId, sectionId, subjectId, academicYearId, academicTermId } = req.query as any;
+    const userId = req.user?.id;
+    if (userId && req.user?.role === 'teacher') {
+      const { teacherAccessService } = await import('../services/teacher-access.service');
+      const access = await teacherAccessService.validateTeacherActiveAccess(userId);
+      if (!access.allowed) {
+        return res.status(403).json({ success: false, code: access.code, message: access.message });
+      }
+      if (academicYearId && academicYearId !== access.currentYear?.id) {
+        return res.status(403).json({ success: false, message: 'Access denied. Teachers cannot access historical or future academic years.' });
+      }
+      academicYearId = access.currentYear?.id;
+    }
     const assessments = await gradebookService.getAssessments({
       examId,
       gradeId,
@@ -125,6 +137,17 @@ export const createAssessment = async (req: AuthenticatedRequest, res: Response,
   try {
     const userId = req.user?.id;
     const { gradeId, subjectId, sectionId } = req.body;
+    if (userId && req.user?.role === 'teacher') {
+      const { teacherAccessService } = await import('../services/teacher-access.service');
+      const access = await teacherAccessService.validateTeacherActiveAccess(userId);
+      if (!access.allowed) {
+        return res.status(403).json({ success: false, code: access.code, message: access.message });
+      }
+      if (req.body.academicYearId && req.body.academicYearId !== access.currentYear?.id) {
+        return res.status(403).json({ success: false, message: 'Access denied. You cannot create assessments for another academic year.' });
+      }
+      req.body.academicYearId = access.currentYear?.id;
+    }
 
     if (userId && gradeId && subjectId) {
       const access = await verifyTeacherClassSubjectAccess(userId, { gradeId, subjectId, sectionId });

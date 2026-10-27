@@ -32,6 +32,7 @@ model User {
   qualification              String?
   subject                    String?
   profile_photo              String?
+  employmentStatus           String?              @default("ACTIVE")
   is_verified                Boolean              @default(false)
   verification_token         String?
   verification_token_expires DateTime?
@@ -79,6 +80,12 @@ model Teacher {
   subject          String?
   user_id          String?             @unique
   profile_photo    String?
+  employmentStatus         String              @default("ACTIVE") // ACTIVE | TERMINATED | SUSPENDED
+  terminationEffectiveDate DateTime?
+  terminationReason        String?
+  terminatedBy             String?
+  reinstatedDate           DateTime?
+  reinstatedBy             String?
   attendance       Attendance[]
   assignments      TeacherAssignment[]
   timetableSlots   TimetableSlot[]     @relation("AssignedTeacher")
@@ -99,6 +106,7 @@ model TeacherAssignment {
   subject        String?
   streamId       String?
   role           String        @default("SUBJECT_TEACHER") // "SUBJECT_TEACHER" | "HOMEROOM_TEACHER"
+  status         String        @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "ENDED"
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @default(now()) @updatedAt
 
@@ -116,6 +124,7 @@ model TeacherAssignment {
   @@index([academicYearId])
   @@index([subjectId])
   @@index([role])
+  @@index([status])
 }
 
 model SchoolSettings {

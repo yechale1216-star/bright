@@ -70,3 +70,50 @@ export async function getTeacherAssignments(headers: any, schoolId = "single-sch
     { staleTime: 60_000, persist: true, forceRefetch }
   )
 }
+
+
+export async function terminateTeacher(
+  headers: any,
+  teacherId: string,
+  payload: { reason: string; effectiveDate?: string }
+): Promise<{ success: boolean; message?: string }> {
+  const result = await apiFetch<{ success: boolean; message?: string }>(
+    `${API_URL}/api/teachers/${teacherId}/terminate`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidateMatching(/^teachers_/);
+  queryCache.invalidateMatching(/^assignments_/);
+  return result;
+}
+
+export async function reinstateTeacher(
+  headers: any,
+  teacherId: string,
+  payload: { reason?: string } = {}
+): Promise<{ success: boolean; message?: string }> {
+  const result = await apiFetch<{ success: boolean; message?: string }>(
+    `${API_URL}/api/teachers/${teacherId}/reinstate`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidateMatching(/^teachers_/);
+  queryCache.invalidateMatching(/^assignments_/);
+  return result;
+}
+
+export async function getTeacherStatus(
+  headers: any,
+  teacherId: string
+): Promise<{ success: boolean; data: any }> {
+  return await apiFetch<{ success: boolean; data: any }>(
+    `${API_URL}/api/teachers/${teacherId}/status`,
+    { headers, cache: "no-store" }
+  );
+}

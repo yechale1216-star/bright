@@ -14,6 +14,8 @@ export interface UpdateAcademicYearInput {
   isCurrent?: boolean;
 }
 
+let cachedActiveAY: { data: any; expiry: number } | null = null;
+
 export class AcademicYearService {
   /**
    * Get all academic years sorted by startDate descending (with terms included)
@@ -126,10 +128,8 @@ export class AcademicYearService {
     return academicYears;
   }
 
-  private cachedActiveAY: { data: any; expiry: number } | null = null;
-
   public invalidateCurrentCache() {
-    this.cachedActiveAY = null;
+    cachedActiveAY = null;
   }
 
   /**
@@ -137,8 +137,8 @@ export class AcademicYearService {
    */
   async getCurrentAcademicYear(_schoolId?: string) {
     const now = Date.now();
-    if (this.cachedActiveAY && this.cachedActiveAY.expiry > now) {
-      return this.cachedActiveAY.data;
+    if (cachedActiveAY && cachedActiveAY.expiry > now) {
+      return cachedActiveAY.data;
     }
 
     let current = await prisma.academicYear.findFirst({
@@ -155,7 +155,7 @@ export class AcademicYearService {
       current = allYears.find(y => y.isCurrent) || allYears[0] || null;
     }
 
-    this.cachedActiveAY = { data: current, expiry: now + 5 * 60 * 1000 };
+    cachedActiveAY = { data: current, expiry: now + 5 * 60 * 1000 };
     return current;
   }
 

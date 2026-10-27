@@ -139,12 +139,15 @@ const markAttendance = async (data, _schoolId) => {
         throw new Error(eligibility.reason || `Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}".`);
     }
     if (userRole === 'teacher') {
+        const currentYear = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
         const isHomeroom = await db_1.default.teacherAssignment.findFirst({
             where: {
                 teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) },
                 role: 'HOMEROOM_TEACHER',
                 gradeId: student.gradeId,
                 sectionId: student.sectionId,
+                ...(currentYear ? { academicYearId: currentYear.id } : {}),
+                status: 'ACTIVE',
             },
         });
         if (!isHomeroom) {
@@ -654,10 +657,13 @@ const bulkMarkAttendance = async (records, _schoolId, meta = {}) => {
     }
     const validStudents = candidateStudents;
     if (userRole === 'teacher') {
+        const currentYear = await academic_year_service_1.academicYearService.getCurrentAcademicYear();
         const homeroomAssignments = await db_1.default.teacherAssignment.findMany({
             where: {
                 teacher_id: { in: [resolvedTeacherId, userId, teacherId].filter(Boolean) },
                 role: 'HOMEROOM_TEACHER',
+                ...(currentYear ? { academicYearId: currentYear.id } : {}),
+                status: 'ACTIVE',
             },
             select: { gradeId: true, sectionId: true }
         });

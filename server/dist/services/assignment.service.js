@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -338,61 +371,36 @@ const deleteAssignment = async (id, _schoolId) => {
 exports.deleteAssignment = deleteAssignment;
 // ─── Subject Teacher Portal Service ──────────────────────────────────────────
 const getTeacherPortalClasses = async (userId) => {
-    // Find teacher record associated with this user
-    let teacherId;
+    const { teacherAccessService } = await Promise.resolve().then(() => __importStar(require('./teacher-access.service')));
     const user = await db_1.default.user.findUnique({
         where: { id: userId },
-        select: { id: true, teacher_id: true, role: true, email: true },
+        select: { id: true, role: true },
     });
-    if (user?.teacher_id) {
-        teacherId = user.teacher_id;
-    }
-    else {
-        const teacher = await db_1.default.teacher.findFirst({
-            where: {
-                OR: [
-                    { user_id: userId },
-                    ...(user?.email ? [{ email: { equals: user.email, mode: 'insensitive' } }] : []),
-                ],
+    const isAdmin = teacherAccessService.isAdmin(user?.role);
+    if (isAdmin) {
+        const currentYear = await db_1.default.academicYear.findFirst({ where: { isCurrent: true } });
+        const assignments = await db_1.default.teacherAssignment.findMany({
+            where: currentYear ? { academicYearId: currentYear.id, status: 'ACTIVE' } : { status: 'ACTIVE' },
+            include: {
+                grade: true,
+                section: true,
+                stream: true,
+                academicYear: true,
+                subjectRef: true,
+                teacher: { select: { id: true, name: true, email: true } },
             },
+            orderBy: [{ role: 'asc' }, { grade: { name: 'asc' } }, { section: { name: 'asc' } }],
         });
-        if (teacher)
-            teacherId = teacher.id;
+        return { assignments, currentYear };
     }
-    const adminRoles = ['admin', 'superadmin', 'school_admin', 'academic_head', 'director', 'principal', 'coordinator', 'head_teacher'];
-    const isAdmin = adminRoles.includes(user?.role?.toLowerCase() || '');
-    if (!teacherId && !isAdmin) {
-        return { assignments: [], currentYear: null };
+    const access = await teacherAccessService.validateTeacherActiveAccess(userId);
+    if (!access.allowed) {
+        const error = new Error(access.message || 'Access denied');
+        error.status = 403;
+        error.code = access.code || 'ACCESS_DENIED';
+        throw error;
     }
-    const currentYear = await db_1.default.academicYear.findFirst({
-        where: { isCurrent: true },
-    });
-    const teacherIds = [teacherId, userId].filter(Boolean);
-    const assignments = await db_1.default.teacherAssignment.findMany({
-        where: {
-            ...(isAdmin && !teacherId ? {} : { teacher_id: { in: teacherIds } }),
-            ...(currentYear
-                ? {
-                    OR: [
-                        { academicYearId: currentYear.id },
-                        { academicYearId: null },
-                    ],
-                }
-                : {}),
-        },
-        include: {
-            grade: true,
-            section: true,
-            stream: true,
-            academicYear: true,
-            subjectRef: true,
-            teacher: {
-                select: { id: true, name: true, email: true },
-            },
-        },
-        orderBy: [{ role: 'asc' }, { grade: { name: 'asc' } }, { section: { name: 'asc' } }],
-    });
-    return { assignments, currentYear };
+    return { assignments: access.assignments || [], currentYear: access.currentYear };
 };
 exports.getTeacherPortalClasses = getTeacherPortalClasses;
 const getTeacherClassDetails = async (userId, params) => {
@@ -489,112 +497,12 @@ exports.getTeacherClassDetails = getTeacherClassDetails;
  * Admins, superadmins, and school_admins always bypass this check.
  */
 const verifyTeacherClassSubjectAccess = async (userId, params) => {
-    const user = await db_1.default.user.findUnique({
-        where: { id: userId },
-        select: { id: true, teacher_id: true, role: true, email: true },
+    const { teacherAccessService } = await Promise.resolve().then(() => __importStar(require('./teacher-access.service')));
+    return await teacherAccessService.verifyClassSubjectScope(userId, {
+        gradeId: params.gradeId,
+        subjectId: params.subjectId,
+        sectionId: params.sectionId || undefined,
+        academicYearId: params.academicYearId || undefined,
     });
-    if (!user)
-        return { allowed: false, reason: 'User not found' };
-    // Administrators and academic heads always have access
-    const adminRoles = ['admin', 'superadmin', 'school_admin', 'academic_head', 'director', 'principal', 'coordinator', 'head_teacher'];
-    if (adminRoles.includes(user.role?.toLowerCase() || '')) {
-        return { allowed: true };
-    }
-    // Find linked teacher profile
-    let teacherId = user.teacher_id;
-    if (!teacherId) {
-        const teacher = await db_1.default.teacher.findFirst({
-            where: {
-                OR: [
-                    { user_id: userId },
-                    ...(user.email ? [{ email: { equals: user.email, mode: 'insensitive' } }] : []),
-                ],
-            },
-        });
-        if (teacher)
-            teacherId = teacher.id;
-    }
-    const teacherIds = [teacherId, userId].filter(Boolean);
-    // Fetch all assignments for this teacher across this grade
-    const assignments = await db_1.default.teacherAssignment.findMany({
-        where: {
-            teacher_id: { in: teacherIds },
-            gradeId: params.gradeId,
-        },
-        include: {
-            subjectRef: true,
-            grade: true,
-            section: true,
-        },
-    });
-    if (assignments.length === 0) {
-        // Check if user has assignments in other grades or is any registered teacher
-        const anyAssignment = await db_1.default.teacherAssignment.findFirst({
-            where: { teacher_id: { in: teacherIds } },
-        });
-        if (!anyAssignment) {
-            // Check if user has teacher role but assignments haven't been seeded yet
-            const teacherRoles = ['teacher', 'subject_teacher', 'homeroom_teacher', 'highschol_teachers', 'instructor', 'staff'];
-            if (!teacherRoles.includes(user.role?.toLowerCase() || '')) {
-                return { allowed: false, reason: 'Only assigned teachers or administrators are permitted to access this gradebook.' };
-            }
-            return { allowed: false, reason: 'No teacher assignments found for your account.' };
-        }
-        return { allowed: false, reason: 'You are not assigned to this grade.' };
-    }
-    // Resolve target subject by ID, Name, or Code
-    const targetSubject = await db_1.default.subject.findFirst({
-        where: {
-            OR: [
-                { id: params.subjectId },
-                { name: { equals: params.subjectId, mode: 'insensitive' } },
-                { code: { equals: params.subjectId, mode: 'insensitive' } },
-            ],
-        },
-        select: { id: true, name: true, code: true },
-    });
-    const matchingAssignment = assignments.find((a) => {
-        const aSubjName = (a.subjectRef?.name || a.subject || '').toLowerCase().trim();
-        const aSubjCode = (a.subjectRef?.code || '').toLowerCase().trim();
-        const aSubjId = a.subjectId || a.subjectRef?.id;
-        const pSubj = (params.subjectId || '').toLowerCase().trim();
-        const tSubjName = (targetSubject?.name || '').toLowerCase().trim();
-        const tSubjCode = (targetSubject?.code || '').toLowerCase().trim();
-        const tSubjId = targetSubject?.id;
-        // Check if subject matches by ID, Name, or Code
-        const subjMatch = !params.subjectId ||
-            // Direct ID match
-            (aSubjId && (aSubjId === params.subjectId || (tSubjId && aSubjId === tSubjId))) ||
-            // Direct name / code match
-            (aSubjName && (aSubjName === pSubj || (tSubjName && aSubjName === tSubjName))) ||
-            (aSubjCode && (aSubjCode === pSubj || (tSubjCode && aSubjCode === tSubjCode))) ||
-            // Assignment string subject matches param
-            (a.subject && a.subject.toLowerCase() === pSubj) ||
-            // Homeroom teacher oversees all subjects for their section
-            (a.role === 'HOMEROOM_TEACHER' && (!params.sectionId || !a.sectionId || a.sectionId === params.sectionId));
-        if (!subjMatch)
-            return false;
-        // If sectionId is specified, check section match (null sectionId means assigned to entire grade)
-        if (params.sectionId && a.sectionId && a.sectionId !== params.sectionId) {
-            return false;
-        }
-        return true;
-    });
-    if (!matchingAssignment) {
-        // If they teach this subject in this grade in another section, allow gradebook access
-        const teachesSubjectInGrade = assignments.some((a) => {
-            const aSubjName = (a.subjectRef?.name || a.subject || '').toLowerCase().trim();
-            const pSubj = (params.subjectId || '').toLowerCase().trim();
-            const tSubjName = (targetSubject?.name || '').toLowerCase().trim();
-            const aSubjId = a.subjectId || a.subjectRef?.id;
-            return ((aSubjId && (aSubjId === params.subjectId || (targetSubject?.id && aSubjId === targetSubject.id))) ||
-                (aSubjName && (aSubjName === pSubj || (tSubjName && aSubjName === tSubjName))));
-        });
-        if (teachesSubjectInGrade) {
-            return { allowed: true };
-        }
-        return { allowed: false, reason: 'You are not assigned to teach this subject in this grade.' };
-    }
-    return { allowed: true };
 };
 exports.verifyTeacherClassSubjectAccess = verifyTeacherClassSubjectAccess;

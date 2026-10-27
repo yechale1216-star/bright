@@ -33,11 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+const teacher_access_middleware_1 = require("../middleware/teacher-access.middleware");
 const express_1 = require("express");
 const assignmentService = __importStar(require("../services/assignment.service"));
 const router = (0, express_1.Router)();
 // ─── Teacher Portal ───────────────────────────────────────────────────────────
-router.get('/teacher-portal/classes', async (req, res, next) => {
+router.get('/teacher-portal/classes', teacher_access_middleware_1.requireActiveTeacher, async (req, res, next) => {
     try {
         const userId = req.user?.id;
         if (!userId)
@@ -49,7 +50,7 @@ router.get('/teacher-portal/classes', async (req, res, next) => {
         next(error);
     }
 });
-router.get('/teacher-portal/class-details', async (req, res, next) => {
+router.get('/teacher-portal/class-details', teacher_access_middleware_1.requireActiveTeacher, async (req, res, next) => {
     try {
         const userId = req.user?.id;
         if (!userId)

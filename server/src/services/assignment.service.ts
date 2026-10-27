@@ -384,66 +384,39 @@ export const deleteAssignment = async (id: string, _schoolId?: string) => {
 // ─── Subject Teacher Portal Service ──────────────────────────────────────────
 
 export const getTeacherPortalClasses = async (userId: string) => {
-  // Find teacher record associated with this user
-  let teacherId: string | undefined;
+  const { teacherAccessService } = await import('./teacher-access.service');
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, teacher_id: true, role: true, email: true },
+    select: { id: true, role: true },
   });
+  const isAdmin = teacherAccessService.isAdmin(user?.role);
 
-  if (user?.teacher_id) {
-    teacherId = user.teacher_id;
-  } else {
-    const teacher = await prisma.teacher.findFirst({
-      where: {
-        OR: [
-          { user_id: userId },
-          ...(user?.email ? [{ email: { equals: user.email, mode: 'insensitive' as const } }] : []),
-        ],
+  if (isAdmin) {
+    const currentYear = await prisma.academicYear.findFirst({ where: { isCurrent: true } });
+    const assignments = await prisma.teacherAssignment.findMany({
+      where: currentYear ? { academicYearId: currentYear.id, status: 'ACTIVE' } : { status: 'ACTIVE' },
+      include: {
+        grade: true,
+        section: true,
+        stream: true,
+        academicYear: true,
+        subjectRef: true,
+        teacher: { select: { id: true, name: true, email: true } },
       },
+      orderBy: [{ role: 'asc' }, { grade: { name: 'asc' } }, { section: { name: 'asc' } }],
     });
-    if (teacher) teacherId = teacher.id;
+    return { assignments, currentYear };
   }
 
-  const adminRoles = ['admin', 'superadmin', 'school_admin', 'academic_head', 'director', 'principal', 'coordinator', 'head_teacher'];
-  const isAdmin = adminRoles.includes(user?.role?.toLowerCase() || '');
-
-  if (!teacherId && !isAdmin) {
-    return { assignments: [], currentYear: null };
+  const access = await teacherAccessService.validateTeacherActiveAccess(userId);
+  if (!access.allowed) {
+    const error: any = new Error(access.message || 'Access denied');
+    error.status = 403;
+    error.code = access.code || 'ACCESS_DENIED';
+    throw error;
   }
 
-  const currentYear = await prisma.academicYear.findFirst({
-    where: { isCurrent: true },
-  });
-
-  const teacherIds = [teacherId, userId].filter(Boolean) as string[];
-
-  const assignments = await prisma.teacherAssignment.findMany({
-    where: {
-      ...(isAdmin && !teacherId ? {} : { teacher_id: { in: teacherIds } }),
-      ...(currentYear
-        ? {
-            OR: [
-              { academicYearId: currentYear.id },
-              { academicYearId: null },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      grade: true,
-      section: true,
-      stream: true,
-      academicYear: true,
-      subjectRef: true,
-      teacher: {
-        select: { id: true, name: true, email: true },
-      },
-    },
-    orderBy: [{ role: 'asc' }, { grade: { name: 'asc' } }, { section: { name: 'asc' } }],
-  });
-
-  return { assignments, currentYear };
+  return { assignments: access.assignments || [], currentYear: access.currentYear };
 };
 
 export const getTeacherClassDetails = async (
@@ -564,130 +537,15 @@ export const verifyTeacherClassSubjectAccess = async (
     gradeId: string;
     subjectId: string;
     sectionId?: string | null;
+    academicYearId?: string | null;
   }
 ): Promise<{ allowed: boolean; reason?: string }> => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, teacher_id: true, role: true, email: true },
+  const { teacherAccessService } = await import('./teacher-access.service');
+  return await teacherAccessService.verifyClassSubjectScope(userId, {
+    gradeId: params.gradeId,
+    subjectId: params.subjectId,
+    sectionId: params.sectionId || undefined,
+    academicYearId: params.academicYearId || undefined,
   });
-  if (!user) return { allowed: false, reason: 'User not found' };
-
-  // Administrators and academic heads always have access
-  const adminRoles = ['admin', 'superadmin', 'school_admin', 'academic_head', 'director', 'principal', 'coordinator', 'head_teacher'];
-  if (adminRoles.includes(user.role?.toLowerCase() || '')) {
-    return { allowed: true };
-  }
-
-  // Find linked teacher profile
-  let teacherId = user.teacher_id;
-  if (!teacherId) {
-    const teacher = await prisma.teacher.findFirst({
-      where: {
-        OR: [
-          { user_id: userId },
-          ...(user.email ? [{ email: { equals: user.email, mode: 'insensitive' as const } }] : []),
-        ],
-      },
-    });
-    if (teacher) teacherId = teacher.id;
-  }
-
-  const teacherIds = [teacherId, userId].filter(Boolean) as string[];
-
-  // Fetch all assignments for this teacher across this grade
-  const assignments = await prisma.teacherAssignment.findMany({
-    where: {
-      teacher_id: { in: teacherIds },
-      gradeId: params.gradeId,
-    },
-    include: {
-      subjectRef: true,
-      grade: true,
-      section: true,
-    },
-  });
-
-  if (assignments.length === 0) {
-    // Check if user has assignments in other grades or is any registered teacher
-    const anyAssignment = await prisma.teacherAssignment.findFirst({
-      where: { teacher_id: { in: teacherIds } },
-    });
-    if (!anyAssignment) {
-      // Check if user has teacher role but assignments haven't been seeded yet
-      const teacherRoles = ['teacher', 'subject_teacher', 'homeroom_teacher', 'highschol_teachers', 'instructor', 'staff'];
-      if (!teacherRoles.includes(user.role?.toLowerCase() || '')) {
-        return { allowed: false, reason: 'Only assigned teachers or administrators are permitted to access this gradebook.' };
-      }
-      return { allowed: false, reason: 'No teacher assignments found for your account.' };
-    }
-    return { allowed: false, reason: 'You are not assigned to this grade.' };
-  }
-
-  // Resolve target subject by ID, Name, or Code
-  const targetSubject = await prisma.subject.findFirst({
-    where: {
-      OR: [
-        { id: params.subjectId },
-        { name: { equals: params.subjectId, mode: 'insensitive' as const } },
-        { code: { equals: params.subjectId, mode: 'insensitive' as const } },
-      ],
-    },
-    select: { id: true, name: true, code: true },
-  });
-
-  const matchingAssignment = assignments.find((a) => {
-    const aSubjName = (a.subjectRef?.name || a.subject || '').toLowerCase().trim();
-    const aSubjCode = (a.subjectRef?.code || '').toLowerCase().trim();
-    const aSubjId = a.subjectId || a.subjectRef?.id;
-
-    const pSubj = (params.subjectId || '').toLowerCase().trim();
-    const tSubjName = (targetSubject?.name || '').toLowerCase().trim();
-    const tSubjCode = (targetSubject?.code || '').toLowerCase().trim();
-    const tSubjId = targetSubject?.id;
-
-    // Check if subject matches by ID, Name, or Code
-    const subjMatch =
-      !params.subjectId ||
-      // Direct ID match
-      (aSubjId && (aSubjId === params.subjectId || (tSubjId && aSubjId === tSubjId))) ||
-      // Direct name / code match
-      (aSubjName && (aSubjName === pSubj || (tSubjName && aSubjName === tSubjName))) ||
-      (aSubjCode && (aSubjCode === pSubj || (tSubjCode && aSubjCode === tSubjCode))) ||
-      // Assignment string subject matches param
-      (a.subject && a.subject.toLowerCase() === pSubj) ||
-      // Homeroom teacher oversees all subjects for their section
-      (a.role === 'HOMEROOM_TEACHER' && (!params.sectionId || !a.sectionId || a.sectionId === params.sectionId));
-
-    if (!subjMatch) return false;
-
-    // If sectionId is specified, check section match (null sectionId means assigned to entire grade)
-    if (params.sectionId && a.sectionId && a.sectionId !== params.sectionId) {
-      return false;
-    }
-
-    return true;
-  });
-
-  if (!matchingAssignment) {
-    // If they teach this subject in this grade in another section, allow gradebook access
-    const teachesSubjectInGrade = assignments.some((a) => {
-      const aSubjName = (a.subjectRef?.name || a.subject || '').toLowerCase().trim();
-      const pSubj = (params.subjectId || '').toLowerCase().trim();
-      const tSubjName = (targetSubject?.name || '').toLowerCase().trim();
-      const aSubjId = a.subjectId || a.subjectRef?.id;
-      return (
-        (aSubjId && (aSubjId === params.subjectId || (targetSubject?.id && aSubjId === targetSubject.id))) ||
-        (aSubjName && (aSubjName === pSubj || (tSubjName && aSubjName === tSubjName)))
-      );
-    });
-
-    if (teachesSubjectInGrade) {
-      return { allowed: true };
-    }
-
-    return { allowed: false, reason: 'You are not assigned to teach this subject in this grade.' };
-  }
-
-  return { allowed: true };
 };
 
