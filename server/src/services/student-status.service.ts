@@ -173,10 +173,25 @@ export async function changeStudentStatus(
 }
 
 export async function getStudentStatusHistory(studentId: string): Promise<any[]> {
-  return await (prisma as any).studentStatusHistory.findMany({
+  const records = await (prisma as any).studentStatusHistory.findMany({
     where: { studentId },
     orderBy: [{ effectiveDate: 'desc' }, { createdAt: 'desc' }],
   });
+
+  const userIds = Array.from(new Set(records.map((r: any) => r.changedByUserId).filter(Boolean))) as string[];
+  if (userIds.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, full_name: true, role: true },
+    });
+    const userMap = new Map(users.map((u: any) => [u.id, u.full_name || u.role]));
+    return records.map((r: any) => ({
+      ...r,
+      changedByName: r.changedByUserId ? userMap.get(r.changedByUserId) || r.changedByUserId : null,
+    }));
+  }
+
+  return records;
 }
 
 export async function reEnrollStudent(

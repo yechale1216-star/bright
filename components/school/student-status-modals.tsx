@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
 import { notifications } from "@/lib/utils/notifications"
 import { db, type Student } from "@/lib/db/database"
-import { ShieldAlert, History, UserCheck, AlertTriangle, UserX, ArrowRightLeft, GraduationCap, Archive, Calendar, Info, Clock, CheckCircle2 } from "lucide-react"
+import { ShieldAlert, History, UserCheck, AlertTriangle, UserX, ArrowRightLeft, GraduationCap, Archive, Calendar, Info, Clock, CheckCircle2, User } from "lucide-react"
 
 export interface ChangeStatusModalProps {
   isOpen: boolean
@@ -320,10 +320,18 @@ export function StatusHistoryModal({ isOpen, onClose, student }: StatusHistoryMo
                         {item.toStatus}
                       </Badge>
                     </div>
-                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {item.effectiveDate ? new Date(item.effectiveDate).toLocaleDateString() : "N/A"}
-                    </span>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {item.effectiveDate ? new Date(item.effectiveDate).toLocaleDateString() : "N/A"}
+                      </span>
+                      {(item.changedByName || item.changedByUserId) && (
+                        <span className="text-[9px] text-muted-foreground/80 font-medium flex items-center gap-0.5">
+                          <User className="h-2.5 w-2.5" />
+                          {item.changedByName || item.changedByUserId}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <p className="text-slate-700 dark:text-slate-300 font-medium pl-1">

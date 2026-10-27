@@ -85,8 +85,8 @@ export async function terminateTeacher(
       body: JSON.stringify(payload),
     }
   );
-  queryCache.invalidateMatching(/^teachers_/);
-  queryCache.invalidateMatching(/^assignments_/);
+  queryCache.invalidate(/^teachers_/);
+  queryCache.invalidate(/^assignments_/);
   return result;
 }
 
@@ -103,8 +103,8 @@ export async function reinstateTeacher(
       body: JSON.stringify(payload),
     }
   );
-  queryCache.invalidateMatching(/^teachers_/);
-  queryCache.invalidateMatching(/^assignments_/);
+  queryCache.invalidate(/^teachers_/);
+  queryCache.invalidate(/^assignments_/);
   return result;
 }
 

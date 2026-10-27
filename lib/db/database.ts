@@ -547,6 +547,22 @@ class Database extends BaseDatabase {
     await this.updateTeacher(teacherId, { is_active: true })
   }
 
+  async terminateTeacher(teacherId: string, payload: { reason: string; effectiveDate?: string }): Promise<any> {
+    const result = await teachers.terminateTeacher(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async reinstateTeacher(teacherId: string, payload: { reason?: string } = {}): Promise<any> {
+    const result = await teachers.reinstateTeacher(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async getTeacherStatus(teacherId: string): Promise<any> {
+    return teachers.getTeacherStatus(this.getApiHeaders(), teacherId);
+  }
+
   // ─── TEACHER ASSIGNMENTS ──────────────────────────────────────────────────
   async getTeacherAssignments(schoolId?: string, teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
     return teachers.getTeacherAssignments(this.getApiHeaders(), schoolId || this.getSchoolId() || "single-school", teacherId, forceRefetch)

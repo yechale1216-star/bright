@@ -1769,23 +1769,39 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                         <div className="flex flex-col gap-1 items-start">
                           {(() => {
                             const status = (student.status || 'ACTIVE').toUpperCase()
-                            if (status === 'GRADUATED') {
-                              return (
-                                <Badge variant="outline" className="text-xs font-bold text-teal-700 dark:text-teal-400 bg-teal-50/60 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/60">
-                                  Graduated
-                                </Badge>
-                              )
-                            }
-                            if (status === 'INACTIVE' || status === 'SUSPENDED') {
-                              return (
-                                <Badge variant="outline" className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60">
-                                  {status}
-                                </Badge>
-                              )
-                            }
+                            if (status === 'ACTIVE') return (
+                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
+                                <CheckCircle2 className="w-3 h-3" /> Active
+                              </Badge>
+                            )
+                            if (status === 'SUSPENDED' || status === 'INACTIVE') return (
+                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800/60">
+                                <ShieldAlert className="w-3 h-3" /> {status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}
+                              </Badge>
+                            )
+                            if (status === 'WITHDRAWN') return (
+                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-slate-600 dark:text-slate-400 bg-slate-50/70 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700">
+                                <XCircle className="w-3 h-3" /> Withdrawn
+                              </Badge>
+                            )
+                            if (status === 'TRANSFERRED') return (
+                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60">
+                                <RefreshCw className="w-3 h-3" /> Transferred
+                              </Badge>
+                            )
+                            if (status === 'GRADUATED') return (
+                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-teal-700 dark:text-teal-400 bg-teal-50/60 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/60">
+                                <GraduationCap className="w-3 h-3" /> Graduated
+                              </Badge>
+                            )
+                            if (status === 'ARCHIVED') return (
+                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800">
+                                Archived
+                              </Badge>
+                            )
                             return (
                               <Badge variant="outline" className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
-                                Active
+                                {status}
                               </Badge>
                             )
                           })()}
@@ -1813,6 +1829,35 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setStatusModalStudent(student)}
+                            title="Change Lifecycle Status"
+                            className="h-9 w-9 rounded-xl hover:bg-amber-500/10 hover:text-amber-600 transition-all"
+                          >
+                            <ShieldAlert className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setHistoryModalStudent(student)}
+                            title="View Status History"
+                            className="h-9 w-9 rounded-xl hover:bg-slate-500/10 hover:text-slate-600 transition-all"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
+                          {(((student.status || '').toUpperCase() === 'WITHDRAWN') || ((student.status || '').toUpperCase() === 'TRANSFERRED')) && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setReEnrollModalStudent(student)}
+                              title="Re-Enroll Student"
+                              className="h-9 w-9 rounded-xl hover:bg-teal-500/10 hover:text-teal-600 transition-all"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"
@@ -1888,9 +1933,23 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                       {/* Status */}
                       <td className="px-2 py-2.5">
                         <div className="flex flex-col gap-1 items-start">
-                          <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300">
-                            {student.status || 'ACTIVE'}
-                          </Badge>
+                          {(() => {
+                            const st = (student.status || 'ACTIVE').toUpperCase()
+                            const cls: Record<string, string> = {
+                              ACTIVE: 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300',
+                              SUSPENDED: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300',
+                              INACTIVE: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300',
+                              WITHDRAWN: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 border-slate-300',
+                              TRANSFERRED: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200',
+                              GRADUATED: 'text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30 border-teal-300',
+                              ARCHIVED: 'text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/30 border-slate-200',
+                            }
+                            return (
+                              <Badge variant="outline" className={`text-[9px] font-bold px-1.5 py-0 ${cls[st] || cls.ACTIVE}`}>
+                                {st}
+                              </Badge>
+                            )
+                          })()}
                           {student.accountStatus === 'PENDING_ACTIVATION' ? (
                             <span className="text-[8px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-0.5">
                               <KeyRound className="w-2.5 h-2.5" /> Pending
@@ -1914,6 +1973,35 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); setStatusModalStudent(student); }}
+                            title="Change Status"
+                            className="h-8 w-8 rounded-lg hover:bg-amber-500/10 hover:text-amber-600"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={(e) => { e.stopPropagation(); setHistoryModalStudent(student); }}
+                            title="Status History"
+                            className="h-8 w-8 rounded-lg hover:bg-slate-500/10 hover:text-slate-600"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </Button>
+                          {(((student.status || '').toUpperCase() === 'WITHDRAWN') || ((student.status || '').toUpperCase() === 'TRANSFERRED')) && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => { e.stopPropagation(); setReEnrollModalStudent(student); }}
+                              title="Re-Enroll Student"
+                              className="h-8 w-8 rounded-lg hover:bg-teal-500/10 hover:text-teal-600"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"
@@ -2049,6 +2137,24 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                     <span className="text-[9px] font-bold uppercase text-white/40 tracking-widest mt-0.5">{chip.sub}</span>
                   </div>
                 ))}
+                {(() => {
+                  const st = (selectedStudent.status || 'ACTIVE').toUpperCase()
+                  const chipColor: Record<string, string> = {
+                    ACTIVE: 'bg-emerald-500/20 border-emerald-400/30 text-emerald-200',
+                    SUSPENDED: 'bg-amber-500/20 border-amber-400/30 text-amber-200',
+                    INACTIVE: 'bg-amber-500/20 border-amber-400/30 text-amber-200',
+                    WITHDRAWN: 'bg-slate-500/20 border-slate-400/30 text-slate-200',
+                    TRANSFERRED: 'bg-blue-500/20 border-blue-400/30 text-blue-200',
+                    GRADUATED: 'bg-teal-500/20 border-teal-400/30 text-teal-200',
+                    ARCHIVED: 'bg-slate-600/20 border-slate-500/30 text-slate-300',
+                  }
+                  return (
+                    <div className={`flex flex-col items-center border rounded-xl px-3 py-2 min-w-[64px] ${chipColor[st] || chipColor.ACTIVE}`}>
+                      <span className="text-[11px] font-black leading-none">{st}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest mt-0.5 opacity-70">Status</span>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
@@ -2263,18 +2369,45 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
             </div>
 
             {/* ── Footer ── */}
-            <div className="border-t border-slate-100 dark:border-slate-900 px-5 py-4 flex gap-3 bg-white dark:bg-slate-950">
+            <div className="border-t border-slate-100 dark:border-slate-900 px-5 py-4 flex flex-wrap gap-2 bg-white dark:bg-slate-950">
               <Button
                 variant="outline"
                 onClick={() => { setSelectedStudent(null); handleEdit(selectedStudent); }}
-                className="flex-1 h-11 rounded-xl border-slate-200 dark:border-slate-800 font-bold text-sm"
+                className="flex-1 h-11 rounded-xl border-slate-200 dark:border-slate-800 font-bold text-sm min-w-[120px]"
               >
                 <Edit className="w-4 h-4 mr-2" />
                 Edit Profile
               </Button>
               <Button
+                variant="outline"
+                onClick={() => { const s = selectedStudent; setSelectedStudent(null); setStatusModalStudent(s); }}
+                className="flex-1 h-11 rounded-xl border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-bold text-sm min-w-[120px]"
+              >
+                <ShieldAlert className="w-4 h-4 mr-2" />
+                Change Status
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => { const s = selectedStudent; setSelectedStudent(null); setHistoryModalStudent(s); }}
+                title="View Status History"
+                className="h-11 w-11 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-500"
+              >
+                <History className="w-4 h-4" />
+              </Button>
+              {selectedStudent && (((selectedStudent.status || '').toUpperCase() === 'WITHDRAWN') || ((selectedStudent.status || '').toUpperCase() === 'TRANSFERRED')) && (
+                <Button
+                  variant="outline"
+                  onClick={() => { const s = selectedStudent; setSelectedStudent(null); setReEnrollModalStudent(s); }}
+                  className="flex-1 h-11 rounded-xl border-teal-200 dark:border-teal-800/60 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 font-bold text-sm min-w-[110px]"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Re-Enroll
+                </Button>
+              )}
+              <Button
                 onClick={() => setSelectedStudent(null)}
-                className="flex-1 h-11 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-sm shadow-lg"
+                className="flex-1 h-11 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold text-sm shadow-lg min-w-[80px]"
               >
                 Close
               </Button>
