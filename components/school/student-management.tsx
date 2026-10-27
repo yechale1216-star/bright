@@ -334,6 +334,29 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     }
   }, [viewingAcademicYear?.name, activeAcademicYear?.name, selectedAcademicYear])
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: students.length,
+      ACTIVE: 0,
+      SUSPENDED: 0,
+      WITHDRAWN: 0,
+      TRANSFERRED: 0,
+      GRADUATED: 0,
+      ARCHIVED: 0,
+    }
+    students.forEach((s) => {
+      const st = (s.status || s.enrollmentStatus || "ACTIVE").toUpperCase()
+      if (st === "SUSPENDED" || st === "INACTIVE") {
+        counts.SUSPENDED = (counts.SUSPENDED || 0) + 1
+      } else if (counts[st] !== undefined) {
+        counts[st] = (counts[st] || 0) + 1
+      } else {
+        counts.ACTIVE = (counts.ACTIVE || 0) + 1
+      }
+    })
+    return counts
+  }, [students])
+
   const filteredStudents = useMemo(() => {
     let filtered = students
 
@@ -347,6 +370,17 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
           student.stream?.toLowerCase().includes(term) ||
           student.section?.toLowerCase().includes(term),
       )
+    }
+
+    if (!isTeacher && statusFilter && statusFilter !== "All" && statusFilter !== "ALL") {
+      const target = statusFilter.toUpperCase()
+      filtered = filtered.filter((student) => {
+        const studentStatus = (student.status || student.enrollmentStatus || "ACTIVE").toUpperCase()
+        if (target === "SUSPENDED") {
+          return studentStatus === "SUSPENDED" || studentStatus === "INACTIVE"
+        }
+        return studentStatus === target
+      })
     }
 
     if (!isTeacher && gradeFilter !== "All Grades") {
@@ -370,7 +404,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, gradeFilter, streamFilter, sectionFilter, selectedAcademicYear])
+  }, [searchTerm, gradeFilter, streamFilter, sectionFilter, selectedAcademicYear, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize))
   const paginatedStudents = useMemo(() => {
@@ -1668,17 +1702,17 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
             </Select>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="typography-label h-12 w-[140px] rounded-xl bg-background/50 border-border/50">
+              <SelectTrigger className="typography-label h-12 w-[160px] rounded-xl bg-background/50 border-border/50">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-border/50">
-                <SelectItem value="All">All Statuses</SelectItem>
-                <SelectItem value="ACTIVE">Active</SelectItem>
-                <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
-                <SelectItem value="TRANSFERRED">Transferred</SelectItem>
-                <SelectItem value="GRADUATED">Graduated</SelectItem>
-                <SelectItem value="ARCHIVED">Archived</SelectItem>
+                <SelectItem value="All">All Statuses ({statusCounts.ALL})</SelectItem>
+                <SelectItem value="ACTIVE">Active ({statusCounts.ACTIVE})</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended ({statusCounts.SUSPENDED})</SelectItem>
+                <SelectItem value="WITHDRAWN">Withdrawn ({statusCounts.WITHDRAWN})</SelectItem>
+                <SelectItem value="TRANSFERRED">Transferred ({statusCounts.TRANSFERRED})</SelectItem>
+                <SelectItem value="GRADUATED">Graduated ({statusCounts.GRADUATED})</SelectItem>
+                <SelectItem value="ARCHIVED">Archived ({statusCounts.ARCHIVED})</SelectItem>
               </SelectContent>
             </Select>
 
