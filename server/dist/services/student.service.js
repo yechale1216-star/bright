@@ -53,6 +53,10 @@ const mapStudentToFlat = (student) => {
         section: student.section?.name || '',
         stream: student.stream?.name || null,
         relationshipType: link?.relationshipType || student.relationshipType || 'Guardian',
+        lifecycleEffectiveDate: student.lifecycleEffectiveDate || null,
+        suspensionEndDate: student.suspensionEndDate || null,
+        destinationSchool: student.destinationSchool || null,
+        statusReason: student.statusReason || null,
     };
 };
 const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, streamId, academicYear, pagination) => {

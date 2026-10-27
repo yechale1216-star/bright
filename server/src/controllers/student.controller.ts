@@ -147,3 +147,75 @@ export const bulkGenerateActivationCodes = async (req: AuthenticatedRequest, res
   }
 };
 
+// ─── LIFECYCLE & STATUS MANAGEMENT ──────────────────────────────────────────
+
+export const changeStudentStatus = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { newStatus, effectiveDate, reason, suspensionEndDate, destinationSchool } = req.body;
+    const changedByUserId = req.user?.id;
+    if (!changedByUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+    if (!newStatus || !effectiveDate || !reason) {
+      return res.status(400).json({ success: false, message: 'newStatus, effectiveDate, and reason are required.' });
+    }
+    const { changeStudentStatus: svc } = await import('../services/student-status.service');
+    const result = await svc(id, {
+      newStatus,
+      effectiveDate,
+      reason,
+      suspensionEndDate,
+      destinationSchool,
+      changedByUserId,
+    });
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: `Student status successfully changed to ${newStatus}.`,
+    });
+  } catch (error: any) {
+    if (
+      error.message?.includes('Invalid status transition') ||
+      error.message?.includes('required') ||
+      error.message?.includes('permanent') ||
+      error.message?.includes('already in')
+    ) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+};
+
+export const getStudentStatusHistory = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { getStudentStatusHistory: svc } = await import('../services/student-status.service');
+    const history = await svc(req.params.id);
+    res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const reEnrollStudent = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { academicYearId, gradeId, sectionId, streamId } = req.body;
+    const enrolledByUserId = req.user?.id;
+    if (!enrolledByUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+    if (!academicYearId || !gradeId || !sectionId) {
+      return res.status(400).json({ success: false, message: 'academicYearId, gradeId, and sectionId are required.' });
+    }
+    const { reEnrollStudent: svc } = await import('../services/student-status.service');
+    const enrollment = await svc(id, academicYearId, gradeId, sectionId, streamId || null, enrolledByUserId);
+    res.status(200).json({ success: true, data: enrollment, message: 'Student successfully re-enrolled.' });
+  } catch (error: any) {
+    if (error.message?.includes('Cannot re-enroll') || error.message?.includes('already has') || error.message?.includes('required')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+};
+

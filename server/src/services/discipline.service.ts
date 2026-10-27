@@ -1,3 +1,4 @@
+import { checkStudentEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
 import { sendCategoryNotification } from './notification.service';

@@ -7,6 +7,15 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+enum StudentLifecycleStatus {
+  ACTIVE
+  WITHDRAWN
+  TRANSFERRED
+  GRADUATED
+  SUSPENDED
+  ARCHIVED
+}
+
 
 model User {
   id                         String               @id @default(uuid())
@@ -256,6 +265,11 @@ model Student {
   accountStatus          String                      @default("PENDING_ACTIVATION")
   activation_code        String?
   activation_code_expires DateTime?
+  lifecycleEffectiveDate  DateTime?
+  suspensionEndDate       DateTime?
+  destinationSchool       String?
+  statusReason            String?
+  statusHistory           StudentStatusHistory[]
   attendance             Attendance[]
   parentNotifications    ParentNotification[]
   parentStudents         ParentStudentLink[]
@@ -292,6 +306,8 @@ model StudentAcademicYearRecord {
   streamId       String?
   status         String       @default("ACTIVE")
   enrolledAt     DateTime     @default(now())
+  effectiveEndDate DateTime?
+  departureReason  String?
   updatedAt      DateTime     @updatedAt
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -1614,4 +1630,40 @@ model StudentTransportAssignment {
   @@index([studentId])
   @@index([routeId])
   @@map("student_transport_assignments")
+}
+
+model StudentStatusHistory {
+  id              String   @id @default(uuid())
+  studentId       String
+  fromStatus      String
+  toStatus        String
+  effectiveDate   DateTime
+  reason          String
+  metadata        Json?
+  changedByUserId String?
+  createdAt       DateTime @default(now())
+
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([effectiveDate])
+  @@index([toStatus])
+  @@map("student_status_history")
+}
+
+model StudentLifecyclePolicy {
+  id                         String   @id @default("lifecycle_policy_singleton")
+  activePolicy               Json     @default("{\"portalAccess\":\"FULL\",\"canViewReportCards\":true,\"canViewAttendanceHistory\":true,\"affectsActiveCount\":true}")
+  withdrawnPolicy            Json     @default("{\"portalAccess\":\"HISTORICAL_ONLY\",\"canViewReportCards\":true,\"canViewAttendanceHistory\":true,\"affectsActiveCount\":false}")
+  transferredPolicy          Json     @default("{\"portalAccess\":\"HISTORICAL_ONLY\",\"canViewReportCards\":true,\"canViewAttendanceHistory\":true,\"affectsActiveCount\":false}")
+  graduatedPolicy            Json     @default("{\"portalAccess\":\"HISTORICAL_ONLY\",\"canViewReportCards\":true,\"canViewAttendanceHistory\":true,\"affectsActiveCount\":false}")
+  suspendedPolicy            Json     @default("{\"portalAccess\":\"FULL\",\"canViewReportCards\":true,\"canViewAttendanceHistory\":true,\"affectsActiveCount\":true,\"canMarkAttendance\":false}")
+  archivedPolicy             Json     @default("{\"portalAccess\":\"DENIED\",\"canViewReportCards\":false,\"canViewAttendanceHistory\":false,\"affectsActiveCount\":false}")
+  sessionRevocationOnChange  Boolean  @default(false)
+  autoRestoreOnSuspensionEnd Boolean  @default(true)
+  lastChangedByUserId        String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@map("student_lifecycle_policies")
 }

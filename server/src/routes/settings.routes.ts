@@ -97,6 +97,30 @@ router.delete('/holidays/:id', authorize(['admin', 'school_admin']), async (req:
   }
 });
 
+
+// GET /api/settings/lifecycle-policy
+router.get('/lifecycle-policy', async (_req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { getLifecyclePolicy } = await import('../services/lifecycle-policy.service');
+    const policy = await getLifecyclePolicy();
+    res.status(200).json({ success: true, data: policy });
+  } catch (error) { next(error); }
+});
+
+// PUT /api/settings/lifecycle-policy
+router.put('/lifecycle-policy', authorize(['admin', 'school_admin']), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { updateLifecyclePolicy } = await import('../services/lifecycle-policy.service');
+    const policy = await updateLifecyclePolicy(req.body, req.user?.id);
+    res.status(200).json({ success: true, data: policy, message: 'Student lifecycle policy updated successfully.' });
+  } catch (error: any) {
+    if (error.message?.includes('Invalid') || error.message?.includes('must')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+});
+
 export default router;
 
 

@@ -18,5 +18,8 @@ router.get('/:id', studentController.getStudentById);
 router.put('/:id', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.updateStudent);
 router.delete('/:id', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.deleteStudent);
 router.post('/:id/generate-activation-code', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.generateActivationCode);
+router.post('/:id/change-status', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.changeStudentStatus);
+router.get('/:id/status-history', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.getStudentStatusHistory);
+router.post('/:id/re-enroll', authorize(['admin', 'school_admin', 'super_admin', 'registrar']), studentController.reEnrollStudent);
 
 export default router;

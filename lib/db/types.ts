@@ -17,6 +17,9 @@ export interface Student {
   last_name?: string
   roll_number?: string
   schoolId?: string
+  gradeId?: string
+  sectionId?: string
+  streamId?: string
   class_id?: string
   address?: string
   status?: string
@@ -26,6 +29,11 @@ export interface Student {
   accountStatus?: string
   activation_code?: string | null
   activation_code_expires?: string | Date | null
+  lifecycleStatus?: string
+  lifecycleEffectiveDate?: string | Date | null
+  suspensionEndDate?: string | Date | null
+  destinationSchool?: string | null
+  statusReason?: string | null
   activationSlip?: any
 }
 

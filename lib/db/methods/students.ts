@@ -121,3 +121,58 @@ export async function generateActivationCode(headers: any, id: string): Promise<
   return result.data
 }
 
+export async function changeStudentStatus(
+  headers: any,
+  id: string,
+  payload: {
+    newStatus: string;
+    effectiveDate: string;
+    reason: string;
+    destinationSchool?: string;
+    suspensionEndDate?: string;
+  }
+): Promise<any> {
+  const result = await apiFetch<{ success: boolean; data: any; message?: string }>(
+    `${API_URL}/api/students/${id}/change-status`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    }
+  );
+  notifyStudentDataChanged();
+  return result.data;
+}
+
+export async function getStudentStatusHistory(headers: any, id: string): Promise<any[]> {
+  const result = await apiFetch<{ success: boolean; data: any[] }>(
+    `${API_URL}/api/students/${id}/status-history`,
+    {
+      headers,
+      cache: 'no-store',
+    }
+  );
+  return result.data || [];
+}
+
+export async function reEnrollStudent(
+  headers: any,
+  id: string,
+  payload: {
+    academicYearId: string;
+    gradeId: string;
+    sectionId: string;
+    streamId?: string | null;
+  }
+): Promise<any> {
+  const result = await apiFetch<{ success: boolean; data: any; message?: string }>(
+    `${API_URL}/api/students/${id}/re-enroll`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    }
+  );
+  notifyStudentDataChanged();
+  return result.data;
+}

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDashboardSummary = exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.normalizeDate = exports.resolveTeacherId = void 0;
 exports.calculateDistanceMeters = calculateDistanceMeters;
 exports.validateGeofence = validateGeofence;
+const student_eligibility_service_1 = require("./student-eligibility.service");
 const db_1 = __importDefault(require("../config/db"));
 const academic_year_service_1 = require("./academic-year.service");
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -130,8 +131,12 @@ const markAttendance = async (data, _schoolId) => {
     if (!student) {
         throw new Error("Student not found");
     }
-    if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
-        throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
+    const eligibility = await (0, student_eligibility_service_1.checkStudentEligibility)(studentId, 'ATTENDANCE_MARK', {
+        operationDate: date ? new Date(date) : new Date(),
+        academicYearId: data.academicYearId,
+    });
+    if (!eligibility.eligible) {
+        throw new Error(eligibility.reason || `Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}".`);
     }
     if (userRole === 'teacher') {
         const isHomeroom = await db_1.default.teacherAssignment.findFirst({
@@ -637,10 +642,17 @@ const bulkMarkAttendance = async (records, _schoolId, meta = {}) => {
     if (cleanRecords.length === 0)
         return [];
     const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
-    const validStudents = await db_1.default.student.findMany({
-        where: { id: { in: studentIds }, status: 'ACTIVE' },
-        select: { id: true, fullName: true, gender: true, gradeId: true, sectionId: true }
+    const candidateStudents = await db_1.default.student.findMany({
+        where: { id: { in: studentIds } },
+        select: { id: true, fullName: true, gender: true, gradeId: true, sectionId: true, status: true }
     });
+    const eligibilityMap = await (0, student_eligibility_service_1.checkStudentsBatchEligibility)(studentIds, 'ATTENDANCE_MARK', { operationDate: new Date() });
+    const ineligible = candidateStudents.filter(s => !eligibilityMap.get(s.id)?.eligible);
+    if (ineligible.length > 0) {
+        const reasonSummary = ineligible.slice(0, 3).map(s => `${s.fullName}: ${eligibilityMap.get(s.id)?.reason}`).join('; ');
+        throw new Error(`Cannot record bulk attendance. Ineligible student(s) found: ${reasonSummary}`);
+    }
+    const validStudents = candidateStudents;
     if (userRole === 'teacher') {
         const homeroomAssignments = await db_1.default.teacherAssignment.findMany({
             where: {

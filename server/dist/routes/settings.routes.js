@@ -140,4 +140,29 @@ router.delete('/holidays/:id', (0, auth_middleware_1.authorize)(['admin', 'schoo
         res.status(400).json({ success: false, message: error.message || 'Failed to delete holiday' });
     }
 });
+// GET /api/settings/lifecycle-policy
+router.get('/lifecycle-policy', async (_req, res, next) => {
+    try {
+        const { getLifecyclePolicy } = await Promise.resolve().then(() => __importStar(require('../services/lifecycle-policy.service')));
+        const policy = await getLifecyclePolicy();
+        res.status(200).json({ success: true, data: policy });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+// PUT /api/settings/lifecycle-policy
+router.put('/lifecycle-policy', (0, auth_middleware_1.authorize)(['admin', 'school_admin']), async (req, res, next) => {
+    try {
+        const { updateLifecyclePolicy } = await Promise.resolve().then(() => __importStar(require('../services/lifecycle-policy.service')));
+        const policy = await updateLifecyclePolicy(req.body, req.user?.id);
+        res.status(200).json({ success: true, data: policy, message: 'Student lifecycle policy updated successfully.' });
+    }
+    catch (error) {
+        if (error.message?.includes('Invalid') || error.message?.includes('must')) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        next(error);
+    }
+});
 exports.default = router;

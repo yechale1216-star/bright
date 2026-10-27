@@ -25,6 +25,7 @@ import dynamic from "next/dynamic"
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
 import { AcademicStructureTab } from "@/components/school/academic-structure-tab"
 import { StaffScheduleSettingsTab } from "@/components/school/staff-schedule-settings-tab"
+import { LifecyclePolicySettings } from "@/components/school/lifecycle-policy-settings"
 import { validateAllScheduleSettings } from "@/lib/utils/schedule-validation"
 
 const GeofenceMapPicker = dynamic(
@@ -261,6 +262,7 @@ export function Settings() {
           <TabsTrigger value="academic_structure" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Academic Structure</TabsTrigger>
           <TabsTrigger value="staff_schedule" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Staff Schedule & Holidays</TabsTrigger>
           <TabsTrigger value="attendance" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Student Rules</TabsTrigger>
+          <TabsTrigger value="lifecycle_policy" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Lifecycle & Policies</TabsTrigger>
           <TabsTrigger value="system" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">System</TabsTrigger>
         </TabsList>
 
@@ -509,6 +511,10 @@ export function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="lifecycle_policy" className="space-y-4">
+          <LifecyclePolicySettings />
         </TabsContent>
 
         <TabsContent value="system" className="space-y-4">

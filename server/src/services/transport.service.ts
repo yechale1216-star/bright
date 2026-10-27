@@ -156,6 +156,11 @@ export class TransportService {
     });
     if (student) {
       resolvedStudentId = student.id;
+      const { checkStudentEligibility } = await import('./student-eligibility.service');
+      const transElig = await checkStudentEligibility(resolvedStudentId, 'TRANSPORT_ASSIGN');
+      if (!transElig.eligible) {
+        throw new Error(transElig.reason || 'Student is not eligible for transport route assignment.');
+      }
     } else {
       throw new Error(`Student with ID "${data.studentId}" not found`);
     }

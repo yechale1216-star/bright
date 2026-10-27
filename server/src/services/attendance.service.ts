@@ -1,3 +1,4 @@
+import { checkStudentEligibility, checkStudentsBatchEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
 
@@ -143,8 +144,12 @@ export const markAttendance = async (data: any, _schoolId?: string) => {
   if (!student) {
     throw new Error("Student not found");
   }
-  if (student.status && student.status.toUpperCase() !== 'ACTIVE') {
-    throw new Error(`Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}". Only actively enrolled students can have attendance marked.`);
+  const eligibility = await checkStudentEligibility(studentId, 'ATTENDANCE_MARK', {
+    operationDate: date ? new Date(date) : new Date(),
+    academicYearId: data.academicYearId,
+  });
+  if (!eligibility.eligible) {
+    throw new Error(eligibility.reason || `Attendance cannot be recorded for student "${student.fullName}" with status "${student.status}".`);
   }
 
   if (userRole === 'teacher') {
@@ -717,10 +722,24 @@ export const bulkMarkAttendance = async (
   const cleanRecords = Array.from(dedupedMap.values());
   if (cleanRecords.length === 0) return [];
   const studentIds = Array.from(new Set(cleanRecords.map(r => r.studentId).filter(Boolean)));
-  const validStudents = await prisma.student.findMany({
-    where: { id: { in: studentIds }, status: 'ACTIVE' },
-    select: { id: true, fullName: true, gender: true, gradeId: true, sectionId: true }
+  const candidateStudents = await prisma.student.findMany({
+    where: { id: { in: studentIds } },
+    select: { id: true, fullName: true, gender: true, gradeId: true, sectionId: true, status: true }
   });
+
+  const eligibilityMap = await checkStudentsBatchEligibility(
+    studentIds,
+    'ATTENDANCE_MARK',
+    { operationDate: new Date() }
+  );
+
+  const ineligible = candidateStudents.filter(s => !eligibilityMap.get(s.id)?.eligible);
+  if (ineligible.length > 0) {
+    const reasonSummary = ineligible.slice(0, 3).map(s => `${s.fullName}: ${eligibilityMap.get(s.id)?.reason}`).join('; ');
+    throw new Error(`Cannot record bulk attendance. Ineligible student(s) found: ${reasonSummary}`);
+  }
+
+  const validStudents = candidateStudents;
 
   if (userRole === 'teacher') {
     const homeroomAssignments = await prisma.teacherAssignment.findMany({

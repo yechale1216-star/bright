@@ -1,3 +1,4 @@
+import { checkStudentsBatchEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import { AssessmentCalculationEngine, StudentAssessmentScore, ConfiguredCategory } from './assessment-calculation.service';
 import { AssessmentPolicyService } from './assessment-policy.service';
@@ -288,7 +289,7 @@ export class GradebookService {
     // Get all students enrolled in this grade and section (if section specified)
     const studentWhere: any = {
       gradeId: assessment.gradeId,
-      status: 'ACTIVE',
+      status: { in: ['ACTIVE', 'SUSPENDED'] },
     };
     if (assessment.sectionId) {
       studentWhere.sectionId = assessment.sectionId;
@@ -349,6 +350,18 @@ export class GradebookService {
 
     if (!marks || marks.length === 0) {
       return { count: 0, assessmentId };
+    }
+
+    const uniqueStudentIds = Array.from(new Set(marks.map((m) => m.studentId).filter(Boolean)));
+    const markEligibility = await checkStudentsBatchEligibility(uniqueStudentIds, 'MARK_ENTRY', {
+      academicYearId: assessment.academicYearId,
+      operationDate: assessment.date ? new Date(assessment.date) : new Date(),
+    });
+
+    const ineligibleMarkStudent = uniqueStudentIds.find((sid) => !markEligibility.get(sid)?.eligible);
+    if (ineligibleMarkStudent) {
+      const reason = markEligibility.get(ineligibleMarkStudent)?.reason || 'Student is not eligible for mark entry';
+      throw new Error(`Cannot save marks: ${reason}`);
     }
 
     const operations = marks.map((item) => {

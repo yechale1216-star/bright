@@ -52,6 +52,39 @@ class Database extends BaseDatabase {
     return students.deleteStudent(this.getApiHeaders(), id)
   }
 
+
+  async changeStudentStatus(id: string, payload: { newStatus: string; effectiveDate: string; reason: string; destinationSchool?: string; suspensionEndDate?: string }): Promise<any> {
+    return students.changeStudentStatus(this.getApiHeaders(), id, payload)
+  }
+
+  async getStudentStatusHistory(id: string): Promise<any[]> {
+    return students.getStudentStatusHistory(this.getApiHeaders(), id)
+  }
+
+  async reEnrollStudent(id: string, payload: { academicYearId: string; gradeId: string; sectionId: string; streamId?: string | null }): Promise<any> {
+    return students.reEnrollStudent(this.getApiHeaders(), id, payload)
+  }
+
+  async getLifecyclePolicy(): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/settings/lifecycle-policy?_t=${Date.now()}`,
+      { headers: this.getApiHeaders(), cache: 'no-store' }
+    )
+    return result.data
+  }
+
+  async updateLifecyclePolicy(data: any): Promise<any> {
+    const result = await apiFetch<{ success: boolean; data: any }>(
+      `${API_URL}/api/settings/lifecycle-policy`,
+      {
+        method: 'PUT',
+        headers: this.getApiHeaders(),
+        body: JSON.stringify(data),
+      }
+    )
+    return result.data
+  }
+
   async generateStudentActivationCode(id: string): Promise<any> {
     return students.generateActivationCode(this.getApiHeaders(), id)
   }

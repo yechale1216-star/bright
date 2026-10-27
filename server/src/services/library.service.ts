@@ -146,6 +146,11 @@ export class LibraryService {
         throw new Error(`Student with ID "${data.studentId}" not found`);
       }
       resolvedStudentId = student.id;
+      const { checkStudentEligibility } = await import('./student-eligibility.service');
+      const libElig = await checkStudentEligibility(resolvedStudentId, 'LIBRARY_BORROW');
+      if (!libElig.eligible) {
+        throw new Error(libElig.reason || 'Student is not eligible to borrow library books.');
+      }
     }
 
     const book = await prisma.book.findUnique({ where: { id: data.bookId } });

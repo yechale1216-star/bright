@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkGenerateActivationCodes = exports.generateActivationCode = exports.bulkCreateStudents = exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.createStudent = exports.getNextStudentId = exports.getStudents = void 0;
+exports.reEnrollStudent = exports.getStudentStatusHistory = exports.changeStudentStatus = exports.bulkGenerateActivationCodes = exports.generateActivationCode = exports.bulkCreateStudents = exports.getStudentsByParentPhone = exports.deleteStudent = exports.updateStudent = exports.getStudentById = exports.createStudent = exports.getNextStudentId = exports.getStudents = void 0;
 const studentService = __importStar(require("../services/student.service"));
 const AUTHORIZED_STAFF_ROLES = ['admin', 'school_admin', 'super_admin', 'registrar'];
 const sanitizeStudentForRole = (student, role) => {
@@ -186,3 +186,75 @@ const bulkGenerateActivationCodes = async (req, res, next) => {
     }
 };
 exports.bulkGenerateActivationCodes = bulkGenerateActivationCodes;
+// ─── LIFECYCLE & STATUS MANAGEMENT ──────────────────────────────────────────
+const changeStudentStatus = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { newStatus, effectiveDate, reason, suspensionEndDate, destinationSchool } = req.body;
+        const changedByUserId = req.user?.id;
+        if (!changedByUserId) {
+            return res.status(401).json({ success: false, message: 'Authentication required.' });
+        }
+        if (!newStatus || !effectiveDate || !reason) {
+            return res.status(400).json({ success: false, message: 'newStatus, effectiveDate, and reason are required.' });
+        }
+        const { changeStudentStatus: svc } = await Promise.resolve().then(() => __importStar(require('../services/student-status.service')));
+        const result = await svc(id, {
+            newStatus,
+            effectiveDate,
+            reason,
+            suspensionEndDate,
+            destinationSchool,
+            changedByUserId,
+        });
+        res.status(200).json({
+            success: true,
+            data: result,
+            message: `Student status successfully changed to ${newStatus}.`,
+        });
+    }
+    catch (error) {
+        if (error.message?.includes('Invalid status transition') ||
+            error.message?.includes('required') ||
+            error.message?.includes('permanent') ||
+            error.message?.includes('already in')) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        next(error);
+    }
+};
+exports.changeStudentStatus = changeStudentStatus;
+const getStudentStatusHistory = async (req, res, next) => {
+    try {
+        const { getStudentStatusHistory: svc } = await Promise.resolve().then(() => __importStar(require('../services/student-status.service')));
+        const history = await svc(req.params.id);
+        res.status(200).json({ success: true, data: history });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getStudentStatusHistory = getStudentStatusHistory;
+const reEnrollStudent = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { academicYearId, gradeId, sectionId, streamId } = req.body;
+        const enrolledByUserId = req.user?.id;
+        if (!enrolledByUserId) {
+            return res.status(401).json({ success: false, message: 'Authentication required.' });
+        }
+        if (!academicYearId || !gradeId || !sectionId) {
+            return res.status(400).json({ success: false, message: 'academicYearId, gradeId, and sectionId are required.' });
+        }
+        const { reEnrollStudent: svc } = await Promise.resolve().then(() => __importStar(require('../services/student-status.service')));
+        const enrollment = await svc(id, academicYearId, gradeId, sectionId, streamId || null, enrolledByUserId);
+        res.status(200).json({ success: true, data: enrollment, message: 'Student successfully re-enrolled.' });
+    }
+    catch (error) {
+        if (error.message?.includes('Cannot re-enroll') || error.message?.includes('already has') || error.message?.includes('required')) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        next(error);
+    }
+};
+exports.reEnrollStudent = reEnrollStudent;

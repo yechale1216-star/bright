@@ -16,6 +16,7 @@ import { Trash2, Edit, Plus, Search, Upload, Download, AlertCircle, Users, Check
 import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { db, type Student } from "@/lib/db/database"
 import { StudentImportPreview } from "./student-import-preview"
+import { ChangeStatusModal, StatusHistoryModal, ReEnrollModal } from "./student-status-modals"
 import { motion, AnimatePresence } from "framer-motion"
 import { notifications } from "@/lib/utils/notifications"
 import { ValidationService } from "@/lib/utils/validation"
@@ -43,6 +44,10 @@ export function StudentManagement() {
   const [gradeFilter, setGradeFilter] = useState("All Grades")
   const [streamFilter, setStreamFilter] = useState("All Streams")
   const [sectionFilter, setSectionFilter] = useState("All Sections")
+  const [statusFilter, setStatusFilter] = useState("ACTIVE")
+  const [statusModalStudent, setStatusModalStudent] = useState<Student | null>(null)
+  const [historyModalStudent, setHistoryModalStudent] = useState<Student | null>(null)
+  const [reEnrollModalStudent, setReEnrollModalStudent] = useState<Student | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -354,7 +359,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       const nameB = b.name || ""
       return nameA.localeCompare(nameB)
     })
-  }, [students, searchTerm, gradeFilter, streamFilter, sectionFilter, isTeacher])
+  }, [students, searchTerm, gradeFilter, streamFilter, sectionFilter, statusFilter, isTeacher])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1618,6 +1623,21 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
         {!isTeacher && (
           <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="typography-label h-12 w-[140px] rounded-xl bg-background/50 border-border/50">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-border/50">
+                <SelectItem value="All">All Statuses</SelectItem>
+                <SelectItem value="ACTIVE">Active</SelectItem>
+                <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                <SelectItem value="WITHDRAWN">Withdrawn</SelectItem>
+                <SelectItem value="TRANSFERRED">Transferred</SelectItem>
+                <SelectItem value="GRADUATED">Graduated</SelectItem>
+                <SelectItem value="ARCHIVED">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={gradeFilter} onValueChange={(val) => {
               setGradeFilter(val);
               setStreamFilter("All Streams");
@@ -1686,7 +1706,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                 We couldn't find any students matching your search or filters. Try adjusting your criteria.
               </p>
             </div>
-            <Button variant="outline" onClick={() => { setSearchTerm(""); setGradeFilter("All Grades"); setStreamFilter("All Streams"); setSectionFilter("All Sections"); }} className="rounded-xl border-border/50">
+            <Button variant="outline" onClick={() => { setSearchTerm(""); setGradeFilter("All Grades"); setStreamFilter("All Streams"); setSectionFilter("All Sections"); setStatusFilter("ACTIVE"); }} className="rounded-xl border-border/50">
               Clear All Filters
             </Button>
           </div>
@@ -2391,6 +2411,27 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
           )}
         </DialogContent>
       </Dialog>
+      
+      {/* Lifecycle Status & Re-Enroll Modals */}
+      <ChangeStatusModal
+        isOpen={!!statusModalStudent}
+        onClose={() => setStatusModalStudent(null)}
+        student={statusModalStudent}
+        onSuccess={() => loadStudents(false, true)}
+      />
+      <StatusHistoryModal
+        isOpen={!!historyModalStudent}
+        onClose={() => setHistoryModalStudent(null)}
+        student={historyModalStudent}
+      />
+      <ReEnrollModal
+        isOpen={!!reEnrollModalStudent}
+        onClose={() => setReEnrollModalStudent(null)}
+        student={reEnrollModalStudent}
+        activeAcademicYear={activeAcademicYear}
+        onSuccess={() => loadStudents(false, true)}
+      />
+
       {/* Mobile Floating Action Button */}
       {!isTeacher && (
         <div className="md:hidden fixed bottom-24 right-6 z-50">

@@ -1,3 +1,4 @@
+import { checkStudentEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../utils/jwt';
@@ -82,6 +83,11 @@ export class StudentPortalService {
 
     if (student.accountStatus !== 'ACTIVE') {
       throw new Error('Your account is not active. Please contact your school administrator.');
+    }
+
+    const portalEligibility = await checkStudentEligibility(student.id, 'PORTAL_ACCESS');
+    if (!portalEligibility.eligible) {
+      throw new Error(portalEligibility.reason || 'Portal access is restricted for your student account.');
     }
 
     if (!student.user || !student.user.password_hash) {
