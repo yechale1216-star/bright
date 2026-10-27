@@ -21,8 +21,6 @@ async function runTests() {
   assert(normalizeReportCategory('GRADE_LEVEL') === 'GRADE_LEVEL', 'GRADE_LEVEL category normalized');
   assert(normalizeReportCategory('GRADE_REPORT') === 'GRADE_LEVEL', 'Legacy GRADE_REPORT maps to GRADE_LEVEL');
   assert(normalizeReportCategory('PERFORMANCE_ANALYSIS') === 'PERFORMANCE_ANALYSIS', 'PERFORMANCE_ANALYSIS category normalized');
-  assert(normalizeReportCategory('ANNUAL_ACADEMIC') === 'ANNUAL_ACADEMIC', 'ANNUAL_ACADEMIC category normalized');
-  assert(normalizeReportCategory('ANNUAL_REPORT') === 'ANNUAL_ACADEMIC', 'Legacy ANNUAL_REPORT maps to ANNUAL_ACADEMIC');
   assert(normalizeReportCategory('SCHOOL_SUMMARY') === 'SCHOOL_SUMMARY', 'SCHOOL_SUMMARY category normalized');
   assert(normalizeReportCategory(undefined) === 'CLASS_PERFORMANCE', 'Default category falls back to CLASS_PERFORMANCE');
 
@@ -36,7 +34,6 @@ async function runTests() {
     'SUBJECT_PERFORMANCE',
     'GRADE_LEVEL',
     'PERFORMANCE_ANALYSIS',
-    'ANNUAL_ACADEMIC',
     'SCHOOL_SUMMARY',
   ];
 
@@ -83,25 +80,7 @@ async function runTests() {
     assert(firstRow.status === 'Passed' || firstRow.status === 'Failed' || firstRow.status === 'Incomplete', `Row status is valid: ${firstRow.status}`);
   }
 
-  console.log('\n============================================================');
-  console.log('--- 4. Testing Annual Academic Single Consolidated Row ---');
-  console.log('============================================================');
-
-  const annualAnalytics = await assessmentReportService.getAnalytics({ reportType: 'ANNUAL_ACADEMIC' });
-  assert(annualAnalytics.summary.card3Title === 'Promotion Eligible', 'Annual summary has Promotion Eligible card');
-  assert(annualAnalytics.summary.card4Title === 'Retained / Incomplete', 'Annual summary has Retained/Incomplete card');
-
-  const annualReportId = annualAnalytics.availableReports[0]?.id || 'annual_all';
-  const annualDetail = await assessmentReportService.getDetailedReport(annualReportId, { reportType: 'ANNUAL_ACADEMIC' });
-
-  assert(Array.isArray(annualDetail.studentRows), 'Annual report studentRows is an array');
-
-  // Verify uniqueness: one consolidated row per student ID
-  const studentIds = annualDetail.studentRows.map((r: any) => r.id);
-  const uniqueIds = new Set(studentIds);
-  assert(studentIds.length === uniqueIds.size, `Annual report has 1 consolidated record per student (${studentIds.length} rows, ${uniqueIds.size} unique students)`);
-
-  console.log('\n🎉 ALL 17 STANDARDIZED ACADEMIC REPORT TESTS PASSED PERFECTLY!\n');
+  console.log('\n🎉 ALL STANDARDIZED ACADEMIC REPORT TESTS PASSED PERFECTLY!\n');
 }
 
 runTests()

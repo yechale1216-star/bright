@@ -649,9 +649,12 @@ export class AssessmentReportService {
 
         let subjectName = 'All Subjects';
         if (subjectId && subjectId !== 'all') {
-          const matchSub = allSubjects.find((s: any) => s.id === subjectId) || subjectPerformanceArray.find((s) => s.subjectId === subjectId);
-          if (matchSub) {
-            subjectName = matchSub.name || matchSub.subjectName;
+          const matchFromAll = allSubjects.find((s: any) => s.id === subjectId);
+          const matchFromPerf = subjectPerformanceArray.find((s) => s.subjectId === subjectId);
+          if (matchFromAll?.name) {
+            subjectName = matchFromAll.name;
+          } else if (matchFromPerf?.subjectName) {
+            subjectName = matchFromPerf.subjectName;
           } else {
             subjectName = 'Selected Subject';
           }
