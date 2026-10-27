@@ -38,7 +38,14 @@ import { History } from "lucide-react"
 
 export function StudentManagement() {
   const { formatDate } = useCalendar()
-  const { activeAcademicYear, viewingAcademicYear, isHistoricalMode } = useAcademicYear()
+  const { activeAcademicYear, viewingAcademicYear, allAcademicYears, isHistoricalMode } = useAcademicYear()
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("")
+
+  useEffect(() => {
+    if (activeAcademicYear?.name && !selectedAcademicYear) {
+      setSelectedAcademicYear(activeAcademicYear.name)
+    }
+  }, [activeAcademicYear?.name])
   const [students, setStudents] = useState<Student[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [gradeFilter, setGradeFilter] = useState("All Grades")
@@ -325,7 +332,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       window.removeEventListener("studentDataChanged", handleStudentChanged)
       clearInterval(pollInterval)
     }
-  }, [viewingAcademicYear?.name, activeAcademicYear?.name])
+  }, [viewingAcademicYear?.name, activeAcademicYear?.name, selectedAcademicYear])
 
   const filteredStudents = useMemo(() => {
     let filtered = students
@@ -363,7 +370,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, gradeFilter, streamFilter, sectionFilter])
+  }, [searchTerm, gradeFilter, streamFilter, sectionFilter, selectedAcademicYear])
 
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize))
   const paginatedStudents = useMemo(() => {
@@ -375,7 +382,9 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     if (!isBackground && students.length === 0) setIsLoading(true)
     try {
       const user = authService.getCurrentUser()
-      const targetYearName = viewingAcademicYear?.name || activeAcademicYear?.name
+      const targetYearName = user?.role === "teacher"
+        ? (activeAcademicYear?.name || "")
+        : (selectedAcademicYear || viewingAcademicYear?.name || activeAcademicYear?.name || "")
       const studentsData = await db.getStudents(forceRefetch, "ALL", targetYearName)
       
       if (user?.role === "teacher") {
@@ -1623,6 +1632,41 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
         {!isTeacher && (
           <div className="flex gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+            <Select
+              value={selectedAcademicYear || activeAcademicYear?.name || ""}
+              onValueChange={(val) => {
+                setSelectedAcademicYear(val);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="typography-label h-12 w-[170px] rounded-xl bg-background/50 border-border/50">
+                <Calendar className="w-4 h-4 mr-2 text-primary/70 shrink-0" />
+                <SelectValue placeholder="Academic Year" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-border/50">
+                {allAcademicYears && allAcademicYears.length > 0 ? (
+                  allAcademicYears.map((ay) => (
+                    <SelectItem key={ay.id} value={ay.name}>
+                      <span className="flex items-center gap-1.5">
+                        {ay.name}
+                        {ay.isCurrent && (
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold ml-1">
+                            Active
+                          </Badge>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))
+                ) : (
+                  (activeAcademicYear?.name || selectedAcademicYear) && (
+                    <SelectItem value={selectedAcademicYear || activeAcademicYear?.name || ""}>
+                      {selectedAcademicYear || activeAcademicYear?.name} (Active)
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="typography-label h-12 w-[140px] rounded-xl bg-background/50 border-border/50">
                 <SelectValue placeholder="Status" />
@@ -1689,6 +1733,19 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
           <Users className="w-4 h-4 text-primary/60" />
           <span>{filteredStudents.length} Students</span>
         </div>
+
+        {selectedAcademicYear && activeAcademicYear && selectedAcademicYear !== activeAcademicYear.name && (
+          <Badge variant="outline" className="text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 flex items-center gap-1.5 px-2.5 py-1">
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+            <span>Historical: {selectedAcademicYear}</span>
+            <button
+              onClick={() => setSelectedAcademicYear(activeAcademicYear.name)}
+              className="ml-1 text-[10px] underline hover:text-amber-900 dark:hover:text-amber-100 font-bold cursor-pointer"
+            >
+              Reset to Active
+            </button>
+          </Badge>
+        )}
       </div>
 
       {/* Main List Area */}
@@ -1706,7 +1763,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                 We couldn't find any students matching your search or filters. Try adjusting your criteria.
               </p>
             </div>
-            <Button variant="outline" onClick={() => { setSearchTerm(""); setGradeFilter("All Grades"); setStreamFilter("All Streams"); setSectionFilter("All Sections"); setStatusFilter("ACTIVE"); }} className="rounded-xl border-border/50">
+            <Button variant="outline" onClick={() => { setSearchTerm(""); setSelectedAcademicYear(activeAcademicYear?.name || ""); setGradeFilter("All Grades"); setStreamFilter("All Streams"); setSectionFilter("All Sections"); setStatusFilter("ACTIVE"); }} className="rounded-xl border-border/50">
               Clear All Filters
             </Button>
           </div>
