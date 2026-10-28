@@ -32,6 +32,7 @@ interface AcademicYear {
   startDate: string
   endDate: string
   isCurrent: boolean
+  status?: 'FUTURE' | 'ACTIVE' | 'CLOSED'
 }
 
 interface AcademicTerm {
@@ -1694,11 +1695,13 @@ function AcademicTermsSection({ year }: { year: AcademicYear }) {
     <div className="pl-4 border-l-2 border-border/50 mt-4 space-y-2">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Terms / Semesters ({terms.length})
+          Terms / Semesters ({terms.length}) {year.status === 'CLOSED' && <span className="text-amber-600 font-bold">(Read-only)</span>}
         </span>
-        <Button onClick={openCreate} size="sm" variant="outline" className="rounded-xl h-7 gap-1 text-[11px]">
-          <Plus className="w-3 h-3" /> Add Term
-        </Button>
+        {year.status !== 'CLOSED' && (
+          <Button onClick={openCreate} size="sm" variant="outline" className="rounded-xl h-7 gap-1 text-[11px]">
+            <Plus className="w-3 h-3" /> Add Term
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -1733,14 +1736,16 @@ function AcademicTermsSection({ year }: { year: AcademicYear }) {
                   {new Date(t.startDate).toLocaleDateString()} – {new Date(t.endDate).toLocaleDateString()}
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" onClick={() => openEdit(t)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground">
-                  <Pencil className="w-3 h-3" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id, t.name)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10">
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
+              {year.status !== 'CLOSED' && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(t)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground">
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id, t.name)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10">
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1819,14 +1824,19 @@ function AcademicYearsWithTermsSection() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
-          <Calendar className="w-4 h-4" />
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
+            <Calendar className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="font-bold text-sm text-foreground">Academic Years & Terms</div>
+            <div className="text-[11px] text-muted-foreground">Expand a year to manage its terms / semesters</div>
+          </div>
         </div>
-        <div>
-          <div className="font-bold text-sm text-foreground">Academic Years & Terms</div>
-          <div className="text-[11px] text-muted-foreground">Expand a year to manage its terms / semesters</div>
-        </div>
+        <Button asChild size="sm" variant="outline" className="rounded-xl h-8 gap-1.5 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400">
+          <a href="/school/admin/academic-years">Lifecycle Setup</a>
+        </Button>
       </div>
 
       {isLoading ? (
@@ -1861,9 +1871,17 @@ function AcademicYearsWithTermsSection() {
                       <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     )}
                     <span className="font-bold text-sm text-foreground">{y.name}</span>
-                    {y.isCurrent && (
-                      <Badge className="text-[10px] font-semibold rounded-full bg-indigo-600 text-white px-2 py-0 h-4">
-                        Current
+                    {y.status === 'ACTIVE' || y.isCurrent ? (
+                      <Badge className="text-[10px] font-extrabold rounded-full bg-emerald-600 text-white px-2 py-0 h-4">
+                        Active
+                      </Badge>
+                    ) : y.status === 'CLOSED' ? (
+                      <Badge variant="outline" className="text-[10px] font-bold rounded-full text-slate-500 border-slate-300 dark:border-slate-700 px-2 py-0 h-4">
+                        Closed
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] font-bold rounded-full text-blue-600 border-blue-200 dark:border-blue-800 px-2 py-0 h-4">
+                        Future
                       </Badge>
                     )}
                   </div>

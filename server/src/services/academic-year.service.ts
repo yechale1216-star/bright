@@ -5,6 +5,7 @@ export interface CreateAcademicYearInput {
   startDate: string | Date;
   endDate: string | Date;
   isCurrent?: boolean;
+  status?: 'FUTURE' | 'ACTIVE' | 'CLOSED';
 }
 
 export interface ActiveTermValidationResult {
@@ -20,6 +21,7 @@ export interface UpdateAcademicYearInput {
   startDate?: string | Date;
   endDate?: string | Date;
   isCurrent?: boolean;
+  status?: 'FUTURE' | 'ACTIVE' | 'CLOSED';
 }
 
 let cachedActiveAY: { data: any; expiry: number } | null = null;
@@ -258,9 +260,16 @@ export class AcademicYearService {
       where: { id },
     });
     if (!yearRecord) throw new Error('Academic year record not found');
+    if ((yearRecord as any).status === 'CLOSED') {
+      throw new Error('Cannot edit a closed academic year. Historical records are read-only.');
+    }
 
     const updatePayload: any = {};
     if (data.name) updatePayload.name = data.name.trim();
+    if (data.status && data.status !== 'CLOSED') {
+      // Direct status update (except CLOSED, which should use closeAcademicYear)
+      updatePayload.status = data.status;
+    }
     if (data.startDate) updatePayload.startDate = new Date(data.startDate);
     if (data.endDate) updatePayload.endDate = new Date(data.endDate);
 
@@ -311,15 +320,20 @@ export class AcademicYearService {
       where: { id },
     });
     if (!target) throw new Error('Academic year not found');
+    if ((target as any).status === 'CLOSED') {
+      throw new Error('Cannot reactivate a closed academic year.');
+    }
 
     return await prisma.$transaction(async (tx) => {
+      // Revert currently active year(s) to FUTURE (preserving CLOSED years)
       await tx.academicYear.updateMany({
-        data: { isCurrent: false },
+        where: { isCurrent: true },
+        data: { isCurrent: false, status: 'FUTURE' as any },
       });
 
       const activeYear = await tx.academicYear.update({
         where: { id },
-        data: { isCurrent: true },
+        data: { isCurrent: true, status: 'ACTIVE' as any },
       });
 
       await tx.schoolSettings.upsert({
@@ -356,12 +370,56 @@ export class AcademicYearService {
   /**
    * Delete an academic year record
    */
+  /**
+   * Close an academic year — marks it as read-only historical record.
+   */
+  async closeAcademicYear(_schoolId: string | undefined, id: string) {
+    const target = await prisma.academicYear.findUnique({
+      where: { id },
+    });
+    if (!target) throw new Error('Academic year not found');
+    if ((target as any).status === 'CLOSED') {
+      throw new Error('This academic year is already closed.');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      const closed = await tx.academicYear.update({
+        where: { id },
+        data: {
+          status: 'CLOSED' as any,
+          isCurrent: false,
+        },
+      });
+
+      if (target.isCurrent) {
+        await tx.schoolSettings.upsert({
+          where: { id: 'singleton' },
+          create: { id: 'singleton', academic_year: '' },
+          update: { academic_year: '' },
+        }).catch(() => {});
+      }
+
+      this.invalidateCurrentCache();
+      return await tx.academicYear.findUnique({
+        where: { id: closed.id },
+        include: {
+          terms: {
+            orderBy: { startDate: 'asc' },
+          },
+        },
+      });
+    });
+  }
+
   async deleteAcademicYear(_schoolId: string | undefined, id: string) {
     const target = await prisma.academicYear.findUnique({
       where: { id },
     });
     if (!target) throw new Error('Academic year not found');
     if (target.isCurrent) throw new Error('Cannot delete the currently active academic year. Activate another academic year first.');
+    if ((target as any).status === 'CLOSED') {
+      throw new Error('Cannot delete a closed academic year. Historical records are preserved.');
+    }
 
     return await prisma.academicYear.delete({
       where: { id },
@@ -485,6 +543,11 @@ export class AcademicYearService {
   }
 
   async createTerm(academicYearId: string, data: { name: string; startDate: string | Date; endDate: string | Date; isCurrent?: boolean }) {
+    const parentYear = await prisma.academicYear.findUnique({ where: { id: academicYearId } });
+    if (!parentYear) throw new Error('Academic year not found');
+    if ((parentYear as any).status === 'CLOSED') {
+      throw new Error('Cannot add terms to a closed academic year.');
+    }
     const { name, startDate, endDate, isCurrent } = data;
     if (!name || !name.trim()) throw new Error('Term name is required');
     if (!startDate || !endDate) throw new Error('Start date and End date are required');
@@ -523,8 +586,11 @@ export class AcademicYearService {
   }
 
   async updateTerm(id: string, data: { name?: string; startDate?: string | Date; endDate?: string | Date; isCurrent?: boolean }) {
-    const term = await prisma.academicTerm.findUnique({ where: { id } });
+    const term = await prisma.academicTerm.findUnique({ where: { id }, include: { academicYear: true } });
     if (!term) throw new Error('Academic term not found');
+    if ((term.academicYear as any).status === 'CLOSED') {
+      throw new Error('Cannot modify terms of a closed academic year.');
+    }
 
     const updatePayload: any = {};
     if (data.name) updatePayload.name = data.name.trim();
@@ -555,8 +621,11 @@ export class AcademicYearService {
   }
 
   async deleteTerm(id: string) {
-    const term = await prisma.academicTerm.findUnique({ where: { id } });
+    const term = await prisma.academicTerm.findUnique({ where: { id }, include: { academicYear: true } });
     if (!term) throw new Error('Academic term not found');
+    if ((term.academicYear as any).status === 'CLOSED') {
+      throw new Error('Cannot delete terms of a closed academic year.');
+    }
 
     this.invalidateCurrentCache();
     return await prisma.academicTerm.delete({

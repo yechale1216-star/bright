@@ -905,12 +905,19 @@ model DisciplineFollowUp {
   @@map("discipline_followups")
 }
 
+enum AcademicYearStatus {
+  FUTURE
+  ACTIVE
+  CLOSED
+}
+
 model AcademicYear {
   id             String                      @id @default(uuid())
   name           String                      @unique
   startDate      DateTime
   endDate        DateTime
   isCurrent      Boolean                     @default(false)
+  status         AcademicYearStatus          @default(FUTURE)
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
   terms          AcademicTerm[]

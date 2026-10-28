@@ -49,6 +49,17 @@ export const activateAcademicYear = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
+
+export const closeAcademicYear = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const closed = await academicYearService.closeAcademicYear(undefined, id);
+    res.status(200).json({ success: true, data: closed });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteAcademicYear = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;

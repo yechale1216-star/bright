@@ -18,6 +18,7 @@ router.get('/current', authorize(ALL_STAFF_AND_USERS), academicYearController.ge
 router.post('/', authorize(ACADEMIC_MANAGERS), academicYearController.createAcademicYear);
 router.put('/:id', authorize(ACADEMIC_MANAGERS), academicYearController.updateAcademicYear);
 router.post('/:id/activate', authorize(ACADEMIC_MANAGERS), academicYearController.activateAcademicYear);
+router.post('/:id/close', authorize(ACADEMIC_MANAGERS), academicYearController.closeAcademicYear);
 router.delete('/:id', authorize(ACADEMIC_MANAGERS), academicYearController.deleteAcademicYear);
 
 // Routes for terms management

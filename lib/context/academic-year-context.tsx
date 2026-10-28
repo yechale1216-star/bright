@@ -58,7 +58,9 @@ export function AcademicYearProvider({ children }: { children: React.ReactNode }
   const [viewingAcademicYear, setViewingAcademicYear] = useState<AcademicYear | null>(null)
   const hasFetched = useRef(false)
 
-  const activeAcademicYear = allAcademicYears.find((y) => y.isCurrent) ?? null
+  const activeAcademicYear = allAcademicYears.find((y) => y.status === 'ACTIVE' || y.isCurrent) ?? null
+  const futureAcademicYears = allAcademicYears.filter((y) => (y.status || 'FUTURE') === 'FUTURE' && !y.isCurrent)
+  const closedAcademicYears = allAcademicYears.filter((y) => y.status === 'CLOSED')
 
   const isHistoricalMode =
     viewingAcademicYear !== null &&
