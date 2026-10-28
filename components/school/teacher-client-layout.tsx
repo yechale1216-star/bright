@@ -40,6 +40,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [showBottomNav, setShowBottomNav] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const { totalUnreadCount } = useUnread()
@@ -49,6 +50,11 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [pathname])
 
   const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches)
 
@@ -88,196 +94,256 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
     { href: "/school/teacher/profile", icon: <User className="w-5 h-5" />, label: "Profile" },
   ]
 
+  // Teacher role badge helper
+  const roleBadgeClass = cn(
+    "text-[9px] font-bold px-1.5 py-0.2 rounded-md uppercase tracking-wider shrink-0",
+    isDualRole
+      ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+      : isHomeroomTeacher
+      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+      : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+  )
+  const roleBadgeLabel = isDualRole ? 'Dual Role' : isHomeroomTeacher ? 'Homeroom' : 'Subject'
+
   return (
     <AuthGuard allowedRoles={['teacher']}>
       <LanguageProvider>
-            <div className="flex h-screen bg-background flex-col md:flex-row relative overflow-hidden">
-              
-              <aside className="hidden md:flex w-64 border-r border-border bg-card/80 backdrop-blur-xl flex-col relative z-20">
-                <div className="h-16 px-4 border-b border-border flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <GraduationCap className="w-5 h-5 text-primary" />
+        <div className="flex h-screen bg-background flex-col md:flex-row relative overflow-hidden">
+
+          {/* ── Desktop sidebar ─────────────────────────────────────── */}
+          <aside className={cn(
+            "hidden md:flex border-r border-border bg-card/80 backdrop-blur-xl flex-col relative z-20 transition-all duration-300 ease-in-out",
+            isCollapsed ? "w-20" : "w-64"
+          )}>
+            {/* Header / logo row */}
+            <div className="h-16 px-4 border-b border-border flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-blue-500/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <GraduationCap className="w-5 h-5 text-primary" />
+                </div>
+                {!isCollapsed && (
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
+                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Online" />
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
-                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Online" />
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[85px]">{user?.name || 'Teacher'}</p>
-                        <span className={cn(
-                          "text-[9px] font-bold px-1.5 py-0.2 rounded-md uppercase tracking-wider shrink-0",
-                          isDualRole
-                            ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20"
-                            : isHomeroomTeacher
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                        )}>
-                          {isDualRole ? 'Dual Role' : isHomeroomTeacher ? 'Homeroom' : 'Subject'}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[85px]">{user?.name || 'Teacher'}</p>
+                      <span className={roleBadgeClass}>{roleBadgeLabel}</span>
                     </div>
                   </div>
-                </div>
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
-                  {navItems.map(item => (
-                    <NavLink 
-                      key={item.href} 
-                      href={item.href} 
-                      icon={item.icon} 
-                      label={item.label} 
-                      active={isActive(item.href)}
-                      badge={item.badge}
-                    />
-                  ))}
-
-                  <button
-                    onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-semibold text-foreground/70 hover:bg-secondary/60 transition-all cursor-pointer group mt-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-500" />}
-                      <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
-                    </div>
-                    <div className={cn("w-8 h-4 rounded-full p-0.5 transition-colors", isDark ? "bg-primary" : "bg-muted")}>
-                      <div className={cn("w-3 h-3 rounded-full bg-white transition-transform", isDark ? "translate-x-4" : "translate-x-0")} />
-                    </div>
-                  </button>
-                </nav>
-                <div className="p-4 border-t border-border mt-auto text-center bg-card/50">
-                  <DeveloperBrand type="powered" />
-                </div>
-              </aside>
-
-              {sidebarOpen && (
-                <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-              )}
-              <aside className={cn(
-                "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
-                sidebarOpen ? "translate-x-0" : "-translate-x-full"
-              )}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <GraduationCap className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
-                        <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Online" />
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[90px]">{user?.name || 'Teacher'}</p>
-                        <span className={cn(
-                          "text-[9px] font-bold px-1.5 py-0.2 rounded-md uppercase tracking-wider shrink-0",
-                          isDualRole
-                            ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20"
-                            : isHomeroomTeacher
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-                        )}>
-                          {isDualRole ? 'Dual Role' : isHomeroomTeacher ? 'Homeroom' : 'Subject'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground ml-auto">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                 <nav className="flex-1 overflow-y-auto min-h-0 p-4 space-y-1">
-                   {navItems.map(item => (
-                     <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
-                        <div className={cn(
-                          "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold mb-1 group transition-all",
-                          isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
-                        )}>
-                          <span className={isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'}>{item.icon}</span>
-                          <span className="flex-1">{item.label}</span>
-                          {isActive(item.href) && <ChevronRight className="w-4 h-4" />}
-                        </div>
-                     </Link>
-                   ))}
-
-                   <button
-                     onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                     className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold mb-1 text-muted-foreground hover:bg-muted transition-all cursor-pointer group mt-1"
-                   >
-                     <div className="flex items-center gap-3">
-                       {isDark ? <Moon className="w-5 h-5 text-slate-500" /> : <Sun className="w-5 h-5 text-slate-500" />}
-                       <span className="flex-1 text-left">{isDark ? 'Dark Mode' : 'Light Mode'}</span>
-                     </div>
-                     <div className="flex h-5 w-9 items-center rounded-full bg-primary/20 px-0.5 pointer-events-none">
-                       <div className={cn(
-                         "h-4 w-4 rounded-full bg-primary shadow transition-transform duration-300",
-                         isDark ? 'translate-x-4' : 'translate-x-0'
-                       )} />
-                     </div>
-                   </button>
-                </nav>
-                 <div className="shrink-0 p-4 border-t border-border text-center bg-card/50 pb-safe">
-                   <DeveloperBrand type="powered" />
-                 </div>
-              </aside>
-
-              <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
-                {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
-                <main 
-                  className={cn("flex-1 flex flex-col overflow-auto focus:outline-none relative", isNative && !isCommunicationPage && "pb-20 md:pb-0")}
-                  onScroll={handleMainScroll}
-                >
-                  <div className="flex-1 flex flex-col min-h-0">
-                    {children}
-                  </div>
-                </main>
-
-                {isNative && !isCommunicationPage && (
-                  <nav className={cn(
-                    "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/80 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe",
-                    !showBottomNav ? "translate-y-full" : "translate-y-0"
-                  )}>
-                    <div className="flex items-stretch justify-around h-16 px-2">
-                      <MobileTabLink href="/school/teacher" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" active={isActive('/school/teacher')} />
-                      <MobileTabLink href="/school/teacher/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive('/school/teacher/communication')} />
-                      {isHomeroomTeacher ? (
-                        <MobileTabLink href="/school/teacher/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Check" active={isActive('/school/teacher/attendance')} />
-                      ) : (
-                        <MobileTabLink href="/school/teacher/gradebook" icon={<GraduationCap className="w-5 h-5" />} label="Grades" active={isActive('/school/teacher/gradebook')} />
-                      )}
-                      <MobileTabLink href="/school/teacher/classes" icon={<Layers className="w-5 h-5" />} label="Classes" active={isActive('/school/teacher/classes')} />
-                      <MobileTabLink href="/school/teacher/profile" icon={<User className="w-5 h-5" />} label="Profile" active={isActive('/school/teacher/profile')} />
-                    </div>
-                  </nav>
                 )}
               </div>
+              {/* Collapse / expand toggle */}
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className={cn(
+                  "p-1.5 rounded-xl text-muted-foreground hover:bg-muted transition-colors",
+                  isCollapsed && "mx-auto mt-2"
+                )}
+                title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                <ChevronRight className={cn("w-4 h-4 transition-transform duration-300", !isCollapsed && "rotate-180")} />
+              </button>
             </div>
-        </LanguageProvider>
+
+            {/* Nav links */}
+            <nav className="flex-1 p-3 space-y-1 overflow-y-auto no-scrollbar">
+              {navItems.map(item => (
+                <DesktopNavLink
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                  active={isActive(item.href)}
+                  isCollapsed={isCollapsed}
+                  badge={item.badge}
+                />
+              ))}
+
+              {/* Theme toggle */}
+              <button
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                title={isCollapsed ? (isDark ? 'Light Mode' : 'Dark Mode') : undefined}
+                className={cn(
+                  "w-full flex items-center gap-3 rounded-xl transition-all duration-200 text-sm font-semibold text-foreground/70 hover:bg-muted cursor-pointer group mt-2",
+                  isCollapsed ? "justify-center p-3" : "px-4 py-2.5 justify-between"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+                  {!isCollapsed && <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>}
+                </div>
+                {!isCollapsed && (
+                  <div className={cn("w-8 h-4 rounded-full p-0.5 transition-colors", isDark ? "bg-primary" : "bg-muted")}>
+                    <div className={cn("w-3 h-3 rounded-full bg-white transition-transform", isDark ? "translate-x-4" : "translate-x-0")} />
+                  </div>
+                )}
+              </button>
+            </nav>
+
+            {/* Footer brand */}
+            <div className={cn("shrink-0 p-4 border-t border-border/80 text-center bg-card/50", isCollapsed && "hidden")}>
+              <DeveloperBrand type="powered" />
+            </div>
+          </aside>
+
+          {/* ── Mobile overlay + drawer ──────────────────────────────── */}
+          {sidebarOpen && (
+            <div
+              className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <aside className={cn(
+            "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          )}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-600/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <GraduationCap className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-sm tracking-tight text-foreground">Teacher Portal</span>
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" title="Online" />
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[90px]">{user?.name || 'Teacher'}</p>
+                    <span className={roleBadgeClass}>{roleBadgeLabel}</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground ml-auto">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto min-h-0 py-4 px-3 space-y-1 no-scrollbar">
+              {navItems.map(item => (
+                <Link key={item.href} href={item.href} onClick={() => setSidebarOpen(false)}>
+                  <div className={cn(
+                    "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold group transition-all",
+                    isActive(item.href) ? 'bg-primary/15 text-primary font-bold' : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
+                  )}>
+                    <span className={isActive(item.href) ? 'text-primary' : 'text-primary/70 group-hover:text-primary'}>{item.icon}</span>
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge && (
+                      <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+                        {item.badge}
+                      </span>
+                    )}
+                    {isActive(item.href) && !item.badge && <ChevronRight className="w-4 h-4 ml-auto text-primary" />}
+                  </div>
+                </Link>
+              ))}
+
+              <button
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold mb-1 text-muted-foreground hover:bg-muted transition-all cursor-pointer group mt-1"
+              >
+                <div className="flex items-center gap-3">
+                  {isDark ? <Moon className="w-5 h-5 text-slate-500" /> : <Sun className="w-5 h-5 text-slate-500" />}
+                  <span className="flex-1 text-left">{isDark ? 'Dark Mode' : 'Light Mode'}</span>
+                </div>
+                <div className="flex h-5 w-9 items-center rounded-full bg-primary/20 px-0.5 pointer-events-none">
+                  <div className={cn(
+                    "h-4 w-4 rounded-full bg-primary shadow transition-transform duration-300",
+                    isDark ? 'translate-x-4' : 'translate-x-0'
+                  )} />
+                </div>
+              </button>
+            </nav>
+
+            <div className="shrink-0 p-4 border-t border-border text-center bg-card/50 pb-safe">
+              <DeveloperBrand type="powered" />
+            </div>
+          </aside>
+
+          {/* ── Main content area ────────────────────────────────────── */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
+            {!isCommunicationPage && <TopNav showMenuButton onMenuClick={() => setSidebarOpen(true)} />}
+            <main
+              className={cn("flex-1 flex flex-col overflow-auto focus:outline-none relative min-h-0", isNative && !isCommunicationPage && "pb-20 md:pb-0")}
+              onScroll={handleMainScroll}
+            >
+              <div className="flex-1 flex flex-col min-h-0">
+                {children}
+              </div>
+            </main>
+
+            {isNative && !isCommunicationPage && (
+              <nav className={cn(
+                "md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border/50 bg-background/80 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pb-safe",
+                !showBottomNav ? "translate-y-full" : "translate-y-0"
+              )}>
+                <div className="flex items-stretch justify-around h-16 px-2">
+                  <MobileTabLink href="/school/teacher" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" active={isActive('/school/teacher')} />
+                  <MobileTabLink href="/school/teacher/communication" icon={<MessageSquare className="w-5 h-5" />} label="Chat" active={isActive('/school/teacher/communication')} />
+                  {isHomeroomTeacher ? (
+                    <MobileTabLink href="/school/teacher/attendance" icon={<CheckSquare className="w-5 h-5" />} label="Check" active={isActive('/school/teacher/attendance')} />
+                  ) : (
+                    <MobileTabLink href="/school/teacher/gradebook" icon={<GraduationCap className="w-5 h-5" />} label="Grades" active={isActive('/school/teacher/gradebook')} />
+                  )}
+                  <MobileTabLink href="/school/teacher/classes" icon={<Layers className="w-5 h-5" />} label="Classes" active={isActive('/school/teacher/classes')} />
+                  <MobileTabLink href="/school/teacher/profile" icon={<User className="w-5 h-5" />} label="Profile" active={isActive('/school/teacher/profile')} />
+                </div>
+              </nav>
+            )}
+          </div>
+        </div>
+      </LanguageProvider>
     </AuthGuard>
   )
 }
 
-function NavLink({ href, icon, label, active, badge }: { href: string, icon: React.ReactNode, label: string, active: boolean, badge?: number }) {
+// ── Desktop nav link (supports collapsed icon-only mode) ─────────────────────
+function DesktopNavLink({
+  href,
+  icon,
+  label,
+  active,
+  isCollapsed,
+  badge,
+}: {
+  href: string
+  icon: React.ReactNode
+  label: string
+  active: boolean
+  isCollapsed?: boolean
+  badge?: number
+}) {
   return (
-    <Link href={href}>
+    <Link href={href} title={isCollapsed ? label : undefined}>
       <div className={cn(
-        "flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold grow-0 group relative",
-        active ? "bg-primary/15 text-primary shadow-sm font-bold" : "text-foreground/70 hover:bg-primary/5 hover:text-primary"
+        "flex items-center gap-3 rounded-xl transition-all duration-200 text-sm font-semibold group cursor-pointer",
+        isCollapsed ? "justify-center p-3" : "px-4 py-2.5",
+        active
+          ? "bg-primary/15 text-primary shadow-sm font-bold"
+          : "text-foreground/70 hover:bg-primary/5 hover:text-primary"
       )}>
-        <div className="flex items-center gap-3">
-          <span className={active ? "text-primary" : "text-primary/70 group-hover:text-primary"}>{icon}</span>
-          <span>{label}</span>
-        </div>
-        {badge && (
-          <span className="h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
+        <span className={cn(
+          "transition-colors flex-shrink-0",
+          active ? "text-primary" : "text-primary/70 group-hover:text-primary"
+        )}>
+          {icon}
+        </span>
+        {!isCollapsed && <span className="flex-1 truncate">{label}</span>}
+        {!isCollapsed && badge && (
+          <span className="ml-auto h-5 min-w-[20px] px-1.5 bg-rose-500 text-white font-extrabold text-[10px] rounded-full flex items-center justify-center shadow-sm">
             {badge}
           </span>
+        )}
+        {!isCollapsed && active && !badge && (
+          <ChevronRight className="w-4 h-4 ml-auto text-primary" />
         )}
       </div>
     </Link>
   )
 }
 
+// ── Mobile bottom tab link ───────────────────────────────────────────────────
 function MobileTabLink({ href, icon, label, active }: { href: string, icon: React.ReactNode, label: string, active: boolean }) {
   return (
     <Link href={href} className="flex-1 relative group active:scale-95 transition-transform duration-100">
