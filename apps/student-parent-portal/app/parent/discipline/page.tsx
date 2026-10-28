@@ -374,7 +374,7 @@ export default function ParentDisciplinePage() {
   }, [incidents, activeTab, searchQuery]);
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 w-full max-w-6xl mx-auto pb-24 md:pb-8 box-border">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto pb-24 md:pb-8 box-border">
 
       {/* ── Mobile-First Clean Header ── */}
       <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 w-full max-w-full box-border">

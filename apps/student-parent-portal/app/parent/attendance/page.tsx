@@ -476,7 +476,7 @@ export default function AttendanceHistory() {
           <p className="typography-label text-muted-foreground mt-0.5">{t("attendance_history_desc")}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 bg-card/60 backdrop-blur-md p-1.5 rounded-2xl border border-border/40 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 bg-card/60 backdrop-blur-md p-1.5 rounded-2xl border border-border/40 shrink-0 max-w-full">
 
           {/* Mode Selector Dropdown */}
           <Select
@@ -546,13 +546,13 @@ export default function AttendanceHistory() {
       </div>
 
       {/* ─── MONTHLY STATS SUMMARY CARD ───────────────────────────────────── */}
-      <Card className="border-border/40 shadow-xl rounded-3xl bg-card/60 backdrop-blur-md overflow-hidden">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
+      <Card className="border-border/40 shadow-xl rounded-2xl sm:rounded-3xl bg-card/60 backdrop-blur-md overflow-hidden">
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 sm:gap-6 items-center">
 
             {/* Monthly attendance circular rate */}
-            <div className="flex items-center gap-4 md:col-span-2 md:border-r border-border/20 md:pr-6">
-              <div className="relative w-18 h-18 shrink-0 flex items-center justify-center">
+            <div className="flex items-center gap-3 sm:gap-4 md:col-span-2 md:border-r border-border/20 md:pr-6 min-w-0">
+              <div className="relative w-14 h-14 sm:w-18 sm:h-18 shrink-0 flex items-center justify-center">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="40" className="stroke-muted dark:stroke-slate-800" strokeWidth="10" fill="transparent" />
                   <circle
@@ -579,7 +579,7 @@ export default function AttendanceHistory() {
             </div>
 
             {/* Quick breakdown metrics */}
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 md:col-span-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4 md:col-span-3">
               <div className="text-center space-y-0.5">
                 <p className="typography-label text-[10px] text-muted-foreground">{t("total_days")}</p>
                 <span className="typography-card-title text-foreground">{monthlyStats.total}</span>
@@ -648,7 +648,7 @@ export default function AttendanceHistory() {
 
         {/* 1. CALENDAR GRID TRIGGER VIEW */}
         <TabsContent value="calendar" className="outline-none">
-          <Card className="border-border/40 shadow-xl rounded-3xl bg-card/60 backdrop-blur-md overflow-hidden">
+          <Card className="border-border/40 shadow-xl rounded-2xl sm:rounded-3xl bg-card/60 backdrop-blur-md overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between border-b border-border/20 py-4 px-6">
               <div className="space-y-0.5">
                 <CardTitle className="typography-label uppercase text-foreground">
@@ -671,7 +671,7 @@ export default function AttendanceHistory() {
                 </button>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
 
               {/* Calendar Grid Header */}
               <div className="typography-label grid grid-cols-7 text-center uppercase text-muted-foreground/80 mb-4 pb-2 border-b border-border/20">
@@ -685,7 +685,7 @@ export default function AttendanceHistory() {
               </div>
 
               {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-2.5 md:gap-4">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3 lg:gap-4">
                 {calendarCells.map((cell, idx) => {
                   if (cell.day === null || !cell.dateStr) {
                     return <div key={`empty-${idx}`} className="aspect-square bg-muted/5 rounded-2xl" />
@@ -695,17 +695,17 @@ export default function AttendanceHistory() {
                   return (
                     <div
                       key={cell.dateStr}
-                      className={`aspect-square flex flex-col items-center justify-center p-1 border border-border/10 rounded-2xl transition-all relative group select-none ${getCalendarDayColor(dayStatus)}`}
+                      className={`aspect-square flex flex-col items-center justify-center p-0.5 sm:p-1 border border-border/10 rounded-xl sm:rounded-2xl transition-all relative group select-none ${getCalendarDayColor(dayStatus)}`}
                     >
-                      <span className="typography-label text-sm sm:text-base font-semibold">{cell.day}</span>
+                      <span className="typography-label text-xs sm:text-sm md:text-base font-semibold">{cell.day}</span>
 
                       {/* Status Icon */}
                       {dayStatus && (
                         <div className="mt-1 flex justify-center items-center opacity-90">
-                          {dayStatus === "present" && <CheckCircle2 className="w-4 h-4 sm:w-6 sm:h-6 stroke-[2.5]" />}
-                          {dayStatus === "absent" && <XCircle className="w-4 h-4 sm:w-6 sm:h-6 stroke-[2.5]" />}
-                          {dayStatus === "late" && <Clock className="w-4 h-4 sm:w-6 sm:h-6 stroke-[2.5]" />}
-                          {dayStatus === "excused" && <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6 stroke-[2.5]" />}
+                          {dayStatus === "present" && <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 stroke-[2.5]" />}
+                          {dayStatus === "absent" && <XCircle className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 stroke-[2.5]" />}
+                          {dayStatus === "late" && <Clock className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 stroke-[2.5]" />}
+                          {dayStatus === "excused" && <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 stroke-[2.5]" />}
                         </div>
                       )}
                     </div>
@@ -719,7 +719,7 @@ export default function AttendanceHistory() {
 
         {/* 2. TABLE AUDIT LOG LIST VIEW */}
         <TabsContent value="table" className="outline-none animate-in fade-in duration-300">
-          <Card className="border-border/40 shadow-xl rounded-3xl bg-card/60 backdrop-blur-md overflow-hidden">
+          <Card className="border-border/40 shadow-xl rounded-2xl sm:rounded-3xl bg-card/60 backdrop-blur-md overflow-hidden">
             <CardContent className="p-0">
               <div className="overflow-x-auto w-full">
                 <Table>

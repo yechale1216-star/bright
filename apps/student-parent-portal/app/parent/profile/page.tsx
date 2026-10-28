@@ -256,7 +256,7 @@ export default function ProfilePage() {
   const hasPhotoChanged = photoBase64 !== undefined
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto space-y-5 sm:space-y-6 animate-in fade-in duration-500">
       
       {/* Page Header */}
       <div>

@@ -422,7 +422,7 @@ export function ParentDashboardView() {
   // ─── Render Skeletons During Initial Load ─────────────────────────────────
   if (isLoading && !selectedStudent) {
     return (
-      <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 md:p-8 animate-pulse">
+      <div className="space-y-6 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto animate-pulse">
         <div className="h-28 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -438,20 +438,20 @@ export function ParentDashboardView() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 md:p-8 animate-in fade-in duration-300">
+    <div className="space-y-6 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto animate-in fade-in duration-300">
       {/* ─── 1. HERO HEADER & CHILD SWITCHER ─────────────────────────────── */}
-      <div className="rounded-3xl p-6 md:p-8 bg-gradient-to-br from-white via-white to-purple-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/20 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      <div className="rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 bg-gradient-to-br from-white via-white to-purple-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/20 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
         {/* Decorative backdrop glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           {/* Welcome greeting & child identity */}
-          <div className="flex items-center gap-4 min-w-0">
-            <Avatar className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl ring-4 ring-purple-100 dark:ring-purple-900/40 shadow-sm shrink-0">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <Avatar className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl ring-4 ring-purple-100 dark:ring-purple-900/40 shadow-sm shrink-0">
               {selectedStudent?.photo && (
                 <AvatarImage src={selectedStudent.photo} alt={selectedStudent.fullName} />
               )}
-              <AvatarFallback className="rounded-2xl bg-purple-600 text-white font-black text-xl">
+              <AvatarFallback className="rounded-2xl bg-purple-600 text-white font-black text-lg sm:text-xl">
                 {selectedStudent?.fullName
                   ? selectedStudent.fullName.slice(0, 2).toUpperCase()
                   : "ST"}
@@ -465,10 +465,10 @@ export function ParentDashboardView() {
                   {greeting}, {firstName}
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground tracking-tight truncate">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-foreground tracking-tight truncate">
                 {selectedStudent?.fullName || selectedStudent?.name || "Student Dashboard"}
               </h1>
-              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5">
                 <Badge variant="secondary" className="font-bold text-xs rounded-lg">
                   Grade {typeof selectedStudent?.grade === "object" ? selectedStudent?.grade?.name : selectedStudent?.grade || "—"}
                   {selectedStudent?.section ? ` • Sec ${typeof selectedStudent?.section === "object" ? selectedStudent?.section?.name : selectedStudent?.section}` : ""}
@@ -488,9 +488,9 @@ export function ParentDashboardView() {
           </div>
 
           {/* Child Switcher Pills & Refresh Action */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 shrink-0 max-w-full">
             {allStudents.length > 1 && (
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 max-w-full overflow-x-auto no-scrollbar">
                 {allStudents.map((s) => {
                   const isActive = s.id === selectedStudent?.id;
                   return (
@@ -549,27 +549,27 @@ export function ParentDashboardView() {
       )}
 
       {/* ─── 3. TOP KPI METRICS STRIP (4 UNIFIED CARDS) ───────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 2xl:gap-5">
         {/* KPI 1: Academic Standing */}
         <Link href="/parent/academics" className="group">
-          <Card className="rounded-3xl border border-border/80 bg-card hover:border-purple-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-purple-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
+            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
                   Academic Standing
                 </span>
-                <div className="text-2xl font-black text-foreground">
+                <div className="text-xl sm:text-2xl font-black text-foreground">
                   {academicStats.average != null ? `${academicStats.average}%` : "Good"}
                 </div>
-                <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
-                  <Award className="w-3.5 h-3.5" />
-                  <span>
+                <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 truncate">
+                  <Award className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
                     {academicStats.rank !== "Pending" ? `Rank ${academicStats.rank}` : "View Report Card"}
                   </span>
                 </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
-                <GraduationCap className="w-6 h-6" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </CardContent>
           </Card>
@@ -577,22 +577,22 @@ export function ParentDashboardView() {
 
         {/* KPI 2: Attendance Rate */}
         <Link href="/parent/attendance" className="group">
-          <Card className="rounded-3xl border border-border/80 bg-card hover:border-emerald-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-emerald-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
+            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
                   Attendance Health
                 </span>
-                <div className="text-2xl font-black text-foreground">{attendanceStats.rate}%</div>
-                <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span>
+                <div className="text-xl sm:text-2xl font-black text-foreground">{attendanceStats.rate}%</div>
+                <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 truncate">
+                  <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
                     Today: {todayStatus.daily ? todayStatus.daily.toUpperCase() : "On Schedule"}
                   </span>
                 </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                <UserCheck className="w-6 h-6" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                <UserCheck className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </CardContent>
           </Card>
@@ -600,27 +600,27 @@ export function ParentDashboardView() {
 
         {/* KPI 3: Homework & Tasks */}
         <Link href="/parent/homework" className="group">
-          <Card className="rounded-3xl border border-border/80 bg-card hover:border-amber-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-amber-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
+            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
                   Active Homework
                 </span>
-                <div className="text-2xl font-black text-foreground">
+                <div className="text-xl sm:text-2xl font-black text-foreground">
                   {homeworkStats.pendingCount}
                   <span className="text-xs text-muted-foreground font-normal ml-1">pending</span>
                 </div>
-                <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>
+                <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 truncate">
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">
                     {homeworkStats.overdueCount > 0
                       ? `${homeworkStats.overdueCount} Overdue`
                       : `${homeworkStats.submittedCount} completed`}
                   </span>
                 </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center shrink-0">
-                <BookOpen className="w-6 h-6" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center shrink-0">
+                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </CardContent>
           </Card>
@@ -628,22 +628,22 @@ export function ParentDashboardView() {
 
         {/* KPI 4: Communications & Notices */}
         <Link href="/parent/communication" className="group">
-          <Card className="rounded-3xl border border-border/80 bg-card hover:border-blue-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-blue-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
+            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
                   Messages & Notices
                 </span>
-                <div className="text-2xl font-black text-foreground">
+                <div className="text-xl sm:text-2xl font-black text-foreground">
                   {totalUnreadCount > 0 ? `${totalUnreadCount} New` : "Clear"}
                 </div>
-                <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Chat with teachers</span>
+                <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 truncate">
+                  <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Chat with teachers</span>
                 </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0">
-                <Megaphone className="w-6 h-6" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0">
+                <Megaphone className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </CardContent>
           </Card>
@@ -651,12 +651,12 @@ export function ParentDashboardView() {
       </div>
 
       {/* ─── 4. TWO-COLUMN PRIMARY GRID ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 2xl:gap-8 items-start">
         {/* ─── LEFT COLUMN (8 COLS): ACADEMICS, HOMEWORK, MATERIALS ─── */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 space-y-5 sm:space-y-6 min-w-0">
           {/* Card A: Academic Progress & Subject Performance */}
-          <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-5 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
+            <CardHeader className="p-4 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
               <div className="space-y-1">
                 <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center">
@@ -682,7 +682,7 @@ export function ParentDashboardView() {
               </Button>
             </CardHeader>
 
-            <CardContent className="p-5 sm:p-6 pt-2 space-y-4">
+            <CardContent className="p-4 sm:p-6 pt-2 space-y-4">
               {/* Subject Breakdown Progress Rows */}
               {academicStats.subjects.length > 0 ? (
                 <div className="space-y-3">
@@ -757,8 +757,8 @@ export function ParentDashboardView() {
           </Card>
 
           {/* Card B: Pending Homework & Deadlines */}
-          <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-5 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
+            <CardHeader className="p-4 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
               <div className="space-y-1">
                 <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center">
@@ -784,7 +784,7 @@ export function ParentDashboardView() {
               </Button>
             </CardHeader>
 
-            <CardContent className="p-5 sm:p-6 pt-2 space-y-3">
+            <CardContent className="p-4 sm:p-6 pt-2 space-y-3">
               {homeworkStats.upcoming.length > 0 ? (
                 <div className="space-y-2.5">
                   {homeworkStats.upcoming.map((hw) => (
@@ -836,8 +836,8 @@ export function ParentDashboardView() {
           </Card>
 
           {/* Card C: Recently Shared Learning Materials */}
-          <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-5 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
+            <CardHeader className="p-4 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
               <div className="space-y-1">
                 <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center">
@@ -863,7 +863,7 @@ export function ParentDashboardView() {
               </Button>
             </CardHeader>
 
-            <CardContent className="p-5 sm:p-6 pt-2">
+            <CardContent className="p-4 sm:p-6 pt-2">
               {materialsList.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {materialsList.slice(0, 4).map((m) => {
@@ -927,10 +927,10 @@ export function ParentDashboardView() {
         </div>
 
         {/* ─── RIGHT COLUMN (4 COLS): ATTENDANCE, ANNOUNCEMENTS, QUICK ACTIONS ─── */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-5 sm:space-y-6 min-w-0">
           {/* Card D: Today's Attendance Check-in */}
-          <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-5 pb-3">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
+            <CardHeader className="p-4 sm:p-5 pb-3">
               <CardTitle className="text-base font-black flex items-center gap-2">
                 <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center">
                   <UserCheck className="w-4 h-4" />
@@ -942,20 +942,20 @@ export function ParentDashboardView() {
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="p-5 pt-2 space-y-4">
+            <CardContent className="p-4 sm:p-5 pt-2 space-y-4">
               {todayStatus.isSessionBased ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                  <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5 min-w-0">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase truncate block">
                       Morning
                     </span>
-                    <div>{getStatusBadge(todayStatus.morning)}</div>
+                    <div className="flex justify-center">{getStatusBadge(todayStatus.morning)}</div>
                   </div>
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                  <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5 min-w-0">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase truncate block">
                       Afternoon
                     </span>
-                    <div>{getStatusBadge(todayStatus.afternoon)}</div>
+                    <div className="flex justify-center">{getStatusBadge(todayStatus.afternoon)}</div>
                   </div>
                 </div>
               ) : (
@@ -963,27 +963,27 @@ export function ParentDashboardView() {
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">
                     Daily Presence
                   </span>
-                  <div>{getStatusBadge(todayStatus.daily)}</div>
+                  <div className="flex justify-center">{getStatusBadge(todayStatus.daily)}</div>
                 </div>
               )}
 
               {/* Attendance Breakdown Pills */}
-              <div className="grid grid-cols-4 gap-2 text-center text-xs pt-1">
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
+              <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center text-xs pt-1">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.present}</div>
-                  <span className="text-[9px] uppercase font-bold">Present</span>
+                  <span className="text-[9px] uppercase font-bold truncate block">Present</span>
                 </div>
-                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.late}</div>
-                  <span className="text-[9px] uppercase font-bold">Late</span>
+                  <span className="text-[9px] uppercase font-bold truncate block">Late</span>
                 </div>
-                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.absent}</div>
-                  <span className="text-[9px] uppercase font-bold">Absent</span>
+                  <span className="text-[9px] uppercase font-bold truncate block">Absent</span>
                 </div>
-                <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.excused}</div>
-                  <span className="text-[9px] uppercase font-bold">Excused</span>
+                  <span className="text-[9px] uppercase font-bold truncate block">Excused</span>
                 </div>
               </div>
 
@@ -993,9 +993,9 @@ export function ParentDashboardView() {
                   variant="outline"
                   className="w-full rounded-2xl text-xs font-bold border-slate-200 dark:border-slate-800"
                 >
-                  <Link href="/parent/attendance">
-                    <Calendar className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-                    View Detailed Attendance Calendar
+                  <Link href="/parent/attendance" className="truncate">
+                    <Calendar className="w-3.5 h-3.5 mr-1.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">View Attendance Calendar</span>
                   </Link>
                 </Button>
               </div>
@@ -1003,40 +1003,40 @@ export function ParentDashboardView() {
           </Card>
 
           {/* Card E: School Announcements */}
-          <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-black flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
+            <CardHeader className="p-4 sm:p-5 pb-3 flex flex-row items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <CardTitle className="text-base font-black flex items-center gap-2 truncate">
+                  <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
                     <Megaphone className="w-4 h-4" />
                   </span>
-                  School Announcements
+                  <span className="truncate">School Announcements</span>
                 </CardTitle>
               </div>
               <Button
                 asChild
                 variant="ghost"
                 size="sm"
-                className="text-xs font-bold text-purple-600 rounded-xl"
+                className="text-xs font-bold text-purple-600 rounded-xl shrink-0"
               >
                 <Link href="/parent/announcements">All</Link>
               </Button>
             </CardHeader>
 
-            <CardContent className="p-5 pt-2 space-y-3">
+            <CardContent className="p-4 sm:p-5 pt-2 space-y-3">
               {notificationsList.length > 0 ? (
                 notificationsList.slice(0, 3).map((n) => (
                   <div
                     key={n.id}
                     className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1 text-xs"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2 min-w-0">
                       <span className="font-bold text-foreground truncate">{n.title}</span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground shrink-0">
                         {new Date(n.createdAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed break-words">
                       {n.message}
                     </p>
                   </div>
@@ -1050,59 +1050,59 @@ export function ParentDashboardView() {
           </Card>
 
           {/* Card F: Parent Action Shortcuts */}
-          <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-5 pb-3">
+          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
+            <CardHeader className="p-4 sm:p-5 pb-3">
               <CardTitle className="text-base font-black flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 flex items-center justify-center">
+                <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 flex items-center justify-center shrink-0">
                   <Layers className="w-4 h-4" />
                 </span>
                 Quick Actions Hub
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="p-5 pt-2 space-y-2">
+            <CardContent className="p-4 sm:p-5 pt-2 space-y-2">
               <Link
                 href="/parent/academics"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 transition-colors text-xs font-bold"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 transition-colors text-xs font-bold group"
               >
-                <div className="flex items-center gap-2.5">
-                  <GraduationCap className="w-4 h-4 text-purple-600" />
-                  <span>Print Official Term Report Card</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <GraduationCap className="w-4 h-4 text-purple-600 shrink-0" />
+                  <span className="truncate">Print Official Term Report Card</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </Link>
 
               <Link
                 href="/parent/communication"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 transition-colors text-xs font-bold"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 transition-colors text-xs font-bold group"
               >
-                <div className="flex items-center gap-2.5">
-                  <MessageSquare className="w-4 h-4 text-blue-600" />
-                  <span>Message Class & Subject Teachers</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <MessageSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="truncate">Message Class & Subject Teachers</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </Link>
 
               <Link
                 href="/parent/discipline"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-800 transition-colors text-xs font-bold"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-800 transition-colors text-xs font-bold group"
               >
-                <div className="flex items-center gap-2.5">
-                  <ShieldAlert className="w-4 h-4 text-rose-600" />
-                  <span>Review Conduct & Commendations</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="truncate">Review Conduct & Commendations</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </Link>
 
               <Link
                 href="/parent/transport"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-800 transition-colors text-xs font-bold"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-800 transition-colors text-xs font-bold group"
               >
-                <div className="flex items-center gap-2.5">
-                  <Bus className="w-4 h-4 text-amber-600" />
-                  <span>Track School Bus & Route</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Bus className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="truncate">Track School Bus & Route</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </CardContent>
           </Card>
