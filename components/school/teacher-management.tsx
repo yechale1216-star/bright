@@ -27,6 +27,9 @@ import {
   ShieldAlert,
   Users,
   XCircle,
+  History,
+  Clock,
+  AlertCircle,
 } from "lucide-react"
 import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { Button } from "@/components/ui/button"
@@ -59,6 +62,10 @@ interface Teacher {
   is_active?: boolean
   profile_photo?: string
   attendanceMode?: string
+  employmentStatus?: string
+  suspensionReason?: string
+  statusChangedAt?: string
+  statusChangedBy?: string
 }
 
 
