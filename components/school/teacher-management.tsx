@@ -61,6 +61,56 @@ interface Teacher {
   attendanceMode?: string
 }
 
+
+export const getEmploymentStatus = (teacher: Teacher): string => {
+  if (teacher.employmentStatus && ['ACTIVE', 'SUSPENDED', 'PENDING_APPROVAL', 'DEACTIVATED', 'TERMINATED', 'FIRED'].includes(teacher.employmentStatus)) {
+    return teacher.employmentStatus;
+  }
+  return teacher.is_active !== false ? 'ACTIVE' : 'SUSPENDED';
+};
+
+export const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'ACTIVE':
+      return {
+        label: 'Active',
+        badgeClass: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900',
+        dotClass: 'bg-emerald-500 animate-pulse',
+      };
+    case 'SUSPENDED':
+      return {
+        label: 'Suspended',
+        badgeClass: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900',
+        dotClass: 'bg-rose-500',
+      };
+    case 'PENDING_APPROVAL':
+      return {
+        label: 'Pending Approval',
+        badgeClass: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900',
+        dotClass: 'bg-amber-500 animate-pulse',
+      };
+    case 'DEACTIVATED':
+      return {
+        label: 'Deactivated',
+        badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700',
+        dotClass: 'bg-slate-400',
+      };
+    case 'TERMINATED':
+    case 'FIRED':
+      return {
+        label: 'Terminated',
+        badgeClass: 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800',
+        dotClass: 'bg-red-600',
+      };
+    default:
+      return {
+        label: status,
+        badgeClass: 'bg-slate-50 text-slate-600 border-slate-200',
+        dotClass: 'bg-slate-400',
+      };
+  }
+};
+
 interface TeacherManagementProps {
   defaultTab?: "teachers" | "assignments"
 }
@@ -102,13 +152,78 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
   })()
   
   // Modal & assignment loading states
+
+  // Status transition states
+  const [statusActionTeacher, setStatusActionTeacher] = useState<Teacher | null>(null)
+  const [statusActionType, setStatusActionType] = useState<'suspend' | 'reactivate' | 'approve' | 'deactivate' | 'set-pending' | null>(null)
+  const [statusActionReason, setStatusActionReason] = useState('')
+  const [isSubmittingStatusAction, setIsSubmittingStatusAction] = useState(false)
+  const [auditHistory, setAuditHistory] = useState<any[]>([])
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false)
+
+  const handleOpenStatusAction = (teacher: Teacher, action: 'suspend' | 'reactivate' | 'approve' | 'deactivate' | 'set-pending') => {
+    setStatusActionTeacher(teacher)
+    setStatusActionType(action)
+    setStatusActionReason('')
+  }
+
+  const handleConfirmStatusAction = async () => {
+    if (!statusActionTeacher || !statusActionType) return
+    if ((statusActionType === 'suspend' || statusActionType === 'deactivate') && !statusActionReason.trim()) {
+      notifications.error('Reason Required', 'Please enter a reason to ' + statusActionType + ' this account.')
+      return
+    }
+
+    try {
+      setIsSubmittingStatusAction(true)
+      const teacherId = statusActionTeacher.teacher_id || statusActionTeacher.id
+      if (statusActionType === 'suspend') {
+        await db.suspendTeacher(teacherId, { reason: statusActionReason.trim() })
+        notifications.success('Account Suspended', statusActionTeacher.full_name + "'s account has been suspended and sessions revoked.")
+      } else if (statusActionType === 'reactivate') {
+        await db.reactivateTeacher(teacherId, { reason: statusActionReason.trim() || undefined })
+        notifications.success('Account Reactivated', statusActionTeacher.full_name + "'s account has been reactivated.")
+      } else if (statusActionType === 'approve') {
+        await db.approveTeacher(teacherId, { reason: statusActionReason.trim() || undefined })
+        notifications.success('Account Approved', statusActionTeacher.full_name + "'s account has been approved and is now active.")
+      } else if (statusActionType === 'deactivate') {
+        await db.deactivateTeacher(teacherId, { reason: statusActionReason.trim() })
+        notifications.success('Account Deactivated', statusActionTeacher.full_name + "'s account has been deactivated and sessions revoked.")
+      } else if (statusActionType === 'set-pending') {
+        await db.setTeacherPending(teacherId, { reason: statusActionReason.trim() || undefined })
+        notifications.success('Status Updated', statusActionTeacher.full_name + "'s account is now Pending Approval.")
+      }
+      setStatusActionTeacher(null)
+      setStatusActionType(null)
+      loadData(true, true)
+    } catch (err: any) {
+      notifications.error('Action Failed', err.message || 'Failed to update account status.')
+    } finally {
+      setIsSubmittingStatusAction(false)
+    }
+  }
+
+  const loadAuditHistory = async (teacher: Teacher) => {
+    setIsLoadingAudit(true)
+    try {
+      const id = teacher.teacher_id || teacher.id
+      const data = await db.getTeacherAuditHistory(id)
+      setAuditHistory(data)
+    } catch (err) {
+      console.error('Failed to load audit history', err)
+      setAuditHistory([])
+    } finally {
+      setIsLoadingAudit(false)
+    }
+  }
+
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null)
   const [assignments, setAssignments] = useState<any[]>([])
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(false)
 
   // Search, Filtering, Sorting & Pagination States
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended" | "pending_approval" | "deactivated">("all")
   const [subjectFilter, setSubjectFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<"newest" | "name_asc" | "name_desc" | "experience_desc" | "experience_asc">("newest")
 
@@ -1261,6 +1376,69 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                     <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{selectedTeacher.phone || "No phone added"}</span>
                   </div>
                 </div>
+              </div>
+
+
+              {/* Audit History Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5" />
+                    Status Change Audit History
+                  </h3>
+                  {selectedTeacher && (
+                    <button
+                      type="button"
+                      onClick={() => loadAuditHistory(selectedTeacher)}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Refresh History
+                    </button>
+                  )}
+                </div>
+
+                {isLoadingAudit ? (
+                  <div className="py-6 text-center bg-slate-50/50 dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                    <Spinner size="sm" className="text-primary mx-auto mb-2" />
+                    <p className="text-[10px] text-slate-400">Loading audit records...</p>
+                  </div>
+                ) : auditHistory.length === 0 ? (
+                  <div className="py-6 text-center bg-slate-50/50 dark:bg-slate-900/30 border border-dashed border-slate-200/50 dark:border-slate-800/50 rounded-2xl text-slate-400">
+                    <History className="w-6 h-6 mx-auto mb-1 text-slate-300 dark:text-slate-700" />
+                    <p className="text-xs font-medium text-slate-500">No account status changes recorded</p>
+                    <p className="text-[10px] text-slate-400">Status transitions will be audited here automatically.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {auditHistory.map((log) => {
+                      const prevStatus = log.old_values?.status || log.old_values?.employmentStatus || 'ACTIVE';
+                      const newStatus = log.new_values?.status || log.new_values?.employmentStatus || log.action;
+                      const reason = log.new_values?.reason || log.new_values?.terminationReason || '—';
+                      return (
+                        <div key={log.id} className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-mono">{prevStatus}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold">{newStatus}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(log.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                            <span className="truncate max-w-[260px]">
+                              <strong>Reason:</strong> {reason}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              By: {log.adminName || 'Admin'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Assignments Section */}

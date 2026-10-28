@@ -56,7 +56,7 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
         return res.status(403).json({
           success: false,
           code: 'ACCOUNT_TERMINATED',
-          message: 'Your account has been deactivated or employment terminated. Please contact school administration.',
+          message: 'Your account access has been revoked. Please contact school administration.',
         });
       }
     } catch (e) {}

@@ -563,6 +563,41 @@ class Database extends BaseDatabase {
     return teachers.getTeacherStatus(this.getApiHeaders(), teacherId);
   }
 
+  async suspendTeacher(teacherId: string, payload: { reason: string }): Promise<any> {
+    const result = await teachers.suspendTeacher(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async reactivateTeacher(teacherId: string, payload: { reason?: string } = {}): Promise<any> {
+    const result = await teachers.reactivateTeacher(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async approveTeacher(teacherId: string, payload: { reason?: string } = {}): Promise<any> {
+    const result = await teachers.approveTeacher(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async deactivateTeacher(teacherId: string, payload: { reason: string }): Promise<any> {
+    const result = await teachers.deactivateTeacher(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async setTeacherPending(teacherId: string, payload: { reason?: string } = {}): Promise<any> {
+    const result = await teachers.setTeacherPending(this.getApiHeaders(), teacherId, payload);
+    this.notifyTeacherDataChanged();
+    return result;
+  }
+
+  async getTeacherAuditHistory(teacherId: string): Promise<any[]> {
+    const res = await teachers.getTeacherAuditHistory(this.getApiHeaders(), teacherId);
+    return res.data || [];
+  }
+
   // ─── TEACHER ASSIGNMENTS ──────────────────────────────────────────────────
   async getTeacherAssignments(schoolId?: string, teacherId?: string, forceRefetch = false): Promise<TeacherAssignment[]> {
     return teachers.getTeacherAssignments(this.getApiHeaders(), schoolId || this.getSchoolId() || "single-school", teacherId, forceRefetch)

@@ -143,6 +143,25 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         if (!valid) {
             return res.status(401).json({ success: false, message: 'Invalid credentials' });
         }
+        // Account status check — teachers and staff cannot log in unless ACTIVE
+        if (user.role === 'teacher' || user.role === 'staff') {
+            const empStatus = user.employmentStatus || 'ACTIVE';
+            const isActive = user.is_active;
+            const statusMessages = {
+                SUSPENDED: 'Your account has been suspended. Please contact school administration.',
+                PENDING_APPROVAL: 'Your account is pending administrator approval. Please contact school administration.',
+                DEACTIVATED: 'Your account has been deactivated. Please contact school administration.',
+                TERMINATED: 'Your employment has been terminated. Please contact school administration.',
+                FIRED: 'Your employment has been terminated. Please contact school administration.',
+            };
+            if (empStatus !== 'ACTIVE' || isActive === false) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'ACCOUNT_RESTRICTED',
+                    message: statusMessages[empStatus] || 'Your account is currently unavailable. Please contact school administration.',
+                });
+            }
+        }
         // Resolve single school context
         const singleSchool = await schoolService.getSingleSchool();
         let schoolId = singleSchool.id;
@@ -225,6 +244,19 @@ router.post('/refresh', async (req, res, next) => {
                 return res.status(401).json({ success: false, message: 'Session expired beyond renewal window' });
             }
         }
+        // Check Redis revocation
+        try {
+            const { cacheGet } = require('../redis');
+            const revoked = await cacheGet(`revoked_user:${decoded.id}`);
+            if (revoked) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'ACCOUNT_RESTRICTED',
+                    message: 'Your account access has been revoked. Please contact school administration.'
+                });
+            }
+        }
+        catch { }
         const user = await db_1.default.user.findUnique({
             where: { id: decoded.id },
             select: {
@@ -237,10 +269,19 @@ router.post('/refresh', async (req, res, next) => {
                 phone: true,
                 teacher_id: true,
                 attendanceMode: true,
+                employmentStatus: true,
             }
         });
-        if (!user || user.is_active === false) {
-            return res.status(401).json({ success: false, message: 'User account not found or deactivated' });
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'User account not found' });
+        }
+        const empStatus = user.employmentStatus || 'ACTIVE';
+        if (user.is_active === false || empStatus !== 'ACTIVE') {
+            return res.status(403).json({
+                success: false,
+                code: 'ACCOUNT_RESTRICTED',
+                message: 'Your account access has been revoked. Please contact school administration.'
+            });
         }
         const singleSchool = await schoolService.getSingleSchool();
         const schoolId = singleSchool.id;

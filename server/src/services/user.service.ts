@@ -72,6 +72,7 @@ export const getUserById = async (id: string, _schoolId?: string) => {
       phone: true,
       is_active: true,
       teacher_id: true,
+      employmentStatus: true,
       createdAt: true,
       updatedAt: true,
       experience_years: true,

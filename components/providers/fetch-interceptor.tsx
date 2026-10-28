@@ -108,6 +108,18 @@ if (typeof window !== "undefined" && !(window as any).__zt_fetch_intercepted) {
         }
       }
 
+      // 4. Centralized 403 Account Restriction handling
+      if (response.status === 403 && isOwnApi && !isAuthRoute) {
+        try {
+          const cloned = response.clone();
+          const body = await cloned.json();
+          if (body?.code === 'ACCOUNT_RESTRICTED' || body?.code === 'ACCOUNT_TERMINATED') {
+            console.warn('[FetchInterceptor] 403 account restricted detected. Dispatching sessionExpired.');
+            window.dispatchEvent(new Event('sessionExpired'));
+          }
+        } catch {}
+      }
+
       return response
     } catch (err: any) {
       if (timeoutTimer) clearTimeout(timeoutTimer)

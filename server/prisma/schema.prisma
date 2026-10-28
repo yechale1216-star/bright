@@ -80,12 +80,15 @@ model Teacher {
   subject          String?
   user_id          String?             @unique
   profile_photo    String?
-  employmentStatus         String              @default("ACTIVE") // ACTIVE | TERMINATED | SUSPENDED
+  employmentStatus         String              @default("ACTIVE") // ACTIVE | SUSPENDED | PENDING_APPROVAL | DEACTIVATED | TERMINATED | FIRED
   terminationEffectiveDate DateTime?
   terminationReason        String?
   terminatedBy             String?
   reinstatedDate           DateTime?
   reinstatedBy             String?
+  suspensionReason         String?
+  statusChangedAt          DateTime?
+  statusChangedBy          String?
   attendance       Attendance[]
   assignments      TeacherAssignment[]
   timetableSlots   TimetableSlot[]     @relation("AssignedTeacher")

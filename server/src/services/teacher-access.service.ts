@@ -16,6 +16,25 @@ const ADMIN_ROLES = [
   'head_teacher',
 ];
 
+export const VALID_TEACHER_STATUSES = ['ACTIVE', 'SUSPENDED', 'PENDING_APPROVAL', 'DEACTIVATED'] as const;
+export type TeacherAccountStatus = typeof VALID_TEACHER_STATUSES[number];
+
+export const ALLOWED_STATUS_TRANSITIONS: Record<TeacherAccountStatus, TeacherAccountStatus[]> = {
+  ACTIVE: ['SUSPENDED', 'DEACTIVATED', 'PENDING_APPROVAL'],
+  SUSPENDED: ['ACTIVE', 'DEACTIVATED'],
+  PENDING_APPROVAL: ['ACTIVE', 'DEACTIVATED', 'SUSPENDED'],
+  DEACTIVATED: ['ACTIVE', 'SUSPENDED'],
+};
+
+/** User-facing message for each non-active status */
+const STATUS_LOGIN_MESSAGES: Record<string, string> = {
+  SUSPENDED: 'Your account has been suspended. Please contact school administration.',
+  PENDING_APPROVAL: 'Your account is pending administrator approval. Please contact school administration.',
+  DEACTIVATED: 'Your account has been deactivated. Please contact school administration.',
+  TERMINATED: 'Your employment has been terminated. Please contact school administration.',
+  FIRED: 'Your employment has been terminated. Please contact school administration.',
+};
+
 export interface TeacherAccessContext {
   allowed: boolean;
   code?: string;
@@ -27,7 +46,8 @@ export interface TeacherAccessContext {
 }
 
 /**
- * Service to manage Teacher Lifecycle, Academic-Year Access Control, and Account Revocation
+ * Service to manage Teacher Lifecycle, Academic-Year Access Control, and Account Revocation.
+ * Supports four account statuses: ACTIVE, SUSPENDED, PENDING_APPROVAL, DEACTIVATED.
  */
 export class TeacherAccessService {
   /**
@@ -109,17 +129,22 @@ export class TeacherAccessService {
   }
 
   /**
-   * Check if a teacher account has been terminated, fired, or deactivated.
-   * Leverages fast Redis check for sub-millisecond lookup, followed by DB verification.
+   * Check if a teacher account is active and permitted to log in.
+   * Checks Redis revocation first (O(1)), then DB status.
+   * Returns { active, reason, status } for all four account statuses.
    */
-  async checkAccountActive(userId: string): Promise<{ active: boolean; reason?: string }> {
+  async checkAccountActive(userId: string): Promise<{ active: boolean; reason?: string; status?: string }> {
     // 1. Fast Redis check for immediate session revocation
     try {
       const revoked = await cacheGet(`revoked_user:${userId}`);
       if (revoked) {
+        let revokedData: any = {};
+        try { revokedData = JSON.parse(revoked); } catch {}
+        const status = revokedData.status || 'SUSPENDED';
         return {
           active: false,
-          reason: 'Your account has been deactivated or employment terminated. Please contact school administration.',
+          status,
+          reason: STATUS_LOGIN_MESSAGES[status] || 'Your account access has been revoked. Please contact school administration.',
         };
       }
     } catch {
@@ -132,21 +157,35 @@ export class TeacherAccessService {
       return { active: false, reason: 'User record not found.' };
     }
 
-    if (user.is_active === false || user.employmentStatus === 'TERMINATED' || user.employmentStatus === 'FIRED') {
+    const empStatus = user.employmentStatus || 'ACTIVE';
+
+    // Non-active employment statuses
+    if (empStatus !== 'ACTIVE') {
       return {
         active: false,
-        reason: 'Your account has been deactivated or employment terminated. Please contact school administration.',
+        status: empStatus,
+        reason: STATUS_LOGIN_MESSAGES[empStatus] || 'Your account is currently unavailable. Please contact school administration.',
+      };
+    }
+
+    if (user.is_active === false) {
+      return {
+        active: false,
+        status: 'SUSPENDED',
+        reason: STATUS_LOGIN_MESSAGES['SUSPENDED'],
       };
     }
 
     if (teacher && (teacher.is_active === false || teacher.employmentStatus === 'TERMINATED' || teacher.employmentStatus === 'FIRED')) {
+      const tStatus = teacher.employmentStatus || 'SUSPENDED';
       return {
         active: false,
-        reason: 'Your teacher employment has been terminated. Please contact school administration.',
+        status: tStatus,
+        reason: STATUS_LOGIN_MESSAGES[tStatus] || 'Your teacher account is inactive. Please contact school administration.',
       };
     }
 
-    return { active: true };
+    return { active: true, status: 'ACTIVE' };
   }
 
   /**
@@ -225,7 +264,6 @@ export class TeacherAccessService {
 
   /**
    * Validate that a teacher is not attempting to access a previous or future academic year.
-   * Teachers are strictly restricted to the school's active academic year.
    */
   async validateAcademicYearRequest(userId: string, requestedYearId?: string): Promise<{ allowed: boolean; currentYear?: any; reason?: string }> {
     const { user } = await this.resolveTeacherProfile(userId);
@@ -300,7 +338,6 @@ export class TeacherAccessService {
 
   /**
    * Verify teacher's authorization to access or grade a specific student.
-   * Student must be enrolled in the teacher's assigned section for the active academic year.
    */
   async verifyStudentScope(userId: string, studentId: string): Promise<{ allowed: boolean; reason?: string }> {
     const access = await this.validateTeacherActiveAccess(userId);
@@ -338,7 +375,145 @@ export class TeacherAccessService {
   }
 
   /**
-   * Terminate or Fire a Teacher:
+   * Change teacher account status (ACTIVE ↔ SUSPENDED ↔ PENDING_APPROVAL ↔ DEACTIVATED).
+   * Validates the transition, revokes/restores sessions, and creates a complete audit record.
+   */
+  async changeAccountStatus(
+    teacherIdOrUserId: string,
+    payload: {
+      newStatus: TeacherAccountStatus;
+      reason?: string;
+      adminId: string;
+      adminEmail?: string;
+    }
+  ) {
+    const { newStatus, adminId } = payload;
+    const reason = payload.reason?.trim() || `Status changed to ${newStatus} by administrator`;
+
+    const { user, teacher } = await this.resolveTeacherProfile(teacherIdOrUserId);
+    if (!user && !teacher) {
+      throw new Error('Teacher record not found.');
+    }
+
+    const teacherId = teacher?.id || user?.teacher_id;
+    const userId = user?.id || teacher?.user_id;
+
+    // Determine current status
+    const currentStatus = (user?.employmentStatus || teacher?.employmentStatus || 'ACTIVE') as string;
+
+    // Validate transition — only check VALID_TEACHER_STATUSES transitions, not TERMINATED/FIRED
+    const validAccountStatuses: string[] = [...VALID_TEACHER_STATUSES];
+    if (validAccountStatuses.includes(currentStatus)) {
+      const allowed = ALLOWED_STATUS_TRANSITIONS[currentStatus as TeacherAccountStatus];
+      if (!allowed.includes(newStatus)) {
+        throw new Error(`Invalid status transition from ${currentStatus} to ${newStatus}. Allowed transitions: ${allowed.join(', ')}.`);
+      }
+    }
+
+    const isRestrictive = newStatus !== 'ACTIVE';
+    const isActive = !isRestrictive;
+    const changedAt = new Date();
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Capture previous status for audit
+      let previousStatus = currentStatus;
+      if (teacherId) {
+        const currentTeacher = await tx.teacher.findUnique({
+          where: { id: teacherId },
+          select: { employmentStatus: true },
+        });
+        previousStatus = currentTeacher?.employmentStatus || currentStatus;
+      }
+
+      // 2. Update Teacher profile
+      let updatedTeacher = null;
+      if (teacherId) {
+        updatedTeacher = await tx.teacher.update({
+          where: { id: teacherId },
+          data: {
+            employmentStatus: newStatus,
+            is_active: isActive,
+            statusChangedAt: changedAt,
+            statusChangedBy: adminId,
+            ...(isRestrictive && reason ? { suspensionReason: reason } : {}),
+          } as any,
+        });
+      }
+
+      // 3. Update User record
+      let updatedUser = null;
+      if (userId) {
+        updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: {
+            employmentStatus: newStatus,
+            is_active: isActive,
+          },
+        });
+      }
+
+      // 4. Session revocation / restoration via Redis
+      if (userId) {
+        if (isRestrictive) {
+          // Set revocation key — blocks all existing JWTs immediately
+          await cacheSetEx(`revoked_user:${userId}`, 30 * 24 * 60 * 60, JSON.stringify({
+            revokedAt: changedAt.toISOString(),
+            status: newStatus,
+            reason,
+            changedBy: adminId,
+          })).catch(() => {});
+        } else {
+          // Restore access — clear revocation
+          await cacheDel(`revoked_user:${userId}`).catch(() => {});
+        }
+        // Always clear role caches on status change
+        await cacheDel(`role:${userId}:`).catch(() => {});
+        await cacheDel(`role:${userId}:teacher`).catch(() => {});
+      }
+
+      // 5. Audit Log with old_values and new_values
+      await tx.auditLog.create({
+        data: {
+          user_id: adminId,
+          action: 'TEACHER_STATUS_CHANGED',
+          entity_type: 'Teacher',
+          entity_id: teacherId,
+          old_values: {
+            status: previousStatus,
+          },
+          new_values: {
+            status: newStatus,
+            reason,
+            teacherId,
+            userId,
+            teacherName: teacher?.name || user?.full_name,
+            changedBy: adminId,
+            changedByEmail: payload.adminEmail,
+            changedAt: changedAt.toISOString(),
+          },
+        },
+      }).catch(() => {});
+
+      const statusLabels: Record<string, string> = {
+        ACTIVE: 'activated',
+        SUSPENDED: 'suspended',
+        PENDING_APPROVAL: 'set to pending approval',
+        DEACTIVATED: 'deactivated',
+      };
+
+      return {
+        success: true,
+        teacher: updatedTeacher,
+        user: updatedUser,
+        previousStatus,
+        newStatus,
+        message: `Teacher account ${statusLabels[newStatus] || newStatus}${isRestrictive ? '. All active sessions have been revoked.' : '. The teacher may log in again.'}`,
+      };
+    });
+  }
+
+  /**
+   * Terminate or Fire a Teacher (permanent employment action — separate from account status management).
    * 1. Records employment status, termination effective date, reason, authorized administrator.
    * 2. Immediately revokes sessions in Redis and blocks subsequent requests.
    * 3. Deactivates active assignments.
@@ -365,6 +540,16 @@ export class TeacherAccessService {
     const userId = user?.id || teacher?.user_id;
 
     return await prisma.$transaction(async (tx) => {
+      // Capture previous status for audit
+      let previousStatus = 'ACTIVE';
+      if (teacherId) {
+        const currentTeacher = await tx.teacher.findUnique({
+          where: { id: teacherId },
+          select: { employmentStatus: true },
+        });
+        previousStatus = currentTeacher?.employmentStatus || 'ACTIVE';
+      }
+
       // 1. Update Teacher profile
       let updatedTeacher = null;
       if (teacherId) {
@@ -376,7 +561,9 @@ export class TeacherAccessService {
             terminationEffectiveDate: effectiveDate,
             terminationReason: reason,
             terminatedBy: payload.adminId,
-          },
+            statusChangedAt: new Date(),
+            statusChangedBy: payload.adminId,
+          } as any,
         });
 
         // 2. Deactivate currently active teacher assignments
@@ -400,32 +587,35 @@ export class TeacherAccessService {
 
       // 4. Immediate Session Revocation
       if (userId) {
-        // Set revocation key in Redis (expires in 30 days)
         await cacheSetEx(`revoked_user:${userId}`, 30 * 24 * 60 * 60, JSON.stringify({
           revokedAt: new Date().toISOString(),
+          status: 'TERMINATED',
           reason,
-          terminatedBy: payload.adminId,
+          changedBy: payload.adminId,
         })).catch(() => {});
-
-        // Clear role caches
         await cacheDel(`role:${userId}:`).catch(() => {});
         await cacheDel(`role:${userId}:teacher`).catch(() => {});
       }
 
-      // 5. Audit Log
+      // 5. Audit Log with old_values
       await tx.auditLog.create({
         data: {
           user_id: payload.adminId,
           action: 'TEACHER_TERMINATED',
           entity_type: 'Teacher',
           entity_id: teacherId,
+          old_values: {
+            status: previousStatus,
+          },
           new_values: {
+            status: 'TERMINATED',
             teacherId,
             userId,
             teacherName: teacher?.name || user?.full_name,
             reason,
             effectiveDate,
             terminatedBy: payload.adminId,
+            changedAt: new Date().toISOString(),
           },
         },
       }).catch(() => {});
@@ -440,7 +630,7 @@ export class TeacherAccessService {
   }
 
   /**
-   * Reinstate a Terminated Teacher:
+   * Reinstate a Terminated Teacher.
    * Restores active account status, removes session blacklist, and records reinstatement audit trail.
    * Note: Portal access remains gated until a valid assignment for the active academic year is created or activated.
    */
@@ -462,6 +652,16 @@ export class TeacherAccessService {
     const reason = payload.reason?.trim() || 'Reinstated by school administration';
 
     return await prisma.$transaction(async (tx) => {
+      // Capture previous status for audit
+      let previousStatus = 'TERMINATED';
+      if (teacherId) {
+        const currentTeacher = await tx.teacher.findUnique({
+          where: { id: teacherId },
+          select: { employmentStatus: true },
+        });
+        previousStatus = currentTeacher?.employmentStatus || 'TERMINATED';
+      }
+
       // 1. Update Teacher profile
       let updatedTeacher = null;
       if (teacherId) {
@@ -472,7 +672,9 @@ export class TeacherAccessService {
             employmentStatus: 'ACTIVE',
             reinstatedDate,
             reinstatedBy: payload.adminId,
-          },
+            statusChangedAt: reinstatedDate,
+            statusChangedBy: payload.adminId,
+          } as any,
         });
       }
 
@@ -493,19 +695,23 @@ export class TeacherAccessService {
         await cacheDel(`role:${userId}:teacher`).catch(() => {});
       }
 
-      // 4. Audit Log
+      // 4. Audit Log with old_values
       await tx.auditLog.create({
         data: {
           user_id: payload.adminId,
           action: 'TEACHER_REINSTATED',
           entity_type: 'Teacher',
           entity_id: teacherId,
+          old_values: {
+            status: previousStatus,
+          },
           new_values: {
+            status: 'ACTIVE',
             teacherId,
             userId,
             teacherName: teacher?.name || user?.full_name,
             reason,
-            reinstatedDate,
+            reinstatedDate: reinstatedDate.toISOString(),
             reinstatedBy: payload.adminId,
           },
         },
@@ -522,4 +728,3 @@ export class TeacherAccessService {
 }
 
 export const teacherAccessService = new TeacherAccessService();
-

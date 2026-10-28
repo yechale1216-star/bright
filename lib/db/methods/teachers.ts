@@ -117,3 +117,97 @@ export async function getTeacherStatus(
     { headers, cache: "no-store" }
   );
 }
+export async function suspendTeacher(
+  headers: any,
+  teacherId: string,
+  payload: { reason: string }
+): Promise<{ success: boolean; message?: string; data?: any }> {
+  const result = await apiFetch<{ success: boolean; message?: string; data?: any }>(
+    `${API_URL}/api/teachers/${teacherId}/suspend`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidate(/^teachers_/);
+  return result;
+}
+
+export async function reactivateTeacher(
+  headers: any,
+  teacherId: string,
+  payload: { reason?: string } = {}
+): Promise<{ success: boolean; message?: string; data?: any }> {
+  const result = await apiFetch<{ success: boolean; message?: string; data?: any }>(
+    `${API_URL}/api/teachers/${teacherId}/reactivate`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidate(/^teachers_/);
+  return result;
+}
+
+export async function approveTeacher(
+  headers: any,
+  teacherId: string,
+  payload: { reason?: string } = {}
+): Promise<{ success: boolean; message?: string; data?: any }> {
+  const result = await apiFetch<{ success: boolean; message?: string; data?: any }>(
+    `${API_URL}/api/teachers/${teacherId}/approve`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidate(/^teachers_/);
+  return result;
+}
+
+export async function deactivateTeacher(
+  headers: any,
+  teacherId: string,
+  payload: { reason: string }
+): Promise<{ success: boolean; message?: string; data?: any }> {
+  const result = await apiFetch<{ success: boolean; message?: string; data?: any }>(
+    `${API_URL}/api/teachers/${teacherId}/deactivate`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidate(/^teachers_/);
+  return result;
+}
+
+export async function setTeacherPending(
+  headers: any,
+  teacherId: string,
+  payload: { reason?: string } = {}
+): Promise<{ success: boolean; message?: string; data?: any }> {
+  const result = await apiFetch<{ success: boolean; message?: string; data?: any }>(
+    `${API_URL}/api/teachers/${teacherId}/set-pending`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  queryCache.invalidate(/^teachers_/);
+  return result;
+}
+
+export async function getTeacherAuditHistory(
+  headers: any,
+  teacherId: string
+): Promise<{ success: boolean; data: any[] }> {
+  return await apiFetch<{ success: boolean; data: any[] }>(
+    `${API_URL}/api/teachers/${teacherId}/audit-history`,
+    { headers, cache: "no-store" }
+  );
+}

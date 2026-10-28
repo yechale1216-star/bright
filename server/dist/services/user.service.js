@@ -77,6 +77,7 @@ const getUserById = async (id, _schoolId) => {
             phone: true,
             is_active: true,
             teacher_id: true,
+            employmentStatus: true,
             createdAt: true,
             updatedAt: true,
             experience_years: true,
