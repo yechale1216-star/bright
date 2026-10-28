@@ -30,6 +30,7 @@ import {
   History,
   Clock,
   AlertCircle,
+  UserX,
 } from "lucide-react"
 import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { Button } from "@/components/ui/button"
@@ -327,10 +328,12 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
   // Compute Statistics Cards
   const stats = useMemo(() => {
     const total = teachers.length
-    const active = teachers.filter(t => t.is_active !== false).length
-    const suspended = teachers.filter(t => t.is_active === false).length
+    const active = teachers.filter(t => getEmploymentStatus(t) === 'ACTIVE').length
+    const suspended = teachers.filter(t => getEmploymentStatus(t) === 'SUSPENDED').length
+    const pendingApproval = teachers.filter(t => getEmploymentStatus(t) === 'PENDING_APPROVAL').length
+    const deactivated = teachers.filter(t => getEmploymentStatus(t) === 'DEACTIVATED').length
     const subjectsCount = availableSubjects.length
-    return { total, active, suspended, subjectsCount }
+    return { total, active, suspended, pendingApproval, deactivated, subjectsCount }
   }, [teachers, availableSubjects])
 
   // Apply Search, Filters, and Sorting
@@ -349,8 +352,13 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
           }
         }
         // Status Filter
-        if (statusFilter === "active" && teacher.is_active === false) return false
-        if (statusFilter === "suspended" && teacher.is_active !== false) return false
+        if (statusFilter !== "all") {
+          const empStatus = getEmploymentStatus(teacher);
+          if (statusFilter === "active" && empStatus !== 'ACTIVE') return false;
+          if (statusFilter === "suspended" && empStatus !== 'SUSPENDED') return false;
+          if (statusFilter === "pending_approval" && empStatus !== 'PENDING_APPROVAL') return false;
+          if (statusFilter === "deactivated" && empStatus !== 'DEACTIVATED') return false;
+        }
 
         // Subject Filter
         if (subjectFilter !== "all" && teacher.subject !== subjectFilter) return false
@@ -788,6 +796,26 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending Approval</p>
+            <p className="text-lg font-black text-amber-600 dark:text-amber-400 mt-0.5">{stats.pendingApproval}</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center flex-shrink-0">
+            <UserX className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Deactivated</p>
+            <p className="text-lg font-black text-slate-700 dark:text-slate-300 mt-0.5">{stats.deactivated}</p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center flex-shrink-0">
             <BookOpen className="w-5 h-5" />
           </div>
@@ -830,7 +858,9 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
             >
               <option value="all">All Statuses</option>
               <option value="active">Active Only</option>
+              <option value="pending_approval">Pending Approval</option>
               <option value="suspended">Suspended Only</option>
+              <option value="deactivated">Deactivated Only</option>
             </select>
           </div>
 
@@ -913,14 +943,19 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 px-1 md:px-0">
             {filteredTeachers.map((teacher) => {
               const bgGradient = getAvatarGradient(teacher.id)
-              const isActive = teacher.is_active !== false
+              const empStatus = getEmploymentStatus(teacher)
+              const isActive = empStatus === 'ACTIVE'
+              const statusBadge = getStatusBadge(empStatus)
 
               return (
                 <div 
                   key={teacher.id} 
                   className={cn(
                     "group relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-[28px] border shadow-sm transition-all hover:shadow-md flex flex-col justify-between cursor-pointer",
-                    isActive ? "border-slate-100 dark:border-slate-800" : "border-rose-200/60 dark:border-rose-950/60 bg-rose-50/10 dark:bg-rose-950/10"
+                    isActive ? "border-slate-100 dark:border-slate-800"
+                    : empStatus === 'PENDING_APPROVAL' ? "border-amber-200/60 dark:border-amber-950/60 bg-amber-50/10 dark:bg-amber-950/10"
+                    : empStatus === 'DEACTIVATED' ? "border-slate-300/60 dark:border-slate-700/60 bg-slate-50/10 dark:bg-slate-800/20"
+                    : "border-rose-200/60 dark:border-rose-950/60 bg-rose-50/10 dark:bg-rose-950/10"
                   )}
                   onClick={() => setSelectedTeacher(teacher)}
                 >
@@ -948,7 +983,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                         <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1.5 truncate">
                           <span className={cn(
                             "w-1.5 h-1.5 rounded-full flex-shrink-0",
-                            isActive ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
+                            statusBadge.dotClass
                           )} />
                           <span className="truncate">{teacher.subject || "General Teacher"}</span>
                         </p>
@@ -980,16 +1015,31 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {/* Action Buttons */}
                       <div className="flex items-center gap-1">
-                        <button 
-                          onClick={() => handleToggleStatus(teacher)}
-                          title={isActive ? "Suspend Faculty Member" : "Restore Faculty Member"}
-                          className={cn(
-                            "w-7 h-7 rounded-lg flex items-center justify-center transition-colors",
-                            isActive ? "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50" : "bg-rose-100 dark:bg-rose-900/40 text-rose-600 hover:text-emerald-600"
-                          )}
-                        >
-                          {isActive ? <ShieldCheck className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                        </button>
+                        {empStatus === 'PENDING_APPROVAL' ? (
+                          <button 
+                            onClick={() => handleOpenStatusAction(teacher, 'approve')}
+                            title="Approve Teacher Account"
+                            className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 flex items-center justify-center transition-colors"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                          </button>
+                        ) : empStatus === 'ACTIVE' ? (
+                          <button 
+                            onClick={() => handleOpenStatusAction(teacher, 'suspend')}
+                            title="Suspend Account (Revokes Sessions)"
+                            className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 flex items-center justify-center transition-colors"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => handleOpenStatusAction(teacher, 'reactivate')}
+                            title="Reactivate Account"
+                            className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 hover:bg-emerald-200 flex items-center justify-center transition-colors"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleEdit(teacher)}
                           title="Edit Teacher Profile"
@@ -1018,15 +1068,17 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                         </span>
                       )}
 
-                      {/* Status Pill */}
-                      <span className={cn(
-                        "text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border",
-                        isActive 
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900" 
-                          : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900"
-                      )}>
-                        {isActive ? "Active" : "Suspended"}
-                      </span>
+                      {/* Status Pill with full 4-status representation */}
+                      <button
+                        onClick={() => setSelectedTeacher(teacher)}
+                        title="Click to view details and status management"
+                        className={cn(
+                          "text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border cursor-pointer hover:opacity-80 transition-opacity",
+                          statusBadge.badgeClass
+                        )}
+                      >
+                        {statusBadge.label}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1358,9 +1410,14 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-900 flex flex-col items-center justify-center text-center">
                   <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mb-1" />
                   <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">Status</span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-                    {selectedTeacher.is_active !== false ? "Active Account" : "Suspended"}
-                  </span>
+                  {(() => {
+                    const st = getStatusBadge(getEmploymentStatus(selectedTeacher));
+                    return (
+                      <span className={cn("text-xs font-bold mt-0.5 px-2 py-0.5 rounded-full border", st.badgeClass)}>
+                        {st.label}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1502,27 +1559,76 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
               </div>
             </div>
 
-            {/* Actions Footer */}
-            <div className="bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-900/50 p-4 flex justify-end gap-2">
-              <Button 
-                onClick={() => {
-                  const teacherToEdit = selectedTeacher
-                  setSelectedTeacher(null)
-                  handleEdit(teacherToEdit)
-                }}
-                variant="outline"
-                size="sm"
-                className="rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Profile
-              </Button>
-              <Button 
-                onClick={() => setSelectedTeacher(null)}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-1 transition-all"
-              >
-                Close Profile
-              </Button>
+            {/* Actions Footer with Account Status Controls */}
+            <div className="bg-slate-50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-900/50 p-4 space-y-3">
+              {/* Account Status Transition Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  Account Status Actions:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(() => {
+                    const empSt = getEmploymentStatus(selectedTeacher);
+                    return (
+                      <>
+                        {empSt !== 'ACTIVE' && (
+                          <Button size="sm" onClick={() => { setSelectedTeacher(null); handleOpenStatusAction(selectedTeacher, 'reactivate'); }}
+                            className="rounded-xl h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs font-bold shadow-xs">
+                            <RotateCcw className="w-3.5 h-3.5" /> Reactivate
+                          </Button>
+                        )}
+                        {empSt === 'PENDING_APPROVAL' && (
+                          <Button size="sm" onClick={() => { setSelectedTeacher(null); handleOpenStatusAction(selectedTeacher, 'approve'); }}
+                            className="rounded-xl h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white gap-1 text-xs font-bold shadow-xs">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Approve Account
+                          </Button>
+                        )}
+                        {empSt !== 'SUSPENDED' && (
+                          <Button size="sm" variant="outline" onClick={() => { setSelectedTeacher(null); handleOpenStatusAction(selectedTeacher, 'suspend'); }}
+                            className="rounded-xl h-8 px-3 border-rose-200 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1 text-xs font-bold">
+                            <ShieldAlert className="w-3.5 h-3.5" /> Suspend
+                          </Button>
+                        )}
+                        {empSt !== 'PENDING_APPROVAL' && (
+                          <Button size="sm" variant="outline" onClick={() => { setSelectedTeacher(null); handleOpenStatusAction(selectedTeacher, 'set-pending'); }}
+                            className="rounded-xl h-8 px-3 border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 gap-1 text-xs font-bold">
+                            <Clock className="w-3.5 h-3.5" /> Set Pending
+                          </Button>
+                        )}
+                        {empSt !== 'DEACTIVATED' && (
+                          <Button size="sm" variant="outline" onClick={() => { setSelectedTeacher(null); handleOpenStatusAction(selectedTeacher, 'deactivate'); }}
+                            className="rounded-xl h-8 px-3 border-slate-300 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1 text-xs font-bold">
+                            <UserX className="w-3.5 h-3.5" /> Deactivate
+                          </Button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button 
+                  onClick={() => {
+                    const teacherToEdit = selectedTeacher
+                    setSelectedTeacher(null)
+                    handleEdit(teacherToEdit)
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </Button>
+                <Button 
+                  onClick={() => setSelectedTeacher(null)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-1 transition-all"
+                >
+                  Close Profile
+                </Button>
+              </div>
             </div>
 
           </div>
@@ -1530,6 +1636,114 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
       )}
         </>
       )}
+
+      {/* ── Status Change Confirmation Dialog ─────────────────────────────────── */}
+      <Dialog open={statusActionType !== null} onOpenChange={(open) => { if (!open) { setStatusActionType(null); setStatusActionTeacher(null); } }}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xl p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className={cn(
+                "w-10 h-10 rounded-2xl flex items-center justify-center",
+                statusActionType === 'suspend' ? "bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+                : statusActionType === 'deactivate' ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                : statusActionType === 'approve' || statusActionType === 'reactivate' ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
+                : "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"
+              )}>
+                {statusActionType === 'suspend' ? <ShieldAlert className="w-5 h-5" />
+                 : statusActionType === 'deactivate' ? <UserX className="w-5 h-5" />
+                 : statusActionType === 'set-pending' ? <Clock className="w-5 h-5" />
+                 : <ShieldCheck className="w-5 h-5" />}
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  {statusActionType === 'suspend' ? 'Suspend Faculty Account'
+                   : statusActionType === 'reactivate' ? 'Reactivate Account'
+                   : statusActionType === 'approve' ? 'Approve Teacher Account'
+                   : statusActionType === 'deactivate' ? 'Deactivate Account'
+                   : 'Set Account to Pending Approval'}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Target: <strong className="text-foreground">{statusActionTeacher?.full_name}</strong>
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800 text-xs space-y-1">
+              <p className="font-semibold text-slate-800 dark:text-slate-200">
+                {statusActionType === 'suspend'
+                  ? 'Suspending this account will immediately revoke all active sessions and block the teacher from logging in and accessing the gradebook.'
+                  : statusActionType === 'deactivate'
+                  ? 'Deactivating this account prevents login and revokes active tokens until an administrator reactivates the account.'
+                  : statusActionType === 'approve'
+                  ? 'Approving this account grants the teacher full access to log in and use authorized features.'
+                  : statusActionType === 'reactivate'
+                  ? 'Reactivating this account restores login access subject to authorization. Old revoked sessions remain invalid.'
+                  : 'Setting to Pending Approval will require administrator approval before the teacher can log in.'}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="status-reason" className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
+                {(statusActionType === 'suspend' || statusActionType === 'deactivate') ? (
+                  <>Reason for Status Change <span className="text-rose-500">*</span></>
+                ) : (
+                  <>Reason / Notes (Optional)</>
+                )}
+              </Label>
+              <Input
+                id="status-reason"
+                value={statusActionReason}
+                onChange={(e) => setStatusActionReason(e.target.value)}
+                placeholder={
+                  statusActionType === 'suspend' ? 'e.g. Disciplinary investigation or policy compliance'
+                  : statusActionType === 'deactivate' ? 'e.g. End of contract or temporary leave of absence'
+                  : 'Enter optional reason or audit notes...'
+                }
+                className="rounded-xl border-slate-200 dark:border-slate-800 text-xs"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setStatusActionType(null); setStatusActionTeacher(null); }}
+                className="rounded-xl text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSubmittingStatusAction}
+                onClick={handleConfirmStatusAction}
+                className={cn(
+                  "rounded-xl text-xs font-bold px-4 gap-1.5 text-white shadow-xs",
+                  statusActionType === 'suspend' ? "bg-rose-600 hover:bg-rose-700"
+                  : statusActionType === 'deactivate' ? "bg-slate-700 hover:bg-slate-800"
+                  : statusActionType === 'approve' || statusActionType === 'reactivate' ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-amber-600 hover:bg-amber-700"
+                )}
+              >
+                {isSubmittingStatusAction ? (
+                  <>
+                    <Spinner size="sm" className="text-white" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    Confirm Status Change
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }
