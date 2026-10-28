@@ -1012,14 +1012,21 @@ export default function TeacherGradebookPage() {
           Back to Teacher Dashboard
         </Link>
         <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
-            <span>Teacher Gradebook</span>
-            {currentSubjectObj?.name && (
-              <span className="text-primary text-xl sm:text-2xl font-bold">
-                · {currentSubjectObj.name}
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
+              <span>Teacher Gradebook</span>
+              {currentSubjectObj?.name && (
+                <span className="text-primary text-xl sm:text-2xl font-bold">
+                  · {currentSubjectObj.name}
+                </span>
+              )}
+            </h1>
+            {currentYearObj?.name && (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                {currentYearObj.name}
               </span>
             )}
-          </h1>
+          </div>
         </div>
       </div>
 
@@ -1041,21 +1048,7 @@ export default function TeacherGradebookPage() {
       )}
 
       {/* ── CONTEXT SELECTORS ROW (Glassmorphic Admin Style) ─────────────────────────── */}
-      <div className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-4 md:p-5 shadow-xl shadow-black/5 dark:shadow-black/25 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3.5 print:hidden items-end">
-        {/* Academic Year (Locked to Active Year) */}
-        <div>
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-primary" />
-            Academic Year
-          </label>
-          <div className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100/70 dark:bg-slate-800/40 backdrop-blur-md flex items-center justify-between text-xs font-semibold text-slate-900 dark:text-slate-100 shadow-xs">
-            <span className="truncate">{currentYearObj?.name || 'Active Academic Year'}</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase tracking-wider shrink-0">
-              Active
-            </span>
-          </div>
-        </div>
-
+      <div className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-4 md:p-5 shadow-xl shadow-black/5 dark:shadow-black/25 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 print:hidden items-end">
         {/* Term */}
         <div>
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 block">
