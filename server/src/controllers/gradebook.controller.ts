@@ -149,6 +149,14 @@ export const createAssessment = async (req: AuthenticatedRequest, res: Response,
       req.body.academicYearId = access.currentYear?.id;
     }
 
+    if (userId && req.user?.role === 'teacher') {
+      const { academicYearService } = await import('../services/academic-year.service');
+      const termValidation = await academicYearService.validateMarkEntryWindow(req.body.academicTermId, req.body.academicYearId);
+      if (!termValidation.allowed) {
+        return res.status(403).json({ success: false, code: termValidation.code, message: termValidation.message });
+      }
+    }
+
     if (userId && gradeId && subjectId) {
       const access = await verifyTeacherClassSubjectAccess(userId, { gradeId, subjectId, sectionId });
       if (!access.allowed) {
@@ -170,6 +178,14 @@ export const updateAssessment = async (req: AuthenticatedRequest, res: Response,
 
     if (userId && req.user?.role === 'teacher') {
       const existing = await gradebookService.getAssessmentById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Assessment not found' });
+      }
+      const { academicYearService } = await import('../services/academic-year.service');
+      const termValidation = await academicYearService.validateMarkEntryWindow(existing.academicTermId || undefined, existing.academicYearId);
+      if (!termValidation.allowed) {
+        return res.status(403).json({ success: false, code: termValidation.code, message: termValidation.message });
+      }
       if (!existing) {
         return res.status(404).json({ success: false, message: 'Assessment not found' });
       }
@@ -274,7 +290,10 @@ export const saveBulkMarks = async (req: AuthenticatedRequest, res: Response, ne
 
     const result = await gradebookService.saveBulkMarks(assessmentId, marks, gradedById);
     res.status(200).json({ success: true, data: result, message: 'Marks saved successfully' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.status === 403 || error.code) {
+      return res.status(error.status || 403).json({ success: false, code: error.code || 'TERM_RESTRICTION', message: error.message });
+    }
     next(error);
   }
 };
@@ -658,7 +677,10 @@ export const teacherSubmitMarks = async (req: AuthenticatedRequest, res: Respons
       notes,
     });
     res.status(200).json({ success: true, data: result, message: 'Marks submitted for admin approval' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.status === 403 || error.code) {
+      return res.status(error.status || 403).json({ success: false, code: error.code || 'TERM_RESTRICTION', message: error.message });
+    }
     next(error);
   }
 };
@@ -733,7 +755,10 @@ export const saveClassMarks = async (req: AuthenticatedRequest, res: Response, n
     });
 
     res.status(200).json({ success: true, data: result, message: 'Class marks saved successfully' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.status === 403 || error.code) {
+      return res.status(error.status || 403).json({ success: false, code: error.code || 'TERM_RESTRICTION', message: error.message });
+    }
     next(error);
   }
 };

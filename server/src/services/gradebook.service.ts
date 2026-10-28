@@ -1,3 +1,4 @@
+import { academicYearService } from './academic-year.service';
 import { checkStudentsBatchEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import { AssessmentCalculationEngine, StudentAssessmentScore, ConfiguredCategory } from './assessment-calculation.service';
@@ -286,6 +287,17 @@ export class GradebookService {
       throw new Error('Assessment not found');
     }
 
+    const termValidation = await academicYearService.validateMarkEntryWindow(
+      assessment.academicTermId || undefined,
+      assessment.academicYearId
+    );
+    if (!termValidation.allowed) {
+      const err: any = new Error(termValidation.message || 'Mark entry is not permitted for this term');
+      err.status = 403;
+      err.code = termValidation.code;
+      throw err;
+    }
+
     // Get all students enrolled in this grade and section (if section specified)
     const studentWhere: any = {
       gradeId: assessment.gradeId,
@@ -332,8 +344,22 @@ export class GradebookService {
       };
     });
 
+    const termSheetValidation = await academicYearService.validateMarkEntryWindow(
+      assessment.academicTermId || undefined,
+      assessment.academicYearId
+    );
+
     return {
       assessment,
+      termStatus: {
+        activeTermId: termSheetValidation.activeTerm?.id || null,
+        activeTermName: termSheetValidation.activeTerm?.name || null,
+        activeTermStartDate: termSheetValidation.activeTerm?.startDate || null,
+        activeTermEndDate: termSheetValidation.activeTerm?.endDate || null,
+        isMarkEntryAllowed: termSheetValidation.allowed,
+        lockCode: termSheetValidation.code || null,
+        lockReason: termSheetValidation.message || null,
+      },
       rows: studentRows,
       totalStudents: students.length,
       gradedStudents: existingMarks.length,
@@ -346,6 +372,18 @@ export class GradebookService {
     });
     if (!assessment) {
       throw new Error('Assessment not found');
+    }
+
+    // Enforce active term restriction before doing any mark work
+    const termValidation = await academicYearService.validateMarkEntryWindow(
+      assessment.academicTermId || undefined,
+      assessment.academicYearId
+    );
+    if (!termValidation.allowed) {
+      const err: any = new Error(termValidation.message || 'Mark entry is not permitted for this term');
+      err.status = 403;
+      err.code = termValidation.code;
+      throw err;
     }
 
     if (!marks || marks.length === 0) {
@@ -2251,6 +2289,8 @@ export class GradebookService {
   }) {
     const { academicYearId, academicTermId, gradeId, sectionId, subjectId } = params;
 
+    const termValidation = await academicYearService.validateMarkEntryWindow(academicTermId, academicYearId);
+
     // Resolve subject if subjectId was passed as a name or code
     let resolvedSubjectId = subjectId;
     const subjectRecord = await prisma.subject.findFirst({
@@ -2527,6 +2567,15 @@ export class GradebookService {
       } : null,
       assignedTeacher: assignmentRecord?.teacher || null,
       subject: subjectRecord || { id: resolvedSubjectId, name: subjectId, code: subjectId },
+      termStatus: {
+        activeTermId: termValidation.activeTerm?.id || null,
+        activeTermName: termValidation.activeTerm?.name || null,
+        activeTermStartDate: termValidation.activeTerm?.startDate || null,
+        activeTermEndDate: termValidation.activeTerm?.endDate || null,
+        isMarkEntryAllowed: termValidation.allowed,
+        lockCode: termValidation.code || null,
+        lockReason: termValidation.message || null,
+      },
       statistics: {
         totalStudents,
         completedStudentsCount,
@@ -2560,6 +2609,14 @@ export class GradebookService {
     gradedById?: string;
   }) {
     const { academicYearId, academicTermId, gradeId, sectionId, subjectId, marks, gradedById } = params;
+
+    const termValidation = await academicYearService.validateMarkEntryWindow(academicTermId, academicYearId);
+    if (!termValidation.allowed) {
+      const err: any = new Error(termValidation.message || 'Mark entry is not permitted for this term');
+      err.status = 403;
+      err.code = termValidation.code;
+      throw err;
+    }
 
     // Check lock status
     const submission = await prisma.assessmentSubmissionRecord.findFirst({

@@ -203,7 +203,7 @@ export default function TeacherGradebookPage() {
   // Submission Record & Locking Status
   const submissionRecord = gradebookData?.submissionRecord;
   const submissionStatus = submissionRecord?.status || 'DRAFT';
-  const isLocked =
+  const isSubmissionLocked =
     submissionStatus === 'SUBMITTED' ||
     submissionStatus === 'PENDING_APPROVAL' ||
     submissionStatus === 'APPROVED' ||
@@ -211,6 +211,16 @@ export default function TeacherGradebookPage() {
   const isReturned = submissionStatus === 'RETURNED';
   const isApproved = submissionStatus === 'APPROVED';
   const isPublished = submissionStatus === 'PUBLISHED';
+
+  // Academic Term Mark Entry Status
+  const termStatus = gradebookData?.termStatus;
+  const isTermMarkEntryAllowed = termStatus !== undefined ? termStatus.isMarkEntryAllowed : true;
+  const isTermEnded = termStatus?.lockCode === 'TERM_ENDED';
+  const isNoActiveTerm = termStatus?.lockCode === 'NO_ACTIVE_TERM' || termStatus?.lockCode === 'NO_ACTIVE_YEAR';
+  const isHistoricalTerm = termStatus?.lockCode === 'TERM_INACTIVE';
+
+  // Overall Lock Status: either submission is under review/approved/published OR term does not permit mark entry
+  const isLocked = isSubmissionLocked || !isTermMarkEntryAllowed;
 
   // Local Editable Marks State: [studentId][assessmentId] => cell
   const [localMarks, setLocalMarks] = useState<Record<string, Record<string, EditableCell>>>({});
@@ -1032,27 +1042,18 @@ export default function TeacherGradebookPage() {
 
       {/* ── CONTEXT SELECTORS ROW (Glassmorphic Admin Style) ─────────────────────────── */}
       <div className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-2xl p-4 md:p-5 shadow-xl shadow-black/5 dark:shadow-black/25 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3.5 print:hidden items-end">
-        {/* Academic Year */}
+        {/* Academic Year (Locked to Active Year) */}
         <div>
           <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-primary" />
             Academic Year
           </label>
-          <select
-            value={selectedYearId}
-            onChange={(e) => {
-              setSelectedYearId(e.target.value);
-              const y = academicYears.find((ay) => ay.id === e.target.value);
-              if (y?.terms?.length > 0) setSelectedTermId(y.terms[0].id);
-            }}
-            className="w-full h-10 px-3 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-800/60 backdrop-blur-md text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-primary/40 focus:outline-none shadow-xs transition-all hover:bg-slate-50 dark:hover:bg-slate-800/80 cursor-pointer"
-          >
-            {academicYears.map((ay) => (
-              <option key={ay.id} value={ay.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
-                {ay.name} {ay.isCurrent ? '(Current)' : ''}
-              </option>
-            ))}
-          </select>
+          <div className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100/70 dark:bg-slate-800/40 backdrop-blur-md flex items-center justify-between text-xs font-semibold text-slate-900 dark:text-slate-100 shadow-xs">
+            <span className="truncate">{currentYearObj?.name || 'Active Academic Year'}</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase tracking-wider shrink-0">
+              Active
+            </span>
+          </div>
         </div>
 
         {/* Term */}
@@ -1067,7 +1068,7 @@ export default function TeacherGradebookPage() {
           >
             {currentTerms.map((t: any) => (
               <option key={t.id} value={t.id} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 font-semibold">
-                {t.name}
+                {t.name} {t.isCurrent ? '(Active)' : ''}
               </option>
             ))}
           </select>
@@ -1334,6 +1335,48 @@ export default function TeacherGradebookPage() {
             </DropdownMenu>
           </div>
         </div>
+
+        {/* Academic Term Restriction Banner */}
+        {!isTermMarkEntryAllowed && (
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                  {isNoActiveTerm
+                    ? 'No Active Academic Term'
+                    : isTermEnded
+                    ? 'Academic Term Ended'
+                    : 'Read-Only Academic Term'}
+                </p>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
+                  {termStatus?.lockReason || (
+                    isNoActiveTerm
+                      ? 'No active academic term is configured. Please contact the school administrator.'
+                      : isTermEnded
+                      ? 'The academic term has ended. Mark entry is no longer available.'
+                      : 'Marks can only be entered or modified for the currently active academic term. This term is read-only.'
+                  )}
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="shrink-0 font-semibold text-[11px] border-amber-500/30 text-amber-700 dark:text-amber-300 self-start sm:self-auto">
+              Read-Only
+            </Badge>
+          </div>
+        )}
+
+        {/* Active Term Info Notice */}
+        {isTermMarkEntryAllowed && termStatus?.activeTermEndDate && (
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
+            <Clock className="w-3.5 h-3.5 text-primary" />
+            <span>
+              Active Term: <strong className="text-foreground">{termStatus.activeTermName}</strong> • Mark entry open until <strong className="text-foreground">{new Date(termStatus.activeTermEndDate).toLocaleDateString()}</strong>
+            </span>
+          </div>
+        )}
 
         {/* Submission Status Alert Banner */}
         {isLocked ? (

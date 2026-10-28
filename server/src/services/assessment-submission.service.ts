@@ -1,3 +1,4 @@
+import { academicYearService } from './academic-year.service';
 import prisma from '../config/db';
 
 export interface SubmissionFilterParams {
@@ -1125,6 +1126,14 @@ export class AssessmentSubmissionService {
     notes?: string;
   }) {
     const { academicYearId, academicTermId, gradeId, sectionId, subjectId, teacherId, notes } = params;
+
+    const termValidation = await academicYearService.validateMarkEntryWindow(academicTermId, academicYearId);
+    if (!termValidation.allowed) {
+      const err: any = new Error(termValidation.message || 'Mark submission is not permitted for this term');
+      err.status = 403;
+      err.code = termValidation.code;
+      throw err;
+    }
 
     const record = await prisma.assessmentSubmissionRecord.upsert({
       where: {

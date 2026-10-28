@@ -7,6 +7,14 @@ export interface CreateAcademicYearInput {
   isCurrent?: boolean;
 }
 
+export interface ActiveTermValidationResult {
+  allowed: boolean;
+  code?: 'NO_ACTIVE_YEAR' | 'NO_ACTIVE_TERM' | 'TERM_INACTIVE' | 'TERM_NOT_STARTED' | 'TERM_ENDED';
+  message?: string;
+  currentYear?: any;
+  activeTerm?: any;
+}
+
 export interface UpdateAcademicYearInput {
   name?: string;
   startDate?: string | Date;
@@ -360,6 +368,113 @@ export class AcademicYearService {
     });
   }
 
+
+  /**
+   * Get the active academic term (from current year or specified year)
+   */
+  async getActiveAcademicTerm(academicYearId?: string) {
+    let year = null;
+    if (academicYearId) {
+      year = await prisma.academicYear.findUnique({
+        where: { id: academicYearId },
+        include: {
+          terms: { orderBy: { startDate: 'asc' } },
+        },
+      });
+    } else {
+      year = await this.getCurrentAcademicYear();
+    }
+    if (!year) return null;
+    return year.terms?.find((t: any) => t.isCurrent) || null;
+  }
+
+  /**
+   * Validate if mark entry is allowed for the target academic year and term
+   */
+  async validateMarkEntryWindow(
+    targetTermId?: string,
+    targetYearId?: string,
+    now: Date = new Date()
+  ): Promise<ActiveTermValidationResult> {
+    const currentYear = await this.getCurrentAcademicYear();
+    if (!currentYear) {
+      return {
+        allowed: false,
+        code: 'NO_ACTIVE_YEAR',
+        message: 'No active academic year is configured. Please contact the school administrator.',
+      };
+    }
+
+    if (targetYearId && targetYearId !== currentYear.id) {
+      return {
+        allowed: false,
+        code: 'TERM_INACTIVE',
+        message: 'Marks can only be entered or modified for the currently active academic term.',
+        currentYear,
+      };
+    }
+
+    const activeTerm = currentYear.terms?.find((t: any) => t.isCurrent);
+    if (!activeTerm) {
+      return {
+        allowed: false,
+        code: 'NO_ACTIVE_TERM',
+        message: 'No active academic term is configured. Please contact the school administrator.',
+        currentYear,
+      };
+    }
+
+    if (targetTermId && targetTermId !== activeTerm.id) {
+      return {
+        allowed: false,
+        code: 'TERM_INACTIVE',
+        message: 'Marks can only be entered or modified for the currently active academic term.',
+        currentYear,
+        activeTerm,
+      };
+    }
+
+    // Check term start date
+    const startDate = new Date(activeTerm.startDate);
+    if (now.getTime() < startDate.getTime()) {
+      return {
+        allowed: false,
+        code: 'TERM_NOT_STARTED',
+        message: 'The academic term has not started yet. Mark entry is not available.',
+        currentYear,
+        activeTerm,
+      };
+    }
+
+    // Check term end date (inclusive through the end of the day if set at 00:00:00.000Z)
+    const endDate = new Date(activeTerm.endDate);
+    let endTimestamp = endDate.getTime();
+    if (
+      endDate.getUTCHours() === 0 &&
+      endDate.getUTCMinutes() === 0 &&
+      endDate.getUTCSeconds() === 0 &&
+      endDate.getUTCMilliseconds() === 0
+    ) {
+      endTimestamp += 24 * 60 * 60 * 1000 - 1; // 23:59:59.999
+    }
+
+    if (now.getTime() > endTimestamp) {
+      return {
+        allowed: false,
+        code: 'TERM_ENDED',
+        message: 'The academic term has ended. Mark entry is no longer available.',
+        currentYear,
+        activeTerm,
+      };
+    }
+
+    return {
+      allowed: true,
+      currentYear,
+      activeTerm,
+    };
+  }
+
   // ─── Academic Term Management ─────────────────────────────────────────────
 
   async getTerms(academicYearId: string) {
@@ -394,6 +509,7 @@ export class AcademicYearService {
         });
       }
 
+      this.invalidateCurrentCache();
       return await tx.academicTerm.create({
         data: {
           academicYearId,
@@ -430,6 +546,7 @@ export class AcademicYearService {
         updatePayload.isCurrent = false;
       }
 
+      this.invalidateCurrentCache();
       return await tx.academicTerm.update({
         where: { id },
         data: updatePayload,
@@ -441,6 +558,7 @@ export class AcademicYearService {
     const term = await prisma.academicTerm.findUnique({ where: { id } });
     if (!term) throw new Error('Academic term not found');
 
+    this.invalidateCurrentCache();
     return await prisma.academicTerm.delete({
       where: { id },
     });

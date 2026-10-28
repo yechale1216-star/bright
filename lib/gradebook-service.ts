@@ -216,6 +216,15 @@ export interface ClassGradebookData {
   };
   assignedTeacher?: { id: string; name: string; email: string } | null;
   subject?: { id: string; name: string; code?: string } | null;
+  termStatus?: {
+    activeTermId: string | null;
+    activeTermName: string | null;
+    activeTermStartDate: string | null;
+    activeTermEndDate: string | null;
+    isMarkEntryAllowed: boolean;
+    lockCode: string | null;
+    lockReason: string | null;
+  };
 }
 
 export interface ReportCardSubjectScore {
