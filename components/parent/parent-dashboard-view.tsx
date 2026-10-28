@@ -422,36 +422,37 @@ export function ParentDashboardView() {
   // ─── Render Skeletons During Initial Load ─────────────────────────────────
   if (isLoading && !selectedStudent) {
     return (
-      <div className="space-y-6 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto animate-pulse">
+      <div className="w-full space-y-4 sm:space-y-6 animate-pulse">
         <div className="h-28 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-28 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+            <div key={i} className="h-24 sm:h-28 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 h-96 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
-          <div className="lg:col-span-4 h-96 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-72 sm:h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto animate-in fade-in duration-300">
+    <div className="w-full space-y-4 sm:space-y-6 animate-in fade-in duration-300">
       {/* ─── 1. HERO HEADER & CHILD SWITCHER ─────────────────────────────── */}
-      <div className="rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 bg-gradient-to-br from-white via-white to-purple-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/20 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      <div className="rounded-3xl p-4 sm:p-6 md:p-8 bg-gradient-to-br from-white via-white to-purple-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/20 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
         {/* Decorative backdrop glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           {/* Welcome greeting & child identity */}
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
             <Avatar className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl ring-4 ring-purple-100 dark:ring-purple-900/40 shadow-sm shrink-0">
               {selectedStudent?.photo && (
                 <AvatarImage src={selectedStudent.photo} alt={selectedStudent.fullName} />
               )}
-              <AvatarFallback className="rounded-2xl bg-purple-600 text-white font-black text-lg sm:text-xl">
+              <AvatarFallback className="rounded-2xl bg-purple-600 text-white font-black text-xl">
                 {selectedStudent?.fullName
                   ? selectedStudent.fullName.slice(0, 2).toUpperCase()
                   : "ST"}
@@ -468,7 +469,7 @@ export function ParentDashboardView() {
               <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-foreground tracking-tight truncate">
                 {selectedStudent?.fullName || selectedStudent?.name || "Student Dashboard"}
               </h1>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5">
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
                 <Badge variant="secondary" className="font-bold text-xs rounded-lg">
                   Grade {typeof selectedStudent?.grade === "object" ? selectedStudent?.grade?.name : selectedStudent?.grade || "—"}
                   {selectedStudent?.section ? ` • Sec ${typeof selectedStudent?.section === "object" ? selectedStudent?.section?.name : selectedStudent?.section}` : ""}
@@ -488,9 +489,9 @@ export function ParentDashboardView() {
           </div>
 
           {/* Child Switcher Pills & Refresh Action */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 shrink-0 max-w-full">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
             {allStudents.length > 1 && (
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 max-w-full overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto max-w-full no-scrollbar">
                 {allStudents.map((s) => {
                   const isActive = s.id === selectedStudent?.id;
                   return (
@@ -499,7 +500,7 @@ export function ParentDashboardView() {
                       type="button"
                       onClick={() => handleSwitchChild(s)}
                       className={cn(
-                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5",
+                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0",
                         isActive
                           ? "bg-purple-600 text-white shadow-xs"
                           : "text-slate-600 dark:text-slate-400 hover:text-foreground"
@@ -518,7 +519,7 @@ export function ParentDashboardView() {
               size="sm"
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="rounded-2xl h-10 px-3.5 text-xs font-bold gap-1.5 border-slate-200 dark:border-slate-800"
+              className="rounded-2xl h-10 px-3.5 text-xs font-bold gap-1.5 border-slate-200 dark:border-slate-800 shrink-0"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-purple-600")} />
               <span>Refresh</span>
@@ -549,68 +550,79 @@ export function ParentDashboardView() {
       )}
 
       {/* ─── 3. TOP KPI METRICS STRIP (4 UNIFIED CARDS) ───────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 2xl:gap-5">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
         {/* KPI 1: Academic Standing */}
-        <Link href="/parent/academics" className="group">
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-purple-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
+        <Link href="/parent/academics" className="group block h-full">
+          <Card className="rounded-3xl border border-border/80 bg-card hover:border-purple-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01] overflow-hidden">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full gap-2.5 sm:gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">
                   Academic Standing
                 </span>
-                <div className="text-xl sm:text-2xl font-black text-foreground">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="space-y-0.5 sm:space-y-1">
+                <div className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
                   {academicStats.average != null ? `${academicStats.average}%` : "Good"}
                 </div>
-                <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 truncate">
+                <div className="text-[11px] sm:text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 min-w-0">
                   <Award className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">
                     {academicStats.rank !== "Pending" ? `Rank ${academicStats.rank}` : "View Report Card"}
                   </span>
                 </div>
               </div>
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
-                <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
             </CardContent>
           </Card>
         </Link>
 
         {/* KPI 2: Attendance Rate */}
-        <Link href="/parent/attendance" className="group">
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-emerald-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
+        <Link href="/parent/attendance" className="group block h-full">
+          <Card className="rounded-3xl border border-border/80 bg-card hover:border-emerald-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01] overflow-hidden">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full gap-2.5 sm:gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">
                   Attendance Health
                 </span>
-                <div className="text-xl sm:text-2xl font-black text-foreground">{attendanceStats.rate}%</div>
-                <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 truncate">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="space-y-0.5 sm:space-y-1">
+                <div className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+                  {attendanceStats.rate}%
+                </div>
+                <div className="text-[11px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 min-w-0">
                   <TrendingUp className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">
                     Today: {todayStatus.daily ? todayStatus.daily.toUpperCase() : "On Schedule"}
                   </span>
                 </div>
               </div>
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                <UserCheck className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
             </CardContent>
           </Card>
         </Link>
 
         {/* KPI 3: Homework & Tasks */}
-        <Link href="/parent/homework" className="group">
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-amber-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
+        <Link href="/parent/homework" className="group block h-full">
+          <Card className="rounded-3xl border border-border/80 bg-card hover:border-amber-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01] overflow-hidden">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full gap-2.5 sm:gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">
                   Active Homework
                 </span>
-                <div className="text-xl sm:text-2xl font-black text-foreground">
-                  {homeworkStats.pendingCount}
-                  <span className="text-xs text-muted-foreground font-normal ml-1">pending</span>
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-5 h-5" />
                 </div>
-                <div className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 truncate">
+              </div>
+              <div className="space-y-0.5 sm:space-y-1">
+                <div className="text-xl sm:text-2xl font-black text-foreground tracking-tight flex items-baseline gap-1">
+                  {homeworkStats.pendingCount}
+                  <span className="text-xs text-muted-foreground font-normal">pending</span>
+                </div>
+                <div className="text-[11px] sm:text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 min-w-0">
                   <Clock className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">
                     {homeworkStats.overdueCount > 0
@@ -619,348 +631,189 @@ export function ParentDashboardView() {
                   </span>
                 </div>
               </div>
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center shrink-0">
-                <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
             </CardContent>
           </Card>
         </Link>
 
         {/* KPI 4: Communications & Notices */}
-        <Link href="/parent/communication" className="group">
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card hover:border-blue-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01]">
-            <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide truncate block">
+        <Link href="/parent/communication" className="group block h-full">
+          <Card className="rounded-3xl border border-border/80 bg-card hover:border-blue-400/80 hover:shadow-md transition-all h-full group-hover:scale-[1.01] overflow-hidden">
+            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full gap-2.5 sm:gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">
                   Messages & Notices
                 </span>
-                <div className="text-xl sm:text-2xl font-black text-foreground">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="space-y-0.5 sm:space-y-1">
+                <div className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
                   {totalUnreadCount > 0 ? `${totalUnreadCount} New` : "Clear"}
                 </div>
-                <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 truncate">
+                <div className="text-[11px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 min-w-0">
                   <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">Chat with teachers</span>
                 </div>
-              </div>
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0">
-                <Megaphone className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             </CardContent>
           </Card>
         </Link>
       </div>
 
-      {/* ─── 4. TWO-COLUMN PRIMARY GRID ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 2xl:gap-8 items-start">
-        {/* ─── LEFT COLUMN (8 COLS): ACADEMICS, HOMEWORK, MATERIALS ─── */}
-        <div className="lg:col-span-8 space-y-5 sm:space-y-6 min-w-0">
-          {/* Card A: Academic Progress & Subject Performance */}
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-4 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center">
-                    <GraduationCap className="w-4 h-4" />
-                  </span>
-                  Academic Performance & Evaluations
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Continuous evaluations, exam results, and official term grade progress
-                </CardDescription>
-              </div>
-
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="text-xs font-bold text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl"
-              >
-                <Link href="/parent/academics" className="gap-1">
-                  <span>Report Card</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </Button>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-6 pt-2 space-y-4">
-              {/* Subject Breakdown Progress Rows */}
-              {academicStats.subjects.length > 0 ? (
-                <div className="space-y-3">
-                  {academicStats.subjects.slice(0, 4).map((sub: any) => {
-                    const pct = sub.cumulativeAverage ?? sub.average ?? 0;
-                    return (
-                      <div key={sub.subjectId || sub.subjectName} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs font-bold">
-                          <span className="text-foreground">{sub.subjectName}</span>
-                          <span className="text-purple-600 dark:text-purple-400">
-                            {pct}% {sub.letterGrade ? `(${sub.letterGrade})` : ""}
-                          </span>
-                        </div>
-                        <Progress value={pct} className="h-2 rounded-full" />
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : studentMarks.length > 0 ? (
-                <div className="space-y-2.5">
-                  <p className="text-xs font-bold text-muted-foreground uppercase">
-                    Recent Test Scores & Evaluations:
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {studentMarks.slice(0, 4).map((m: any) => (
-                      <div
-                        key={m.id}
-                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="min-w-0">
-                          <p className="font-bold text-foreground truncate">
-                            {m.assessment?.title || "Assessment"}
-                          </p>
-                          <span className="text-[11px] text-muted-foreground">
-                            {m.assessment?.subject?.name || "Subject"}
-                          </span>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="font-black text-purple-600 text-sm">
-                            {m.score ?? 0}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            /{m.assessment?.maxScore ?? 100}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2">
-                  <Award className="w-8 h-8 text-slate-400 mx-auto" />
-                  <p className="text-xs text-muted-foreground font-medium">
-                    No term evaluations recorded yet for this academic period.
-                  </p>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Award className="w-3.5 h-3.5 text-purple-600" />
-                  Conduct Standing: <strong>{academicStats.conduct}</strong>
+      {/* ─── 4. MAIN DASHBOARD CONTENT GRID ──────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6 items-stretch">
+        {/* Card 1: Academic Performance & Evaluations */}
+        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
+                  <GraduationCap className="w-4 h-4" />
                 </span>
-                <Link
-                  href="/parent/academics"
-                  className="font-bold text-purple-600 hover:underline flex items-center gap-1"
-                >
-                  View Full Academic Breakdown <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+                <span className="truncate">Academic Performance</span>
+              </CardTitle>
+              <CardDescription className="text-xs line-clamp-1">
+                Evaluations, exam results, and official term grade progress
+              </CardDescription>
+            </div>
 
-          {/* Card B: Pending Homework & Deadlines */}
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-4 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center">
-                    <BookOpen className="w-4 h-4" />
-                  </span>
-                  Homework & Assigned Tasks
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Active homework assignments, submission deadlines, and teacher grading
-                </CardDescription>
-              </div>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-xs font-bold text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl shrink-0 h-8 px-2.5"
+            >
+              <Link href="/parent/academics" className="gap-1 flex items-center">
+                <span>Report Card</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
 
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl"
-              >
-                <Link href="/parent/homework" className="gap-1">
-                  <span>All Tasks</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </Button>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-6 pt-2 space-y-3">
-              {homeworkStats.upcoming.length > 0 ? (
-                <div className="space-y-2.5">
-                  {homeworkStats.upcoming.map((hw) => (
-                    <div
-                      key={hw.id}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-amber-300 dark:hover:border-amber-800 transition-colors"
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md text-white"
-                            style={{ backgroundColor: hw.subject?.color || "#f59e0b" }}
-                          >
-                            {hw.subject?.name || "Subject"}
-                          </span>
-                          {hw.isOverdue && (
-                            <Badge variant="destructive" className="text-[10px] py-0 px-1.5 font-bold">
-                              Overdue
-                            </Badge>
-                          )}
-                        </div>
-                        <h4 className="text-xs font-bold text-foreground truncate">{hw.title}</h4>
-                      </div>
-
-                      <div className="text-right shrink-0 space-y-1">
-                        <span className="text-[11px] text-muted-foreground flex items-center gap-1 justify-end">
-                          <Clock className="w-3 h-3 text-amber-500" />
-                          {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "No deadline"}
+          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-4 min-w-0">
+            {/* Subject Breakdown Progress Rows */}
+            {academicStats.subjects.length > 0 ? (
+              <div className="space-y-3">
+                {academicStats.subjects.slice(0, 4).map((sub: any) => {
+                  const pct = sub.cumulativeAverage ?? sub.average ?? 0;
+                  return (
+                    <div key={sub.subjectId || sub.subjectName} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-bold gap-2">
+                        <span className="text-foreground truncate">{sub.subjectName}</span>
+                        <span className="text-purple-600 dark:text-purple-400 shrink-0">
+                          {pct}% {sub.letterGrade ? `(${sub.letterGrade})` : ""}
                         </span>
-                        <Badge
-                          variant={hw.isSubmitted ? "secondary" : "outline"}
-                          className="text-[10px] font-bold"
-                        >
-                          {hw.isSubmitted ? "Submitted" : "Pending"}
-                        </Badge>
+                      </div>
+                      <Progress value={pct} className="h-2 rounded-full" />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : studentMarks.length > 0 ? (
+              <div className="space-y-2.5">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+                  Recent Evaluations & Test Scores:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {studentMarks.slice(0, 4).map((m: any) => (
+                    <div
+                      key={m.id}
+                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-3 text-xs min-w-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-foreground truncate">
+                          {m.assessment?.title || "Assessment"}
+                        </p>
+                        <span className="text-[11px] text-muted-foreground truncate block">
+                          {m.assessment?.subject?.name || "Subject"}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-black text-purple-600 text-sm">
+                          {m.score ?? 0}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          /{m.assessment?.maxScore ?? 100}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-                  <p className="text-xs text-muted-foreground font-medium">
-                    All homework is up to date! No pending assignments.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Card C: Recently Shared Learning Materials */}
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-4 sm:p-6 pb-3 flex flex-row items-center justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle className="text-base sm:text-lg font-black flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center">
-                    <BookMarked className="w-4 h-4" />
-                  </span>
-                  Shared Learning Materials
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Video lessons, lecture presentations, and revision worksheets published by teachers
-                </CardDescription>
               </div>
+            ) : (
+              <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2 my-auto">
+                <Award className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="text-xs text-muted-foreground font-medium">
+                  No term evaluations recorded yet for this academic period.
+                </p>
+              </div>
+            )}
 
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl"
+            <div className="pt-3 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground mt-auto">
+              <span className="flex items-center gap-1">
+                <Award className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span>Conduct: <strong className="text-foreground">{academicStats.conduct}</strong></span>
+              </span>
+              <Link
+                href="/parent/academics"
+                className="font-bold text-purple-600 hover:underline flex items-center gap-1 ml-auto"
               >
-                <Link href="/parent/materials" className="gap-1">
-                  <span>Browse All</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </Button>
-            </CardHeader>
+                <span>Full Breakdown</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
-            <CardContent className="p-4 sm:p-6 pt-2">
-              {materialsList.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {materialsList.slice(0, 4).map((m) => {
-                    const isVideo = (m.fileType || "").toUpperCase() === "VIDEO";
-                    const { meta } = parseMaterialMeta(m.description);
-                    const thumbUrl = meta.thumbnailUrl || (isVideo ? getYouTubeThumbnailUrl(m.fileUrl) : undefined);
-
-                    return (
-                      <Link
-                        key={m.id}
-                        href="/parent/materials"
-                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-3 transition-colors group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {thumbUrl ? (
-                            <div className="w-12 h-9 rounded-xl overflow-hidden shrink-0 relative bg-slate-200 dark:bg-slate-800 border border-border/50">
-                              <img
-                                src={thumbUrl}
-                                alt={m.title}
-                                className="w-full h-full object-cover"
-                              />
-                              {isVideo && (
-                                <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
-                                  <Play className="w-3 h-3 text-white fill-current" />
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div
-                              className={cn(
-                                "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                                isVideo
-                                  ? "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300"
-                                  : "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"
-                              )}
-                            >
-                              {isVideo ? <Play className="w-4 h-4 fill-current" /> : <FileText className="w-4 h-4" />}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <h5 className="text-xs font-bold text-foreground truncate group-hover:text-purple-600 transition-colors">
-                              {m.title}
-                            </h5>
-                            <span className="text-[10px] text-muted-foreground uppercase">
-                              {m.subject?.name || m.fileType || "Resource"}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 shrink-0" />
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-6 text-center text-xs text-muted-foreground">
-                  No learning materials uploaded yet for this class.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ─── RIGHT COLUMN (4 COLS): ATTENDANCE, ANNOUNCEMENTS, QUICK ACTIONS ─── */}
-        <div className="lg:col-span-4 space-y-5 sm:space-y-6 min-w-0">
-          {/* Card D: Today's Attendance Check-in */}
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-4 sm:p-5 pb-3">
-              <CardTitle className="text-base font-black flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center">
+        {/* Card 2: Today's Attendance Check-in */}
+        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
                   <UserCheck className="w-4 h-4" />
                 </span>
-                Today&apos;s Attendance
+                <span className="truncate">Today&apos;s Attendance</span>
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs line-clamp-1">
                 Real-time check-in and session presence
               </CardDescription>
-            </CardHeader>
+            </div>
 
-            <CardContent className="p-4 sm:p-5 pt-2 space-y-4">
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl shrink-0 h-8 px-2.5"
+            >
+              <Link href="/parent/attendance" className="gap-1 flex items-center">
+                <span>Calendar</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+
+          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-4 min-w-0">
+            <div className="space-y-3">
               {todayStatus.isSessionBased ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                   <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5 min-w-0">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase truncate block">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                       Morning
                     </span>
                     <div className="flex justify-center">{getStatusBadge(todayStatus.morning)}</div>
                   </div>
                   <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5 min-w-0">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase truncate block">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                       Afternoon
                     </span>
                     <div className="flex justify-center">{getStatusBadge(todayStatus.afternoon)}</div>
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-1.5 min-w-0">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                     Daily Presence
                   </span>
                   <div className="flex justify-center">{getStatusBadge(todayStatus.daily)}</div>
@@ -969,103 +822,327 @@ export function ParentDashboardView() {
 
               {/* Attendance Breakdown Pills */}
               <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center text-xs pt-1">
-                <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 min-w-0">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.present}</div>
                   <span className="text-[9px] uppercase font-bold truncate block">Present</span>
                 </div>
-                <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 min-w-0">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.late}</div>
                   <span className="text-[9px] uppercase font-bold truncate block">Late</span>
                 </div>
-                <div className="p-1.5 sm:p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 min-w-0">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.absent}</div>
                   <span className="text-[9px] uppercase font-bold truncate block">Absent</span>
                 </div>
-                <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 min-w-0">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 min-w-0">
                   <div className="font-black text-sm">{attendanceStats.excused}</div>
                   <span className="text-[9px] uppercase font-bold truncate block">Excused</span>
                 </div>
               </div>
+            </div>
 
-              <div className="pt-2 border-t border-border/60">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full rounded-2xl text-xs font-bold border-slate-200 dark:border-slate-800"
-                >
-                  <Link href="/parent/attendance" className="truncate">
-                    <Calendar className="w-3.5 h-3.5 mr-1.5 text-emerald-600 shrink-0" />
-                    <span className="truncate">View Attendance Calendar</span>
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card E: School Announcements */}
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-4 sm:p-5 pb-3 flex flex-row items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <CardTitle className="text-base font-black flex items-center gap-2 truncate">
-                  <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
-                    <Megaphone className="w-4 h-4" />
-                  </span>
-                  <span className="truncate">School Announcements</span>
-                </CardTitle>
-              </div>
+            <div className="pt-3 border-t border-border/60 mt-auto">
               <Button
                 asChild
-                variant="ghost"
-                size="sm"
-                className="text-xs font-bold text-purple-600 rounded-xl shrink-0"
+                variant="outline"
+                className="w-full rounded-2xl text-xs font-bold border-slate-200 dark:border-slate-800 h-9"
               >
-                <Link href="/parent/announcements">All</Link>
+                <Link href="/parent/attendance" className="flex items-center justify-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">View Detailed Attendance Calendar</span>
+                </Link>
               </Button>
-            </CardHeader>
+            </div>
+          </CardContent>
+        </Card>
 
-            <CardContent className="p-4 sm:p-5 pt-2 space-y-3">
-              {notificationsList.length > 0 ? (
-                notificationsList.slice(0, 3).map((n) => (
+        {/* Card 3: Pending Homework & Deadlines */}
+        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-4 h-4" />
+                </span>
+                <span className="truncate">Homework & Tasks</span>
+              </CardTitle>
+              <CardDescription className="text-xs line-clamp-1">
+                Active assignments, submission deadlines, and grading
+              </CardDescription>
+            </div>
+
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl shrink-0 h-8 px-2.5"
+            >
+              <Link href="/parent/homework" className="gap-1 flex items-center">
+                <span>All Tasks</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+
+          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-3 min-w-0">
+            {homeworkStats.upcoming.length > 0 ? (
+              <div className="space-y-2.5">
+                {homeworkStats.upcoming.map((hw) => (
+                  <div
+                    key={hw.id}
+                    className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2.5 hover:border-amber-300 dark:hover:border-amber-800 transition-colors min-w-0"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md text-white truncate max-w-[120px]"
+                          style={{ backgroundColor: hw.subject?.color || "#f59e0b" }}
+                        >
+                          {hw.subject?.name || "Subject"}
+                        </span>
+                        {hw.isOverdue && (
+                          <Badge variant="destructive" className="text-[10px] py-0 px-1.5 font-bold">
+                            Overdue
+                          </Badge>
+                        )}
+                      </div>
+                      <h4 className="text-xs font-bold text-foreground truncate">{hw.title}</h4>
+                    </div>
+
+                    <div className="text-right shrink-0 space-y-1">
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1 justify-end">
+                        <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                        <span>{hw.dueDate ? new Date(hw.dueDate).toLocaleDateString() : "No deadline"}</span>
+                      </span>
+                      <Badge
+                        variant={hw.isSubmitted ? "secondary" : "outline"}
+                        className="text-[10px] font-bold"
+                      >
+                        {hw.isSubmitted ? "Submitted" : "Pending"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2 my-auto">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                <p className="text-xs text-muted-foreground font-medium">
+                  All homework is up to date! No pending assignments.
+                </p>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground mt-auto">
+              <span>{homeworkStats.pendingCount} pending • {homeworkStats.submittedCount} submitted</span>
+              <Link
+                href="/parent/homework"
+                className="font-bold text-amber-600 hover:underline flex items-center gap-1 ml-auto"
+              >
+                <span>View All</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 4: School Announcements */}
+        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
+                  <Megaphone className="w-4 h-4" />
+                </span>
+                <span className="truncate">School Announcements</span>
+              </CardTitle>
+              <CardDescription className="text-xs line-clamp-1">
+                Recent circulars, event alerts, and official notices
+              </CardDescription>
+            </div>
+
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-xs font-bold text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl shrink-0 h-8 px-2.5"
+            >
+              <Link href="/parent/announcements" className="gap-1 flex items-center">
+                <span>All</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+
+          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-3 min-w-0">
+            {notificationsList.length > 0 ? (
+              <div className="space-y-2.5">
+                {notificationsList.slice(0, 3).map((n) => (
                   <div
                     key={n.id}
-                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1 text-xs"
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1 text-xs min-w-0"
                   >
                     <div className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="font-bold text-foreground truncate">{n.title}</span>
+                      <span className="font-bold text-foreground truncate min-w-0">{n.title}</span>
                       <span className="text-[10px] text-muted-foreground shrink-0">
                         {new Date(n.createdAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed break-words">
+                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
                       {n.message}
                     </p>
                   </div>
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  No active announcements.
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2 my-auto">
+                <Megaphone className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="text-xs text-muted-foreground font-medium">
+                  No active school announcements at this time.
                 </p>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
 
-          {/* Card F: Parent Action Shortcuts */}
-          <Card className="rounded-2xl sm:rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs">
-            <CardHeader className="p-4 sm:p-5 pb-3">
-              <CardTitle className="text-base font-black flex items-center gap-2">
+            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground mt-auto">
+              <span>{notificationsList.length} total messages</span>
+              <Link
+                href="/parent/announcements"
+                className="font-bold text-purple-600 hover:underline flex items-center gap-1 ml-auto"
+              >
+                <span>Read Notices</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 5: Recently Shared Learning Materials */}
+        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0">
+                  <BookMarked className="w-4 h-4" />
+                </span>
+                <span className="truncate">Shared Learning Materials</span>
+              </CardTitle>
+              <CardDescription className="text-xs line-clamp-1">
+                Lessons, video lectures, and worksheets published by teachers
+              </CardDescription>
+            </div>
+
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl shrink-0 h-8 px-2.5"
+            >
+              <Link href="/parent/materials" className="gap-1 flex items-center">
+                <span>Browse</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+
+          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-3 min-w-0">
+            {materialsList.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                {materialsList.slice(0, 4).map((m) => {
+                  const isVideo = (m.fileType || "").toUpperCase() === "VIDEO";
+                  const { meta } = parseMaterialMeta(m.description);
+                  const thumbUrl = meta.thumbnailUrl || (isVideo ? getYouTubeThumbnailUrl(m.fileUrl) : undefined);
+
+                  return (
+                    <Link
+                      key={m.id}
+                      href="/parent/materials"
+                      className="p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-2.5 transition-colors group cursor-pointer min-w-0"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {thumbUrl ? (
+                          <div className="w-11 h-8 sm:w-12 sm:h-9 rounded-xl overflow-hidden shrink-0 relative bg-slate-200 dark:bg-slate-800 border border-border/50">
+                            <img
+                              src={thumbUrl}
+                              alt={m.title}
+                              className="w-full h-full object-cover"
+                            />
+                            {isVideo && (
+                              <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                                <Play className="w-3 h-3 text-white fill-current" />
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              "w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0",
+                              isVideo
+                                ? "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300"
+                                : "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"
+                            )}
+                          >
+                            {isVideo ? <Play className="w-4 h-4 fill-current" /> : <FileText className="w-4 h-4" />}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-xs font-bold text-foreground truncate group-hover:text-purple-600 transition-colors">
+                            {m.title}
+                          </h5>
+                          <span className="text-[10px] text-muted-foreground uppercase truncate block">
+                            {m.subject?.name || m.fileType || "Resource"}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2 my-auto">
+                <BookMarked className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="text-xs text-muted-foreground font-medium">
+                  No learning materials uploaded yet for this class.
+                </p>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground mt-auto">
+              <span>{materialsList.length} total resources</span>
+              <Link
+                href="/parent/materials"
+                className="font-bold text-blue-600 hover:underline flex items-center gap-1 ml-auto"
+              >
+                <span>Explore Library</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 6: Quick Actions Hub */}
+        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
+          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
+            <div className="space-y-1 min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
                 <span className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 flex items-center justify-center shrink-0">
                   <Layers className="w-4 h-4" />
                 </span>
-                Quick Actions Hub
+                <span className="truncate">Quick Actions Hub</span>
               </CardTitle>
-            </CardHeader>
+              <CardDescription className="text-xs line-clamp-1">
+                Direct access to school services and child records
+              </CardDescription>
+            </div>
+          </CardHeader>
 
-            <CardContent className="p-4 sm:p-5 pt-2 space-y-2">
+          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-2.5 min-w-0">
+            <div className="space-y-2">
               <Link
                 href="/parent/academics"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 transition-colors text-xs font-bold group"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 transition-colors text-xs font-bold group min-w-0"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <GraduationCap className="w-4 h-4 text-purple-600 shrink-0" />
                   <span className="truncate">Print Official Term Report Card</span>
                 </div>
@@ -1074,9 +1151,9 @@ export function ParentDashboardView() {
 
               <Link
                 href="/parent/communication"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 transition-colors text-xs font-bold group"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800 transition-colors text-xs font-bold group min-w-0"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <MessageSquare className="w-4 h-4 text-blue-600 shrink-0" />
                   <span className="truncate">Message Class & Subject Teachers</span>
                 </div>
@@ -1085,9 +1162,9 @@ export function ParentDashboardView() {
 
               <Link
                 href="/parent/discipline"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-800 transition-colors text-xs font-bold group"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-800 transition-colors text-xs font-bold group min-w-0"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                   <span className="truncate">Review Conduct & Commendations</span>
                 </div>
@@ -1096,17 +1173,22 @@ export function ParentDashboardView() {
 
               <Link
                 href="/parent/transport"
-                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-800 transition-colors text-xs font-bold group"
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-800 transition-colors text-xs font-bold group min-w-0"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <Bus className="w-4 h-4 text-amber-600 shrink-0" />
                   <span className="truncate">Track School Bus & Route</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
               </Link>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+
+            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground mt-auto">
+              <span>Parent Shortcuts</span>
+              <span className="text-[11px] font-semibold text-purple-600">Portal Services</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

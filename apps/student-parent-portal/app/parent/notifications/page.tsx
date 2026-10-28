@@ -466,7 +466,7 @@ export default function ParentNotifications() {
 
       {/* ── Sticky Header ───────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 bg-[#060c18]/85 backdrop-blur-2xl border-b border-white/[0.06]">
-        <div className="px-4 pt-4 pb-3 w-full max-w-4xl 2xl:max-w-5xl mx-auto">
+        <div className="px-4 pt-4 pb-3 max-w-2xl mx-auto">
 
           {/* Title row */}
           <div className="flex items-center justify-between mb-3.5">
@@ -576,7 +576,7 @@ export default function ParentNotifications() {
       </div>
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
-      <div className="px-4 pb-28 pt-4 w-full max-w-4xl 2xl:max-w-5xl mx-auto">
+      <div className="px-4 pb-28 pt-4 max-w-2xl mx-auto">
 
         {/* Today snapshot (only if there are today notifications) */}
         {notificationsList.some(n => {

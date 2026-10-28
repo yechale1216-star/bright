@@ -79,7 +79,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
           const u = JSON.parse(stored)
           setParentPhoto(u?.profile_photo || null)
         }
-      } catch {}
+      } catch { }
     }
     readPhoto()
     window.addEventListener('userSessionChanged', readPhoto)
@@ -341,7 +341,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
       {/* Mobile Sidebar */}
       {sidebarOpen && <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />}
       <aside className={cn(
-        "md:hidden fixed inset-y-0 left-0 z-50 w-[84vw] max-w-xs sm:w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
+        "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border flex flex-col shadow-2xl transition-transform duration-300 ease-in-out overflow-hidden",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-card/80 backdrop-blur-xl">
@@ -410,7 +410,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
         {!isCommunicationPage && (
           <div className="md:hidden flex items-center justify-between p-2 px-3 sm:px-4 bg-card/90 backdrop-blur-md border-b border-border w-full max-w-full box-border">
-            <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-muted/50 rounded-full border border-border shadow-sm min-w-0 max-w-[85%] sm:max-w-[75%]">
+            <button onClick={() => setStudentDropdownOpen(!studentDropdownOpen)} className="flex items-center gap-2 p-1 px-3 bg-muted/50 rounded-full border border-border shadow-sm min-w-0 max-w-[75%]">
               <Avatar className="h-5 w-5 border border-border shrink-0">
                 {parentPhoto && <AvatarImage src={parentPhoto} alt="Profile" className="object-cover" />}
                 <AvatarFallback className="text-[9px] bg-primary/10 text-primary">{getInitials(selectedStudent.fullName)}</AvatarFallback>
@@ -451,7 +451,7 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
           className={cn("flex-1 flex flex-col overflow-y-auto relative min-h-0 w-full max-w-full box-border", isNative && !isCommunicationPage && "pb-20 md:pb-0")}
           onScroll={handleMainScroll}
         >
-          <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10 box-border max-w-full", !isCommunicationPage ? "max-w-7xl 2xl:max-w-[1536px] px-3.5 py-3.5 sm:px-5 sm:py-5 lg:px-8 lg:py-6 space-y-4 sm:space-y-6" : "p-0")}>
+          <div className={cn("mx-auto w-full flex-1 flex flex-col min-h-0 z-10 box-border max-w-full", !isCommunicationPage ? "max-w-7xl px-3.5 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-4 sm:space-y-6" : "p-0")}>
             {children}
           </div>
         </main>

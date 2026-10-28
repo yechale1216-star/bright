@@ -5,7 +5,7 @@ import { StudentSharedMaterials } from "@/components/student/student-shared-mate
 
 export default function ParentMaterialsPage() {
   return (
-    <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto overflow-x-hidden">
+    <div className="w-full max-w-6xl mx-auto overflow-x-hidden">
       <StudentSharedMaterials isParentView={true} />
     </div>
   );

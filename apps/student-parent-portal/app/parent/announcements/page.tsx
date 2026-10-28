@@ -244,7 +244,7 @@ export default function AnnouncementsPage() {
   }
 
   return (
-    <div className="relative space-y-4 sm:space-y-6 w-full max-w-7xl 2xl:max-w-[1536px] mx-auto pb-28 md:pb-12 animate-in fade-in duration-300 box-border">
+    <div className="relative space-y-4 sm:space-y-6 w-full max-w-5xl mx-auto pb-28 md:pb-12 animate-in fade-in duration-300 box-border">
 
       {/* ── Ambient Background Blur (Containment prevents mobile scrollbar jitter) ── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10 w-full max-w-full">

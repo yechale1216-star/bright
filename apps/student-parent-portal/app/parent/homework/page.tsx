@@ -96,7 +96,7 @@ export default function ParentHomeworkPage() {
   };
 
   return (
-    <div className="w-full max-w-7xl 2xl:max-w-[1536px] mx-auto space-y-5 sm:space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -109,24 +109,24 @@ export default function ParentHomeworkPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <div className="bg-card border border-border rounded-xl p-2.5 sm:p-3 text-center">
-          <p className="text-xl sm:text-2xl font-bold text-foreground">{homework.length}</p>
-          <p className="text-muted-foreground text-[11px] sm:text-xs mt-0.5">Total</p>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-2xl font-bold text-foreground">{homework.length}</p>
+          <p className="text-muted-foreground text-xs mt-0.5">Total</p>
         </div>
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 sm:p-3 text-center">
-          <p className="text-xl sm:text-2xl font-bold text-amber-400">{pendingCount}</p>
-          <p className="text-amber-400/70 text-[11px] sm:text-xs mt-0.5">Pending</p>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+          <p className="text-2xl font-bold text-amber-400">{pendingCount}</p>
+          <p className="text-amber-400/70 text-xs mt-0.5">Pending</p>
         </div>
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-2.5 sm:p-3 text-center">
-          <p className="text-xl sm:text-2xl font-bold text-red-400">{overdueCount}</p>
-          <p className="text-red-400/70 text-[11px] sm:text-xs mt-0.5">Overdue</p>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+          <p className="text-2xl font-bold text-red-400">{overdueCount}</p>
+          <p className="text-red-400/70 text-xs mt-0.5">Overdue</p>
         </div>
       </div>
 
       {/* Tabs + Subject Filter */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex bg-card border border-border rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar">
+        <div className="flex bg-card border border-border rounded-xl p-1 gap-1">
           {(['pending', 'submitted', 'all'] as TabType[]).map((t) => (
             <button
               key={t}
@@ -168,7 +168,7 @@ export default function ParentHomeworkPage() {
                 key={hw.id}
                 className="bg-card border border-border rounded-2xl p-4 hover:border-primary/40 transition-all"
               >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span
