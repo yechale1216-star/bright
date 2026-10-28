@@ -230,7 +230,6 @@ function ParentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const navLinks = [
     { href: "/parent/dashboard", label: t("dashboard"), icon: <LayoutDashboard /> },
-    { href: "/parent/academics", label: "Academics & Grades", icon: <GraduationCap /> },
     { href: "/parent/homework", label: "Homework", icon: <BookOpen /> },
     { href: "/parent/materials", label: "Learning Materials", icon: <BookMarked /> },
     { href: "/parent/transport", label: "School Transport", icon: <Bus /> },

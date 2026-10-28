@@ -490,30 +490,6 @@ export function ParentDashboardView() {
 
           {/* Child Switcher Pills & Refresh Action */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-            {allStudents.length > 1 && (
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto max-w-full no-scrollbar">
-                {allStudents.map((s) => {
-                  const isActive = s.id === selectedStudent?.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => handleSwitchChild(s)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0",
-                        isActive
-                          ? "bg-purple-600 text-white shadow-xs"
-                          : "text-slate-600 dark:text-slate-400 hover:text-foreground"
-                      )}
-                    >
-                      <User className="w-3 h-3" />
-                      <span className="truncate max-w-[100px]">{s.fullName?.split(" ")[0] || s.name?.split(" ")[0] || "Child"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             <Button
               variant="outline"
               size="sm"
