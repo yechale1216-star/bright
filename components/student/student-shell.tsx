@@ -144,12 +144,12 @@ export function StudentShell({ children }: StudentShellProps) {
   const displayStream = student?.stream ? ` • ${student.stream}` : " • Natural";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#070d1a] dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-purple-500 selection:text-white transition-colors duration-200">
+    <div className="h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#070d1a] dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-purple-500 selection:text-white transition-colors duration-200">
       {/* ─── Desktop Sidebar ──────────────────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shrink-0 shadow-xs dark:shadow-xl border-r border-slate-200/80 dark:border-slate-800/80 z-30 justify-between transition-colors duration-200">
-        <div>
+      <aside className="hidden md:flex flex-col w-64 h-full bg-white dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shrink-0 shadow-xs dark:shadow-xl border-r border-slate-200/80 dark:border-slate-800/80 z-30 transition-colors duration-200 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0">
           {/* Logo Brand Header */}
-          <div className="p-6 pb-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center gap-3">
+          <div className="shrink-0 p-6 pb-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-md shadow-purple-500/20 ring-2 ring-purple-100 dark:ring-purple-500/20 shrink-0 bg-white dark:bg-slate-900">
               {!logoError ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
@@ -174,7 +174,7 @@ export function StudentShell({ children }: StudentShellProps) {
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-3 space-y-1 mt-2">
+          <nav className="flex-1 min-h-0 p-3 space-y-1 mt-2 overflow-y-auto no-scrollbar">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -212,7 +212,7 @@ export function StudentShell({ children }: StudentShellProps) {
         </div>
 
         {/* Sidebar Footer: Theme Toggle & Logout */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5">
+        <div className="shrink-0 p-4 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5">
           {/* Light / Dark Mode Toggle Button */}
           <button
             type="button"
@@ -448,9 +448,9 @@ export function StudentShell({ children }: StudentShellProps) {
       )}
 
       {/* ─── Main Content Area ────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Top Header Bar (Desktop & Tablet) — matches admin TopNav */}
-        <header className="hidden md:flex items-center justify-between px-8 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors duration-200">
+        <header className="hidden md:flex items-center justify-between px-8 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 shrink-0 z-20 shadow-xs transition-colors duration-200">
           {/* Search bar */}
           <div className="relative w-72">
             <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -512,7 +512,7 @@ export function StudentShell({ children }: StudentShellProps) {
         </header>
 
         {/* Page View Container */}
-        <main className={cn("flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto", isNative ? "pb-20 md:pb-8" : "pb-8")}>
+        <main className={cn("flex-1 overflow-y-auto min-h-0 p-4 md:p-8 max-w-7xl w-full mx-auto", isNative ? "pb-20 md:pb-8" : "pb-8")}>
           {children}
         </main>
 
