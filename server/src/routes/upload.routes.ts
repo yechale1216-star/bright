@@ -27,10 +27,24 @@ const storage = multer.diskStorage({
   }
 });
 
+// Browser-incompatible video formats
+const BLOCKED_VIDEO_EXTS = /\.(avi|wmv|flv|3gp|3g2|rm|rmvb|vob|ts|mts|m2ts)$/i;
+const BLOCKED_VIDEO_TYPES = ['video/avi', 'video/x-msvideo', 'video/x-ms-wmv', 'video/flv', 'video/x-flv'];
+
 const upload = multer({
   storage,
   limits: {
     fileSize: 100 * 1024 * 1024, // 100 MB max file size
+  },
+  fileFilter: (_req, file, cb) => {
+    // Block browser-incompatible video formats
+    if (
+      BLOCKED_VIDEO_TYPES.includes(file.mimetype) ||
+      (file.mimetype.startsWith('video/') && BLOCKED_VIDEO_EXTS.test(file.originalname))
+    ) {
+      return cb(new Error('Unsupported video format. Please convert to MP4, WebM, or MOV before uploading.'));
+    }
+    cb(null, true);
   }
 });
 
@@ -68,6 +82,14 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
     mimetype: req.file.mimetype,
     size: req.file.size
   });
+});
+
+// Handle multer errors (including unsupported format)
+router.use((err: any, _req: Request, res: Response, next: any) => {
+  if (err instanceof multer.MulterError || err.message?.includes('Unsupported video format')) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  next(err);
 });
 
 export default router;

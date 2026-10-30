@@ -119,11 +119,13 @@ app.use(cookieParser());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
-// Serve uploaded static files with permissive cross-origin headers
+// Serve uploaded static files with permissive cross-origin headers and range support for media
 app.use('/uploads', express.static(UPLOADS_DIR, {
+  acceptRanges: true,
   setHeaders: (res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Accept-Ranges', 'bytes');
   }
 }));
 

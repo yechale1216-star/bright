@@ -2340,6 +2340,33 @@ const AttachmentRenderer = ({
     const isCircular = rawFile.type === 'VIDEO_MESSAGE';
     const [isMuted, setIsMuted] = useState(isCircular);
 
+    // Check if browser can play this format natively
+    const fileExt = (file.name || url || '').match(/\.(avi|wmv|flv|3gp|mkv)(\?|$)/i);
+    const isUnsupportedFormat = !!fileExt;
+
+    if (isUnsupportedFormat && !isSending) {
+      return (
+        <div
+          className={cn(
+            "bg-background/40 dark:bg-slate-800/40 border border-border/10 flex items-center gap-4 hover:bg-background/60 transition-all cursor-pointer group backdrop-blur-sm shadow-sm relative",
+            isCompact ? "rounded-lg p-3" : "rounded-xl p-3"
+          )}
+          onClick={() => { if (url) window.open(url, '_blank'); }}
+        >
+          <div className="shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+              <Video className="h-5 w-5 text-red-500" />
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium truncate">{file.name || 'Video'}</p>
+            <p className="text-xs text-muted-foreground">{fileExt ? fileExt[1].toUpperCase() : 'Video'} format — Click to download</p>
+          </div>
+          <Download className="h-4 w-4 text-muted-foreground shrink-0" />
+        </div>
+      );
+    }
+
     return (
       <div
         className={cn(
@@ -2359,6 +2386,7 @@ const AttachmentRenderer = ({
           loop={isCircular}
           muted={isMuted}
           playsInline
+          crossOrigin="anonymous"
           className={cn(
             "w-full h-full",
             isCircular ? "object-cover" : "max-h-[400px]",
