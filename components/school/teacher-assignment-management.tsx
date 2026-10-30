@@ -755,8 +755,10 @@ export function TeacherAssignmentManagement() {
           {filteredAssignments.map((assignment) => {
             const teacherName = assignment.teacher?.full_name || assignment.teacher?.name || "Unknown Teacher"
             const bgGradient = getAvatarGradient(assignment.teacher?.id || assignment.teacher_id)
-            const gradeName = (assignment.grade?.name ?? "").replace(/^Grade\s+/i, "").trim()
-            const sectionName = assignment.section?.name ?? ""
+            const resolvedGrade = assignment.grade ?? availableGrades.find((g) => g.id === (assignment.gradeId || assignment.class_id))
+            const resolvedSection = assignment.section ?? availableSections.find((s) => s.id === assignment.sectionId)
+            const gradeName = (resolvedGrade?.name ?? "").replace(/^Grade\s+/i, "").trim()
+            const sectionName = resolvedSection?.name ?? ""
             const subjectName = assignment.subjectRef?.name ?? assignment.subject ?? ""
             const isHomeroom = assignment.role === "HOMEROOM_TEACHER"
             const isDeleting = deletingId === assignment.id
@@ -795,7 +797,10 @@ export function TeacherAssignmentManagement() {
                     </h3>
                     <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1.5 truncate">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span className="truncate">Gr.{gradeName}{sectionName ? ` — Sec.${sectionName}` : ""}</span>
+                      <span className="truncate">
+                        {gradeName ? `Gr. ${gradeName}` : "—"}
+                        {sectionName ? ` — Sec. ${sectionName}` : ""}
+                      </span>
                     </p>
                     {subjectName && (
                       <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1 truncate">
