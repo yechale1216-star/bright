@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/utils/supabase';
+import { uploadFile } from '@/lib/utils/upload-file';
 import { 
   ArrowLeft, Key, UserPlus, Star, ClipboardList, Edit, MoreVertical,
   MessageSquare, Volume2, VolumeX, LogOut, Sliders, Shield,
@@ -201,18 +202,7 @@ export const GroupInfoPanel: React.FC<GroupInfoPanelProps> = ({
 
     setIsUploadingAvatar(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `group-${group.id}-${Date.now()}.${fileExt}`;
-      const filePath = `group-avatars/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      const avatarUrl = data.publicUrl;
+      const avatarUrl = await uploadFile(file);
 
       const res = await fetch(`${API_URL}/api/groups/${group.id}`, {
         method: 'PUT',

@@ -35,6 +35,7 @@ import { authService } from '@/lib/auth/auth';
 import { API_URL } from '@/lib/api-config';
 import { supabase } from '@/lib/utils/supabase';
 import { fileTransferManager } from '@/lib/utils/file-transfer-manager';
+import { uploadFile } from '@/lib/utils/upload-file';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/context/language-context';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -562,72 +563,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = React.memo(({
     setIsRecording(false);
     setRecordingSeconds(0);
   };
-
-  const uploadFile = async (
-    file: File,
-    onProgress: (percent: number) => void,
-    abortSignal?: AbortSignal
-  ): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-    const filePath = `chat-attachments/${fileName}`;
-
-    const session = (await supabase.auth.getSession()).data.session;
-    const token = session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co';
-    const uploadUrl = `${supabaseUrl}/storage/v1/object/communication-attachments/${filePath}`;
-
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', uploadUrl, true);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('apikey', apiKey);
-
-      // Track progress
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = (event.loaded / event.total) * 100;
-          onProgress(percent);
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error('Upload network error'));
-      xhr.onabort = () => reject(new Error('Upload aborted'));
-
-      if (abortSignal) {
-        abortSignal.addEventListener('abort', () => xhr.abort());
-      }
-
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.send(file);
-    });
-
-    // Use signed URL for privacy (10 years expiration)
-    const { data, error: signError } = await supabase.storage
-      .from('communication-attachments')
-      .createSignedUrl(filePath, 315360000); // 10 years
-
-    if (signError || !data?.signedUrl) {
-      // Fallback to public URL if signing fails
-      const { data: { publicUrl } } = supabase.storage
-        .from('communication-attachments')
-        .getPublicUrl(filePath);
-      return publicUrl;
-    }
-
-    return data.signedUrl;
-  };
-
-
 
   const handleSend = async () => {
     if (!inputValue.trim() && !attachedFile) return;
@@ -2255,6 +2190,22 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   );
 };
 
+
+export function resolveAttachmentUrl(url?: string): string {
+  if (!url) return '';
+  if (typeof window !== 'undefined') {
+    const isLocal =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.') ||
+      window.location.hostname.startsWith('10.');
+    if (isLocal && url.includes('bright-8uji.onrender.com/uploads/')) {
+      return url.replace('https://bright-8uji.onrender.com', API_URL);
+    }
+  }
+  return url;
+}
+
 const AttachmentRenderer = ({
   file: rawFile,
   onImageClick,
@@ -2275,9 +2226,11 @@ const AttachmentRenderer = ({
   onRetryUpload?: () => void;
 }) => {
   const file = rawFile.create ? rawFile.create : rawFile;
-  const isImage = file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.url);
-  const isAudio = file.type?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/i.test(file.url) || file.url.includes('voice-');
-  const isVideo = (file.type?.startsWith('video/') || /\.(mp4|webm)$/i.test(file.url)) && !file.url.includes('voice-');
+  const rawUrl = file.url || '';
+  const url = resolveAttachmentUrl(rawUrl);
+  const isImage = file.type?.toLowerCase().startsWith('image') || file.type === 'IMAGE' || /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i.test(url);
+  const isAudio = file.type?.toLowerCase().startsWith('audio') || file.type === 'AUDIO' || /\.(mp3|wav|ogg|m4a|aac)(\?.*)?$/i.test(url) || url.includes('voice-');
+  const isVideo = (file.type?.toLowerCase().startsWith('video') || file.type === 'VIDEO' || file.type === 'VIDEO_MESSAGE' || /\.(mp4|webm|avi|mov|mkv)(\?.*)?$/i.test(url)) && !url.includes('voice-');
   const isSending = status === 'sending';
   const isUploading = isSending && uploadState && uploadState.progress < 100;
 
@@ -2356,17 +2309,17 @@ const AttachmentRenderer = ({
     return (
       <div
         className={cn(
-          "overflow-hidden cursor-pointer hover:opacity-95 transition-opacity relative group",
+          "overflow-hidden cursor-pointer hover:opacity-95 transition-opacity relative group bg-secondary/20 min-w-[200px] min-h-[160px] max-w-[360px]",
           isCompact ? "rounded-lg" : "rounded-xl border border-border/10"
         )}
         onClick={() => {
-          if (!isSending) onImageClick(file.url);
+          if (!isSending) onImageClick(url);
         }}
       >
         <img
-          src={file.url}
+          src={url}
           alt={file.name || "Image"}
-          className={cn("w-full h-auto max-h-[400px] object-cover", isSending && "opacity-60 blur-[1px]")}
+          className={cn("w-full h-auto min-h-[140px] max-h-[400px] object-cover block rounded-lg", isSending && "opacity-60 blur-[1px]")}
           loading="lazy"
         />
         {!isSending && (

@@ -31,6 +31,7 @@ import { useLanguage } from '@/lib/context/language-context';
 import { apiUrl } from '@/lib/api-config';
 import { useUnread } from '@/lib/context/unread-context';
 import { ConversationDetailsTabs, type TabKey } from '@/components/messaging/conversation-details-tabs';
+import { resolveAttachmentUrl } from '@/components/messaging/chat-window';
 
 interface SavedItem {
   id: string;
@@ -64,7 +65,8 @@ function getAuthHeaders(): Record<string, string> {
 
 function getAttachmentUrl(msg: any): string | null {
   const att = Array.isArray(msg.attachments) ? msg.attachments[0] : null;
-  return att?.url || msg.content || null;
+  const raw = att?.url || msg.content || null;
+  return resolveAttachmentUrl(raw);
 }
 
 function getFileName(msg: any): string {

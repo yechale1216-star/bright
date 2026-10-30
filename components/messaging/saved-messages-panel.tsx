@@ -15,6 +15,8 @@ import { getApiUrl } from '@/lib/api-config';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/context/language-context';
 import { supabase } from '@/lib/utils/supabase';
+import { uploadFile } from '@/lib/utils/upload-file';
+import { resolveAttachmentUrl } from '@/components/messaging/chat-window';
 
 const API_URL = getApiUrl();
 
@@ -117,20 +119,6 @@ export const SavedMessagesPanel: React.FC<SavedMessagesPanelProps> = ({ onClose,
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, isLoadingMore]);
-
-  const uploadFile = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-    const filePath = `chat-attachments/${fileName}`;
-    const { error } = await supabase.storage.from('communication-attachments').upload(filePath, file);
-    if (error) throw error;
-    const { data, error: signError } = await supabase.storage.from('communication-attachments').createSignedUrl(filePath, 315360000);
-    if (signError || !data?.signedUrl) {
-      const { data: { publicUrl } } = supabase.storage.from('communication-attachments').getPublicUrl(filePath);
-      return publicUrl;
-    }
-    return data.signedUrl;
-  };
 
   const handleSend = async () => {
     if (!inputValue.trim() && !attachedFile) return;
@@ -549,7 +537,7 @@ const SavedMessageBubble = React.memo(({
           {isImage && att && (
             <div className="rounded-xl overflow-hidden mb-1">
               <img
-                src={att.url}
+                src={resolveAttachmentUrl(att.url)}
                 alt={att.name}
                 className="max-w-full w-full max-h-[320px] object-cover cursor-pointer hover:opacity-95 transition-opacity"
                 loading="lazy"
@@ -558,12 +546,12 @@ const SavedMessageBubble = React.memo(({
           )}
           {isVideo && att && (
             <div className="rounded-xl overflow-hidden mb-1">
-              <video src={att.url} controls className="max-w-full w-full max-h-[280px] rounded-xl" />
+              <video src={resolveAttachmentUrl(att.url)} controls className="max-w-full w-full max-h-[280px] rounded-xl" />
             </div>
           )}
           {isFile && att && (
             <a
-              href={att.url}
+              href={resolveAttachmentUrl(att.url)}
               target="_blank"
               rel="noopener noreferrer"
               download={att.name}

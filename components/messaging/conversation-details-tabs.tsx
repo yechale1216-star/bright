@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils/utils';
 import { getApiUrl } from '@/lib/api-config';
+import { resolveAttachmentUrl } from '@/components/messaging/chat-window';
 import { useSocket } from '@/components/providers/socket-provider';
 
 const API_URL = getApiUrl();
@@ -322,7 +323,7 @@ export const ConversationDetailsTabs: React.FC<ConversationDetailsTabsProps> = (
                 >
                   {isVideo ? (
                     <div className="w-full h-full bg-slate-900 flex items-center justify-center relative">
-                      <video src={item.mediaUrl} className="w-full h-full object-cover opacity-80" preload="metadata" />
+                      <video src={resolveAttachmentUrl(item.mediaUrl)} className="w-full h-full object-cover opacity-80" preload="metadata" />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <div className="h-9 w-9 rounded-full bg-emerald-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                           <Play className="h-4 w-4 fill-current ml-0.5" />
@@ -441,7 +442,7 @@ export const ConversationDetailsTabs: React.FC<ConversationDetailsTabsProps> = (
                   <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
                     {file.fileUrl && (
                       <a
-                        href={file.fileUrl}
+                        href={resolveAttachmentUrl(file.fileUrl)}
                         download={file.fileName}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -557,7 +558,7 @@ export const ConversationDetailsTabs: React.FC<ConversationDetailsTabsProps> = (
               className="flex items-start gap-3 p-3 rounded-xl border border-border/30 hover:bg-secondary/50 active:bg-secondary/80 transition-all cursor-pointer group"
             >
               {imgUrl ? (
-                <img src={imgUrl} alt="Saved preview" className="h-11 w-11 rounded-lg object-cover shrink-0 border border-border/40" />
+                <img src={resolveAttachmentUrl(imgUrl)} alt="Saved preview" className="h-11 w-11 rounded-lg object-cover shrink-0 border border-border/40" />
               ) : (
                 <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
                   <Bookmark className="h-5 w-5 text-emerald-500 fill-emerald-500/20" />

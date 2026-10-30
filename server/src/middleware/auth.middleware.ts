@@ -26,7 +26,8 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
     '/api/parent/login',
     '/api/auth',
     '/health',
-    '/api/gradebook/verify'
+    '/api/gradebook/verify',
+    '/api/upload'
   ];
 
   const url = req.originalUrl.split('?')[0];

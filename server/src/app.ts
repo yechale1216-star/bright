@@ -50,6 +50,7 @@ import studentPortalRoutes, { publicStudentRouter } from './routes/student-porta
 import assessmentPolicyRoutes from './routes/assessment-policy.routes';
 import timetableRoutes from './routes/timetable.routes';
 import teacherRoutes from './routes/teacher.routes';
+import uploadRoutes, { UPLOADS_DIR } from './routes/upload.routes';
 
 import { authMiddleware } from './middleware/auth.middleware';
 import { maintenanceMiddleware } from './middleware/maintenance.middleware';
@@ -117,6 +118,14 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Serve uploaded static files with permissive cross-origin headers
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
 
 // Global Maintenance Guard
 app.use(maintenanceMiddleware);
@@ -238,8 +247,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
 // Apply Auth Middleware to all API routes
 app.use('/api', authMiddleware);
 
-// Other API routes are already covered by the /api middleware
-
 // Routes
 app.use('/api/students', studentRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -270,6 +277,7 @@ app.use('/api/student', studentPortalRoutes);
 app.use('/api/assessment-policy', assessmentPolicyRoutes);
 app.use('/api/timetables', timetableRoutes);
 app.use('/api/teachers', teacherRoutes);
+app.use('/api/upload', uploadRoutes);
 
 
 // Error handling middleware

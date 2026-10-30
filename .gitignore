@@ -40,6 +40,11 @@ keystore.properties
 .DS_Store
 Thumbs.db
 
+# Uploaded files
+uploads/
+server/uploads/*
+!server/uploads/.gitkeep
+
 # Vercel
 
 # AI Agent files

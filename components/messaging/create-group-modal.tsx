@@ -9,6 +9,7 @@ import {
   DialogFooter 
 } from '@/components/ui/dialog';
 import { supabase } from '@/lib/utils/supabase';
+import { uploadFile } from '@/lib/utils/upload-file';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -106,21 +107,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
     setUploadingAvatar(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `group-${Date.now()}.${fileExt}`;
-      const filePath = `group-avatars/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      setAvatar(data.publicUrl);
+      const avatarUrl = await uploadFile(file);
+      setAvatar(avatarUrl);
       toast.success('Avatar uploaded');
     } catch (err: any) {
       console.error('Avatar upload failed:', err);
