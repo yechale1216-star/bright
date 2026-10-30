@@ -2193,15 +2193,10 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
 
 export function resolveAttachmentUrl(url?: string): string {
   if (!url) return '';
-  if (typeof window !== 'undefined') {
-    const isLocal =
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.startsWith('192.168.') ||
-      window.location.hostname.startsWith('10.');
-    if (isLocal && url.includes('bright-8uji.onrender.com/uploads/')) {
-      return url.replace('https://bright-8uji.onrender.com', API_URL);
-    }
+  // Files stored on the Express backend (/uploads/...) should always route to active API_URL
+  if (url.includes('/uploads/')) {
+    const uploadPath = url.substring(url.indexOf('/uploads/'));
+    return `${API_URL}${uploadPath}`;
   }
   return url;
 }
@@ -2251,7 +2246,7 @@ const AttachmentRenderer = ({
     if (isImage || isVideo || isSending) return;
 
     // Check Cache on mount
-    fileTransferManager.checkCache(file.url).then(cachedUrl => {
+    fileTransferManager.checkCache(url).then(cachedUrl => {
       if (cachedUrl) {
         setDownloadState({
           progress: 100,
@@ -2264,12 +2259,12 @@ const AttachmentRenderer = ({
     });
 
     // Subscribe to transfer manager progress updates
-    const unsubscribe = fileTransferManager.subscribe(file.url, (state) => {
+    const unsubscribe = fileTransferManager.subscribe(url, (state) => {
       setDownloadState(state);
     });
 
     return () => unsubscribe();
-  }, [file.url, file.size, isImage, isVideo, isSending]);
+  }, [url, file.size, isImage, isVideo, isSending]);
 
   const handleDownloadAction = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2278,10 +2273,10 @@ const AttachmentRenderer = ({
     if (downloadState.status === 'completed' && downloadState.localUrl) {
       window.open(downloadState.localUrl, '_blank');
     } else if (downloadState.status === 'transferring' || downloadState.status === 'pending') {
-      fileTransferManager.cancelDownload(file.url);
+      fileTransferManager.cancelDownload(url);
     } else {
       try {
-        await fileTransferManager.downloadFile(file.url, file.name);
+        await fileTransferManager.downloadFile(url, file.name);
       } catch (err) {
         console.error('[Download error]', err);
       }
@@ -2338,7 +2333,7 @@ const AttachmentRenderer = ({
   }
 
   if (isAudio) {
-    return <CustomAudioPlayer url={file.url} isMe={isMe} />;
+    return <CustomAudioPlayer url={url} isMe={isMe} />;
   }
 
   if (isVideo || rawFile.type === 'VIDEO_MESSAGE') {
@@ -2358,7 +2353,7 @@ const AttachmentRenderer = ({
         }}
       >
         <video
-          src={file.url}
+          src={url}
           controls={!isCircular && !isSending}
           autoPlay={isCircular && !isSending}
           loop={isCircular}
@@ -2433,7 +2428,7 @@ const AttachmentRenderer = ({
             progress={downloadState.progress}
             status={downloadState.status}
             onClick={handleDownloadAction}
-            completedIcon={getFileIcon(file.url)}
+            completedIcon={getFileIcon(url)}
           />
         )}
       </div>
@@ -2455,7 +2450,7 @@ const AttachmentRenderer = ({
             </span>
           ) : downloadState.status === 'completed' ? (
             <span className="text-[10px] font-medium text-muted-foreground/80 flex items-center gap-1.5">
-              <span className="uppercase">{file.url.split('.').pop() || 'FILE'}</span>
+              <span className="uppercase">{url.split('?')[0].split('.').pop() || 'FILE'}</span>
               <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
               <span>{formatSize(file.size)}</span>
               <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
@@ -2467,7 +2462,7 @@ const AttachmentRenderer = ({
             </span>
           ) : (
             <span className="text-[10px] font-medium text-muted-foreground/80 flex items-center gap-1.5">
-              <span className="uppercase">{file.url.split('.').pop() || 'FILE'}</span>
+              <span className="uppercase">{url.split('?')[0].split('.').pop() || 'FILE'}</span>
               <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
               <span>{formatSize(file.size)}</span>
             </span>
@@ -2507,7 +2502,7 @@ const AttachmentRenderer = ({
             className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors text-muted-foreground"
             onClick={(e) => {
               e.stopPropagation();
-              fileTransferManager.cancelDownload(file.url);
+              fileTransferManager.cancelDownload(url);
             }}
           >
             <X className="h-4 w-4" />
