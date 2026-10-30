@@ -333,33 +333,13 @@ export function StudentShell({ children }: StudentShellProps) {
           <div className="relative w-72 bg-white dark:bg-slate-900 text-slate-900 dark:text-white h-full flex flex-col justify-between p-4 shadow-2xl border-r border-slate-200 dark:border-slate-800 animate-in slide-in-from-left duration-200">
             <div>
               {/* Drawer header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center shadow-md ring-2 ring-purple-100 dark:ring-purple-500/20 shrink-0 bg-white dark:bg-slate-900">
-                    {!logoError ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src="/bright-path-logo.png"
-                        alt="Bright Path Logo"
-                        className="w-full h-full object-cover"
-                        onError={() => setLogoError(true)}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white">
-                        <BookOpen className="w-5 h-5" />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">Bright Path</h2>
-                    <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">Student Portal</p>
-                  </div>
-                </div>
+              <div className="flex items-center justify-end pb-2">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setMobileMenuOpen(false)}
                   className="h-8 w-8 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                  aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
                 </Button>
