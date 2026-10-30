@@ -20,6 +20,7 @@ export interface AcademicYear {
   isCurrent: boolean
   schoolId?: string
   terms?: any[]
+  status?: 'ACTIVE' | 'FUTURE' | 'CLOSED' | string
 }
 
 interface AcademicYearContextValue {

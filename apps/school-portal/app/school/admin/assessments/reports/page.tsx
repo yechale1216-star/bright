@@ -594,12 +594,12 @@ function AssessmentReportsContent() {
   const hasMoreCohorts = totalChartCohorts > COLLAPSED_BAR_LIMIT;
 
   const DEFAULT_SCORE_RANGES = useMemo(() => [
-    { subjectId: '90–100', subjectName: '90–100', subjectCode: '90–100', averageScore: 0, studentCount: 0, color: '#22c55e' },
-    { subjectId: '80–89', subjectName: '80–89', subjectCode: '80–89', averageScore: 0, studentCount: 0, color: '#3b82f6' },
-    { subjectId: '70–79', subjectName: '70–79', subjectCode: '70–79', averageScore: 0, studentCount: 0, color: '#8b5cf6' },
-    { subjectId: '60–69', subjectName: '60–69', subjectCode: '60–69', averageScore: 0, studentCount: 0, color: '#fbbf24' },
-    { subjectId: '50–59', subjectName: '50–59', subjectCode: '50–59', averageScore: 0, studentCount: 0, color: '#f97316' },
-    { subjectId: 'Below 50', subjectName: 'Below 50', subjectCode: 'Below 50', averageScore: 0, studentCount: 0, color: '#ef4444' },
+    { subjectId: '90–100', subjectName: '90–100', subjectCode: '90–100', averageScore: 0, studentCount: 0, highestScore: 0, lowestScore: 0, color: '#22c55e' },
+    { subjectId: '80–89', subjectName: '80–89', subjectCode: '80–89', averageScore: 0, studentCount: 0, highestScore: 0, lowestScore: 0, color: '#3b82f6' },
+    { subjectId: '70–79', subjectName: '70–79', subjectCode: '70–79', averageScore: 0, studentCount: 0, highestScore: 0, lowestScore: 0, color: '#8b5cf6' },
+    { subjectId: '60–69', subjectName: '60–69', subjectCode: '60–69', averageScore: 0, studentCount: 0, highestScore: 0, lowestScore: 0, color: '#fbbf24' },
+    { subjectId: '50–59', subjectName: '50–59', subjectCode: '50–59', averageScore: 0, studentCount: 0, highestScore: 0, lowestScore: 0, color: '#f97316' },
+    { subjectId: 'Below 50', subjectName: 'Below 50', subjectCode: 'Below 50', averageScore: 0, studentCount: 0, highestScore: 0, lowestScore: 0, color: '#ef4444' },
   ], []);
 
   const subjectsChartData = useMemo(() => {

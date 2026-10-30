@@ -1037,6 +1037,7 @@ export interface AssessmentReportsAnalyticsData {
     passRate?: number;
     incompleteCount?: number;
     gradeName?: string;
+    color?: string;
   }>;
   distribution: {
     totalResults: number;
