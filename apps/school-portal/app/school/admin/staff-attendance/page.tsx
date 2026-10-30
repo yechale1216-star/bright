@@ -145,7 +145,16 @@ export default function AdminStaffAttendanceDashboard() {
   const { formatDate } = useCalendar()
   const { settings } = useSchoolSettings()
 
-  const isSessionMode = settings?.staffAttendanceMode === "session_based"
+  const globalAttendanceMode: "DAILY" | "SESSION" | "BOTH" = useMemo(() => {
+    const raw = settings?.attendanceModeSetting ?? settings?.attendance_mode_setting ?? settings?.staffAttendanceMode ?? settings?.staff_attendance_mode ?? "daily"
+    const upper = String(raw).trim().toUpperCase()
+    if (upper === "SESSION" || upper === "SESSION_BASED") return "SESSION"
+    if (upper === "BOTH") return "BOTH"
+    return "DAILY"
+  }, [settings?.attendanceModeSetting, settings?.attendance_mode_setting, settings?.staffAttendanceMode, settings?.staff_attendance_mode])
+
+  const isSessionMode = globalAttendanceMode === "SESSION"
+  const isBothMode = globalAttendanceMode === "BOTH"
   const staffSessions = useMemo(() => {
     const defaults = [
       { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, isActive: true },
@@ -392,7 +401,7 @@ export default function AdminStaffAttendanceDashboard() {
   const fetchStats = useCallback(async () => {
     setStatsLoading(true)
     try {
-      const sess = isSessionMode ? sessionFilter : undefined
+      const sess = isSessionMode ? sessionFilter : (isBothMode && sessionFilter !== "all" && sessionFilter !== "daily" ? sessionFilter : undefined)
       const s = await db.getStaffAttendanceStats(selectedDate, sess)
       setStats(s)
     } catch (err) {
@@ -400,19 +409,20 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setStatsLoading(false)
     }
-  }, [selectedDate, sessionFilter])
+  }, [selectedDate, sessionFilter, isSessionMode, isBothMode])
 
   const fetchData = useCallback(async (pageOverride?: number) => {
     setLoading(true)
     const targetPage = pageOverride ?? 1
     try {
+      const activeMode = isBothMode ? "both" : isSessionMode ? "session_based" : "daily"
       const filterPayload: any = {
-        // Always pass the mode so the backend enforces strict mode separation
-        mode: isSessionMode ? "session_based" : "daily",
+        // Pass mode: 'both' when Both (Per-Staff) is active so both daily and session staff appear
+        mode: activeMode,
         role: roleFilter !== "all" ? roleFilter : undefined,
         status: statusFilter !== "ALL" ? statusFilter : undefined,
-        // Always pass session filter when in session-based mode
-        session: isSessionMode ? sessionFilter : undefined,
+        // Pass session filter when in session mode or when filtered in both mode
+        session: isSessionMode ? sessionFilter : (isBothMode && sessionFilter !== "all" ? sessionFilter : undefined),
         search: search.trim() || undefined,
         geofenceVerified: geoFilter === "verified" ? true : geoFilter === "unverified" ? false : undefined,
         page: targetPage,
@@ -438,20 +448,19 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [isSessionMode, isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter])
+  }, [isSessionMode, isBothMode, isRangeMode, selectedDate, startDate, endDate, roleFilter, statusFilter, sessionFilter, search, geoFilter])
 
   const fetchReport = useCallback(async () => {
     setReportLoading(true)
     try {
+      const activeMode = isBothMode ? "both" : isSessionMode ? "session_based" : "daily"
       const r = await db.getStaffAttendanceReport({
         startDate,
         endDate,
         role: roleFilter !== "all" ? roleFilter : undefined,
         status: reportStatusFilter !== "ALL" ? reportStatusFilter : undefined,
-        // Pass active mode so the backend strictly filters by mode
-        mode: isSessionMode ? "session_based" : "daily",
-        // In session-based mode, always pass the selected session
-        session: isSessionMode ? sessionFilter : undefined,
+        mode: activeMode,
+        session: isSessionMode ? sessionFilter : (isBothMode && sessionFilter !== "all" ? sessionFilter : undefined),
       })
       setReportData(r)
     } catch (err) {
@@ -460,13 +469,13 @@ export default function AdminStaffAttendanceDashboard() {
     } finally {
       setReportLoading(false)
     }
-  }, [isSessionMode, startDate, endDate, roleFilter, reportStatusFilter, sessionFilter])
+  }, [isSessionMode, isBothMode, startDate, endDate, roleFilter, reportStatusFilter, sessionFilter])
 
   const loadAllUsers = useCallback(async () => {
     try {
-      // Fetch mode-correct records to build the users map
+      const activeMode = isBothMode ? "both" : isSessionMode ? "session_based" : "daily"
       const res = await db.getStaffAttendance({
-        mode: isSessionMode ? "session_based" : "daily",
+        mode: activeMode,
       })
       const userMap = new Map<string, any>()
       const list = Array.isArray(res) ? res : ((res as any)?.data || [])
@@ -479,7 +488,7 @@ export default function AdminStaffAttendanceDashboard() {
     } catch {
       /* ignore */
     }
-  }, [isSessionMode])
+  }, [isSessionMode, isBothMode])
 
   useEffect(() => {
     fetchStats()
@@ -724,13 +733,15 @@ export default function AdminStaffAttendanceDashboard() {
         return
       }
 
+      const showSessionColumn = isSessionMode || isBothMode
+
       const headers = [
         "Staff Name",
         "Email",
         "Role",
         "Start Date",
         "End Date",
-        ...(isSessionMode ? ["Session"] : []),
+        ...(showSessionColumn ? ["Session"] : []),
         ...(reportStatusFilter !== "ALL" ? ["State Filter"] : []),
         "Total Days Logged",
         "Present (On-Time)",
@@ -749,7 +760,7 @@ export default function AdminStaffAttendanceDashboard() {
           `"${item.user?.role || ""}"`,
           `"${startDate}"`,
           `"${endDate}"`,
-          ...(isSessionMode ? [`"${staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter}"`] : []),
+          ...(showSessionColumn ? [`"${staffSessions.find((s: any) => s.id === sessionFilter)?.name || (sessionFilter === "all" ? "All" : sessionFilter)}"`] : []),
           ...(reportStatusFilter !== "ALL" ? [`"${STATUS_CONFIG[reportStatusFilter]?.label || reportStatusFilter}"`] : []),
           item.totalRecords,
           item.present || 0,
@@ -1207,11 +1218,25 @@ export default function AdminStaffAttendanceDashboard() {
 
             {/* Sub-Filters: Role, Status, Session, Geofence, Face */}
             <div className="flex flex-col gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800/60">
-              {/* Session Filter Tabs — full-width row, visible in session mode only */}
-              {isSessionMode && (
+              {/* Session Filter Tabs — visible in session mode OR both (per-staff) mode */}
+              {(isSessionMode || isBothMode) && (
                 <div className="flex items-center gap-2 w-full">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0 hidden sm:block">Session</span>
                   <div className="flex flex-1 gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-white/40 dark:border-white/10">
+                    {isBothMode && (
+                      <button
+                        type="button"
+                        onClick={() => setSessionFilter("all")}
+                        className={cn(
+                          "flex-1 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5",
+                          sessionFilter === "all"
+                            ? "bg-primary text-white shadow-md shadow-primary/30 scale-[1.02]"
+                            : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                        )}
+                      >
+                        All Staff
+                      </button>
+                    )}
                     {staffSessions.map((sess: any) => (
                       <button
                         key={sess.id}
@@ -1227,11 +1252,25 @@ export default function AdminStaffAttendanceDashboard() {
                         {sess.name}
                       </button>
                     ))}
+                    {isBothMode && (
+                      <button
+                        type="button"
+                        onClick={() => setSessionFilter("daily")}
+                        className={cn(
+                          "flex-1 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5",
+                          sessionFilter === "daily"
+                            ? "bg-primary text-white shadow-md shadow-primary/30 scale-[1.02]"
+                            : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                        )}
+                      >
+                        Daily Only
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
               {/* Second row: Role, Status, Geofence */}
-            <div className={`grid grid-cols-2 ${isSessionMode ? "sm:grid-cols-3" : "sm:grid-cols-4"} gap-2.5`}>
+            <div className={`grid grid-cols-2 ${(isSessionMode || isBothMode) ? "sm:grid-cols-3" : "sm:grid-cols-4"} gap-2.5`}>
               {/* Role */}
               <select
                 value={roleFilter}
@@ -1301,7 +1340,7 @@ export default function AdminStaffAttendanceDashboard() {
                       <th className="px-6 py-4">Staff Member</th>
                       <th className="px-5 py-4">Role</th>
                       <th className="px-5 py-4">Date</th>
-                      {isSessionMode && <th className="px-5 py-4">Session</th>}
+                      {(isSessionMode || isBothMode) && <th className="px-5 py-4">Session</th>}
                       <th className="px-5 py-4">Check-In</th>
                       <th className="px-5 py-4">Status</th>
                       <th className="px-5 py-4">Check-Out</th>
@@ -1356,8 +1395,8 @@ export default function AdminStaffAttendanceDashboard() {
                             {formatDate(rec.date?.split("T")[0])}
                           </td>
 
-                          {/* Session Badge in Session-Based Mode */}
-                          {isSessionMode && (
+                          {/* Session Badge in Session-Based or Both Mode */}
+                          {(isSessionMode || isBothMode) && (
                             <td className="px-5 py-4">
                               <Badge variant="outline" className="text-[10px] font-bold uppercase border-primary/30 text-primary">
                                 {rec.session || "daily"}
@@ -1565,11 +1604,25 @@ export default function AdminStaffAttendanceDashboard() {
               </Button>
             </div>
 
-            {/* Session Filter Tabs — visible in session mode */}
-            {isSessionMode && (
+            {/* Session Filter Tabs — visible in session mode or both mode */}
+            {(isSessionMode || isBothMode) && (
               <div className="flex items-center gap-2 w-full pt-2.5 border-t border-slate-100 dark:border-slate-800/60">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0 hidden sm:block">Session</span>
                 <div className="flex flex-1 gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-white/40 dark:border-white/10">
+                  {isBothMode && (
+                    <button
+                      type="button"
+                      onClick={() => setSessionFilter("all")}
+                      className={cn(
+                        "flex-1 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5",
+                        sessionFilter === "all"
+                          ? "bg-primary text-white shadow-md shadow-primary/30 scale-[1.02]"
+                          : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                      )}
+                    >
+                      All Staff
+                    </button>
+                  )}
                   {staffSessions.map((sess: any) => (
                     <button
                       key={sess.id}
@@ -1585,6 +1638,20 @@ export default function AdminStaffAttendanceDashboard() {
                       {sess.name}
                     </button>
                   ))}
+                  {isBothMode && (
+                    <button
+                      type="button"
+                      onClick={() => setSessionFilter("daily")}
+                      className={cn(
+                        "flex-1 h-8 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5",
+                        sessionFilter === "daily"
+                          ? "bg-primary text-white shadow-md shadow-primary/30 scale-[1.02]"
+                          : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                      )}
+                    >
+                      Daily Only
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1663,9 +1730,9 @@ export default function AdminStaffAttendanceDashboard() {
                         State: {STATUS_CONFIG[reportStatusFilter]?.label || reportStatusFilter}
                       </Badge>
                     )}
-                    {isSessionMode && (
+                    {(isSessionMode || isBothMode) && (
                       <Badge variant="outline" className="text-xs font-bold uppercase border-primary/30 text-primary">
-                        {staffSessions.find((s: any) => s.id === sessionFilter)?.name || sessionFilter} Session
+                        {staffSessions.find((s: any) => s.id === sessionFilter)?.name || (sessionFilter === "all" ? "All Sessions & Daily" : sessionFilter === "daily" ? "Daily" : sessionFilter)}
                       </Badge>
                     )}
                   </div>
@@ -2416,8 +2483,8 @@ export default function AdminStaffAttendanceDashboard() {
                   />
                 </div>
 
-                {/* Session Selector — only shown in Session-Based mode */}
-                {isSessionMode && (
+                {/* Session Selector — shown in Session-Based mode or Both mode */}
+                {(isSessionMode || isBothMode) && (
                   <div>
                     <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Session *</label>
                     <select
@@ -2429,6 +2496,7 @@ export default function AdminStaffAttendanceDashboard() {
                       {staffSessions.map((s: any) => (
                         <option key={s.id} value={s.id}>{s.name} Session</option>
                       ))}
+                      {isBothMode && <option value="daily">Daily Shift Only</option>}
                     </select>
                     <p className="mt-1 text-[10px] text-slate-400">
                       {leaveForm.session === "all" ? "Leave applies to all sessions throughout the day." : "Leave applies to the selected session only."}

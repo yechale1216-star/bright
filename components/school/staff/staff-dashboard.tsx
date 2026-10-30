@@ -92,7 +92,26 @@ export function StaffDashboard() {
   // Live active work duration tracker
   const [workingDuration, setWorkingDuration] = useState<string>("")
 
-  const isSessionMode = (settings?.staffAttendanceMode || settings?.staff_attendance_mode) === "session_based"
+  // Resolve effective attendance mode for this staff member:
+  // - Global DAILY -> daily
+  // - Global SESSION -> session
+  // - Global BOTH -> staff member's assigned attendanceMode (default DAILY)
+  const globalAttendanceModeSetting: "DAILY" | "SESSION" | "BOTH" = useMemo(() => {
+    const raw = settings?.attendanceModeSetting ?? settings?.attendance_mode_setting ?? settings?.staffAttendanceMode ?? settings?.staff_attendance_mode ?? "daily"
+    const upper = String(raw).trim().toUpperCase()
+    if (upper === "SESSION" || upper === "SESSION_BASED") return "SESSION"
+    if (upper === "BOTH") return "BOTH"
+    return "DAILY"
+  }, [settings?.attendanceModeSetting, settings?.attendance_mode_setting, settings?.staffAttendanceMode, settings?.staff_attendance_mode])
+
+  const isSessionMode = useMemo(() => {
+    if (globalAttendanceModeSetting === "SESSION") return true
+    if (globalAttendanceModeSetting === "BOTH") {
+      const staffRaw = user?.attendanceMode ?? "DAILY"
+      return String(staffRaw).trim().toUpperCase() === "SESSION"
+    }
+    return false
+  }, [globalAttendanceModeSetting, user?.attendanceMode])
   const staffSessions = useMemo(() => {
     const defaults = [
       { id: "morning", name: "Morning", startTime: "08:00", endTime: "12:30", lateGraceMinutes: 15, earlyDepartureToleranceMinutes: 10, absenceCutoffMinutes: 90, absenceCutoffTime: "09:30", earliestCheckinTime: "06:00", latestCheckoutTime: "13:30", isActive: true },
