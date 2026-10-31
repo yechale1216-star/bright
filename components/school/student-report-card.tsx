@@ -36,6 +36,7 @@ export function StudentReportCardFront({
     issueDate,
     qrCodeData,
   } = card;
+  const primaryColor = school?.primaryColor || '#1e3a8a';
 
   // Compute a live, scan-ready mobile verification URL
   const qrVerificationUrl = React.useMemo(() => {
@@ -86,7 +87,7 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 1. OFFICIAL HEADER SECTION */}
         {/* ==================================================== */}
-        <div className="border-b border-slate-800 pb-3">
+        <div className="border-b border-slate-800 pb-3" style={{ borderBottomColor: primaryColor }}>
           <div className="flex items-start justify-between gap-3">
             {/* Left School Logo Emblem */}
             <div className="flex-shrink-0 pt-0.5">
@@ -143,7 +144,7 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 2. STUDENT & CLASS INFORMATION BAR */}
         {/* ==================================================== */}
-        <div className="flex items-center justify-between gap-4 py-2 px-3 bg-slate-50 border border-slate-300 rounded-sm text-xs sm:text-[13px]">
+        <div className="flex items-center justify-between gap-4 py-2 px-3 bg-slate-50 border border-slate-300 rounded-sm text-xs sm:text-[13px]" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
           <div className="flex-1 space-y-1.5">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <div>
@@ -225,7 +226,7 @@ export function StudentReportCardFront({
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse border border-slate-900">
             <thead>
-              <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center text-[11px] sm:text-xs">
+              <tr className="font-bold border-b border-slate-900 text-center text-[11px] sm:text-xs text-white" style={{ backgroundColor: primaryColor }}>
                 <th className="py-1.5 px-3 text-left border-r border-slate-900 w-36 sm:w-44">Subject</th>
                 <th className="py-1.5 px-2 border-r border-slate-900 w-16">Weight</th>
                 {periods.map((period) => (
@@ -471,15 +472,15 @@ export function StudentReportCardFront({
 
             {/* Official School Stamp Seal */}
             <div className="flex flex-col items-center">
-              <div className="w-18 h-18 rounded-full border-2 border-emerald-800 bg-emerald-50/20 flex flex-col items-center justify-center text-center p-1 relative shadow-2xs">
-                <div className="w-14 h-14 rounded-full border border-dashed border-emerald-700 flex flex-col items-center justify-center p-0.5">
-                  <span className="text-[7.5px] font-black uppercase tracking-tighter text-emerald-900 leading-none">
+              <div className="w-18 h-18 rounded-full border-2 flex flex-col items-center justify-center text-center p-1 relative shadow-2xs" style={{ borderColor: primaryColor, backgroundColor: `${primaryColor}15` }}>
+                <div className="w-14 h-14 rounded-full border border-dashed flex flex-col items-center justify-center p-0.5" style={{ borderColor: primaryColor }}>
+                  <span className="text-[7.5px] font-black uppercase tracking-tighter leading-none" style={{ color: primaryColor }}>
                     BRIGHT PATH
                   </span>
-                  <span className="text-[6.5px] font-bold text-emerald-800 tracking-tight my-0.5">
+                  <span className="text-[6.5px] font-bold tracking-tight my-0.5" style={{ color: primaryColor }}>
                     ★ SEAL ★
                   </span>
-                  <span className="text-[6px] font-mono font-bold text-emerald-700 leading-none">
+                  <span className="text-[6px] font-mono font-bold leading-none" style={{ color: primaryColor }}>
                     DIRE DAWA
                   </span>
                 </div>
@@ -515,6 +516,7 @@ export function StudentReportCardBack({
   className?: string;
 }) {
   const { school, student, academic, summary, reportCardId, issueDate } = card;
+  const primaryColor = school?.primaryColor || '#1e3a8a';
 
   // Official School Grading Scale Rubric according to active grading policy
   const gradingScales = (card.gradingPolicy?.scales && card.gradingPolicy.scales.length > 0)
@@ -604,7 +606,7 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         {/* 1. BACK HEADER SECTION */}
         {/* ==================================================== */}
-        <div className="border-b border-slate-800 pb-2.5">
+        <div className="border-b border-slate-800 pb-2.5" style={{ borderBottomColor: primaryColor }}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="relative w-12 h-12 rounded-full overflow-hidden border border-slate-300 bg-white flex-shrink-0">
@@ -626,13 +628,13 @@ export function StudentReportCardBack({
             </div>
 
             <div className="text-right">
-              <span className="inline-block text-[11px] font-black uppercase tracking-wider px-2.5 py-1 bg-slate-900 text-white rounded-xs">
+              <span className="inline-block text-[11px] font-black uppercase tracking-wider px-2.5 py-1 text-white rounded-xs" style={{ backgroundColor: primaryColor }}>
                 Page 2 • ገጽ 2 (Back)
               </span>
             </div>
           </div>
 
-          <div className="mt-2 text-center bg-slate-100 py-1 px-2 border border-slate-300 rounded-xs">
+          <div className="mt-2 text-center bg-slate-100 py-1 px-2 border border-slate-300 rounded-xs" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
             <h1 className="text-xs sm:text-sm font-black tracking-wide text-slate-900 uppercase">
               Academic Grading Scale, Conduct Evaluation & Promotion Regulations
             </h1>
@@ -674,7 +676,7 @@ export function StudentReportCardBack({
         <div>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-slate-900 rounded-full inline-block" />
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
               1. Grading Scale & Evaluation Key (የደረጃ አሰጣጥ መለኪያ)
             </h3>
             <span className="text-[10px] text-slate-600 font-medium">Secondary Education Standard</span>
@@ -683,7 +685,7 @@ export function StudentReportCardBack({
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse border border-slate-900">
               <thead>
-                <tr className="bg-slate-100 text-slate-900 font-bold border-b border-slate-900 text-center text-[10px] sm:text-[11px]">
+                <tr className="font-bold border-b border-slate-900 text-center text-[10px] sm:text-[11px] text-white" style={{ backgroundColor: primaryColor }}>
                   <th className="py-1 px-2 border-r border-slate-900 w-14">Grade</th>
                   <th className="py-1 px-2 border-r border-slate-900 w-24">Mark Range (%)</th>
                   <th className="py-1 px-2 border-r border-slate-900 w-16">GPA Points</th>
@@ -726,10 +728,10 @@ export function StudentReportCardBack({
         <div>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-slate-900 rounded-full inline-block" />
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
               2. Conduct & Behavioral Evaluation Criteria (የስነ-ምግባር እና ጠባይ መመዘኛ)
             </h3>
-            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 border border-emerald-200 rounded-xs">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 border rounded-xs" style={{ color: primaryColor, borderColor: `${primaryColor}50`, backgroundColor: `${primaryColor}15` }}>
               Student Conduct Record: {summary.conduct || 'A-'}
             </span>
           </div>
@@ -740,7 +742,7 @@ export function StudentReportCardBack({
                 key={r.code}
                 className="p-2 border border-slate-300 rounded-xs bg-slate-50/40 text-[10px] sm:text-[11px] flex items-start gap-2"
               >
-                <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black flex items-center justify-center flex-shrink-0 text-xs mt-0.5">
+                <div className="w-6 h-6 rounded-full text-white font-black flex items-center justify-center flex-shrink-0 text-xs mt-0.5" style={{ backgroundColor: primaryColor }}>
                   {r.code}
                 </div>
                 <div className="flex-1 leading-tight">
@@ -761,7 +763,7 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         <div>
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5 mb-1">
-            <span className="w-2 h-2 bg-slate-900 rounded-full inline-block" />
+            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
             3. Co-Curricular & Club Participation (የተሳትፎ እና የክበባት እንቅስቃሴዎች)
           </h3>
 
@@ -804,7 +806,7 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         <div>
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5 mb-1">
-            <span className="w-2 h-2 bg-slate-900 rounded-full inline-block" />
+            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
             4. Academic Promotion & Attendance Regulations (የክፍል ማለፊያ እና የተማሪዎች ክትትል ደንብ)
           </h3>
 
@@ -843,11 +845,11 @@ export function StudentReportCardBack({
 
             {/* School Seal / Stamp */}
             <div className="flex flex-col items-center">
-              <div className="relative w-16 h-16 rounded-full border-2 border-emerald-900/80 bg-emerald-50/40 flex flex-col items-center justify-center text-center p-1 shadow-xs ring-1 ring-emerald-900/30">
-                <div className="absolute inset-1 rounded-full border border-dashed border-emerald-800/60 pointer-events-none" />
-                <span className="text-[7.5px] font-black uppercase tracking-tighter text-emerald-950 leading-none">BRIGHT PATH</span>
-                <span className="text-[6.5px] font-bold text-emerald-800 leading-none my-0.5">★ SEAL ★</span>
-                <span className="text-[6px] font-medium text-emerald-900 leading-none">DIRE DAWA</span>
+              <div className="relative w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center text-center p-1 shadow-xs" style={{ borderColor: primaryColor, backgroundColor: `${primaryColor}15` }}>
+                <div className="absolute inset-1 rounded-full border border-dashed pointer-events-none" style={{ borderColor: primaryColor }} />
+                <span className="text-[7.5px] font-black uppercase tracking-tighter leading-none" style={{ color: primaryColor }}>BRIGHT PATH</span>
+                <span className="text-[6.5px] font-bold leading-none my-0.5" style={{ color: primaryColor }}>★ SEAL ★</span>
+                <span className="text-[6px] font-medium leading-none" style={{ color: primaryColor }}>DIRE DAWA</span>
               </div>
               <span className="mt-1 block font-bold text-slate-900 text-[11px]">Date: {issueDate}</span>
             </div>

@@ -1678,6 +1678,7 @@ export class GradebookService {
       address: settings?.school_address || 'Dire Dawa',
       phone: settings?.school_phone || '0251 - 11 41 87 / 1838',
       logo: settings?.school_logo || '/bright-path-logo.png',
+      primaryColor: (settings as any)?.report_card_color || '#1e3a8a',
     };
 
     // Calculate Student Age
@@ -2797,6 +2798,7 @@ export class GradebookService {
       address: settings?.school_address || 'Dire Dawa',
       phone: settings?.school_phone || '0251 - 11 41 87 / 1838',
       logo: settings?.school_logo || '/bright-path-logo.png',
+      primaryColor: (settings as any)?.report_card_color || '#1e3a8a',
     };
 
     if (reportCard) {

@@ -74,7 +74,11 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const DEFAULT_REPORT_CARD_COLOR = '#1e3a8a';
+
 export default function AdminReportCardsPage() {
+  const [reportCardColor, setReportCardColor] = useState(DEFAULT_REPORT_CARD_COLOR);
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const [academicYears, setAcademicYears] = useState<any[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string>('');
   const [selectedTermId, setSelectedTermId] = useState<string>('annual');
@@ -146,11 +150,16 @@ export default function AdminReportCardsPage() {
       const { getApiUrl } = await import('@/lib/api-config');
       const API_URL = getApiUrl();
 
-      const [ayRes, gradesRes, streamsRes] = await Promise.all([
+      const [ayRes, gradesRes, streamsRes, settingsRes] = await Promise.all([
         fetch(`${API_URL}/api/academic-years`, { headers }).then((r) => r.json()).catch(() => null),
         fetch(`${API_URL}/api/schools/grades`, { headers }).then((r) => r.json()).catch(() => null),
         fetch(`${API_URL}/api/schools/me/streams`, { headers }).then((r) => r.json()).catch(() => null),
+        fetch(`${API_URL}/api/settings`, { headers }).then((r) => r.json()).catch(() => null),
       ]);
+
+      if (settingsRes?.data?.report_card_color) {
+        setReportCardColor(settingsRes.data.report_card_color);
+      }
 
       if (ayRes?.success && Array.isArray(ayRes.data)) {
         setAcademicYears(ayRes.data);
@@ -446,6 +455,25 @@ export default function AdminReportCardsPage() {
       notifications.error('Bulk Publish Failed', err?.message || 'Error publishing report cards');
     } finally {
       setBulkPublishing(false);
+    }
+  };
+
+  const handleColorChange = async (newColor: string) => {
+    setReportCardColor(newColor);
+    try {
+      const token = localStorage.getItem('attendance_token');
+      const { getApiUrl } = await import('@/lib/api-config');
+      const API_URL = getApiUrl();
+      await fetch(`${API_URL}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ report_card_color: newColor }),
+      });
+    } catch (err: any) {
+      console.error('Failed to save report card color', err);
     }
   };
 
@@ -822,6 +850,43 @@ export default function AdminReportCardsPage() {
             )}
             {bulkPublishing ? 'Publishing...' : 'Publish All Ready'}
           </Button>
+
+          {/* Report Card Custom Color Picker */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <input
+              ref={colorInputRef}
+              type="color"
+              value={reportCardColor}
+              onChange={(e) => handleColorChange(e.target.value)}
+              className="sr-only"
+              aria-label="Report card primary color"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => colorInputRef.current?.click()}
+              className="gap-2 border-border text-foreground hover:bg-muted justify-center"
+              title="Customize report card accent color"
+            >
+              <span
+                className="w-4 h-4 rounded-full border border-border shadow-xs shrink-0 transition-transform hover:scale-110"
+                style={{ backgroundColor: reportCardColor }}
+              />
+              Color
+            </Button>
+            {reportCardColor.toLowerCase() !== DEFAULT_REPORT_CARD_COLOR.toLowerCase() && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleColorChange(DEFAULT_REPORT_CARD_COLOR)}
+                className="text-xs text-muted-foreground hover:text-foreground px-2"
+                title="Reset to default color"
+              >
+                Reset
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1414,7 +1479,15 @@ export default function AdminReportCardsPage() {
                 </div>
               </div>
             ) : comprehensiveCard ? (
-              <StudentReportCard card={comprehensiveCard} />
+              <StudentReportCard
+                card={{
+                  ...comprehensiveCard,
+                  school: {
+                    ...comprehensiveCard.school,
+                    primaryColor: reportCardColor,
+                  },
+                }}
+              />
             ) : (
               <div className="py-12 text-center text-muted-foreground">Failed to render card.</div>
             )}
@@ -1481,7 +1554,15 @@ export default function AdminReportCardsPage() {
             ) : batchCards.length > 0 ? (
               batchCards.map((c, i) => (
                 <div key={c.student.id || i} className="batch-report-card-wrapper mb-8 print:mb-0">
-                  <StudentReportCard card={c} />
+                  <StudentReportCard
+                    card={{
+                      ...c,
+                      school: {
+                        ...c.school,
+                        primaryColor: reportCardColor,
+                      },
+                    }}
+                  />
                 </div>
               ))
             ) : (

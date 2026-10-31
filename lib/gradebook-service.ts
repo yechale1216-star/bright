@@ -303,6 +303,7 @@ export interface ComprehensiveReportCardData {
     address: string;
     phone: string;
     logo: string;
+    primaryColor?: string;
   };
   student: {
     id: string;

@@ -196,6 +196,7 @@ const DEFAULT_SETTINGS = {
   sms_notifications: false,
   notification_time: '16:00',
   school_logo: '',
+  report_card_color: '#1e3a8a',
   allow_attendance_editing: true,
   restrict_location: false,
   school_latitude: null,
@@ -238,6 +239,7 @@ const ALLOWED_SETTINGS_FIELDS = new Set([
   'sms_notifications',
   'notification_time',
   'school_logo',
+  'report_card_color',
   'allow_attendance_editing',
   'restrict_location',
   'school_latitude',
@@ -339,6 +341,7 @@ export const updateSettings = async (_schoolId?: string, data?: any) => {
   if (rawData.smsNotifications !== undefined && rawData.sms_notifications === undefined) rawData.sms_notifications = rawData.smsNotifications;
   if (rawData.notificationTime !== undefined && rawData.notification_time === undefined) rawData.notification_time = rawData.notificationTime;
   if (rawData.schoolLogo !== undefined && rawData.school_logo === undefined) rawData.school_logo = rawData.schoolLogo;
+  if (rawData.reportCardColor !== undefined && rawData.report_card_color === undefined) rawData.report_card_color = rawData.reportCardColor;
   if (rawData.allowAttendanceEditing !== undefined && rawData.allow_attendance_editing === undefined) rawData.allow_attendance_editing = rawData.allowAttendanceEditing;
   if (rawData.restrictLocation !== undefined && rawData.restrict_location === undefined) rawData.restrict_location = rawData.restrictLocation;
   if (rawData.schoolLatitude !== undefined && rawData.school_latitude === undefined) rawData.school_latitude = rawData.schoolLatitude;
