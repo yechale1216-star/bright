@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
   LayoutDashboard, LogOut, User, CheckSquare, BarChart2, BookOpen, 
-  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, Layers, CalendarDays
+  MessageSquare, X, ChevronRight, ShieldBan, HeadphonesIcon, Sun, Moon, Sparkles, ShieldAlert, GraduationCap, UserCheck, Layers, CalendarDays, Bell
 } from 'lucide-react'
 import { useAuth } from '@/lib/context/auth-context'
 import { useSchool } from '@/lib/context/school-context'
@@ -91,6 +91,7 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
     ...(isHomeroomTeacher
       ? [{ href: "/school/teacher/reports", icon: <BarChart2 className="w-5 h-5" />, label: "Attendance Reports" }]
       : []),
+    { href: "/school/teacher/notifications", icon: <Bell className="w-5 h-5" />, label: "Notifications" },
     { href: "/school/teacher/profile", icon: <User className="w-5 h-5" />, label: "Profile" },
   ]
 

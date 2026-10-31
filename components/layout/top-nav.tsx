@@ -23,6 +23,7 @@ import { CommandPalette } from "@/components/ui/command-palette"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { AcademicYearBadge } from "@/components/school/academic-year-badge"
 import { usePWAInstall } from "@/components/system/pwa-install"
+import { NotificationPopover } from "@/components/ui/notification-popover"
 
 interface TopNavProps {
   onMenuClick?: () => void
@@ -170,6 +171,9 @@ export function TopNav({ onMenuClick, showMenuButton = false }: TopNavProps) {
             <div className="hidden sm:block">
               <ModeToggle />
             </div>
+
+            {/* Notification Center Popover */}
+            <NotificationPopover />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

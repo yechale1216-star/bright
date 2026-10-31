@@ -8,7 +8,7 @@ import {
   Settings, LogOut, MessageSquare, Phone, TrendingUp, Calendar,
   X, ChevronRight, Megaphone, MessageCircle, ShieldAlert, ShieldCheck, UserCheck,
   GraduationCap, FileText, Bus, Layers, Award, BarChart3, Clock,
-  ScanFace, PieChart, ClipboardList, History, CalendarDays
+  ScanFace, PieChart, ClipboardList, History, CalendarDays, Bell
 } from 'lucide-react'
 import { cn } from "@/lib/utils/utils"
 
@@ -214,6 +214,7 @@ export default function SchoolAdminClientLayout({
         { href: '/school/admin/discipline',       icon: <ShieldAlert className="w-5 h-5" />,     label: 'Discipline',        roles: ['admin', 'school_admin', 'super_admin', 'discipline_officer'] },
         { href: '/school/admin/users-and-roles',  icon: <ShieldCheck className="w-5 h-5" />,     label: 'Users & Roles',     roles: ['admin', 'school_admin', 'super_admin'] },
         { href: '/school/admin/announcements',    icon: <Megaphone className="w-5 h-5" />,       label: 'Announcements' },
+        { href: '/school/admin/notifications',    icon: <Bell className="w-5 h-5" />,            label: 'Notifications' },
         { href: '/school/admin/communication',    icon: <MessageSquare className="w-5 h-5" />,   label: 'Communication',     badge: totalUnreadCount > 0 ? totalUnreadCount : undefined },
         { href: '/school/admin/settings',         icon: <Settings className="w-5 h-5" />,        label: 'Settings',          roles: ['admin', 'school_admin', 'super_admin'] },
       ],
