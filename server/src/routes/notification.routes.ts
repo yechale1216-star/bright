@@ -13,19 +13,19 @@ export const ROLE_ALLOWED_CATEGORIES: Record<string, string[]> = {
   super_admin: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'ACADEMIC', 'DISCIPLINE', 'SYSTEM', 'GENERAL'],
   school_admin: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'ACADEMIC', 'DISCIPLINE', 'SYSTEM', 'GENERAL'],
   admin: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'ACADEMIC', 'DISCIPLINE', 'SYSTEM', 'GENERAL'],
-  academic_head: ['ALL', 'UNREAD', 'ACADEMIC', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
+  academic_head: ['ALL', 'UNREAD', 'ACADEMIC', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
   teacher: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ACADEMIC', 'ATTENDANCE', 'GENERAL'],
-  discipline_officer: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
-  registrar: ['ALL', 'UNREAD', 'ACADEMIC', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
-  staff_attendance_officer: ['ALL', 'UNREAD', 'ATTENDANCE', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
-  hr_officer: ['ALL', 'UNREAD', 'ATTENDANCE', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
+  discipline_officer: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
+  registrar: ['ALL', 'UNREAD', 'ACADEMIC', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
+  staff_attendance_officer: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
+  hr_officer: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
   librarian: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
-  transport_manager: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
+  transport_manager: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
   parent: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'ACADEMIC', 'DISCIPLINE', 'GENERAL'],
   student: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ACADEMIC', 'ATTENDANCE', 'GENERAL'],
 };
 
-const DEFAULT_STAFF_CATEGORIES = ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'];
+const DEFAULT_STAFF_CATEGORIES = ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'];
 
 // GET /api/notifications — fetch paginated notifications for the authenticated user with role-based category authorization
 router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

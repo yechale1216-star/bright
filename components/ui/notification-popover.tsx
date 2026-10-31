@@ -183,8 +183,6 @@ export function NotificationPopover() {
       case "ATTENDANCE":
         if (isAdmin) router.push("/school/admin/attendance");
         else if (isTeacher) router.push("/school/teacher/attendance");
-        else if (isAcademicHead) router.push("/school/academic-head/staff-attendance");
-        else router.push("/school/staff/attendance");
         break;
       case "DISCIPLINE":
         if (isAdmin) router.push("/school/admin/discipline");

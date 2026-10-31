@@ -43,14 +43,13 @@ const ROLE_DEFAULT_TABS: Record<string, NavTab[]> = {
     { id: "UNREAD", label: "Unread" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
     { id: "ACADEMIC", label: "Academics" },
-    { id: "ATTENDANCE", label: "Attendance" },
+    { id: "ATTENDANCE", label: "Student Attendance" },
   ],
   academic_head: [
     { id: "ALL", label: "All" },
     { id: "UNREAD", label: "Unread" },
     { id: "ACADEMIC", label: "Academics & Exams" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
-    { id: "ATTENDANCE", label: "Staff Attendance" },
     { id: "SYSTEM", label: "System Alerts" },
   ],
   admin: [
@@ -84,7 +83,6 @@ const ROLE_DEFAULT_TABS: Record<string, NavTab[]> = {
     { id: "ALL", label: "All" },
     { id: "UNREAD", label: "Unread" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
-    { id: "ATTENDANCE", label: "Attendance" },
     { id: "SYSTEM", label: "System Alerts" },
   ],
   registrar: [
@@ -92,20 +90,17 @@ const ROLE_DEFAULT_TABS: Record<string, NavTab[]> = {
     { id: "UNREAD", label: "Unread" },
     { id: "ACADEMIC", label: "Academic Records" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
-    { id: "ATTENDANCE", label: "Attendance" },
     { id: "SYSTEM", label: "System Alerts" },
   ],
   staff_attendance_officer: [
     { id: "ALL", label: "All" },
     { id: "UNREAD", label: "Unread" },
-    { id: "ATTENDANCE", label: "Staff Attendance" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
     { id: "SYSTEM", label: "System Alerts" },
   ],
   hr_officer: [
     { id: "ALL", label: "All" },
     { id: "UNREAD", label: "Unread" },
-    { id: "ATTENDANCE", label: "Staff Attendance" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
     { id: "SYSTEM", label: "System Alerts" },
   ],
@@ -119,7 +114,6 @@ const ROLE_DEFAULT_TABS: Record<string, NavTab[]> = {
     { id: "ALL", label: "All" },
     { id: "UNREAD", label: "Unread" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
-    { id: "ATTENDANCE", label: "Attendance" },
     { id: "SYSTEM", label: "System Alerts" },
   ],
   parent: [
@@ -143,7 +137,6 @@ const DEFAULT_STAFF_TABS: NavTab[] = [
   { id: "ALL", label: "All" },
   { id: "UNREAD", label: "Unread" },
   { id: "ANNOUNCEMENT", label: "Announcements" },
-  { id: "ATTENDANCE", label: "Attendance" },
   { id: "SYSTEM", label: "System Alerts" },
 ];
 
@@ -366,8 +359,6 @@ export function NotificationsCenter() {
       case "ATTENDANCE":
         if (isAdmin) router.push("/school/admin/attendance");
         else if (isTeacher) router.push("/school/teacher/attendance");
-        else if (isAcademicHead) router.push("/school/academic-head/staff-attendance");
-        else router.push("/school/staff/attendance");
         break;
       case "DISCIPLINE":
         if (isAdmin) router.push("/school/admin/discipline");
