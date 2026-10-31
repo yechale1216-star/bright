@@ -615,10 +615,10 @@ export function AcademicYearManagementTab() {
                   variant="ghost"
                   size="sm"
                   onClick={() => { setSelectedYear(year); setCloseConfirmName(''); setIsCloseOpen(true) }}
-                  className="h-8 rounded-xl font-bold text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1"
+                  className="h-8 rounded-xl font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5"
                   title="Finalize and close academic year"
                 >
-                  <Lock className="w-3.5 h-3.5 text-amber-600" /> Close Year
+                  <Lock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Close Year
                 </Button>
               )}
 
@@ -654,7 +654,7 @@ export function AcademicYearManagementTab() {
                   <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                     <Layers className="w-4 h-4 text-primary" />
                     Terms & Semesters ({year.terms?.length ?? 0})
-                    {isClosed && <span className="text-amber-600 dark:text-amber-400 font-bold normal-case text-xs">(Read-only: Year Closed)</span>}
+                    {isClosed && <span className="text-slate-500 dark:text-slate-400 font-bold normal-case text-xs">(Read-only: Year Closed)</span>}
                   </span>
                   {!isClosed && (
                     <Button
@@ -756,10 +756,10 @@ export function AcademicYearManagementTab() {
                 <CalendarDays className="w-5 h-5 text-primary" /> Academic Year Lifecycle
               </CardTitle>
               <Badge variant="outline" className={cn(
-                "font-bold text-[10px] px-2.5 py-1 flex items-center gap-1.5 rounded-lg",
+                "font-bold text-[10px] px-2.5 py-1 flex items-center gap-1.5 rounded-lg border",
                 isEthiopian
-                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
-                  : "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                  ? "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/25"
+                  : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25"
               )}>
                 <Globe className="w-3 h-3" />
                 {isEthiopian ? 'Ethiopian Calendar' : 'Gregorian Calendar'}
@@ -773,7 +773,7 @@ export function AcademicYearManagementTab() {
             </div>
             <CardDescription className="text-xs font-medium text-muted-foreground">
               Lifecycle: <strong>Future</strong> (preparation) → <strong>Active</strong> (single operating year) → <strong>Closed</strong> (read-only archive).{' '}
-              <span className={cn("font-semibold", isEthiopian ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400")}>
+              <span className="font-semibold text-foreground/80 dark:text-foreground/90">
                 Dates formatted in {calendarLabel}.
               </span>
             </CardDescription>
@@ -856,10 +856,10 @@ export function AcademicYearManagementTab() {
                 <TableRow className="border-border/80">
                   <TableHead className="font-bold">Academic Year & Status</TableHead>
                   <TableHead className="font-bold">
-                    Start Date <span className={cn("ml-1 text-[9px]", isEthiopian ? "text-amber-600" : "text-blue-600")}>({isEthiopian ? 'EC' : 'GC'})</span>
+                    Start Date <span className="ml-1 text-[9px] text-muted-foreground font-semibold">({isEthiopian ? 'EC' : 'GC'})</span>
                   </TableHead>
                   <TableHead className="font-bold">
-                    End Date <span className={cn("ml-1 text-[9px]", isEthiopian ? "text-amber-600" : "text-blue-600")}>({isEthiopian ? 'EC' : 'GC'})</span>
+                    End Date <span className="ml-1 text-[9px] text-muted-foreground font-semibold">({isEthiopian ? 'EC' : 'GC'})</span>
                   </TableHead>
                   <TableHead className="text-right font-bold px-4">Lifecycle Actions</TableHead>
                 </TableRow>
@@ -1049,10 +1049,10 @@ export function AcademicYearManagementTab() {
             </div>
 
             {activeYear && activeYear.id !== selectedYear?.id && (
-              <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/60 p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+              <div className="rounded-2xl bg-muted/60 border border-border p-3.5 text-xs text-muted-foreground flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-foreground/70" />
                 <div className="space-y-0.5">
-                  <p className="font-bold">Transition from "{activeYear.name}"</p>
+                  <p className="font-bold text-foreground">Transition from "{activeYear.name}"</p>
                   <p className="text-[11px] leading-relaxed">
                     The currently active year will revert to <strong>FUTURE</strong> status (not closed). You can close it separately when all marks are finalized.
                   </p>
@@ -1085,24 +1085,24 @@ export function AcademicYearManagementTab() {
       <Dialog open={isCloseOpen} onOpenChange={setIsCloseOpen}>
         <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-black text-amber-600 dark:text-amber-400">
+            <DialogTitle className="flex items-center gap-2 text-base font-black text-rose-600 dark:text-rose-400">
               <Lock className="w-5 h-5" /> Close Academic Year
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 p-4 space-y-2">
-              <p className="text-sm font-black text-amber-900 dark:text-amber-200">
+            <div className="rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/60 p-4 space-y-2">
+              <p className="text-sm font-black text-rose-900 dark:text-rose-200">
                 ⚠ All academic records will be locked as read-only.
               </p>
-              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+              <p className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed">
                 Closing <strong>"{selectedYear?.name}"</strong> finalizes all student marks, term grades, attendance logs, and report cards. Future edits and deletions are permanently blocked.
               </p>
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-foreground">
-                Type <span className="text-amber-600 dark:text-amber-400 font-black">{selectedYear?.name}</span> to confirm closure:
+                Type <span className="text-rose-600 dark:text-rose-400 font-black">{selectedYear?.name}</span> to confirm closure:
               </Label>
               <Input
                 value={closeConfirmName}
@@ -1120,7 +1120,7 @@ export function AcademicYearManagementTab() {
             <Button
               onClick={handleConfirmClose}
               disabled={isSubmitLoading || closeConfirmName.trim() !== selectedYear?.name.trim()}
-              className="rounded-xl text-xs font-bold h-10 px-5 bg-amber-600 hover:bg-amber-700 text-white gap-1.5 disabled:opacity-50"
+              className="rounded-xl text-xs font-bold h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white gap-1.5 disabled:opacity-50"
             >
               <Lock className="w-4 h-4" />
               {isSubmitLoading ? 'Closing...' : 'Confirm & Close Year'}
