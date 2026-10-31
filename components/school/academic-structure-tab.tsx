@@ -1647,10 +1647,6 @@ export function AcademicStructureTab() {
             <BookOpen className="w-3.5 h-3.5" />
             Subject Assignment
           </TabsTrigger>
-          <TabsTrigger value="terms" className="rounded-xl text-xs font-semibold gap-1.5 py-2">
-            <Calendar className="w-3.5 h-3.5" />
-            Academic Terms
-          </TabsTrigger>
         </TabsList>
 
         {/* Grades & Sections */}
@@ -1696,29 +1692,6 @@ export function AcademicStructureTab() {
           <div className="mt-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 text-xs text-blue-800 dark:text-blue-300">
             <strong>Curriculum Allocation:</strong> Assign subjects to classes based on Grade and Stream. For Grades 11 and 12, selecting the stream (Natural Science or Social Science) is mandatory. Teacher assignments and mark submissions are automatically constrained to these assigned subjects.
           </div>
-        </TabsContent>
-
-        {/* Academic Terms */}
-        <TabsContent value="terms">
-          <Card className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-8 text-center space-y-4 max-w-2xl mx-auto">
-            <div className="w-14 h-14 rounded-3xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center mx-auto text-indigo-600 dark:text-indigo-400 shadow-xs">
-              <CalendarDays className="w-7 h-7" />
-            </div>
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-foreground tracking-tight">Academic Terms & Semesters</h3>
-              <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-                Academic terms belong directly to the school calendar lifecycle. All semesters, quarters, date windows, and active term selections for marks and grading are managed in <strong>Academic Year</strong> settings.
-              </p>
-            </div>
-            <div className="pt-2 flex justify-center gap-3">
-              <Button asChild className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-xs">
-                <a href="/school/admin/academic-years">
-                  <CalendarDays className="w-4 h-4" /> Go to Academic Year & Terms Management
-                  <ExternalLink className="w-3.5 h-3.5 ml-0.5 opacity-80" />
-                </a>
-              </Button>
-            </div>
-          </Card>
         </TabsContent>
 
       </Tabs>
