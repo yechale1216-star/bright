@@ -850,6 +850,10 @@ export function MessagingCenter() {
 
       // 2. Switch active conversation & join socket room FIRST — this
       //    ensures we don't miss any incoming messages while fetching metadata.
+      if (activeConversationId && activeConversationId !== id && socket && isConnected) {
+        socket.emit('leave_conversation', activeConversationId);
+        joinedRoomsRef.current.delete(activeConversationId);
+      }
       setActiveConversationId(id);
       joinedRoomsRef.current.add(id);
       if (socket && isConnected) {
@@ -1684,6 +1688,10 @@ export function MessagingCenter() {
                   onSendMessage={handleSendMessage}
                   isLoading={isFetchingMessages}
                   onBack={() => {
+                    if (activeConversationId && socket && isConnected) {
+                      socket.emit('leave_conversation', activeConversationId);
+                      joinedRoomsRef.current.delete(activeConversationId);
+                    }
                     setActiveConversationId(null);
                     setActiveConversationData(null);
                   }}

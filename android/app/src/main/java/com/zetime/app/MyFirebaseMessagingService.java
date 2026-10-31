@@ -104,6 +104,9 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 handleCancelCall(data);
                 break;
             case "new_message":
+                Log.d(TAG, "Handling chat message notification");
+                handleChatNotification(data);
+                break;
             case "late_arrival":
             case "absent_arrival":
             case "excused_arrival":
@@ -268,6 +271,165 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
         // Group summary notification (required for stacking on Android 7+)
         showGroupSummary(nm, groupKey, type, channelId, unreadCount);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CHAT MESSAGE NOTIFICATION (Telegram/WhatsApp style MessagingStyle)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private void handleChatNotification(Map<String, String> data) {
+        String senderName     = data.get("senderName");
+        if (senderName == null || senderName.isEmpty()) senderName = data.get("title");
+        if (senderName == null || senderName.isEmpty()) senderName = "Unknown";
+
+        String messagePreview = data.get("messagePreview");
+        if (messagePreview == null || messagePreview.isEmpty()) messagePreview = data.get("body");
+        if (messagePreview == null || messagePreview.isEmpty()) messagePreview = "New message";
+
+        String conversationId = data.get("conversationId");
+        if (conversationId == null || conversationId.isEmpty()) conversationId = "default";
+
+        String senderAvatar   = data.get("senderAvatar");
+
+        // Post directly to JS if app is currently in foreground
+        if (isAppInForeground() && MainActivity.getInstance() != null) {
+            Log.d(TAG, "App is in foreground. Posting chat message directly to JS.");
+            com.getcapacitor.JSObject notifData = new com.getcapacitor.JSObject();
+            for (Map.Entry<String, String> entry : data.entrySet()) {
+                notifData.put(entry.getKey(), entry.getValue());
+            }
+            MainActivity.getInstance().postForegroundNotification(notifData);
+        }
+
+        NotificationManager nm = (NotificationManager) this.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+
+        createNotificationChannels(nm);
+
+        // Unique notification ID per conversation — stacks like Telegram
+        int notifId = Math.abs(conversationId.hashCode());
+        String groupKey = "chat-" + conversationId;
+
+        // Open app to target chat on tap
+        Intent openIntent = new Intent(this, MainActivity.class);
+        openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        openIntent.putExtra("notifType", "new_message");
+        openIntent.putExtra("openConversationId", conversationId);
+        openIntent.putExtra("route", "/messaging");
+
+        PendingIntent pi = PendingIntent.getActivity(
+                this, notifId,
+                openIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        // Build initials bitmap as immediate avatar placeholder
+        android.graphics.Bitmap initialsBitmap = createInitialsBitmap(senderName);
+
+        // Person object — represents the sender in MessagingStyle
+        Person sender = new Person.Builder()
+                .setName(senderName)
+                .setIcon(IconCompat.createWithBitmap(initialsBitmap))
+                .build();
+
+        // MessagingStyle — the rich Telegram/WhatsApp-like chat bubble style
+        NotificationCompat.MessagingStyle messagingStyle =
+                new NotificationCompat.MessagingStyle(sender)
+                        .setConversationTitle(null) // null for 1-on-1 direct message
+                        .addMessage(messagePreview, System.currentTimeMillis(), sender);
+
+        Uri soundUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.notification);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_HIGH)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setLargeIcon(initialsBitmap)
+                .setStyle(messagingStyle)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .setSound(soundUri)
+                .setVibrate(new long[]{0, 250, 150, 250})
+                .setGroup(groupKey)
+                .setGroupSummary(false)
+                .setLights(0xFF2196F3, 1000, 2000);
+
+        nm.notify(notifId, builder.build());
+
+        // Group summary notification (required for stacking on Android 7+)
+        showGroupSummary(nm, groupKey, "new_message", CHANNEL_HIGH, 0);
+
+        // Async: download avatar and re-notify with real sender photo
+        final String finalSenderName = senderName;
+        final String finalConversationId = conversationId;
+        final String finalMessagePreview = messagePreview;
+        final int finalNotifId = notifId;
+        loadChatAvatarAndUpdate(
+                senderAvatar, finalSenderName, finalConversationId,
+                finalMessagePreview, finalNotifId, groupKey, pi, nm
+        );
+    }
+
+    /**
+     * Asynchronously downloads the sender's avatar and re-posts the notification
+     * with a circular photo (like Telegram shows). Falls back silently on network error.
+     */
+    private void loadChatAvatarAndUpdate(
+            String avatarUrl, String senderName, String conversationId,
+            String messagePreview, int notifId, String groupKey,
+            PendingIntent pi, NotificationManager nm) {
+
+        if (avatarUrl == null || avatarUrl.isEmpty()) return;
+
+        new Thread(() -> {
+            try {
+                java.net.URL url = new java.net.URL(avatarUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setDoInput(true);
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.connect();
+                java.io.InputStream input = conn.getInputStream();
+                android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(input);
+                if (bitmap == null) return;
+
+                android.graphics.Bitmap circularBitmap = getCircleBitmap(bitmap);
+
+                // Rebuild Person with real avatar
+                Person senderWithPhoto = new Person.Builder()
+                        .setName(senderName)
+                        .setIcon(IconCompat.createWithBitmap(circularBitmap))
+                        .build();
+
+                NotificationCompat.MessagingStyle updatedStyle =
+                        new NotificationCompat.MessagingStyle(senderWithPhoto)
+                                .setConversationTitle(null)
+                                .addMessage(messagePreview, System.currentTimeMillis(), senderWithPhoto);
+
+                Uri soundUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.notification);
+
+                NotificationCompat.Builder updatedBuilder =
+                        new NotificationCompat.Builder(this, CHANNEL_HIGH)
+                                .setSmallIcon(R.mipmap.ic_launcher)
+                                .setLargeIcon(circularBitmap)
+                                .setStyle(updatedStyle)
+                                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                                .setAutoCancel(true)
+                                .setContentIntent(pi)
+                                .setSound(soundUri)
+                                .setVibrate(new long[]{0, 250, 150, 250})
+                                .setGroup(groupKey)
+                                .setGroupSummary(false)
+                                .setLights(0xFF2196F3, 1000, 2000);
+
+                nm.notify(notifId, updatedBuilder.build());
+                Log.d(TAG, "Chat notification updated with sender avatar successfully");
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading sender avatar for chat notification: " + e.getMessage());
+            }
+        }).start();
     }
 
     private void showGroupSummary(NotificationManager nm, String groupKey, String type, String channelId, int unreadCount) {

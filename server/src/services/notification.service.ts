@@ -123,10 +123,12 @@ export async function sendMessageNotification(
     data: {
       type: 'new_message',
       notifType: 'new_message',
+      title: payload.senderName,
+      body: preview,
       conversationId: payload.conversationId,
       senderId: payload.senderId,
       senderName: payload.senderName,
-      senderAvatar: payload.senderAvatar,
+      senderAvatar: payload.senderAvatar || '',
       messagePreview: preview,
       messageType: payload.messageType,
       tag: `chat-${payload.conversationId}`,

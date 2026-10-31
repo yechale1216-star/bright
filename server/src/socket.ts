@@ -41,6 +41,7 @@ const memUserInCall = new Map<string, string>();                 // userId → c
 const memUserInfo = new Map<string, { data: any; expires: number }>();
 const memConvMembers = new Map<string, { memberIds: string[]; expires: number }>();
 const memTempIds = new Map<string, { messageId: string; expires: number }>();
+const memBackgroundedSockets = new Set<string>();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Local store for NodeJS.Timeout handles (cannot be stored in Redis)
@@ -572,10 +573,15 @@ export const initSocket = (server: HttpServer) => {
 
         getConversationMemberIds(data.conversationId).then(async (memberIds) => {
           const pushTargetIds: string[] = [];
+          const roomSockets = io.sockets.adapter.rooms.get(data.conversationId) || new Set<string>();
           for (const id of memberIds) {
             if (id === data.senderId) continue;
-            const online = await isUserOnline(id);
-            if (!online) pushTargetIds.push(id);
+            const memberSocketIds = await getUserSocketIds(id);
+            // Send push if user is fully offline, OR has no active foreground socket viewing this room
+            const hasForegroundInRoom = memberSocketIds.some(sid => 
+              roomSockets.has(sid) && !memBackgroundedSockets.has(sid)
+            );
+            if (!hasForegroundInRoom) pushTargetIds.push(id);
           }
 
           if (pushTargetIds.length === 0) return;
@@ -608,6 +614,24 @@ export const initSocket = (server: HttpServer) => {
       } catch {
         socket.emit('message_error', { message: 'Failed to send', tempId: data.tempId });
       }
+    });
+
+    // ── Leave Conversation ─────────────────────────────────────────────────
+    // Client emits this when navigating away from a chat so the user is no
+    // longer in the room and will receive push notifications when backgrounded.
+    socket.on('leave_conversation', (conversationId: string) => {
+      if (conversationId) {
+        socket.leave(conversationId);
+      }
+    });
+
+    // ── App Visibility ─────────────────────────────────────────────────────
+    socket.on('app_backgrounded', () => {
+      memBackgroundedSockets.add(socket.id);
+    });
+
+    socket.on('app_foregrounded', () => {
+      memBackgroundedSockets.delete(socket.id);
     });
 
     // ── Delete Message ─────────────────────────────────────────────────────
@@ -806,6 +830,7 @@ export const initSocket = (server: HttpServer) => {
 
     // ── Disconnect ─────────────────────────────────────────────────────────
     socket.on('disconnect', async () => {
+      memBackgroundedSockets.delete(socket.id);
       const tenant = await getSocketData(socket.id);
       if (tenant) {
         const { userId } = tenant;

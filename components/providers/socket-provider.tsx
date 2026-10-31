@@ -177,9 +177,20 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       console.log('[Socket] Network lost — socket will auto-reconnect when back online');
     };
 
+    const handleVisibilityChange = () => {
+      if (socketRef.current?.connected) {
+        if (document.hidden) {
+          socketRef.current.emit('app_backgrounded');
+        } else {
+          socketRef.current.emit('app_foregrounded');
+        }
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('online', handleOnline);
       window.addEventListener('offline', handleOffline);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       // Only prompt for web notification permission and register the service worker for web platforms
       if (!Capacitor.isNativePlatform()) {
@@ -217,6 +228,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', handleOnline);
         window.removeEventListener('offline', handleOffline);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
     };
   }, [authenticate]);
