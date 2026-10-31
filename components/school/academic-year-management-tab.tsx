@@ -585,6 +585,15 @@ export function AcademicYearManagementTab() {
     }
   }, [])
 
+  const displayDate = useCallback((isoString: string | null | undefined): string => {
+    if (!isoString) return '-'
+    try {
+      return formatDate(isoString, { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return isoString.split('T')[0]
+    }
+  }, [formatDate])
+
   const loadAcademicYears = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -619,6 +628,57 @@ export function AcademicYearManagementTab() {
     if (activeTabFilter === 'CLOSED') return closedYears
     return academicYears
   }, [activeTabFilter, activeYear, futureYears, closedYears, academicYears])
+
+  // Conflict validation for creating or editing an academic year
+  const formConflict = useMemo(() => {
+    if (!formStartDate || !formEndDate) return null
+
+    const start = new Date(formStartDate).getTime()
+    const end = new Date(formEndDate).getTime()
+    if (isNaN(start) || isNaN(end)) return null
+
+    if (start >= end) {
+      return {
+        type: 'INVALID_DATES',
+        message: 'Start date must be before End date.',
+      }
+    }
+
+    if (formName.trim()) {
+      const dup = academicYears.find(
+        y => (!selectedYear || y.id !== selectedYear.id) &&
+             y.name.trim().toLowerCase() === formName.trim().toLowerCase()
+      )
+      if (dup) {
+        return {
+          type: 'DUPLICATE_NAME',
+          message: `An academic year named "${dup.name}" already exists.`,
+          conflictingYear: dup,
+        }
+      }
+    }
+
+    // Check date range overlap with any existing non-closed academic year
+    const overlap = academicYears.find(y => {
+      if (selectedYear && y.id === selectedYear.id) return false
+      if (y.status === 'CLOSED') return false
+      const yStart = new Date(y.startDate).getTime()
+      const yEnd = new Date(y.endDate).getTime()
+      return yStart < end && yEnd > start
+    })
+
+    if (overlap) {
+      const sFormatted = displayDate(overlap.startDate)
+      const eFormatted = displayDate(overlap.endDate)
+      return {
+        type: 'DATE_OVERLAP',
+        message: `Date range overlaps with existing academic year "${overlap.name}" (${sFormatted} – ${eFormatted}). Academic years must not have overlapping dates.`,
+        conflictingYear: overlap,
+      }
+    }
+
+    return null
+  }, [formStartDate, formEndDate, formName, selectedYear, academicYears, displayDate])
 
   const resetForm = () => {
     setFormName('')
@@ -665,6 +725,10 @@ export function AcademicYearManagementTab() {
       notifications.warning('Missing Fields', 'Please complete all required fields.')
       return
     }
+    if (formConflict) {
+      notifications.warning('Conflict Detected', formConflict.message)
+      return
+    }
     setIsSubmitLoading(true)
     try {
       const res = await fetch(`${getApiUrl()}/api/academic-years`, {
@@ -697,6 +761,14 @@ export function AcademicYearManagementTab() {
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedYear) return
+    if (!formName.trim() || !formStartDate || !formEndDate) {
+      notifications.warning('Missing Fields', 'Please complete all required fields.')
+      return
+    }
+    if (formConflict) {
+      notifications.warning('Conflict Detected', formConflict.message)
+      return
+    }
     setIsSubmitLoading(true)
     try {
       const res = await fetch(`${getApiUrl()}/api/academic-years/${selectedYear.id}`, {
@@ -909,15 +981,6 @@ export function AcademicYearManagementTab() {
       }
     } catch (error: any) {
       notifications.error('Error', error.message)
-    }
-  }
-
-  const displayDate = (isoString: string | null | undefined): string => {
-    if (!isoString) return '-'
-    try {
-      return formatDate(isoString, { month: 'short', day: 'numeric', year: 'numeric' })
-    } catch {
-      return isoString.split('T')[0]
     }
   }
 
@@ -1400,11 +1463,21 @@ export function AcademicYearManagementTab() {
               </div>
             </div>
 
+            {formConflict && (
+              <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 p-3.5 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-0.5">
+                  <p className="font-bold">Conflict Detected</p>
+                  <p className="text-[11px] leading-relaxed">{formConflict.message}</p>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
+              <Button type="submit" disabled={isSubmitLoading || Boolean(formConflict)} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white disabled:opacity-50">
                 {isSubmitLoading ? 'Saving...' : 'Create Academic Year'}
               </Button>
             </DialogFooter>
@@ -1458,11 +1531,21 @@ export function AcademicYearManagementTab() {
               </div>
             </div>
 
+            {formConflict && (
+              <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 p-3.5 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-0.5">
+                  <p className="font-bold">Conflict Detected</p>
+                  <p className="text-[11px] leading-relaxed">{formConflict.message}</p>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
+              <Button type="submit" disabled={isSubmitLoading || Boolean(formConflict)} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white disabled:opacity-50">
                 {isSubmitLoading ? 'Updating...' : 'Save Changes'}
               </Button>
             </DialogFooter>

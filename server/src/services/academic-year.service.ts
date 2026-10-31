@@ -195,6 +195,24 @@ export class AcademicYearService {
       throw new Error(`Academic year "${trimmedName}" already exists`);
     }
 
+    // Check for date range overlap with any non-CLOSED academic year
+    const overlapping = await prisma.academicYear.findFirst({
+      where: {
+        status: { not: 'CLOSED' as any },
+        AND: [
+          { startDate: { lt: end } },
+          { endDate: { gt: start } },
+        ],
+      },
+    });
+    if (overlapping) {
+      throw new Error(
+        `Date range overlaps with existing academic year "${overlapping.name}" ` +
+        `(${overlapping.startDate.toISOString().split('T')[0]} – ${overlapping.endDate.toISOString().split('T')[0]}). ` +
+        `Academic years must not have overlapping date ranges.`
+      );
+    }
+
     return await prisma.$transaction(async (tx) => {
       if (isCurrent) {
         // Deactivate all existing active years (both isCurrent and orphaned status='ACTIVE')
@@ -267,7 +285,16 @@ export class AcademicYearService {
     }
 
     const updatePayload: any = {};
-    if (data.name) updatePayload.name = data.name.trim();
+    if (data.name) {
+      const trimmedName = data.name.trim();
+      const duplicateName = await prisma.academicYear.findFirst({
+        where: { name: trimmedName, id: { not: id } },
+      });
+      if (duplicateName) {
+        throw new Error(`Academic year "${trimmedName}" already exists`);
+      }
+      updatePayload.name = trimmedName;
+    }
     if (data.status && data.status !== 'CLOSED') {
       // Direct status update (except CLOSED, which should use closeAcademicYear)
       updatePayload.status = data.status;
@@ -275,8 +302,30 @@ export class AcademicYearService {
     if (data.startDate) updatePayload.startDate = new Date(data.startDate);
     if (data.endDate) updatePayload.endDate = new Date(data.endDate);
 
-    if (updatePayload.startDate && updatePayload.endDate && updatePayload.startDate >= updatePayload.endDate) {
+    const targetStart = updatePayload.startDate || new Date(yearRecord.startDate);
+    const targetEnd = updatePayload.endDate || new Date(yearRecord.endDate);
+
+    if (targetStart >= targetEnd) {
       throw new Error('Start date must be before End date');
+    }
+
+    // Check for date range overlap with any other non-CLOSED academic year
+    const overlapping = await prisma.academicYear.findFirst({
+      where: {
+        id: { not: id },
+        status: { not: 'CLOSED' as any },
+        AND: [
+          { startDate: { lt: targetEnd } },
+          { endDate: { gt: targetStart } },
+        ],
+      },
+    });
+    if (overlapping) {
+      throw new Error(
+        `Date range overlaps with existing academic year "${overlapping.name}" ` +
+        `(${overlapping.startDate.toISOString().split('T')[0]} – ${overlapping.endDate.toISOString().split('T')[0]}). ` +
+        `Academic years must not have overlapping date ranges.`
+      );
     }
 
     return await prisma.$transaction(async (tx) => {
@@ -561,6 +610,14 @@ export class AcademicYearService {
     const end = new Date(endDate);
     if (start >= end) throw new Error('Start date must be before End date');
 
+    const yearStart = new Date(parentYear.startDate);
+    const yearEnd = new Date(parentYear.endDate);
+    if (start < yearStart || end > yearEnd) {
+      throw new Error(
+        `Term dates must be within the academic year range (${parentYear.startDate.toISOString().split('T')[0]} – ${parentYear.endDate.toISOString().split('T')[0]})`
+      );
+    }
+
     const trimmedName = name.trim();
     const existing = await prisma.academicTerm.findFirst({
       where: { academicYearId, name: trimmedName },
@@ -598,12 +655,32 @@ export class AcademicYearService {
     }
 
     const updatePayload: any = {};
-    if (data.name) updatePayload.name = data.name.trim();
+    if (data.name) {
+      const trimmedName = data.name.trim();
+      const existing = await prisma.academicTerm.findFirst({
+        where: { academicYearId: term.academicYearId, name: trimmedName, id: { not: id } },
+      });
+      if (existing) {
+        throw new Error(`A term named "${trimmedName}" already exists in this academic year`);
+      }
+      updatePayload.name = trimmedName;
+    }
     if (data.startDate) updatePayload.startDate = new Date(data.startDate);
     if (data.endDate) updatePayload.endDate = new Date(data.endDate);
 
-    if (updatePayload.startDate && updatePayload.endDate && updatePayload.startDate >= updatePayload.endDate) {
+    const targetStart = updatePayload.startDate || new Date(term.startDate);
+    const targetEnd = updatePayload.endDate || new Date(term.endDate);
+
+    if (targetStart >= targetEnd) {
       throw new Error('Start date must be before End date');
+    }
+
+    const yearStart = new Date(term.academicYear.startDate);
+    const yearEnd = new Date(term.academicYear.endDate);
+    if (targetStart < yearStart || targetEnd > yearEnd) {
+      throw new Error(
+        `Term dates must be within the academic year range (${term.academicYear.startDate.toISOString().split('T')[0]} – ${term.academicYear.endDate.toISOString().split('T')[0]})`
+      );
     }
 
     return await prisma.$transaction(async (tx) => {
