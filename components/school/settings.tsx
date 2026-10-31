@@ -18,7 +18,7 @@ import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
-import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock } from "lucide-react"
+import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock, Sliders, CalendarDays, Network, Clock, UserCheck, ShieldAlert, Cpu } from "lucide-react"
 import { useCalendar } from "@/lib/context/calendar-context"
 import dynamic from "next/dynamic"
 
@@ -35,6 +35,7 @@ const GeofenceMapPicker = dynamic(
 
 export function Settings() {
   const { calendarPreference, setCalendarPreference } = useCalendar()
+  const [activeTab, setActiveTab] = useState("general")
   const [settings, setSettings] = useState<any>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -255,33 +256,134 @@ export function Settings() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="flex w-full bg-slate-100/50 dark:bg-slate-900/50 p-1 rounded-[20px] overflow-x-auto scrollbar-hide border border-slate-200/50 dark:border-slate-800/50 h-12">
-          <TabsTrigger value="general" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">General</TabsTrigger>
-          <TabsTrigger value="academic_year" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Academic Year</TabsTrigger>
-          <TabsTrigger value="academic_structure" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Academic Structure</TabsTrigger>
-          <TabsTrigger value="staff_schedule" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Staff Schedule & Holidays</TabsTrigger>
-          <TabsTrigger value="attendance" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Student Rules</TabsTrigger>
-          <TabsTrigger value="lifecycle_policy" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">Lifecycle & Policies</TabsTrigger>
-          <TabsTrigger value="system" className="flex-1 rounded-2xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm text-[10px] uppercase font-black tracking-widest transition-all">System</TabsTrigger>
-        </TabsList>
+      {/* Mobile Settings Tab Selector */}
+      <div className="md:hidden space-y-1.5">
+        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Settings Section
+        </label>
+        <Select value={activeTab} onValueChange={(val) => setActiveTab(val)}>
+          <SelectTrigger className="w-full h-12 rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-bold shadow-sm">
+            <SelectValue placeholder="Select Settings Section" />
+          </SelectTrigger>
+          <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 shadow-xl">
+            <SelectItem value="general" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>General Configuration</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="academic_year" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Academic Year</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="academic_structure" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <Network className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Academic Structure</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="staff_schedule" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Staff Schedule & Holidays</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="attendance" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>Student Rules</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="lifecycle_policy" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span>Lifecycle & Policies</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="system" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                <span>System & Data</span>
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-        <TabsContent value="academic_year" className="space-y-4">
-          <AcademicYearManagementTab />
-        </TabsContent>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+          {/* Desktop Left Vertical Settings Navigation */}
+          <aside className="hidden md:block md:col-span-4 lg:col-span-3 sticky top-4">
+            <nav className="p-2 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md rounded-3xl border border-slate-200/70 dark:border-slate-800/70 shadow-sm space-y-1">
+              <div className="px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Settings Menu
+                </p>
+              </div>
 
-        <TabsContent value="academic_structure" className="space-y-4">
-          <AcademicStructureTab />
-        </TabsContent>
+              {[
+                { id: "general", label: "General", desc: "Calendar, Phone & Address", icon: Sliders, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40" },
+                { id: "academic_year", label: "Academic Year", desc: "Terms, Semesters & Dates", icon: CalendarDays, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40" },
+                { id: "academic_structure", label: "Academic Structure", desc: "Grades, Sections & Subjects", icon: Network, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
+                { id: "staff_schedule", label: "Staff Schedule", desc: "Work Hours, Shifts & Holidays", icon: Clock, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40" },
+                { id: "attendance", label: "Student Rules", desc: "Attendance & Homeroom", icon: UserCheck, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40" },
+                { id: "lifecycle_policy", label: "Lifecycle & Policies", desc: "Data Retention & Promotion", icon: ShieldAlert, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40" },
+                { id: "system", label: "System & Data", desc: "Backup, Export & Version", icon: Cpu, color: "text-cyan-600 dark:text-cyan-400", bg: "bg-cyan-50 dark:bg-cyan-950/40" },
+              ].map((tab) => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "w-full text-left px-3.5 py-3 rounded-2xl flex items-center gap-3 transition-all group",
+                      isActive
+                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all",
+                      isActive ? "bg-white/20 dark:bg-slate-900/10 text-white dark:text-slate-900" : `${tab.bg} ${tab.color}`
+                    )}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("text-xs font-black tracking-tight truncate", isActive ? "text-white dark:text-slate-900" : "text-slate-800 dark:text-slate-200")}>
+                        {tab.label}
+                      </p>
+                      <p className={cn("text-[10px] truncate leading-tight mt-0.5", isActive ? "text-white/70 dark:text-slate-600" : "text-slate-400")}>
+                        {tab.desc}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </nav>
+          </aside>
 
-        <TabsContent value="staff_schedule" className="space-y-4">
-          <StaffScheduleSettingsTab
-            settings={settings}
-            setSettings={setSettings}
-            onSaveSettings={saveSettings}
-            isSaving={isSaving}
-          />
-        </TabsContent>
+          {/* Settings Content Area */}
+          <main className="md:col-span-8 lg:col-span-9 space-y-6">
+            <TabsContent value="academic_year" className="mt-0 space-y-4">
+              <AcademicYearManagementTab />
+            </TabsContent>
+
+            <TabsContent value="academic_structure" className="mt-0 space-y-4">
+              <AcademicStructureTab />
+            </TabsContent>
+
+            <TabsContent value="staff_schedule" className="mt-0 space-y-4">
+              <StaffScheduleSettingsTab
+                settings={settings}
+                setSettings={setSettings}
+                onSaveSettings={saveSettings}
+                isSaving={isSaving}
+              />
+            </TabsContent>
 
         <TabsContent value="general" className="space-y-4">
           <Card>
@@ -580,6 +682,8 @@ export function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
+          </main>
+        </div>
       </Tabs>
 
       {/* Mobile Sticky Save Button */}
