@@ -1679,6 +1679,9 @@ export class GradebookService {
       phone: settings?.school_phone || '0251 - 11 41 87 / 1838',
       logo: settings?.school_logo || '/bright-path-logo.png',
       primaryColor: (settings as any)?.report_card_color || '#1e3a8a',
+      backgroundColor: (settings as any)?.report_card_bg_color || '#ffffff',
+      textColor: (settings as any)?.report_card_text_color || '#0f172a',
+      borderRadius: (settings as any)?.report_card_border_radius ?? 4,
     };
 
     // Calculate Student Age
@@ -2154,7 +2157,7 @@ export class GradebookService {
         gender: student.gender || 'M',
         age: studentAge,
         dateOfBirth: student.date_of_birth,
-        photo: student.user?.profile_photo || null,
+        photo: student.profile_photo || student.user?.profile_photo || null,
         status: student.status,
       },
       academic: {
@@ -2799,6 +2802,9 @@ export class GradebookService {
       phone: settings?.school_phone || '0251 - 11 41 87 / 1838',
       logo: settings?.school_logo || '/bright-path-logo.png',
       primaryColor: (settings as any)?.report_card_color || '#1e3a8a',
+      backgroundColor: (settings as any)?.report_card_bg_color || '#ffffff',
+      textColor: (settings as any)?.report_card_text_color || '#0f172a',
+      borderRadius: (settings as any)?.report_card_border_radius ?? 4,
     };
 
     if (reportCard) {
@@ -2870,7 +2876,7 @@ export class GradebookService {
           studentId: reportCard.student.student_id,
           fullName: reportCard.student.fullName,
           gender: reportCard.student.gender || 'M',
-          photo: reportCard.student.user?.profile_photo || null,
+          photo: reportCard.student.profile_photo || reportCard.student.user?.profile_photo || null,
         },
         academic: {
           gradeName: reportCard.grade?.name || '10',
@@ -2947,7 +2953,7 @@ export class GradebookService {
         studentId: student.student_id,
         fullName: student.fullName,
         gender: student.gender || 'M',
-        photo: student.user?.profile_photo || null,
+        photo: student.profile_photo || student.user?.profile_photo || null,
       },
       academic: {
         gradeName: comp.academic?.gradeName || student.grade?.name || '10',

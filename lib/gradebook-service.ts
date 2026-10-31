@@ -304,6 +304,9 @@ export interface ComprehensiveReportCardData {
     phone: string;
     logo: string;
     primaryColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    borderRadius?: number;
   };
   student: {
     id: string;

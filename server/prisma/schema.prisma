@@ -175,6 +175,9 @@ model SchoolSettings {
   updatedAt                             DateTime @updatedAt
   school_logo                           String?
   report_card_color                     String?  @default("#1e3a8a")
+  report_card_bg_color                  String?  @default("#ffffff")
+  report_card_text_color                 String?  @default("#0f172a")
+  report_card_border_radius             Int?     @default(4)
 }
 
 model SchoolHoliday {
@@ -275,6 +278,7 @@ model Student {
   sectionId              String
   streamId               String?
   address                String?
+  profile_photo          String?
   accountStatus          String                      @default("PENDING_ACTIVATION")
   activation_code        String?
   activation_code_expires DateTime?

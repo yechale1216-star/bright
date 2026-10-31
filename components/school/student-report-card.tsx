@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import { ComprehensiveReportCardData } from '@/lib/gradebook-service';
@@ -13,6 +13,54 @@ interface StudentReportCardProps {
   className?: string;
   defaultSide?: ReportCardSide;
   allowSideToggle?: boolean;
+}
+
+// ============================================================================
+// THEME COLOR UTILITIES
+// Harmonizes background & text colors across the entire report card
+// ============================================================================
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  let c = (hex || '').replace('#', '').trim();
+  if (c.length === 3) c = c.split('').map((x) => x + x).join('');
+  const num = parseInt(c, 16);
+  if (isNaN(num) || (c.length !== 6 && c.length !== 8)) {
+    return { r: 15, g: 23, b: 42 };
+  }
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+function mixColors(color1: string, color2: string, weight: number): string {
+  const rgb1 = hexToRgb(color1);
+  const rgb2 = hexToRgb(color2);
+  const w = Math.max(0, Math.min(1, weight));
+  const r = Math.round(rgb1.r * w + rgb2.r * (1 - w));
+  const g = Math.round(rgb1.g * w + rgb2.g * (1 - w));
+  const b = Math.round(rgb1.b * w + rgb2.b * (1 - w));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export function createReportCardTheme(bgColor?: string, textColor?: string) {
+  const bg = bgColor || '#ffffff';
+  const text = textColor || '#0f172a';
+
+  return {
+    bg,
+    text,
+    textMuted: hexToRgba(text, 0.72),
+    textSubtle: hexToRgba(text, 0.55),
+    border: hexToRgba(text, 0.28),
+    borderLight: hexToRgba(text, 0.16),
+    borderStrong: hexToRgba(text, 0.75),
+    surface: mixColors(text, bg, 0.04),
+    surfaceAlt: mixColors(text, bg, 0.02),
+    surfaceStrong: mixColors(text, bg, 0.08),
+    surfaceAccent: mixColors(text, bg, 0.12),
+  };
 }
 
 // ============================================================================
@@ -36,10 +84,15 @@ export function StudentReportCardFront({
     issueDate,
     qrCodeData,
   } = card;
-  const primaryColor = school?.primaryColor || '#1e3a8a';
+
+  const theme = useMemo(
+    () => createReportCardTheme(school?.backgroundColor, school?.textColor),
+    [school?.backgroundColor, school?.textColor]
+  );
+  const borderRadius = typeof school?.borderRadius === 'number' ? school.borderRadius : 4;
 
   // Compute a live, scan-ready mobile verification URL
-  const qrVerificationUrl = React.useMemo(() => {
+  const qrVerificationUrl = useMemo(() => {
     const fallbackId = student?.studentId || student?.id || reportCardId || 'verified';
     if (typeof window !== 'undefined') {
       const origin = window.location.origin;
@@ -58,12 +111,25 @@ export function StudentReportCardFront({
 
   return (
     <div
-      className={`report-card-front relative bg-white text-slate-900 font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text border border-slate-300 print:border-none ${className}`}
+      className={`report-card-front relative font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text ${className}`}
       style={{
         boxSizing: 'border-box',
         minHeight: '290mm',
         pageBreakAfter: 'always',
         breakAfter: 'page',
+        backgroundColor: theme.bg,
+        color: theme.text,
+        border: `3px solid ${theme.borderStrong}`,
+        outline: `1px solid ${theme.borderLight}`,
+        outlineOffset: '-6px',
+        borderRadius: `${borderRadius}px`, overflow: 'hidden',
+        // Centralized CSS variables for nested elements and print
+        ['--rc-bg' as any]: theme.bg,
+        ['--rc-text' as any]: theme.text,
+        ['--rc-text-muted' as any]: theme.textMuted,
+        ['--rc-border' as any]: theme.border,
+        ['--rc-surface' as any]: theme.surface,
+        ['--rc-surface-strong' as any]: theme.surfaceStrong,
       }}
     >
       {/* Background Watermark Crest */}
@@ -87,11 +153,20 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 1. OFFICIAL HEADER SECTION */}
         {/* ==================================================== */}
-        <div className="border-b border-slate-800 pb-3" style={{ borderBottomColor: primaryColor }}>
+        <div
+          className="pb-3"
+          style={{ borderBottom: `2px solid ${theme.borderStrong}` }}
+        >
           <div className="flex items-start justify-between gap-3">
             {/* Left School Logo Emblem */}
             <div className="flex-shrink-0 pt-0.5">
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border border-slate-300 bg-white shadow-2xs">
+              <div
+                className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-2xs"
+                style={{
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
                 <Image
                   src={school.logo || '/bright-path-logo.png'}
                   alt={school.name}
@@ -104,13 +179,22 @@ export function StudentReportCardFront({
 
             {/* Center School Titles & Contact */}
             <div className="flex-1 text-center px-2">
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-tight">
+              <h1
+                className="text-xl sm:text-2xl font-black tracking-tight leading-tight"
+                style={{ color: theme.text }}
+              >
                 {school.amharicName || 'ብራይት ፓዝ ት/ቤት'} ::
               </h1>
-              <h2 className="text-lg sm:text-xl font-bold tracking-wide text-slate-800 mt-0.5 font-serif italic">
+              <h2
+                className="text-lg sm:text-xl font-bold tracking-wide mt-0.5 font-serif italic"
+                style={{ color: theme.text }}
+              >
                 {school.name || 'Bright Path School'}
               </h2>
-              <div className="flex items-center justify-center gap-3 text-[11px] sm:text-xs text-slate-600 font-medium mt-1">
+              <div
+                className="flex items-center justify-center gap-3 text-[11px] sm:text-xs font-medium mt-1"
+                style={{ color: theme.textMuted }}
+              >
                 <span>{school.address || 'Dire Dawa'}</span>
                 <span>•</span>
                 <span>☎ {school.phone || '0251 - 11 41 87'}</span>
@@ -118,7 +202,13 @@ export function StudentReportCardFront({
                 <span>✉ 1838</span>
               </div>
               <div className="mt-1.5">
-                <span className="inline-block text-xs sm:text-sm font-bold tracking-wider text-slate-900 border-b border-slate-700 pb-0.5 uppercase">
+                <span
+                  className="inline-block text-xs sm:text-sm font-bold tracking-wider pb-0.5 uppercase"
+                  style={{
+                    color: theme.text,
+                    borderBottom: `1.5px solid ${theme.borderStrong}`,
+                  }}
+                >
                   Student&apos;s Grade Report
                 </span>
               </div>
@@ -126,7 +216,13 @@ export function StudentReportCardFront({
 
             {/* Right Side: QR Code Verification Badge */}
             <div className="flex-shrink-0 flex flex-col items-center justify-center pt-0.5">
-              <div className="p-1 bg-white border border-slate-400 rounded-sm shadow-2xs">
+              <div
+                className="p-1 rounded-sm shadow-2xs"
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
                 <QRCodeSVG
                   value={qrVerificationUrl}
                   size={58}
@@ -134,7 +230,10 @@ export function StudentReportCardFront({
                   includeMargin={false}
                 />
               </div>
-              <span className="text-[9px] font-mono text-slate-500 mt-0.5 tracking-tighter">
+              <span
+                className="text-[9px] font-mono mt-0.5 tracking-tighter"
+                style={{ color: theme.textSubtle }}
+              >
                 {reportCardId ? reportCardId.substring(0, 14) : 'BP-VERIFIED'}
               </span>
             </div>
@@ -144,63 +243,121 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 2. STUDENT & CLASS INFORMATION BAR */}
         {/* ==================================================== */}
-        <div className="flex items-center justify-between gap-4 py-2 px-3 bg-slate-50 border border-slate-300 rounded-sm text-xs sm:text-[13px]" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
+        <div
+          className="flex items-center justify-between gap-4 py-2 px-3 rounded-sm text-xs sm:text-[13px]"
+          style={{
+            backgroundColor: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderLeft: `4px solid ${theme.borderStrong}`,
+          }}
+        >
           <div className="flex-1 space-y-1.5">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <div>
-                <span className="font-semibold text-slate-600">Home-room Teacher&apos;s Name : </span>
-                <span className="font-bold text-slate-900 underline decoration-slate-400 decoration-1 underline-offset-2">
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Home-room Teacher&apos;s Name :{' '}
+                </span>
+                <span
+                  style={{
+                    color: theme.text,
+                    textDecorationColor: theme.border,
+                  }}
+                  className="font-bold underline decoration-1 underline-offset-2"
+                >
                   {academic.homeroomTeacherName || 'Anteeh Addisu Legesse'}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-slate-800">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
               <div>
-                <span className="font-semibold text-slate-600">Student&apos;s Name : </span>
-                <span className="font-black text-slate-900 text-sm">{student.fullName}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Student&apos;s Name :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-black text-sm">
+                  {student.fullName}
+                </span>
               </div>
               <div>
-                <span className="font-semibold text-slate-600">Gender : </span>
-                <span className="font-bold text-slate-900">{student.gender || 'M'}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Gender :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-bold">
+                  {student.gender || 'M'}
+                </span>
               </div>
               <div>
-                <span className="font-semibold text-slate-600">Age : </span>
-                <span className="font-bold text-slate-900">{student.age || '14'}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Age :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-bold">
+                  {student.age || '14'}
+                </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-slate-800">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
               <div>
-                <span className="font-semibold text-slate-600">Grade : </span>
-                <span className="font-bold text-slate-900">{academic.gradeName}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Grade :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-bold">
+                  {academic.gradeName}
+                </span>
               </div>
               <div>
-                <span className="font-semibold text-slate-600">Section : </span>
-                <span className="font-bold text-slate-900">{academic.sectionName}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Section :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-bold">
+                  {academic.sectionName}
+                </span>
               </div>
               {academic.streamName && (
                 <div>
-                  <span className="font-semibold text-slate-600">Stream : </span>
-                  <span className="font-black text-indigo-900 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                  <span style={{ color: theme.textMuted }} className="font-semibold">
+                    Stream :{' '}
+                  </span>
+                  <span
+                    style={{
+                      color: theme.text,
+                      backgroundColor: theme.surfaceStrong,
+                      border: `1px solid ${theme.border}`,
+                    }}
+                    className="font-black px-1.5 py-0.5 rounded"
+                  >
                     {academic.streamName}
                   </span>
                 </div>
               )}
               <div>
-                <span className="font-semibold text-slate-600">Year : </span>
-                <span className="font-bold text-slate-900">{academic.academicYearName}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Year :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-bold">
+                  {academic.academicYearName}
+                </span>
               </div>
               <div>
-                <span className="font-semibold text-slate-600">Student ID : </span>
-                <span className="font-mono font-bold text-slate-900">{student.studentId}</span>
+                <span style={{ color: theme.textMuted }} className="font-semibold">
+                  Student ID :{' '}
+                </span>
+                <span style={{ color: theme.text }} className="font-mono font-bold">
+                  {student.studentId}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Student Photo */}
           <div className="flex-shrink-0">
-            <div className="w-16 h-20 sm:w-18 sm:h-22 rounded-sm border-2 border-slate-400 bg-emerald-700 overflow-hidden relative flex items-center justify-center shadow-2xs">
+            <div
+              className="w-16 h-20 sm:w-18 sm:h-22 rounded-sm overflow-hidden relative flex items-center justify-center shadow-2xs"
+              style={{
+                border: `2px solid ${theme.border}`,
+                backgroundColor: theme.surfaceStrong,
+              }}
+            >
               {student.photo ? (
                 <Image
                   src={student.photo}
@@ -209,11 +366,24 @@ export function StudentReportCardFront({
                   className="object-cover"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-white p-1 text-center">
-                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center mb-1">
-                    <span className="text-xs font-bold">{student.fullName?.charAt(0) || 'S'}</span>
+                <div
+                  className="flex flex-col items-center justify-center p-1 text-center"
+                  style={{ color: theme.text }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center mb-1"
+                    style={{ backgroundColor: theme.surfaceAccent }}
+                  >
+                    <span className="text-xs font-bold">
+                      {student.fullName?.charAt(0) || 'S'}
+                    </span>
                   </div>
-                  <span className="text-[9px] font-semibold leading-tight text-white/90">PHOTO</span>
+                  <span
+                    className="text-[9px] font-semibold leading-tight"
+                    style={{ color: theme.textMuted }}
+                  >
+                    PHOTO
+                  </span>
                 </div>
               )}
             </div>
@@ -224,30 +394,83 @@ export function StudentReportCardFront({
         {/* 3. DYNAMIC SUBJECT RESULT TABLE */}
         {/* ==================================================== */}
         <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse border border-slate-900">
+          <table
+            className="w-full text-xs border-collapse"
+            style={{
+              border: `2px solid ${theme.borderStrong}`,
+              color: theme.text,
+            }}
+          >
             <thead>
-              <tr className="font-bold border-b border-slate-900 text-center text-[11px] sm:text-xs text-white" style={{ backgroundColor: primaryColor }}>
-                <th className="py-1.5 px-3 text-left border-r border-slate-900 w-36 sm:w-44">Subject</th>
-                <th className="py-1.5 px-2 border-r border-slate-900 w-16">Weight</th>
+              <tr
+                className="font-bold text-center text-[11px] sm:text-xs"
+                style={{
+                  backgroundColor: theme.surfaceStrong,
+                  color: theme.text,
+                  borderBottom: `2px solid ${theme.borderStrong}`,
+                }}
+              >
+                <th
+                  className="py-1.5 px-3 text-left w-36 sm:w-44"
+                  style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                >
+                  Subject
+                </th>
+                <th
+                  className="py-1.5 px-2 w-16"
+                  style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                >
+                  Weight
+                </th>
                 {periods.map((period) => (
-                  <th key={period.id} className="py-1.5 px-2 border-r border-slate-900 w-20">
+                  <th
+                    key={period.id}
+                    className="py-1.5 px-2 w-20"
+                    style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                  >
                     {period.label}
                   </th>
                 ))}
-                <th className="py-1.5 px-2 border-r border-slate-900 w-18">Total</th>
+                <th
+                  className="py-1.5 px-2 w-18"
+                  style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                >
+                  Total
+                </th>
                 <th className="py-1.5 px-2 w-24">Average</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-400">
-              {subjectRows.map((row) => {
-                const policyPassingThreshold = summary.passingMinScore ?? card.gradingPolicy?.passingMinScore ?? 50;
+            <tbody>
+              {subjectRows.map((row, idx) => {
+                const policyPassingThreshold =
+                  summary.passingMinScore ?? card.gradingPolicy?.passingMinScore ?? 50;
                 const isRowFailing = row.isPassing === false;
+                const rowBg = idx % 2 === 1 ? theme.surfaceAlt : 'transparent';
+
                 return (
-                  <tr key={row.subjectId} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-1 px-3 text-left font-semibold text-slate-900 border-r border-slate-900 whitespace-nowrap">
+                  <tr
+                    key={row.subjectId}
+                    style={{
+                      backgroundColor: rowBg,
+                      borderBottom: `1px solid ${theme.border}`,
+                    }}
+                  >
+                    <td
+                      className="py-1 px-3 text-left font-semibold whitespace-nowrap"
+                      style={{
+                        borderRight: `1px solid ${theme.border}`,
+                        color: theme.text,
+                      }}
+                    >
                       {row.subjectName}
                     </td>
-                    <td className="py-1 px-2 text-center text-slate-800 border-r border-slate-900 font-medium">
+                    <td
+                      className="py-1 px-2 text-center font-medium"
+                      style={{
+                        borderRight: `1px solid ${theme.border}`,
+                        color: theme.textMuted,
+                      }}
+                    >
                       {row.weight}%
                     </td>
                     {periods.map((period) => {
@@ -257,22 +480,35 @@ export function StudentReportCardFront({
                       return (
                         <td
                           key={period.id}
-                          className={`py-1 px-2 text-center font-bold border-r border-slate-900 ${
-                            isPeriodFailing ? 'text-rose-600 font-extrabold' : 'text-slate-900'
-                          }`}
+                          className="py-1 px-2 text-center font-bold"
+                          style={{
+                            borderRight: `1px solid ${theme.border}`,
+                            color: isPeriodFailing ? '#e11d48' : theme.text,
+                          }}
                         >
                           {hasScore ? score : '—'}
                         </td>
                       );
                     })}
-                    <td className="py-1 px-2 text-center font-extrabold text-slate-900 border-r border-slate-900 bg-slate-50/50">
+                    <td
+                      className="py-1 px-2 text-center font-extrabold"
+                      style={{
+                        borderRight: `1px solid ${theme.border}`,
+                        backgroundColor: theme.surfaceAlt,
+                        color: theme.text,
+                      }}
+                    >
                       {row.total}
                     </td>
-                    <td className="py-1 px-2 text-center font-black bg-slate-50/50">
+                    <td
+                      className="py-1 px-2 text-center font-black"
+                      style={{
+                        backgroundColor: theme.surfaceAlt,
+                        color: isRowFailing ? '#e11d48' : theme.text,
+                      }}
+                    >
                       <div className="flex items-center justify-center gap-1">
-                        <span className={isRowFailing ? 'text-rose-600' : 'text-slate-900'}>
-                          {row.average}
-                        </span>
+                        <span>{row.average}</span>
                         {isRowFailing && (
                           <span className="text-[8.5px] px-1 py-0.2 rounded font-black uppercase bg-rose-100 text-rose-700 border border-rose-300">
                             Fail
@@ -288,11 +524,29 @@ export function StudentReportCardFront({
               {/* SUMMARY ROWS AT BOTTOM */}
               {/* ==================================================== */}
               {/* TOTAL ROW */}
-              <tr className="bg-slate-100/80 font-bold border-t-2 border-slate-900 text-center">
-                <td className="py-1.5 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+              <tr
+                className="font-bold text-center"
+                style={{
+                  backgroundColor: theme.surfaceStrong,
+                  borderTop: `2px solid ${theme.borderStrong}`,
+                }}
+              >
+                <td
+                  className="py-1.5 px-3 text-left font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   Total
                 </td>
-                <td className="py-1.5 px-2 border-r border-slate-900 font-bold text-slate-900">
+                <td
+                  className="py-1.5 px-2 font-bold"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   {summary.totalRow.weight}
                 </td>
                 {periods.map((period) => {
@@ -300,123 +554,301 @@ export function StudentReportCardFront({
                   return (
                     <td
                       key={period.id}
-                      className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                      className="py-1.5 px-2 font-black"
+                      style={{
+                        borderRight: `1px solid ${theme.borderStrong}`,
+                        color: theme.text,
+                      }}
                     >
                       {pSum !== null && pSum !== undefined ? pSum : '—'}
                     </td>
                   );
                 })}
-                <td className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900 bg-slate-200/50">
+                <td
+                  className="py-1.5 px-2 font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    backgroundColor: theme.surfaceAccent,
+                    color: theme.text,
+                  }}
+                >
                   {summary.totalRow.total}
                 </td>
-                <td className="py-1.5 px-2 font-black text-slate-900 bg-slate-200/50">
+                <td
+                  className="py-1.5 px-2 font-black"
+                  style={{
+                    backgroundColor: theme.surfaceAccent,
+                    color: theme.text,
+                  }}
+                >
                   {summary.totalRow.average}
                 </td>
               </tr>
 
               {/* AVERAGE ROW */}
-              <tr className="bg-slate-50 font-bold border-t border-slate-900 text-center">
-                <td className="py-1.5 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+              <tr
+                className="font-bold text-center"
+                style={{
+                  backgroundColor: theme.surface,
+                  borderTop: `1px solid ${theme.borderStrong}`,
+                }}
+              >
+                <td
+                  className="py-1.5 px-3 text-left font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   Average
                 </td>
-                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td
+                  className="py-1.5 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
                 {periods.map((period) => {
                   const pAvg = summary.averageRow.periodAverages[period.id];
                   return (
                     <td
                       key={period.id}
-                      className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                      className="py-1.5 px-2 font-black"
+                      style={{
+                        borderRight: `1px solid ${theme.borderStrong}`,
+                        color: theme.text,
+                      }}
                     >
                       {pAvg !== null && pAvg !== undefined ? `${pAvg}%` : '—'}
                     </td>
                   );
                 })}
-                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                <td className="py-1.5 px-2 font-black text-blue-900 bg-blue-50/40">
+                <td
+                  className="py-1.5 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
+                <td
+                  className="py-1.5 px-2 font-black"
+                  style={{
+                    backgroundColor: theme.surfaceAccent,
+                    color: theme.text,
+                  }}
+                >
                   {summary.averageRow.overallAverage}%
                 </td>
               </tr>
 
               {/* RANK ROW */}
-              <tr className="border-t border-slate-900 text-center">
-                <td className="py-1.5 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+              <tr
+                className="text-center"
+                style={{ borderTop: `1px solid ${theme.borderStrong}` }}
+              >
+                <td
+                  className="py-1.5 px-3 text-left font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   Rank
                 </td>
-                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td
+                  className="py-1.5 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
                 {periods.map((period) => (
                   <td
                     key={period.id}
-                    className="py-1.5 px-2 border-r border-slate-900 font-black text-slate-900"
+                    className="py-1.5 px-2 font-black"
+                    style={{
+                      borderRight: `1px solid ${theme.borderStrong}`,
+                      color: theme.text,
+                    }}
                   >
                     {summary.rank}
                   </td>
                 ))}
-                <td className="py-1.5 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                <td className="py-1.5 px-2 font-black text-slate-900 bg-amber-50/40">
+                <td
+                  className="py-1.5 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
+                <td
+                  className="py-1.5 px-2 font-black"
+                  style={{
+                    backgroundColor: theme.surfaceAlt,
+                    color: theme.text,
+                  }}
+                >
                   {summary.rank}
                 </td>
               </tr>
 
               {/* CONDUCT ROW */}
-              <tr className="border-t border-slate-900 text-center">
-                <td className="py-1 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+              <tr
+                className="text-center"
+                style={{ borderTop: `1px solid ${theme.borderStrong}` }}
+              >
+                <td
+                  className="py-1 px-3 text-left font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   Conduct
                 </td>
-                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td
+                  className="py-1 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
                 {periods.map((period) => (
                   <td
                     key={period.id}
-                    className="py-1 px-2 border-r border-slate-900 font-bold text-slate-900"
+                    className="py-1 px-2 font-bold"
+                    style={{
+                      borderRight: `1px solid ${theme.borderStrong}`,
+                      color: theme.text,
+                    }}
                   >
                     {summary.conduct || 'A-'}
                   </td>
                 ))}
-                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                <td className="py-1 px-2 font-bold text-slate-900">{summary.conduct || 'A-'}</td>
+                <td
+                  className="py-1 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
+                <td className="py-1 px-2 font-bold" style={{ color: theme.text }}>
+                  {summary.conduct || 'A-'}
+                </td>
               </tr>
 
               {/* ABSENCE ROW */}
-              <tr className="border-t border-slate-900 text-center">
-                <td className="py-1 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+              <tr
+                className="text-center"
+                style={{ borderTop: `1px solid ${theme.borderStrong}` }}
+              >
+                <td
+                  className="py-1 px-3 text-left font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   Absence
                 </td>
-                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td
+                  className="py-1 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
                 {periods.map((period) => (
                   <td
                     key={period.id}
-                    className="py-1 px-2 border-r border-slate-900 font-semibold text-slate-800 text-[11px]"
+                    className="py-1 px-2 font-semibold text-[11px]"
+                    style={{
+                      borderRight: `1px solid ${theme.borderStrong}`,
+                      color: theme.textMuted,
+                    }}
                   >
                     {summary.absence || '0 Day'}
                   </td>
                 ))}
-                <td className="py-1 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
-                <td className="py-1 px-2 font-semibold text-slate-800 text-[11px]">
+                <td
+                  className="py-1 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
+                <td
+                  className="py-1 px-2 font-semibold text-[11px]"
+                  style={{ color: theme.textMuted }}
+                >
                   {summary.absence || '0 Day'}
                 </td>
               </tr>
 
               {/* REMARK ROW WITH BADGE & PASS/FAIL INDICATORS */}
-              <tr className="border-t border-slate-900 text-center bg-slate-50/50">
-                <td className="py-2 px-3 text-left font-black text-slate-900 border-r border-slate-900">
+              <tr
+                className="text-center"
+                style={{
+                  borderTop: `1px solid ${theme.borderStrong}`,
+                  backgroundColor: theme.surfaceAlt,
+                }}
+              >
+                <td
+                  className="py-2 px-3 text-left font-black"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.text,
+                  }}
+                >
                   Remark
                 </td>
-                <td className="py-2 px-2 border-r border-slate-900 text-slate-400 font-normal">-</td>
+                <td
+                  className="py-2 px-2 font-normal"
+                  style={{
+                    borderRight: `1px solid ${theme.borderStrong}`,
+                    color: theme.textSubtle,
+                  }}
+                >
+                  -
+                </td>
                 <td
                   colSpan={periods.length + 2}
-                  className="py-2 px-4 text-left font-bold text-slate-900"
+                  className="py-2 px-4 text-left font-bold"
+                  style={{ color: theme.text }}
                 >
                   <div className="flex flex-wrap items-center gap-3">
                     <span
-                      className={`inline-block px-4 py-1 border-2 rounded-sm font-black text-xs uppercase tracking-wider ${
-                        summary.remarkBadge?.toLowerCase().includes('incomplete')
-                          ? 'border-amber-600 text-amber-900 bg-amber-100 font-extrabold shadow-sm'
-                          : summary.remarkBadge?.toLowerCase().includes('fail') ||
-                            summary.remarkBadge?.toLowerCase().includes('retain')
-                          ? 'border-rose-600 text-rose-700 bg-rose-50'
-                          : summary.remarkBadge?.toLowerCase().includes('conditional')
-                          ? 'border-amber-600 text-amber-800 bg-amber-50'
-                          : 'border-slate-900 text-slate-900 bg-white'
-                      }`}
+                      className="inline-block px-4 py-1 border-2 rounded-sm font-black text-xs uppercase tracking-wider"
+                      style={{
+                        backgroundColor: theme.surface,
+                        borderColor: summary.remarkBadge?.toLowerCase().includes('fail')
+                          ? '#e11d48'
+                          : summary.remarkBadge?.toLowerCase().includes('incomplete')
+                          ? '#d97706'
+                          : theme.borderStrong,
+                        color: summary.remarkBadge?.toLowerCase().includes('fail')
+                          ? '#e11d48'
+                          : summary.remarkBadge?.toLowerCase().includes('incomplete')
+                          ? '#d97706'
+                          : theme.text,
+                      }}
                     >
                       {summary.remarkBadge || 'Passed'}
                     </span>
@@ -425,18 +857,27 @@ export function StudentReportCardFront({
                         Incomplete marks: Missing assessment or term evaluation
                       </span>
                     )}
-                    {!summary.remarkBadge?.toLowerCase().includes('incomplete') && summary.failedSubjectsCount !== undefined && summary.failedSubjectsCount > 0 && (
-                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                        {summary.failedSubjectsCount} {summary.failedSubjectsCount === 1 ? 'subject' : 'subjects'} below 50%
-                      </span>
-                    )}
+                    {!summary.remarkBadge?.toLowerCase().includes('incomplete') &&
+                      summary.failedSubjectsCount !== undefined &&
+                      summary.failedSubjectsCount > 0 && (
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                          {summary.failedSubjectsCount}{' '}
+                          {summary.failedSubjectsCount === 1 ? 'subject' : 'subjects'} below 50%
+                        </span>
+                      )}
                     {summary.teacherComment && (
-                      <span className="text-[11px] italic text-slate-700 font-normal">
+                      <span
+                        className="text-[11px] italic font-normal"
+                        style={{ color: theme.textMuted }}
+                      >
                         Teacher: &ldquo;{summary.teacherComment}&rdquo;
                       </span>
                     )}
                     {summary.principalComment && (
-                      <span className="text-[11px] italic text-slate-700 font-normal">
+                      <span
+                        className="text-[11px] italic font-normal"
+                        style={{ color: theme.textMuted }}
+                      >
                         Principal: &ldquo;{summary.principalComment}&rdquo;
                       </span>
                     )}
@@ -450,50 +891,108 @@ export function StudentReportCardFront({
         {/* ==================================================== */}
         {/* 4. OFFICIAL SIGNATURES & INSTITUTIONAL SEALS */}
         {/* ==================================================== */}
-        <div className="pt-4 border-t border-slate-400 text-xs text-slate-800">
+        <div
+          className="pt-4 text-xs"
+          style={{
+            borderTop: `1px solid ${theme.border}`,
+            color: theme.text,
+          }}
+        >
           <div className="grid grid-cols-3 gap-8 items-end text-center">
             {/* Homeroom Teacher */}
             <div>
-              <div className="h-10 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-serif italic text-xs text-slate-700">
+              <div
+                className="h-10 flex items-end justify-center pb-1"
+                style={{ borderBottom: `1px solid ${theme.borderStrong}` }}
+              >
+                <span
+                  className="font-serif italic text-xs"
+                  style={{ color: theme.textMuted }}
+                >
                   {academic.homeroomTeacherName}
                 </span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900">Home-room Teacher</span>
+              <span className="mt-1 block font-bold" style={{ color: theme.text }}>
+                Home-room Teacher
+              </span>
             </div>
 
             {/* Principal Signature */}
             <div>
-              <div className="h-10 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-serif italic text-xs text-slate-700">Official Sign</span>
+              <div
+                className="h-10 flex items-end justify-center pb-1"
+                style={{ borderBottom: `1px solid ${theme.borderStrong}` }}
+              >
+                <span
+                  className="font-serif italic text-xs"
+                  style={{ color: theme.textMuted }}
+                >
+                  Official Sign
+                </span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900">Principal Signature</span>
+              <span className="mt-1 block font-bold" style={{ color: theme.text }}>
+                Principal Signature
+              </span>
             </div>
 
             {/* Official School Stamp Seal */}
             <div className="flex flex-col items-center">
-              <div className="w-18 h-18 rounded-full border-2 flex flex-col items-center justify-center text-center p-1 relative shadow-2xs" style={{ borderColor: primaryColor, backgroundColor: `${primaryColor}15` }}>
-                <div className="w-14 h-14 rounded-full border border-dashed flex flex-col items-center justify-center p-0.5" style={{ borderColor: primaryColor }}>
-                  <span className="text-[7.5px] font-black uppercase tracking-tighter leading-none" style={{ color: primaryColor }}>
+              <div
+                className="w-18 h-18 rounded-full border-2 flex flex-col items-center justify-center text-center p-1 relative shadow-2xs"
+                style={{
+                  borderColor: theme.borderStrong,
+                  backgroundColor: theme.surface,
+                }}
+              >
+                <div
+                  className="w-14 h-14 rounded-full border border-dashed flex flex-col items-center justify-center p-0.5"
+                  style={{ borderColor: theme.border }}
+                >
+                  <span
+                    className="text-[7.5px] font-black uppercase tracking-tighter leading-none"
+                    style={{ color: theme.text }}
+                  >
                     BRIGHT PATH
                   </span>
-                  <span className="text-[6.5px] font-bold tracking-tight my-0.5" style={{ color: primaryColor }}>
+                  <span
+                    className="text-[6.5px] font-bold tracking-tight my-0.5"
+                    style={{ color: theme.textMuted }}
+                  >
                     ★ SEAL ★
                   </span>
-                  <span className="text-[6px] font-mono font-bold leading-none" style={{ color: primaryColor }}>
+                  <span
+                    className="text-[6px] font-mono font-bold leading-none"
+                    style={{ color: theme.textSubtle }}
+                  >
                     DIRE DAWA
                   </span>
                 </div>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Official Seal & Stamp</span>
-              <span className="text-[10px] text-slate-600">Date: {issueDate}</span>
+              <span
+                className="mt-1 block font-bold text-[11px]"
+                style={{ color: theme.text }}
+              >
+                Official Seal & Stamp
+              </span>
+              <span className="text-[10px]" style={{ color: theme.textSubtle }}>
+                Date: {issueDate}
+              </span>
             </div>
           </div>
 
           {/* Footer Card Verification Note */}
-          <div className="mt-4 pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+          <div
+            className="mt-4 pt-2 flex items-center justify-between text-[10px]"
+            style={{
+              borderTop: `1px solid ${theme.borderLight}`,
+              color: theme.textSubtle,
+            }}
+          >
             <span>
-              Report Card ID: <strong className="font-mono text-slate-700">{reportCardId}</strong>
+              Report Card ID:{' '}
+              <strong className="font-mono" style={{ color: theme.text }}>
+                {reportCardId}
+              </strong>
             </span>
             <span>Bright Path School Management System • Official Academic Record</span>
             <span>Issued: {issueDate}</span>
@@ -506,7 +1005,6 @@ export function StudentReportCardFront({
 
 // ============================================================================
 // 2. BACK PAGE COMPONENT (ገጽ 2: የደረጃ አሰጣጥ፣ የስነ-ምግባር መመዘኛ እና የትምህርት ደንብ)
-// Excludes Parent/Guardian Acknowledgment as requested by the user.
 // ============================================================================
 export function StudentReportCardBack({
   card,
@@ -516,29 +1014,35 @@ export function StudentReportCardBack({
   className?: string;
 }) {
   const { school, student, academic, summary, reportCardId, issueDate } = card;
-  const primaryColor = school?.primaryColor || '#1e3a8a';
+
+  const theme = useMemo(
+    () => createReportCardTheme(school?.backgroundColor, school?.textColor),
+    [school?.backgroundColor, school?.textColor]
+  );
+  const borderRadius = typeof school?.borderRadius === 'number' ? school.borderRadius : 4;
 
   // Official School Grading Scale Rubric according to active grading policy
-  const gradingScales = (card.gradingPolicy?.scales && card.gradingPolicy.scales.length > 0)
-    ? card.gradingPolicy.scales.map((s) => ({
-        grade: s.grade,
-        range: `${s.minScore} – ${s.maxScore}%`,
-        gpa: s.gpaPoint !== null && s.gpaPoint !== undefined ? s.gpaPoint.toFixed(2) : '—',
-        descEn: s.description || (s.isPassing ? 'Passing' : 'Failing'),
-        descAm: s.isPassing ? 'ማለፊያ' : 'የማያልፍ / ዝቅተኛ',
-        remark: s.isPassing ? 'Passing Standard' : 'Retention / Non-Passing',
-        isPassing: s.isPassing,
-      }))
-    : [
-        { grade: 'A+', range: '90 – 100%', gpa: '4.00', descEn: 'Outstanding', descAm: 'እጅግ በጣም ከፍተኛ ብልጫ', remark: 'Outstanding Mastery', isPassing: true },
-        { grade: 'A', range: '85 – 89.99%', gpa: '4.00', descEn: 'Excellent', descAm: 'ከፍተኛ ብልጫ', remark: 'Superior Competence', isPassing: true },
-        { grade: 'B+', range: '80 – 84.99%', gpa: '3.50', descEn: 'Very Good', descAm: 'በጣም ጥሩ', remark: 'Above Average Standard', isPassing: true },
-        { grade: 'B', range: '75 – 79.99%', gpa: '3.00', descEn: 'Good', descAm: 'ጥሩ', remark: 'Above Average Standard', isPassing: true },
-        { grade: 'C+', range: '65 – 74.99%', gpa: '2.50', descEn: 'Satisfactory', descAm: 'አጥጋቢ', remark: 'Meets Curricular Standards', isPassing: true },
-        { grade: 'C', range: '60 – 64.99%', gpa: '2.00', descEn: 'Average', descAm: 'መካከለኛ', remark: 'Meets Curricular Standards', isPassing: true },
-        { grade: 'D', range: '50 – 59.99%', gpa: '1.00', descEn: 'Passing', descAm: 'ማለፊያ', remark: 'Passing Benchmark', isPassing: true },
-        { grade: 'F', range: '0 – 49.99%', gpa: '0.00', descEn: 'Failing', descAm: 'የማያልፍ / ዝቅተኛ', remark: 'Retention / Non-Passing', isPassing: false },
-      ];
+  const gradingScales =
+    card.gradingPolicy?.scales && card.gradingPolicy.scales.length > 0
+      ? card.gradingPolicy.scales.map((s) => ({
+          grade: s.grade,
+          range: `${s.minScore} – ${s.maxScore}%`,
+          gpa: s.gpaPoint !== null && s.gpaPoint !== undefined ? s.gpaPoint.toFixed(2) : '—',
+          descEn: s.description || (s.isPassing ? 'Passing' : 'Failing'),
+          descAm: s.isPassing ? 'ማለፊያ' : 'የማያልፍ / ዝቅተኛ',
+          remark: s.isPassing ? 'Passing Standard' : 'Retention / Non-Passing',
+          isPassing: s.isPassing,
+        }))
+      : [
+          { grade: 'A+', range: '90 – 100%', gpa: '4.00', descEn: 'Outstanding', descAm: 'እጅግ በጣም ከፍተኛ ብልጫ', remark: 'Outstanding Mastery', isPassing: true },
+          { grade: 'A', range: '85 – 89.99%', gpa: '4.00', descEn: 'Excellent', descAm: 'ከፍተኛ ብልጫ', remark: 'Superior Competence', isPassing: true },
+          { grade: 'B+', range: '80 – 84.99%', gpa: '3.50', descEn: 'Very Good', descAm: 'በጣም ጥሩ', remark: 'Above Average Standard', isPassing: true },
+          { grade: 'B', range: '75 – 79.99%', gpa: '3.00', descEn: 'Good', descAm: 'ጥሩ', remark: 'Above Average Standard', isPassing: true },
+          { grade: 'C+', range: '65 – 74.99%', gpa: '2.50', descEn: 'Satisfactory', descAm: 'አጥጋቢ', remark: 'Meets Curricular Standards', isPassing: true },
+          { grade: 'C', range: '60 – 64.99%', gpa: '2.00', descEn: 'Average', descAm: 'መካከለኛ', remark: 'Meets Curricular Standards', isPassing: true },
+          { grade: 'D', range: '50 – 59.99%', gpa: '1.00', descEn: 'Passing', descAm: 'ማለፊያ', remark: 'Passing Benchmark', isPassing: true },
+          { grade: 'F', range: '0 – 49.99%', gpa: '0.00', descEn: 'Failing', descAm: 'የማያልፍ / ዝቅተኛ', remark: 'Retention / Non-Passing', isPassing: false },
+        ];
 
   // Conduct Rubrics
   const conductRubrics = [
@@ -546,25 +1050,29 @@ export function StudentReportCardBack({
       code: 'A',
       titleEn: 'Exemplary',
       titleAm: 'እጅግ በጣም ጥሩ',
-      description: 'Demonstrates outstanding self-discipline, respect for school regulations, positive peer cooperation, and active civic participation.',
+      description:
+        'Demonstrates outstanding self-discipline, respect for school regulations, positive peer cooperation, and active civic participation.',
     },
     {
       code: 'B',
       titleEn: 'Good',
       titleAm: 'ጥሩ',
-      description: 'Consistently abides by school rules, shows respectful conduct to educators and classmates, and maintains steady punctuality.',
+      description:
+        'Consistently abides by school rules, shows respectful conduct to educators and classmates, and maintains steady punctuality.',
     },
     {
       code: 'C',
       titleEn: 'Satisfactory',
       titleAm: 'አጥጋቢ',
-      description: 'Complies with general institutional discipline; occasionally requires guidance or redirection regarding focus and timeliness.',
+      description:
+        'Complies with general institutional discipline; occasionally requires guidance or redirection regarding focus and timeliness.',
     },
     {
       code: 'D',
       titleEn: 'Needs Improvement',
       titleAm: 'መሻሻል የሚፈልግ',
-      description: 'Exhibits repeated unexcused tardiness, behavioral concerns, or breach of school guidelines requiring targeted counseling.',
+      description:
+        'Exhibits repeated unexcused tardiness, behavioral concerns, or breach of school guidelines requiring targeted counseling.',
     },
   ];
 
@@ -580,10 +1088,22 @@ export function StudentReportCardBack({
 
   return (
     <div
-      className={`report-card-back relative bg-white text-slate-900 font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text border border-slate-300 print:border-none ${className}`}
+      className={`report-card-back relative font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text ${className}`}
       style={{
         boxSizing: 'border-box',
         minHeight: '290mm',
+        backgroundColor: theme.bg,
+        color: theme.text,
+        border: `3px solid ${theme.borderStrong}`,
+        outline: `1px solid ${theme.borderLight}`,
+        outlineOffset: '-6px',
+        borderRadius: `${borderRadius}px`, overflow: 'hidden',
+        ['--rc-bg' as any]: theme.bg,
+        ['--rc-text' as any]: theme.text,
+        ['--rc-text-muted' as any]: theme.textMuted,
+        ['--rc-border' as any]: theme.border,
+        ['--rc-surface' as any]: theme.surface,
+        ['--rc-surface-strong' as any]: theme.surfaceStrong,
       }}
     >
       {/* Background Watermark Crest */}
@@ -606,10 +1126,19 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         {/* 1. BACK HEADER SECTION */}
         {/* ==================================================== */}
-        <div className="border-b border-slate-800 pb-2.5" style={{ borderBottomColor: primaryColor }}>
+        <div
+          className="pb-2.5"
+          style={{ borderBottom: `2px solid ${theme.borderStrong}` }}
+        >
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 rounded-full overflow-hidden border border-slate-300 bg-white flex-shrink-0">
+              <div
+                className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0"
+                style={{
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
                 <Image
                   src={school.logo || '/bright-path-logo.png'}
                   alt={school.name}
@@ -618,55 +1147,84 @@ export function StudentReportCardBack({
                 />
               </div>
               <div>
-                <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900">
+                <h2
+                  className="text-sm sm:text-base font-black tracking-tight"
+                  style={{ color: theme.text }}
+                >
                   {school.amharicName || 'ብራይት ፓዝ ት/ቤት'} • {school.name}
                 </h2>
-                <p className="text-[10px] text-slate-600 font-medium">
+                <p className="text-[10px] font-medium" style={{ color: theme.textMuted }}>
                   {school.address} • Tel: {school.phone || '0251 - 11 41 87'} • Official Academic Evaluation System
                 </p>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="inline-block text-[11px] font-black uppercase tracking-wider px-2.5 py-1 text-white rounded-xs" style={{ backgroundColor: primaryColor }}>
+              <span
+                className="inline-block text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xs"
+                style={{
+                  backgroundColor: theme.surfaceStrong,
+                  color: theme.text,
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
                 Page 2 • ገጽ 2 (Back)
               </span>
             </div>
           </div>
 
-          <div className="mt-2 text-center bg-slate-100 py-1 px-2 border border-slate-300 rounded-xs" style={{ borderLeftColor: primaryColor, borderLeftWidth: '3px' }}>
-            <h1 className="text-xs sm:text-sm font-black tracking-wide text-slate-900 uppercase">
+          <div
+            className="mt-2 text-center py-1 px-2 rounded-xs"
+            style={{
+              backgroundColor: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderLeft: `4px solid ${theme.borderStrong}`,
+            }}
+          >
+            <h1
+              className="text-xs sm:text-sm font-black tracking-wide uppercase"
+              style={{ color: theme.text }}
+            >
               Academic Grading Scale, Conduct Evaluation & Promotion Regulations
             </h1>
-            <p className="text-[10px] font-bold text-slate-700">
+            <p className="text-[10px] font-bold" style={{ color: theme.textMuted }}>
               የደረጃ አሰጣጥ መለኪያ፣ የስነ-ምግባር መመዘኛ እና የትምህርት ደንብ
             </p>
           </div>
         </div>
 
         {/* Quick Student Identification Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-2 py-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xs text-[11px] sm:text-xs text-slate-800">
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 py-1.5 px-3 rounded-xs text-[11px] sm:text-xs"
+          style={{
+            backgroundColor: theme.surface,
+            border: `1px solid ${theme.border}`,
+            color: theme.text,
+          }}
+        >
           <div>
-            <span className="font-semibold text-slate-600">Student: </span>
-            <span className="font-bold text-slate-900">{student.fullName}</span>
+            <span style={{ color: theme.textMuted }} className="font-semibold">Student: </span>
+            <span style={{ color: theme.text }} className="font-bold">{student.fullName}</span>
           </div>
           <div>
-            <span className="font-semibold text-slate-600">ID: </span>
-            <span className="font-mono font-bold text-slate-900">{student.studentId}</span>
+            <span style={{ color: theme.textMuted }} className="font-semibold">ID: </span>
+            <span style={{ color: theme.text }} className="font-mono font-bold">{student.studentId}</span>
           </div>
           <div>
-            <span className="font-semibold text-slate-600">Grade & Sec: </span>
-            <span className="font-bold text-slate-900">{academic.gradeName} &ldquo;{academic.sectionName}&rdquo;</span>
+            <span style={{ color: theme.textMuted }} className="font-semibold">Grade & Sec: </span>
+            <span style={{ color: theme.text }} className="font-bold">
+              {academic.gradeName} &ldquo;{academic.sectionName}&rdquo;
+            </span>
           </div>
           {academic.streamName && (
             <div>
-              <span className="font-semibold text-slate-600">Stream: </span>
-              <span className="font-bold text-emerald-800">{academic.streamName}</span>
+              <span style={{ color: theme.textMuted }} className="font-semibold">Stream: </span>
+              <span style={{ color: theme.text }} className="font-bold">{academic.streamName}</span>
             </div>
           )}
           <div>
-            <span className="font-semibold text-slate-600">Academic Year: </span>
-            <span className="font-bold text-slate-900">{academic.academicYearName}</span>
+            <span style={{ color: theme.textMuted }} className="font-semibold">Academic Year: </span>
+            <span style={{ color: theme.text }} className="font-bold">{academic.academicYearName}</span>
           </div>
         </div>
 
@@ -675,48 +1233,139 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
+            <h3
+              className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5"
+              style={{ color: theme.text }}
+            >
+              <span
+                className="w-2 h-2 rounded-full inline-block"
+                style={{ backgroundColor: theme.borderStrong }}
+              />
               1. Grading Scale & Evaluation Key (የደረጃ አሰጣጥ መለኪያ)
             </h3>
-            <span className="text-[10px] text-slate-600 font-medium">Secondary Education Standard</span>
+            <span className="text-[10px] font-medium" style={{ color: theme.textMuted }}>
+              Secondary Education Standard
+            </span>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse border border-slate-900">
+            <table
+              className="w-full text-xs border-collapse"
+              style={{
+                border: `2px solid ${theme.borderStrong}`,
+                color: theme.text,
+              }}
+            >
               <thead>
-                <tr className="font-bold border-b border-slate-900 text-center text-[10px] sm:text-[11px] text-white" style={{ backgroundColor: primaryColor }}>
-                  <th className="py-1 px-2 border-r border-slate-900 w-14">Grade</th>
-                  <th className="py-1 px-2 border-r border-slate-900 w-24">Mark Range (%)</th>
-                  <th className="py-1 px-2 border-r border-slate-900 w-16">GPA Points</th>
-                  <th className="py-1 px-3 text-left border-r border-slate-900 w-36">Description (English)</th>
-                  <th className="py-1 px-3 text-left border-r border-slate-900 w-44">መግለጫ (Amharic)</th>
+                <tr
+                  className="font-bold text-center text-[10px] sm:text-[11px]"
+                  style={{
+                    backgroundColor: theme.surfaceStrong,
+                    color: theme.text,
+                    borderBottom: `2px solid ${theme.borderStrong}`,
+                  }}
+                >
+                  <th
+                    className="py-1 px-2 w-14"
+                    style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                  >
+                    Grade
+                  </th>
+                  <th
+                    className="py-1 px-2 w-24"
+                    style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                  >
+                    Mark Range (%)
+                  </th>
+                  <th
+                    className="py-1 px-2 w-16"
+                    style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                  >
+                    GPA Points
+                  </th>
+                  <th
+                    className="py-1 px-3 text-left w-36"
+                    style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                  >
+                    Description (English)
+                  </th>
+                  <th
+                    className="py-1 px-3 text-left w-44"
+                    style={{ borderRight: `1px solid ${theme.borderStrong}` }}
+                  >
+                    መግለጫ (Amharic)
+                  </th>
                   <th className="py-1 px-2 text-left">Academic Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-400 text-[10px] sm:text-[11px]">
-                {gradingScales.map((scale) => (
-                  <tr key={scale.grade} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-1 px-2 text-center font-black text-slate-900 border-r border-slate-900 bg-slate-50/60">
-                      {scale.grade}
-                    </td>
-                    <td className="py-1 px-2 text-center font-bold text-slate-900 border-r border-slate-900">
-                      {scale.range}
-                    </td>
-                    <td className="py-1 px-2 text-center font-mono font-bold text-slate-800 border-r border-slate-900">
-                      {scale.gpa}
-                    </td>
-                    <td className="py-1 px-3 text-left font-semibold text-slate-900 border-r border-slate-900">
-                      {scale.descEn}
-                    </td>
-                    <td className="py-1 px-3 text-left font-medium text-slate-900 border-r border-slate-900">
-                      {scale.descAm}
-                    </td>
-                    <td className="py-1 px-2 text-left font-medium text-slate-700">
-                      {scale.remark}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="text-[10px] sm:text-[11px]">
+                {gradingScales.map((scale, idx) => {
+                  const rowBg = idx % 2 === 1 ? theme.surfaceAlt : 'transparent';
+                  return (
+                    <tr
+                      key={scale.grade}
+                      style={{
+                        backgroundColor: rowBg,
+                        borderBottom: `1px solid ${theme.border}`,
+                      }}
+                    >
+                      <td
+                        className="py-1 px-2 text-center font-black"
+                        style={{
+                          borderRight: `1px solid ${theme.border}`,
+                          backgroundColor: theme.surfaceAlt,
+                          color: theme.text,
+                        }}
+                      >
+                        {scale.grade}
+                      </td>
+                      <td
+                        className="py-1 px-2 text-center font-bold"
+                        style={{
+                          borderRight: `1px solid ${theme.border}`,
+                          color: theme.text,
+                        }}
+                      >
+                        {scale.range}
+                      </td>
+                      <td
+                        className="py-1 px-2 text-center font-mono font-bold"
+                        style={{
+                          borderRight: `1px solid ${theme.border}`,
+                          color: theme.textMuted,
+                        }}
+                      >
+                        {scale.gpa}
+                      </td>
+                      <td
+                        className="py-1 px-3 text-left font-semibold"
+                        style={{
+                          borderRight: `1px solid ${theme.border}`,
+                          color: theme.text,
+                        }}
+                      >
+                        {scale.descEn}
+                      </td>
+                      <td
+                        className="py-1 px-3 text-left font-medium"
+                        style={{
+                          borderRight: `1px solid ${theme.border}`,
+                          color: theme.text,
+                        }}
+                      >
+                        {scale.descAm}
+                      </td>
+                      <td
+                        className="py-1 px-2 text-left font-medium"
+                        style={{
+                          color: scale.isPassing ? theme.textMuted : '#e11d48',
+                        }}
+                      >
+                        {scale.remark}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -727,11 +1376,24 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
+            <h3
+              className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5"
+              style={{ color: theme.text }}
+            >
+              <span
+                className="w-2 h-2 rounded-full inline-block"
+                style={{ backgroundColor: theme.borderStrong }}
+              />
               2. Conduct & Behavioral Evaluation Criteria (የስነ-ምግባር እና ጠባይ መመዘኛ)
             </h3>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 border rounded-xs" style={{ color: primaryColor, borderColor: `${primaryColor}50`, backgroundColor: `${primaryColor}15` }}>
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-xs"
+              style={{
+                color: theme.text,
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+              }}
+            >
               Student Conduct Record: {summary.conduct || 'A-'}
             </span>
           </div>
@@ -740,18 +1402,31 @@ export function StudentReportCardBack({
             {conductRubrics.map((r) => (
               <div
                 key={r.code}
-                className="p-2 border border-slate-300 rounded-xs bg-slate-50/40 text-[10px] sm:text-[11px] flex items-start gap-2"
+                className="p-2 rounded-xs text-[10px] sm:text-[11px] flex items-start gap-2"
+                style={{
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surfaceAlt,
+                }}
               >
-                <div className="w-6 h-6 rounded-full text-white font-black flex items-center justify-center flex-shrink-0 text-xs mt-0.5" style={{ backgroundColor: primaryColor }}>
+                <div
+                  className="w-6 h-6 rounded-full font-black flex items-center justify-center flex-shrink-0 text-xs mt-0.5 shadow-2xs"
+                  style={{
+                    backgroundColor: theme.surfaceStrong,
+                    color: theme.text,
+                    border: `1px solid ${theme.border}`,
+                  }}
+                >
                   {r.code}
                 </div>
                 <div className="flex-1 leading-tight">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                  <div className="flex items-center gap-1.5 font-bold" style={{ color: theme.text }}>
                     <span>{r.titleEn}</span>
                     <span>•</span>
-                    <span className="text-slate-700 font-semibold">{r.titleAm}</span>
+                    <span style={{ color: theme.textMuted }}>{r.titleAm}</span>
                   </div>
-                  <p className="text-slate-600 mt-0.5 leading-snug">{r.description}</p>
+                  <p className="mt-0.5 leading-snug" style={{ color: theme.textMuted }}>
+                    {r.description}
+                  </p>
                 </div>
               </div>
             ))}
@@ -762,34 +1437,71 @@ export function StudentReportCardBack({
         {/* 4. SECTION 3: CO-CURRICULAR & CLUB INVOLVEMENT */}
         {/* ==================================================== */}
         <div>
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5 mb-1">
-            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
+          <h3
+            className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 mb-1"
+            style={{ color: theme.text }}
+          >
+            <span
+              className="w-2 h-2 rounded-full inline-block"
+              style={{ backgroundColor: theme.borderStrong }}
+            />
             3. Co-Curricular & Club Participation (የተሳትፎ እና የክበባት እንቅስቃሴዎች)
           </h3>
 
-          <div className="border border-slate-900 rounded-xs p-2.5 bg-white text-[10px] sm:text-[11px] space-y-2">
+          <div
+            className="rounded-xs p-2.5 text-[10px] sm:text-[11px] space-y-2"
+            style={{
+              border: `1px solid ${theme.borderStrong}`,
+              backgroundColor: theme.surfaceAlt,
+            }}
+          >
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {coCurricularClubs.map((club, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 border-b border-slate-200 pb-1">
-                  <span className="inline-block w-3.5 h-3.5 border border-slate-600 rounded-xs bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-900">
+                <div
+                  key={idx}
+                  className="flex items-center gap-1.5 pb-1"
+                  style={{ borderBottom: `1px solid ${theme.borderLight}` }}
+                >
+                  <span
+                    className="inline-block w-3.5 h-3.5 rounded-xs flex items-center justify-center text-[9px] font-bold"
+                    style={{
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: theme.surface,
+                      color: theme.text,
+                    }}
+                  >
                     ✓
                   </span>
                   <div className="truncate">
-                    <span className="font-semibold text-slate-900 block truncate">{club.nameEn}</span>
-                    <span className="text-[9px] text-slate-500 block truncate">{club.nameAm}</span>
+                    <span className="font-semibold block truncate" style={{ color: theme.text }}>
+                      {club.nameEn}
+                    </span>
+                    <span className="text-[9px] block truncate" style={{ color: theme.textSubtle }}>
+                      {club.nameAm}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Homeroom Teacher's Holistic Evaluation Note */}
-            <div className="pt-2 border-t border-slate-200">
+            <div className="pt-2" style={{ borderTop: `1px solid ${theme.borderLight}` }}>
               <div className="flex items-start justify-between gap-2">
-                <span className="font-bold text-slate-800">Homeroom Teacher&apos;s Guidance & Remarks (የክፍል ኃላፊ መምህር አጠቃላይ አስተያየት):</span>
-                <span className="font-serif italic text-slate-700 text-[11px]">{academic.homeroomTeacherName}</span>
+                <span className="font-bold" style={{ color: theme.text }}>
+                  Homeroom Teacher&apos;s Guidance & Remarks (የክፍል ኃላፊ መምህር አጠቃላይ አስተያየት):
+                </span>
+                <span className="font-serif italic text-[11px]" style={{ color: theme.textMuted }}>
+                  {academic.homeroomTeacherName}
+                </span>
               </div>
-              <div className="mt-1 p-2 bg-slate-50 border border-slate-200 rounded-xs min-h-[42px] flex items-center">
-                <p className="italic text-slate-800 text-[11px]">
+              <div
+                className="mt-1 p-2 rounded-xs min-h-[42px] flex items-center"
+                style={{
+                  backgroundColor: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                }}
+              >
+                <p className="italic text-[11px]" style={{ color: theme.text }}>
                   {summary.teacherComment ? (
                     `“${summary.teacherComment}”`
                   ) : (
@@ -805,27 +1517,48 @@ export function StudentReportCardBack({
         {/* 5. SECTION 4: PROMOTION POLICY & REGULATIONS */}
         {/* ==================================================== */}
         <div>
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5 mb-1">
-            <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: primaryColor }} />
+          <h3
+            className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 mb-1"
+            style={{ color: theme.text }}
+          >
+            <span
+              className="w-2 h-2 rounded-full inline-block"
+              style={{ backgroundColor: theme.borderStrong }}
+            />
             4. Academic Promotion & Attendance Regulations (የክፍል ማለፊያ እና የተማሪዎች ክትትል ደንብ)
           </h3>
 
-          <div className="border border-slate-300 rounded-xs p-2.5 bg-slate-50/60 text-[10px] sm:text-[11px] text-slate-800 space-y-1 leading-snug">
+          <div
+            className="rounded-xs p-2.5 text-[10px] sm:text-[11px] space-y-1 leading-snug"
+            style={{
+              border: `1px solid ${theme.border}`,
+              backgroundColor: theme.surfaceAlt,
+              color: theme.text,
+            }}
+          >
             <div className="flex items-start gap-1.5">
-              <span className="font-bold text-slate-900">1. Passing Standard (የማለፊያ መስፈርት):</span>
-              <span>A minimum combined cumulative average of {(summary.passingMinScore ?? card.gradingPolicy?.passingMinScore ?? 50).toFixed(1)}% across both semesters is mandatory for promotion to the subsequent grade level.</span>
+              <span className="font-bold shrink-0">1. Passing Standard (የማለፊያ መስፈርት):</span>
+              <span style={{ color: theme.textMuted }}>
+                A minimum combined cumulative average of {(summary.passingMinScore ?? card.gradingPolicy?.passingMinScore ?? 50).toFixed(1)}% across both semesters is mandatory for promotion to the subsequent grade level.
+              </span>
             </div>
             <div className="flex items-start gap-1.5">
-              <span className="font-bold text-slate-900">2. Attendance Requirement (የትምህርት ገበታ ክትትል):</span>
-              <span>Students must attend a minimum of 85% of official school instruction days. Unexcused absenteeism exceeding 15% results in automatic disqualification or retention.</span>
+              <span className="font-bold shrink-0">2. Attendance Requirement (የትምህርት ገበታ ክትትል):</span>
+              <span style={{ color: theme.textMuted }}>
+                Students must attend a minimum of 85% of official school instruction days. Unexcused absenteeism exceeding 15% results in automatic disqualification or retention.
+              </span>
             </div>
             <div className="flex items-start gap-1.5">
-              <span className="font-bold text-slate-900">3. Retention Threshold (የማይፈቀድ የወደቀ ውጤት):</span>
-              <span>A student who receives failing marks in three or more subjects is subject to academic retention pursuant to national curriculum standards.</span>
+              <span className="font-bold shrink-0">3. Retention Threshold (የማይፈቀድ የወደቀ ውጤት):</span>
+              <span style={{ color: theme.textMuted }}>
+                A student who receives failing marks in three or more subjects is subject to academic retention pursuant to national curriculum standards.
+              </span>
             </div>
             <div className="flex items-start gap-1.5">
-              <span className="font-bold text-slate-900">4. Official Credential Integrity (የሰነድ ህጋዊነት):</span>
-              <span>This grade report is an official institutional record of {school.name}. Any erasure, alteration, or uncertified copying renders this certificate completely null and void.</span>
+              <span className="font-bold shrink-0">4. Official Credential Integrity (የሰነድ ህጋዊነት):</span>
+              <span style={{ color: theme.textMuted }}>
+                This grade report is an official institutional record of {school.name}. Any erasure, alteration, or uncertified copying renders this certificate completely null and void.
+              </span>
             </div>
           </div>
         </div>
@@ -833,43 +1566,103 @@ export function StudentReportCardBack({
         {/* ==================================================== */}
         {/* 6. BOTTOM OFFICIAL CERTIFICATION & SEALS */}
         {/* ==================================================== */}
-        <div className="pt-3 border-t-2 border-slate-800 text-xs text-slate-800">
+        <div
+          className="pt-3 text-xs"
+          style={{
+            borderTop: `2px solid ${theme.borderStrong}`,
+            color: theme.text,
+          }}
+        >
           <div className="grid grid-cols-3 gap-8 items-end text-center">
             {/* Academic Director / Registrar */}
             <div>
-              <div className="h-9 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-serif italic text-xs text-slate-700">Official Sign</span>
+              <div
+                className="h-9 flex items-end justify-center pb-1"
+                style={{ borderBottom: `1px solid ${theme.borderStrong}` }}
+              >
+                <span className="font-serif italic text-xs" style={{ color: theme.textMuted }}>
+                  Official Sign
+                </span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Academic Registrar / Director</span>
+              <span className="mt-1 block font-bold text-[11px]" style={{ color: theme.text }}>
+                Academic Registrar / Director
+              </span>
             </div>
 
             {/* School Seal / Stamp */}
             <div className="flex flex-col items-center">
-              <div className="relative w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center text-center p-1 shadow-xs" style={{ borderColor: primaryColor, backgroundColor: `${primaryColor}15` }}>
-                <div className="absolute inset-1 rounded-full border border-dashed pointer-events-none" style={{ borderColor: primaryColor }} />
-                <span className="text-[7.5px] font-black uppercase tracking-tighter leading-none" style={{ color: primaryColor }}>BRIGHT PATH</span>
-                <span className="text-[6.5px] font-bold leading-none my-0.5" style={{ color: primaryColor }}>★ SEAL ★</span>
-                <span className="text-[6px] font-medium leading-none" style={{ color: primaryColor }}>DIRE DAWA</span>
+              <div
+                className="relative w-16 h-16 rounded-full border-2 flex flex-col items-center justify-center text-center p-1 shadow-xs"
+                style={{
+                  borderColor: theme.borderStrong,
+                  backgroundColor: theme.surface,
+                }}
+              >
+                <div
+                  className="absolute inset-1 rounded-full border border-dashed pointer-events-none"
+                  style={{ borderColor: theme.border }}
+                />
+                <span
+                  className="text-[7.5px] font-black uppercase tracking-tighter leading-none"
+                  style={{ color: theme.text }}
+                >
+                  BRIGHT PATH
+                </span>
+                <span
+                  className="text-[6.5px] font-bold leading-none my-0.5"
+                  style={{ color: theme.textMuted }}
+                >
+                  ★ SEAL ★
+                </span>
+                <span
+                  className="text-[6px] font-medium leading-none"
+                  style={{ color: theme.textSubtle }}
+                >
+                  DIRE DAWA
+                </span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Date: {issueDate}</span>
+              <span className="mt-1 block font-bold text-[11px]" style={{ color: theme.text }}>
+                Date: {issueDate}
+              </span>
             </div>
 
             {/* Academic Year Verification */}
             <div>
-              <div className="h-9 border-b border-slate-800 flex items-end justify-center pb-1">
-                <span className="font-mono font-bold text-xs text-slate-900">{academic.academicYearName}</span>
+              <div
+                className="h-9 flex items-end justify-center pb-1"
+                style={{ borderBottom: `1px solid ${theme.borderStrong}` }}
+              >
+                <span className="font-mono font-bold text-xs" style={{ color: theme.text }}>
+                  {academic.academicYearName}
+                </span>
               </div>
-              <span className="mt-1 block font-bold text-slate-900 text-[11px]">Curriculum Year Approved</span>
+              <span className="mt-1 block font-bold text-[11px]" style={{ color: theme.text }}>
+                Curriculum Year Approved
+              </span>
             </div>
           </div>
 
           {/* Footer note */}
-          <div className="mt-3 pt-1.5 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+          <div
+            className="mt-3 pt-1.5 flex items-center justify-between text-[10px]"
+            style={{
+              borderTop: `1px solid ${theme.borderLight}`,
+              color: theme.textSubtle,
+            }}
+          >
             <span>
-              Card ID: <strong className="font-mono text-slate-700">{reportCardId}</strong>
+              Card ID:{' '}
+              <strong className="font-mono" style={{ color: theme.text }}>
+                {reportCardId}
+              </strong>
             </span>
             <span>Ethiopian Secondary Education Curriculum System • Back Page (ገጽ 2)</span>
-            <span>Status: <strong>{card.status === 'PUBLISHED' ? 'OFFICIAL / AUTHENTICATED' : card.status || 'AUTHENTICATED'}</strong></span>
+            <span>
+              Status:{' '}
+              <strong>
+                {card.status === 'PUBLISHED' ? 'OFFICIAL / AUTHENTICATED' : card.status || 'AUTHENTICATED'}
+              </strong>
+            </span>
           </div>
         </div>
       </div>
@@ -889,19 +1682,30 @@ export function StudentReportCard({
 }: StudentReportCardProps) {
   const [activeSide, setActiveSide] = useState<ReportCardSide>(defaultSide);
 
+  const theme = useMemo(
+    () => createReportCardTheme(card.school?.backgroundColor, card.school?.textColor),
+    [card.school?.backgroundColor, card.school?.textColor]
+  );
+
   return (
-    <div className={`report-card-wrapper w-full ${className}`}>
+    <div
+      className={`report-card-wrapper w-full ${className}`}
+      style={{
+        ['--rc-bg' as any]: theme.bg,
+        ['--rc-text' as any]: theme.text,
+      }}
+    >
       {/* Interactive Page View Selector (Hidden during printing) */}
       {allowSideToggle && (
         <div className="mb-4 flex items-center justify-center gap-2 print:hidden">
-          <div className="bg-slate-200 p-1 rounded-md flex items-center gap-1 shadow-inner text-xs font-semibold">
+          <div className="bg-slate-200 dark:bg-slate-800 p-1 rounded-md flex items-center gap-1 shadow-inner text-xs font-semibold">
             <button
               type="button"
               onClick={() => setActiveSide('both')}
               className={`px-3 py-1.5 rounded transition-colors ${
                 activeSide === 'both'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               Both Pages (Print Ready • 2-Sided)
@@ -911,8 +1715,8 @@ export function StudentReportCard({
               onClick={() => setActiveSide('front')}
               className={`px-3 py-1.5 rounded transition-colors ${
                 activeSide === 'front'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               Front Page Only (ገጽ 1)
@@ -922,8 +1726,8 @@ export function StudentReportCard({
               onClick={() => setActiveSide('back')}
               className={`px-3 py-1.5 rounded transition-colors ${
                 activeSide === 'back'
-                  ? 'bg-white text-slate-900 shadow-sm font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
               Back Page Only (ገጽ 2)
@@ -962,8 +1766,8 @@ export function StudentReportCard({
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
   body {
-    background: white !important;
-    color: black !important;
+    background: ${theme.bg} !important;
+    color: ${theme.text} !important;
     margin: 0 !important;
     padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
@@ -977,7 +1781,10 @@ export function StudentReportCard({
     margin: 0 !important;
     padding: 4mm !important;
     box-shadow: none !important;
-    border: none !important;
+    background-color: ${theme.bg} !important;
+    color: ${theme.text} !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .report-card-front {
     page-break-after: always !important;

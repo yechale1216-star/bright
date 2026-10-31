@@ -18,6 +18,7 @@ const mapStudentToFlat = (student: any) => {
     suspensionEndDate: student.suspensionEndDate || null,
     destinationSchool: student.destinationSchool || null,
     statusReason: student.statusReason || null,
+    profile_photo: student.profile_photo || null,
   };
 };
 
@@ -422,6 +423,7 @@ export const createStudent = async (data: any, _schoolId?: string) => {
       gender: data.gender,
       date_of_birth: data.date_of_birth,
       address: data.address || null,
+      profile_photo: data.profile_photo || null,
       gradeId: grade.id,
       sectionId: section.id,
       streamId: streamId,
@@ -778,6 +780,7 @@ export const updateStudent = async (id: string, data: any, _schoolId?: string) =
   if (data.gender) updateData.gender = data.gender;
   if (data.date_of_birth) updateData.date_of_birth = data.date_of_birth;
   if (data.address) updateData.address = data.address;
+  if (data.profile_photo !== undefined) updateData.profile_photo = data.profile_photo || null;
 
   const existingStudent = await prisma.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true } });
   if (!existingStudent) throw new Error('Student not found');

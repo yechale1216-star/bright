@@ -36,6 +36,7 @@ export interface Student {
   statusReason?: string | null
   activationSlip?: any
   enrollmentStatus?: string
+  profile_photo?: string | null
 }
 
 export interface AttendanceRecord {

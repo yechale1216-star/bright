@@ -19,7 +19,7 @@ import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
-import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock, Sliders, CalendarDays, Network, Clock, UserCheck, ShieldAlert, Cpu } from "lucide-react"
+import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock, Sliders, CalendarDays, Network, Clock, UserCheck, ShieldAlert, Cpu, Palette } from "lucide-react"
 import { useCalendar } from "@/lib/context/calendar-context"
 import dynamic from "next/dynamic"
 
@@ -28,6 +28,7 @@ import { AcademicStructureTab } from "@/components/school/academic-structure-tab
 import { StaffScheduleSettingsTab } from "@/components/school/staff-schedule-settings-tab"
 import { LifecyclePolicySettings } from "@/components/school/lifecycle-policy-settings"
 import { validateAllScheduleSettings } from "@/lib/utils/schedule-validation"
+import { ReportCardDesignerTab } from "@/components/school/report-card-designer-tab"
 
 const GeofenceMapPicker = dynamic(
   () => import("@/components/school/geofence-map-picker").then((m) => m.GeofenceMapPicker),
@@ -37,6 +38,14 @@ const GeofenceMapPicker = dynamic(
 export function Settings() {
   const { calendarPreference, setCalendarPreference } = useCalendar()
   const [activeTab, setActiveTab] = useState("general")
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      const tab = params.get("tab")
+      if (tab) setActiveTab(tab)
+    }
+  }, [])
   const [settings, setSettings] = useState<any>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -285,6 +294,12 @@ export function Settings() {
                 <span>Academic Structure</span>
               </span>
             </SelectItem>
+            <SelectItem value="report_card_design" className="text-xs font-bold py-2.5">
+              <span className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-pink-600 dark:text-pink-400" />
+                <span>Report Card Design</span>
+              </span>
+            </SelectItem>
             <SelectItem value="staff_schedule" className="text-xs font-bold py-2.5">
               <span className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -328,6 +343,7 @@ export function Settings() {
                 { id: "general", label: "General", desc: "Calendar, Phone & Address", icon: Sliders, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40" },
                 { id: "academic_year", label: "Academic Year", desc: "Terms, Semesters & Dates", icon: CalendarDays, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40" },
                 { id: "academic_structure", label: "Academic Structure", desc: "Grades, Sections & Subjects", icon: Network, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
+                { id: "report_card_design", label: "Report Card Design", desc: "Theme, Colors & Radius", icon: Palette, color: "text-pink-600 dark:text-pink-400", bg: "bg-pink-50 dark:bg-pink-950/40" },
                 { id: "staff_schedule", label: "Staff Schedule", desc: "Work Hours, Shifts & Holidays", icon: Clock, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40" },
                 { id: "attendance", label: "Student Rules", desc: "Attendance & Homeroom", icon: UserCheck, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40" },
                 { id: "lifecycle_policy", label: "Lifecycle & Policies", desc: "Data Retention & Promotion", icon: ShieldAlert, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40" },
@@ -375,6 +391,10 @@ export function Settings() {
 
             <TabsContent value="academic_structure" className="mt-0 space-y-4">
               <AcademicStructureTab />
+            </TabsContent>
+
+            <TabsContent value="report_card_design" className="mt-0 space-y-4">
+              <ReportCardDesignerTab />
             </TabsContent>
 
             <TabsContent value="staff_schedule" className="mt-0 space-y-4">

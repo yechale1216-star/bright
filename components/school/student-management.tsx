@@ -91,6 +91,10 @@ export function StudentManagement() {
   const [showConfirmationPassword, setShowConfirmationPassword] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [isRegeneratingCode, setIsRegeneratingCode] = useState(false)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   const copyToClipboard = (text: string, key: string) => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -223,6 +227,7 @@ export function StudentManagement() {
     gender: "",
     date_of_birth: "",
     address: "",
+    profile_photo: "",
   })
 
 const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
@@ -567,7 +572,10 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       gender: "",
       date_of_birth: "",
       address: "",
+      profile_photo: "",
     })
+    setPhotoFile(null)
+    setPhotoPreview(null)
     fetchNextStudentId()
     setEditingStudent(null)
     setValidationErrors([])
@@ -628,11 +636,50 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     return combinedResult.isValid
   }
 
+  const handlePhotoSelect = (file: File) => {
+    const MAX_SIZE = 5 * 1024 * 1024
+    const ALLOWED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!ALLOWED.includes(file.type)) {
+      notifications.error("Invalid File", "Please select a JPG, PNG, or WebP image.")
+      return
+    }
+    if (file.size > MAX_SIZE) {
+      notifications.error("File Too Large", "Photo must be under 5MB.")
+      return
+    }
+    setPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = (e) => setPhotoPreview(e.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const handlePhotoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handlePhotoSelect(file)
+  }
+
+  const uploadPhotoToServer = async (file: File): Promise<string> => {
+    const formDataUpload = new FormData()
+    formDataUpload.append('file', file)
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') || '' : ''
+    const res = await fetch(`${API_URL}/api/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formDataUpload,
+    })
+    if (!res.ok) throw new Error('Photo upload failed')
+    const data = await res.json()
+    return data.url
+  }
+
   const handleTakePhoto = async () => {
     try {
       const photoPath = await NativeBridge.takePhoto()
-      console.log('Mobile photo taken:', photoPath)
-      notifications.success("Success", "Photo captured. In a production build, this would be uploaded to storage.")
+      if (photoPath) {
+        setPhotoPreview(photoPath)
+        setFormData(prev => ({ ...prev, profile_photo: photoPath }))
+      }
     } catch (error: any) {
       if (error.message !== 'User cancelled photos app') {
         notifications.error("Camera Error", error.message)
@@ -658,18 +705,33 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       return
     }
 
+    // Upload photo if a new file was selected
+    let uploadedPhotoUrl = formData.profile_photo
+    if (photoFile) {
+      setIsUploadingPhoto(true)
+      try {
+        uploadedPhotoUrl = await uploadPhotoToServer(photoFile)
+      } catch (err: any) {
+        notifications.error("Photo Upload Failed", "Could not upload photo. Please try again.")
+        setIsUploadingPhoto(false)
+        return
+      } finally {
+        setIsUploadingPhoto(false)
+      }
+    }
+
     setIsSaving(true)
 
     try {
       if (editingStudent) {
-        await db.updateStudent(editingStudent.id, formData)
+        await db.updateStudent(editingStudent.id, { ...formData, profile_photo: uploadedPhotoUrl })
         notifications.success("Student Updated Successfully", "The student information has been updated.")
 
         await loadStudents(false, true)
         setIsAddModalOpen(false)
         resetForm()
       } else {
-        const result = await db.addStudent(formData)
+        const result = await db.addStudent({ ...formData, profile_photo: uploadedPhotoUrl })
         notifications.success("Student Enrolled Successfully", "Student account created with activation credentials.")
 
         await loadStudents(false, true)
@@ -720,12 +782,15 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       gender: student.gender || "",
       date_of_birth: student.date_of_birth || "",
       address: student.address || "",
+      profile_photo: student.profile_photo || "",
     })
     setValidationErrors([])
     setFoundParent(null)
     setLinkExistingParent(false)
     setParentLookupState('idle')
     setParentLookupError(null)
+    setPhotoPreview(student.profile_photo || null)
+    setPhotoFile(null)
     setIsAddModalOpen(true)
   }
 
@@ -1183,6 +1248,77 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-6">
+                      {/* Student Photo */}
+                      <div className="bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                        <p className="typography-label text-[10px] uppercase text-emerald-600 dark:text-emerald-400 mb-3">Student Photo (Optional)</p>
+                        <div className="flex items-center gap-4">
+                          {/* Preview circle */}
+                          <div
+                            className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-emerald-200 dark:border-emerald-800 cursor-pointer relative group"
+                            onClick={() => photoInputRef.current?.click()}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              const file = e.dataTransfer.files?.[0]
+                              if (file) handlePhotoSelect(file)
+                            }}
+                          >
+                            {photoPreview ? (
+                              <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-2xl font-black text-white">
+                                {formData.name?.charAt(0)?.toUpperCase() || '?'}
+                              </span>
+                            )}
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Camera className="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+
+                          {/* Buttons */}
+                          <div className="flex flex-col gap-2 flex-1">
+                            <div className="flex gap-2 flex-wrap">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="typography-label h-8 rounded-lg text-xs"
+                                onClick={() => photoInputRef.current?.click()}
+                              >
+                                <Upload className="w-3 h-3 mr-1.5" />
+                                {photoPreview ? 'Change Photo' : 'Upload Photo'}
+                              </Button>
+                              {photoPreview && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="typography-label h-8 rounded-lg text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => {
+                                    setPhotoFile(null)
+                                    setPhotoPreview(null)
+                                    setFormData(prev => ({ ...prev, profile_photo: '' }))
+                                    if (photoInputRef.current) photoInputRef.current.value = ''
+                                  }}
+                                >
+                                  <X className="w-3 h-3 mr-1.5" />
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                            <p className="typography-helper text-slate-400 text-[11px]">JPG, PNG or WebP · Max 5MB · Drag & drop or click</p>
+                          </div>
+                        </div>
+
+                        {/* Hidden file input */}
+                        <input
+                          ref={photoInputRef}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          className="hidden"
+                          onChange={handlePhotoInputChange}
+                        />
+                      </div>
                       <div className="bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/50 space-y-4">
                         <p className="typography-label text-[10px] uppercase text-emerald-600 dark:text-emerald-400">Basic Information</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1821,8 +1957,12 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                     <TableRow key={student.id} className="group hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors border-b border-slate-100 dark:border-slate-800/60">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-primary/20 group-hover:scale-105 transition-transform shrink-0">
-                            {student.name?.charAt(0).toUpperCase()}
+                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-primary/20 group-hover:scale-105 transition-transform shrink-0 overflow-hidden">
+                            {student.profile_photo ? (
+                              <img src={student.profile_photo} alt={student.name} className="w-full h-full object-cover" />
+                            ) : (
+                              student.name?.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground tracking-tight truncate">{student.name}</p>
@@ -1999,8 +2139,12 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                       {/* Student Name + ID */}
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary font-black text-sm flex items-center justify-center flex-shrink-0 border border-primary/20">
-                            {student.name?.charAt(0).toUpperCase()}
+                          <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary font-black text-sm flex items-center justify-center flex-shrink-0 border border-primary/20 overflow-hidden">
+                            {student.profile_photo ? (
+                              <img src={student.profile_photo} alt={student.name} className="w-full h-full object-cover" />
+                            ) : (
+                              student.name?.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-[12px] font-black text-foreground truncate uppercase tracking-tight leading-tight">
@@ -2193,10 +2337,14 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
               <div className="flex items-center gap-4 pr-10">
                 {/* Avatar */}
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-900/40 flex-shrink-0">
-                  <span className="text-2xl font-black text-white">
-                    {selectedStudent.name?.charAt(0).toUpperCase()}
-                  </span>
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-900/40 flex-shrink-0 overflow-hidden">
+                  {selectedStudent.profile_photo ? (
+                    <img src={selectedStudent.profile_photo} alt={selectedStudent.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-2xl font-black text-white">
+                      {selectedStudent.name?.charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </div>
 
                 {/* Name + meta */}
