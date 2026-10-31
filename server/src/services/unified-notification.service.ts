@@ -215,7 +215,7 @@ export class UnifiedNotificationService {
             });
 
             if (result === 'EXPIRED_TOKEN') {
-              await prisma.parent.update({
+              await prisma.user.update({
                 where: { id: parent.id },
                 data: { pushToken: null },
               }).catch(() => {});
@@ -224,8 +224,8 @@ export class UnifiedNotificationService {
         }
       } else if (targetRole === 'ALL_PARENTS') {
         // Broadcast push notification to all parents registered with push tokens
-        const allParents = await prisma.parent.findMany({
-          where: { pushToken: { not: null } },
+        const allParents = await prisma.user.findMany({
+          where: { role: 'parent', pushToken: { not: null } },
           select: { id: true, phone: true, pushToken: true },
         });
 
@@ -257,7 +257,7 @@ export class UnifiedNotificationService {
               });
 
               if (result === 'EXPIRED_TOKEN') {
-                await prisma.parent.update({
+                await prisma.user.update({
                   where: { id: parent.id },
                   data: { pushToken: null },
                 }).catch(() => {});
