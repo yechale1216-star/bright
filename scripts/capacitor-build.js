@@ -40,12 +40,45 @@ function copyDirRecursive(src, dest) {
   }
 }
 
+function renameSyncWithRetry(src, dest, retries = 10, delay = 300) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      if (fs.existsSync(src)) {
+        fs.renameSync(src, dest);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      if (err.code === 'EPERM' || err.code === 'EBUSY') {
+        if (i === retries - 1) {
+          fs.cpSync(src, dest, { recursive: true });
+          fs.rmSync(src, { recursive: true, force: true });
+          return true;
+        }
+        const limit = Date.now() + delay;
+        while (Date.now() < limit) {}
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 if (target === 'school' || target === 'portal') {
   const appFolder = target === 'school' ? 'apps/school-portal' : 'apps/student-parent-portal';
   const targetDir = path.join(ROOT, appFolder);
   const targetOut = path.join(targetDir, 'out');
+  const targetApiDir = path.join(targetDir, 'app', 'api');
+  const targetApiTmp = path.join(targetDir, 'app', '__api_cap_disabled');
 
   console.log(`[capacitor-build] Building workspace app: ${appFolder}...`);
+
+  let renamed = false;
+  if (fs.existsSync(targetApiDir)) {
+    renameSyncWithRetry(targetApiDir, targetApiTmp);
+    renamed = true;
+    console.log(`[capacitor-build] Temporarily hidden: ${appFolder}/app/api → __api_cap_disabled`);
+  }
 
   try {
     execSync(`npx next build ${appFolder} --webpack`, {
@@ -78,7 +111,16 @@ if (target === 'school' || target === 'portal') {
     console.log(`[capacitor-build] ✓ Web assets prepared in ${ROOT_OUT}\n`);
   } catch (err) {
     console.error(`\n[capacitor-build] ✗ Build FAILED for ${appFolder}:`, err.message);
+    if (renamed && fs.existsSync(targetApiTmp)) {
+      renameSyncWithRetry(targetApiTmp, targetApiDir);
+      console.log(`[capacitor-build] Restored: ${appFolder}/app/__api_cap_disabled → app/api`);
+    }
     process.exit(1);
+  }
+
+  if (renamed && fs.existsSync(targetApiTmp)) {
+    renameSyncWithRetry(targetApiTmp, targetApiDir);
+    console.log(`[capacitor-build] Restored: ${appFolder}/app/__api_cap_disabled → app/api`);
   }
 
 } else {
