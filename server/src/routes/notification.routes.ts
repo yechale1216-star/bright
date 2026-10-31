@@ -14,8 +14,8 @@ export const ROLE_ALLOWED_CATEGORIES: Record<string, string[]> = {
   school_admin: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'ACADEMIC', 'DISCIPLINE', 'SYSTEM', 'GENERAL'],
   admin: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'ACADEMIC', 'DISCIPLINE', 'SYSTEM', 'GENERAL'],
   academic_head: ['ALL', 'UNREAD', 'ACADEMIC', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
-  teacher: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ACADEMIC', 'ATTENDANCE', 'DISCIPLINE', 'GENERAL'],
-  discipline_officer: ['ALL', 'UNREAD', 'DISCIPLINE', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
+  teacher: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ACADEMIC', 'ATTENDANCE', 'GENERAL'],
+  discipline_officer: ['ALL', 'UNREAD', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
   registrar: ['ALL', 'UNREAD', 'ACADEMIC', 'ANNOUNCEMENT', 'ATTENDANCE', 'SYSTEM', 'GENERAL'],
   staff_attendance_officer: ['ALL', 'UNREAD', 'ATTENDANCE', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
   hr_officer: ['ALL', 'UNREAD', 'ATTENDANCE', 'ANNOUNCEMENT', 'SYSTEM', 'GENERAL'],
@@ -139,6 +139,10 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
     }
 
     const { targetUserId, targetRole, studentId, title, message, category, priority, metadata } = req.body;
+
+    if (category === 'DISCIPLINE' && !['school_admin', 'super_admin', 'admin'].includes(role || '')) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only school admin can manage discipline notifications' });
+    }
 
     if (targetRole) {
       const result = await UnifiedNotificationService.broadcastRole({

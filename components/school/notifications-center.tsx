@@ -44,7 +44,6 @@ const ROLE_DEFAULT_TABS: Record<string, NavTab[]> = {
     { id: "ANNOUNCEMENT", label: "Announcements" },
     { id: "ACADEMIC", label: "Academics" },
     { id: "ATTENDANCE", label: "Attendance" },
-    { id: "DISCIPLINE", label: "Discipline" },
   ],
   academic_head: [
     { id: "ALL", label: "All" },
@@ -84,7 +83,6 @@ const ROLE_DEFAULT_TABS: Record<string, NavTab[]> = {
   discipline_officer: [
     { id: "ALL", label: "All" },
     { id: "UNREAD", label: "Unread" },
-    { id: "DISCIPLINE", label: "Discipline Cases" },
     { id: "ANNOUNCEMENT", label: "Announcements" },
     { id: "ATTENDANCE", label: "Attendance" },
     { id: "SYSTEM", label: "System Alerts" },
@@ -372,8 +370,7 @@ export function NotificationsCenter() {
         else router.push("/school/staff/attendance");
         break;
       case "DISCIPLINE":
-        if (isAdmin || isDisciplineOfficer) router.push("/school/admin/discipline");
-        else if (isTeacher) router.push("/school/teacher/classes");
+        if (isAdmin) router.push("/school/admin/discipline");
         break;
       case "ACADEMIC":
         if (isAdmin) router.push("/school/admin/report-cards");

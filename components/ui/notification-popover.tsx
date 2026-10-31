@@ -187,8 +187,7 @@ export function NotificationPopover() {
         else router.push("/school/staff/attendance");
         break;
       case "DISCIPLINE":
-        if (isAdmin || role === "discipline_officer") router.push("/school/admin/discipline");
-        else if (isTeacher) router.push("/school/teacher/classes");
+        if (isAdmin) router.push("/school/admin/discipline");
         break;
       case "ACADEMIC":
         if (isAdmin) router.push("/school/admin/report-cards");
