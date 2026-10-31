@@ -2,6 +2,7 @@ import { checkStudentEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
 import { sendCategoryNotification } from './notification.service';
+import { UnifiedNotificationService, NotificationCategory, NotificationPriority } from './unified-notification.service';
 
 export const DEFAULT_DISCIPLINE_CATEGORIES = [
   'Late Arrival',
@@ -484,6 +485,57 @@ export class DisciplineService {
         message: notifMsg,
         caseNumber
       });
+    }
+
+    // ── Notify school-portal users: homeroom teacher + admins ─────────────────
+    try {
+      const staffUserIds = new Set<string>();
+
+      // 1. Homeroom teacher for the student's section
+      if (student.sectionId) {
+        const homeroomAssignment = await prisma.teacherAssignment.findFirst({
+          where: { sectionId: student.sectionId, role: 'HOMEROOM_TEACHER' },
+          include: { teacher: true },
+        });
+        if (homeroomAssignment?.teacher?.user_id) {
+          staffUserIds.add(homeroomAssignment.teacher.user_id);
+        }
+      }
+
+      // 2. Admins / super-admins
+      const adminUsers = await (prisma as any).user.findMany({
+        where: { role: { in: ['school_admin', 'super_admin'] } },
+        select: { id: true },
+      });
+      for (const u of adminUsers) staffUserIds.add(u.id);
+
+      // Do NOT notify the reporter if they are in the list (avoid duplicate)
+      staffUserIds.delete(user.id);
+
+      const severityPriority: Record<string, string> = {
+        LOW: NotificationPriority.NORMAL,
+        MEDIUM: NotificationPriority.HIGH,
+        HIGH: NotificationPriority.HIGH,
+        CRITICAL: NotificationPriority.URGENT,
+      };
+      const priority = severityPriority[data.severity] || NotificationPriority.NORMAL;
+
+      await Promise.all(
+        [...staffUserIds].map((userId) =>
+          UnifiedNotificationService.sendToUser({
+            userId,
+            category: NotificationCategory.DISCIPLINE,
+            priority,
+            title: `Discipline Incident: ${student.fullName} — Case #${caseNumber}`,
+            message: `A ${data.severity} severity incident (${data.categoryName}) was reported for ${student.fullName}. ${data.title}`,
+            metadata: { incidentId: incident.id, caseNumber, studentId: student.id, severity: data.severity },
+          }).catch((err: any) =>
+            console.error(`[DisciplineService] sendToUser(${userId}) failed:`, err)
+          )
+        )
+      );
+    } catch (err) {
+      console.error('[DisciplineService] Staff notification error:', err);
     }
 
     return ensureCaseNumber(incident);

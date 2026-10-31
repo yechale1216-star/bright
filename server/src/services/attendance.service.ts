@@ -1,6 +1,7 @@
 import { checkStudentEligibility, checkStudentsBatchEligibility } from './student-eligibility.service';
 import prisma from '../config/db';
 import { academicYearService } from './academic-year.service';
+import { UnifiedNotificationService, NotificationCategory, NotificationPriority } from './unified-notification.service';
 
 export function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
@@ -299,6 +300,14 @@ export const markAttendance = async (data: any, _schoolId?: string) => {
 
   await sendAttendanceParentNotification(student, status, dateStr);
 
+  // ── School-portal notification: alert homeroom teacher + admins when a student is absent/late ──
+  const statusLow = status.toLowerCase();
+  if (statusLow === 'absent' || statusLow === 'late') {
+    await sendAttendanceStaffNotification(student, status, dateStr, schoolId).catch(
+      (err: any) => console.error('[AttendanceService] Staff notification error:', err)
+    );
+  }
+
   return result;
 };
 
@@ -557,6 +566,68 @@ export const getAttendanceAuditLogs = async (_schoolId?: string) => {
     orderBy: { created_at: 'desc' },
     take: 100
   });
+};
+
+/**
+ * Sends school-portal notifications to the homeroom teacher (and any school admins)
+ * when a student is marked ABSENT or LATE.
+ */
+export const sendAttendanceStaffNotification = async (
+  student: { id: string; fullName: string; gender?: string | null; sectionId?: string | null },
+  status: string,
+  dateStr: string,
+  schoolId?: string
+) => {
+  const isAbsent = status.toLowerCase() === 'absent';
+  const statusLabel = isAbsent ? 'Absent' : 'Late';
+  const priority = isAbsent ? NotificationPriority.HIGH : NotificationPriority.NORMAL;
+
+  const title = `Student ${statusLabel}: ${student.fullName}`;
+  const message = `${student.fullName} was marked ${statusLabel.toLowerCase()} on ${dateStr}.`;
+
+  // Collect all target userIds (homeroom teacher + school admins) — deduplicated
+  const notifyUserIds = new Set<string>();
+
+  try {
+    // 1. Find the homeroom teacher for the student's section
+    if (student.sectionId) {
+      const homeroomAssignment = await prisma.teacherAssignment.findFirst({
+        where: { sectionId: student.sectionId, role: 'HOMEROOM_TEACHER' },
+        include: { teacher: true },
+      });
+      if (homeroomAssignment?.teacher?.user_id) {
+        notifyUserIds.add(homeroomAssignment.teacher.user_id);
+      }
+    }
+
+    // 2. Find school admin / super_admin users
+    const adminUsers = await (prisma as any).user.findMany({
+      where: { role: { in: ['school_admin', 'super_admin'] } },
+      select: { id: true },
+    });
+    for (const u of adminUsers) {
+      notifyUserIds.add(u.id);
+    }
+
+    // 3. Dispatch notifications (fire-and-forget per user)
+    await Promise.all(
+      [...notifyUserIds].map((userId) =>
+        UnifiedNotificationService.sendToUser({
+          userId,
+          schoolId,
+          category: NotificationCategory.ATTENDANCE,
+          priority,
+          title,
+          message,
+          metadata: { studentId: student.id, status, date: dateStr },
+        }).catch((err: any) =>
+          console.error(`[AttendanceService] sendToUser(${userId}) failed:`, err)
+        )
+      )
+    );
+  } catch (err) {
+    console.error('[AttendanceService] sendAttendanceStaffNotification error:', err);
+  }
 };
 
 export const sendAttendanceParentNotification = async (

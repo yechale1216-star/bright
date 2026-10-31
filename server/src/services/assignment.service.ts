@@ -1,4 +1,5 @@
 import prisma from '../config/db';
+import { UnifiedNotificationService, NotificationCategory, NotificationPriority } from './unified-notification.service';
 
 export interface AssignmentFilterParams {
   teacherId?: string;
@@ -210,7 +211,7 @@ export const createAssignment = async (data: AssignmentInput, _schoolId?: string
     throw new Error('This teacher already has this exact assignment.');
   }
 
-  return await prisma.teacherAssignment.create({
+  const created = await prisma.teacherAssignment.create({
     data: {
       teacher_id: teacherId,
       academicYearId: targetYearId || undefined,
@@ -230,6 +231,32 @@ export const createAssignment = async (data: AssignmentInput, _schoolId?: string
       subjectRef: true,
     },
   });
+
+  // ── Notify the assigned teacher in the school portal ──────────────────────
+  try {
+    const assignedTeacher = await prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: { user_id: true },
+    });
+    if (assignedTeacher?.user_id) {
+      const gradeName = (created as any).grade?.name || '';
+      const sectionName = (created as any).section?.name || '';
+      const roleLabel = role === 'HOMEROOM_TEACHER' ? 'Homeroom Teacher' : 'Subject Teacher';
+      const subjectLabel = subjectName ? ` — ${subjectName}` : '';
+      await UnifiedNotificationService.sendToUser({
+        userId: assignedTeacher.user_id,
+        category: NotificationCategory.GENERAL,
+        priority: NotificationPriority.NORMAL,
+        title: 'New Class Assignment',
+        message: `You have been assigned as ${roleLabel}${subjectLabel} for Grade ${gradeName} - Section ${sectionName}.`,
+        metadata: { assignmentId: created.id, role, gradeId: data.gradeId, sectionId: data.sectionId },
+      });
+    }
+  } catch (err) {
+    console.error('[AssignmentService] Teacher create-notification error:', err);
+  }
+
+  return created;
 };
 
 export const updateAssignment = async (id: string, data: any, _schoolId?: string) => {
@@ -352,7 +379,7 @@ export const updateAssignment = async (id: string, data: any, _schoolId?: string
     }
   }
 
-  return await prisma.teacherAssignment.update({
+  const updated = await prisma.teacherAssignment.update({
     where: { id },
     data: {
       teacher_id: teacherId,
@@ -373,6 +400,32 @@ export const updateAssignment = async (id: string, data: any, _schoolId?: string
       subjectRef: true,
     },
   });
+
+  // ── Notify the teacher that their assignment was updated ───────────────────
+  try {
+    const assignedTeacher = await prisma.teacher.findUnique({
+      where: { id: teacherId },
+      select: { user_id: true },
+    });
+    if (assignedTeacher?.user_id) {
+      const gradeName = (updated as any).grade?.name || '';
+      const sectionName = (updated as any).section?.name || '';
+      const roleLabel = role === 'HOMEROOM_TEACHER' ? 'Homeroom Teacher' : 'Subject Teacher';
+      const subjectLabel = subjectName ? ` — ${subjectName}` : '';
+      await UnifiedNotificationService.sendToUser({
+        userId: assignedTeacher.user_id,
+        category: NotificationCategory.GENERAL,
+        priority: NotificationPriority.NORMAL,
+        title: 'Assignment Updated',
+        message: `Your assignment as ${roleLabel}${subjectLabel} for Grade ${gradeName} - Section ${sectionName} has been updated.`,
+        metadata: { assignmentId: updated.id, role, gradeId: data.gradeId, sectionId: data.sectionId },
+      });
+    }
+  } catch (err) {
+    console.error('[AssignmentService] Teacher update-notification error:', err);
+  }
+
+  return updated;
 };
 
 export const deleteAssignment = async (id: string, _schoolId?: string) => {
