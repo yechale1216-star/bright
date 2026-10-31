@@ -46,6 +46,7 @@ const memUserInCall = new Map(); // userId → callId
 const memUserInfo = new Map();
 const memConvMembers = new Map();
 const memTempIds = new Map();
+const memBackgroundedSockets = new Set();
 // ─────────────────────────────────────────────────────────────────────────────
 // Local store for NodeJS.Timeout handles (cannot be stored in Redis)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -440,6 +441,7 @@ const initSocket = (server) => {
                 const decoded = jsonwebtoken_1.default.verify(token, (0, jwt_1.getJwtSecret)());
                 const { id: userId } = decoded;
                 await addUserSocket(userId, socket.id);
+                socket.join(`user_${userId}`);
                 const onlineUsers = await getOnlineUsers();
                 socket.emit('initial_online_users', onlineUsers);
                 emitPresenceToMates(io, 'user_online', userId, socket.id);
@@ -566,11 +568,14 @@ const initSocket = (server) => {
                 }).catch(() => { });
                 getConversationMemberIds(data.conversationId).then(async (memberIds) => {
                     const pushTargetIds = [];
+                    const roomSockets = io.sockets.adapter.rooms.get(data.conversationId) || new Set();
                     for (const id of memberIds) {
                         if (id === data.senderId)
                             continue;
-                        const online = await isUserOnline(id);
-                        if (!online)
+                        const memberSocketIds = await getUserSocketIds(id);
+                        // Send push if user is fully offline, OR has no active foreground socket viewing this room
+                        const hasForegroundInRoom = memberSocketIds.some(sid => roomSockets.has(sid) && !memBackgroundedSockets.has(sid));
+                        if (!hasForegroundInRoom)
                             pushTargetIds.push(id);
                     }
                     if (pushTargetIds.length === 0)
@@ -604,6 +609,21 @@ const initSocket = (server) => {
             catch {
                 socket.emit('message_error', { message: 'Failed to send', tempId: data.tempId });
             }
+        });
+        // ── Leave Conversation ─────────────────────────────────────────────────
+        // Client emits this when navigating away from a chat so the user is no
+        // longer in the room and will receive push notifications when backgrounded.
+        socket.on('leave_conversation', (conversationId) => {
+            if (conversationId) {
+                socket.leave(conversationId);
+            }
+        });
+        // ── App Visibility ─────────────────────────────────────────────────────
+        socket.on('app_backgrounded', () => {
+            memBackgroundedSockets.add(socket.id);
+        });
+        socket.on('app_foregrounded', () => {
+            memBackgroundedSockets.delete(socket.id);
         });
         // ── Delete Message ─────────────────────────────────────────────────────
         socket.on('delete_message', async (data) => {
@@ -818,6 +838,7 @@ const initSocket = (server) => {
         });
         // ── Disconnect ─────────────────────────────────────────────────────────
         socket.on('disconnect', async () => {
+            memBackgroundedSockets.delete(socket.id);
             const tenant = await getSocketData(socket.id);
             if (tenant) {
                 const { userId } = tenant;

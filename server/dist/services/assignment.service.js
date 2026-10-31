@@ -38,6 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyTeacherClassSubjectAccess = exports.getTeacherClassDetails = exports.getTeacherPortalClasses = exports.deleteAssignment = exports.updateAssignment = exports.createAssignment = exports.getAssignments = void 0;
 const db_1 = __importDefault(require("../config/db"));
+const unified_notification_service_1 = require("./unified-notification.service");
 const getAssignments = async (_schoolId, teacherId, filters = {}) => {
     const where = {};
     if (teacherId || filters.teacherId) {
@@ -213,7 +214,7 @@ const createAssignment = async (data, _schoolId) => {
     if (existingExact) {
         throw new Error('This teacher already has this exact assignment.');
     }
-    return await db_1.default.teacherAssignment.create({
+    const created = await db_1.default.teacherAssignment.create({
         data: {
             teacher_id: teacherId,
             academicYearId: targetYearId || undefined,
@@ -233,6 +234,31 @@ const createAssignment = async (data, _schoolId) => {
             subjectRef: true,
         },
     });
+    // ── Notify the assigned teacher in the school portal ──────────────────────
+    try {
+        const assignedTeacher = await db_1.default.teacher.findUnique({
+            where: { id: teacherId },
+            select: { user_id: true },
+        });
+        if (assignedTeacher?.user_id) {
+            const gradeName = created.grade?.name || '';
+            const sectionName = created.section?.name || '';
+            const roleLabel = role === 'HOMEROOM_TEACHER' ? 'Homeroom Teacher' : 'Subject Teacher';
+            const subjectLabel = subjectName ? ` — ${subjectName}` : '';
+            await unified_notification_service_1.UnifiedNotificationService.sendToUser({
+                userId: assignedTeacher.user_id,
+                category: unified_notification_service_1.NotificationCategory.GENERAL,
+                priority: unified_notification_service_1.NotificationPriority.NORMAL,
+                title: 'New Class Assignment',
+                message: `You have been assigned as ${roleLabel}${subjectLabel} for Grade ${gradeName} - Section ${sectionName}.`,
+                metadata: { assignmentId: created.id, role, gradeId: data.gradeId, sectionId: data.sectionId },
+            });
+        }
+    }
+    catch (err) {
+        console.error('[AssignmentService] Teacher create-notification error:', err);
+    }
+    return created;
 };
 exports.createAssignment = createAssignment;
 const updateAssignment = async (id, data, _schoolId) => {
@@ -340,7 +366,7 @@ const updateAssignment = async (id, data, _schoolId) => {
             throw new Error(`This subject (${subjectName || 'selected subject'}) is already assigned to ${teacherName}.`);
         }
     }
-    return await db_1.default.teacherAssignment.update({
+    const updated = await db_1.default.teacherAssignment.update({
         where: { id },
         data: {
             teacher_id: teacherId,
@@ -361,6 +387,31 @@ const updateAssignment = async (id, data, _schoolId) => {
             subjectRef: true,
         },
     });
+    // ── Notify the teacher that their assignment was updated ───────────────────
+    try {
+        const assignedTeacher = await db_1.default.teacher.findUnique({
+            where: { id: teacherId },
+            select: { user_id: true },
+        });
+        if (assignedTeacher?.user_id) {
+            const gradeName = updated.grade?.name || '';
+            const sectionName = updated.section?.name || '';
+            const roleLabel = role === 'HOMEROOM_TEACHER' ? 'Homeroom Teacher' : 'Subject Teacher';
+            const subjectLabel = subjectName ? ` — ${subjectName}` : '';
+            await unified_notification_service_1.UnifiedNotificationService.sendToUser({
+                userId: assignedTeacher.user_id,
+                category: unified_notification_service_1.NotificationCategory.GENERAL,
+                priority: unified_notification_service_1.NotificationPriority.NORMAL,
+                title: 'Assignment Updated',
+                message: `Your assignment as ${roleLabel}${subjectLabel} for Grade ${gradeName} - Section ${sectionName} has been updated.`,
+                metadata: { assignmentId: updated.id, role, gradeId: data.gradeId, sectionId: data.sectionId },
+            });
+        }
+    }
+    catch (err) {
+        console.error('[AssignmentService] Teacher update-notification error:', err);
+    }
+    return updated;
 };
 exports.updateAssignment = updateAssignment;
 const deleteAssignment = async (id, _schoolId) => {

@@ -3,12 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDashboardSummary = exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.normalizeDate = exports.resolveTeacherId = void 0;
+exports.getDashboardSummary = exports.sendAdminAttendanceNotification = exports.bulkMarkAttendance = exports.sendAttendanceParentNotification = exports.sendAttendanceStaffNotification = exports.getAttendanceAuditLogs = exports.rejectEditRequest = exports.approveEditRequest = exports.getEditRequests = exports.createEditRequest = exports.getAttendanceByStudent = exports.getAttendance = exports.markAttendance = exports.normalizeSession = exports.normalizeDate = exports.resolveTeacherId = void 0;
 exports.calculateDistanceMeters = calculateDistanceMeters;
 exports.validateGeofence = validateGeofence;
 const student_eligibility_service_1 = require("./student-eligibility.service");
 const db_1 = __importDefault(require("../config/db"));
 const academic_year_service_1 = require("./academic-year.service");
+const unified_notification_service_1 = require("./unified-notification.service");
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371e3;
     const φ1 = (lat1 * Math.PI) / 180;
@@ -271,6 +272,11 @@ const markAttendance = async (data, _schoolId) => {
         }
     }).catch(err => console.error('[AuditLog] Attendance error:', err));
     await (0, exports.sendAttendanceParentNotification)(student, status, dateStr);
+    // ── School-portal notification: alert homeroom teacher + admins when a student is absent/late ──
+    const statusLow = status.toLowerCase();
+    if (statusLow === 'absent' || statusLow === 'late') {
+        await (0, exports.sendAttendanceStaffNotification)(student, status, dateStr, _schoolId).catch((err) => console.error('[AttendanceService] Staff notification error:', err));
+    }
     return result;
 };
 exports.markAttendance = markAttendance;
@@ -514,6 +520,53 @@ const getAttendanceAuditLogs = async (_schoolId) => {
     });
 };
 exports.getAttendanceAuditLogs = getAttendanceAuditLogs;
+/**
+ * Sends school-portal notifications to the homeroom teacher (and any school admins)
+ * when a student is marked ABSENT or LATE.
+ */
+const sendAttendanceStaffNotification = async (student, status, dateStr, schoolId) => {
+    const isAbsent = status.toLowerCase() === 'absent';
+    const statusLabel = isAbsent ? 'Absent' : 'Late';
+    const priority = isAbsent ? unified_notification_service_1.NotificationPriority.HIGH : unified_notification_service_1.NotificationPriority.NORMAL;
+    const title = `Student ${statusLabel}: ${student.fullName}`;
+    const message = `${student.fullName} was marked ${statusLabel.toLowerCase()} on ${dateStr}.`;
+    // Collect all target userIds (homeroom teacher + school admins) — deduplicated
+    const notifyUserIds = new Set();
+    try {
+        // 1. Find the homeroom teacher for the student's section
+        if (student.sectionId) {
+            const homeroomAssignment = await db_1.default.teacherAssignment.findFirst({
+                where: { sectionId: student.sectionId, role: 'HOMEROOM_TEACHER' },
+                include: { teacher: true },
+            });
+            if (homeroomAssignment?.teacher?.user_id) {
+                notifyUserIds.add(homeroomAssignment.teacher.user_id);
+            }
+        }
+        // 2. Find school admin / super_admin users
+        const adminUsers = await db_1.default.user.findMany({
+            where: { role: { in: ['school_admin', 'super_admin'] } },
+            select: { id: true },
+        });
+        for (const u of adminUsers) {
+            notifyUserIds.add(u.id);
+        }
+        // 3. Dispatch notifications (fire-and-forget per user)
+        await Promise.all([...notifyUserIds].map((userId) => unified_notification_service_1.UnifiedNotificationService.sendToUser({
+            userId,
+            schoolId,
+            category: unified_notification_service_1.NotificationCategory.ATTENDANCE,
+            priority,
+            title,
+            message,
+            metadata: { studentId: student.id, status, date: dateStr },
+        }).catch((err) => console.error(`[AttendanceService] sendToUser(${userId}) failed:`, err))));
+    }
+    catch (err) {
+        console.error('[AttendanceService] sendAttendanceStaffNotification error:', err);
+    }
+};
+exports.sendAttendanceStaffNotification = sendAttendanceStaffNotification;
 const sendAttendanceParentNotification = async (student, status, dateStr, _schoolId) => {
     if (!status)
         return;

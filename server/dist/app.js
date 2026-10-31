@@ -83,6 +83,7 @@ const student_portal_routes_1 = __importStar(require("./routes/student-portal.ro
 const assessment_policy_routes_1 = __importDefault(require("./routes/assessment-policy.routes"));
 const timetable_routes_1 = __importDefault(require("./routes/timetable.routes"));
 const teacher_routes_1 = __importDefault(require("./routes/teacher.routes"));
+const upload_routes_1 = __importStar(require("./routes/upload.routes"));
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const maintenance_middleware_1 = require("./middleware/maintenance.middleware");
 const parentController = __importStar(require("./controllers/parent.controller"));
@@ -143,6 +144,15 @@ app.use((0, cors_1.default)({
 app.use((0, cookie_parser_1.default)());
 app.use(express_1.default.json({ limit: '100mb' }));
 app.use(express_1.default.urlencoded({ limit: '100mb', extended: true }));
+// Serve uploaded static files with permissive cross-origin headers and range support for media
+app.use('/uploads', express_1.default.static(upload_routes_1.UPLOADS_DIR, {
+    acceptRanges: true,
+    setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Accept-Ranges', 'bytes');
+    }
+}));
 // Global Maintenance Guard
 app.use(maintenance_middleware_1.maintenanceMiddleware);
 // Health check and Auth (Public)
@@ -248,7 +258,6 @@ app.post('/api/calls/public-reject', async (req, res) => {
 });
 // Apply Auth Middleware to all API routes
 app.use('/api', auth_middleware_1.authMiddleware);
-// Other API routes are already covered by the /api middleware
 // Routes
 app.use('/api/students', student_routes_1.default);
 app.use('/api/attendance', attendance_routes_1.default);
@@ -279,6 +288,7 @@ app.use('/api/student', student_portal_routes_1.default);
 app.use('/api/assessment-policy', assessment_policy_routes_1.default);
 app.use('/api/timetables', timetable_routes_1.default);
 app.use('/api/teachers', teacher_routes_1.default);
+app.use('/api/upload', upload_routes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

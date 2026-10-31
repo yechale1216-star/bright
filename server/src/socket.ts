@@ -445,6 +445,7 @@ export const initSocket = (server: HttpServer) => {
         const { id: userId } = decoded;
 
         await addUserSocket(userId, socket.id);
+        socket.join(`user_${userId}`);
 
         const onlineUsers = await getOnlineUsers();
         socket.emit('initial_online_users', onlineUsers);

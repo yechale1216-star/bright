@@ -160,6 +160,34 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       }));
     });
 
+    socketInstance.on('new_notification', (notif: any) => {
+      // 1. Dispatch custom event with notification details
+      window.dispatchEvent(new CustomEvent('zetime:new_notification', {
+        detail: notif,
+      }));
+
+      // 2. Refresh notification bell, badge, and recent notifications
+      window.dispatchEvent(new Event('new_notification'));
+
+      // 3. Fire custom in-app banner alert
+      if (notif?.title) {
+        let route: string | undefined = undefined;
+        try {
+          const meta = typeof notif.metadata === 'string' ? JSON.parse(notif.metadata) : notif.metadata;
+          route = meta?.url;
+        } catch {}
+
+        window.dispatchEvent(new CustomEvent('zetime:in_app_notification', {
+          detail: {
+            type: (notif.category || notif.type || 'general').toLowerCase(),
+            title: notif.title,
+            body: notif.message || '',
+            route,
+          }
+        }));
+      }
+    });
+
     setSocket(socketInstance);
 
     // ── Network-aware reconnection.

@@ -220,6 +220,46 @@ export const getAnnouncements = async (req: AuthenticatedRequest, res: Response,
   }
 };
 
+export const getAnnouncementById = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const announcement = await prisma.parentNotification.findUnique({
+      where: { id },
+      include: {
+        student: {
+          select: {
+            id: true,
+            student_id: true,
+            fullName: true,
+            gradeId: true,
+          },
+        },
+      },
+    });
+
+    if (!announcement) {
+      return res.status(404).json({ success: false, message: 'Announcement not found' });
+    }
+
+    const role = (req.user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'school_admin', 'super_admin'].includes(role);
+    const audience = (announcement.targetAudience || 'GENERAL').toUpperCase();
+
+    if (!isAdmin) {
+      if (audience === 'STAFF' && role === 'parent') {
+        return res.status(403).json({ success: false, message: 'Access denied: Staff only' });
+      }
+      if (audience === 'PARENTS' && role !== 'parent') {
+        return res.status(403).json({ success: false, message: 'Access denied: Parents only' });
+      }
+    }
+
+    res.status(200).json({ success: true, data: announcement });
+  } catch (error: any) {
+    next(error);
+  }
+};
+
 export const updateAnnouncement = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;

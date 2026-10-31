@@ -79,12 +79,11 @@ export class UnifiedNotificationService {
       },
     });
 
-    // 1. Socket.IO Real-time Emit
+    // 1. Socket.IO Real-time Emit (strictly user-isolated)
     try {
       const io = getIO();
       if (io) {
         io.to(`user_${userId}`).emit('new_notification', notification);
-        io.emit('new_notification', notification);
       }
     } catch (e) {
       // Socket fail-safe
@@ -156,11 +155,19 @@ export class UnifiedNotificationService {
       },
     });
 
-    // 1. Socket.IO Real-time Emit
+    // 1. Socket.IO Real-time Emit (scoped to linked parents)
     try {
       const io = getIO();
-      if (io) {
-        io.emit('new_notification', notification);
+      if (io && studentId) {
+        const parentLinks = await prisma.parentStudentLink.findMany({
+          where: { studentId },
+          select: { parentId: true },
+        });
+        for (const link of parentLinks) {
+          if (link.parentId) {
+            io.to(`user_${link.parentId}`).emit('new_notification', notification);
+          }
+        }
       }
     } catch (e) {
       // Socket fail-safe

@@ -5,6 +5,7 @@ const router = Router();
 
 // These routes are authenticated via tenantMiddleware
 router.get('/', parentController.getAnnouncements);
+router.get('/:id', parentController.getAnnouncementById);
 router.post('/', parentController.postAnnouncement);
 router.put('/:id', parentController.updateAnnouncement);
 router.delete('/:id', parentController.deleteNotification);

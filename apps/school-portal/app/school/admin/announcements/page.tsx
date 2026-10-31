@@ -145,6 +145,19 @@ export default function AdminAnnouncementsPage() {
       )
       setAnnouncements(data)
       setLastUpdated(new Date())
+
+      // Auto-open announcement modal if ?id= query param exists
+      if (typeof window !== "undefined" && Array.isArray(data)) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetId = urlParams.get("id");
+        if (targetId) {
+          const match = data.find((a: any) => a.id === targetId);
+          if (match) {
+            setSelectedAnnouncement(match);
+            setIsViewModalOpen(true);
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch announcements:", error)
     } finally {

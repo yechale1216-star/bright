@@ -38,6 +38,7 @@ const parentController = __importStar(require("../controllers/parent.controller"
 const router = (0, express_1.Router)();
 // These routes are authenticated via tenantMiddleware
 router.get('/', parentController.getAnnouncements);
+router.get('/:id', parentController.getAnnouncementById);
 router.post('/', parentController.postAnnouncement);
 router.put('/:id', parentController.updateAnnouncement);
 router.delete('/:id', parentController.deleteNotification);

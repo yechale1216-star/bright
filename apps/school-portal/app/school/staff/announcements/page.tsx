@@ -134,6 +134,18 @@ export default function StaffAnnouncementsPage() {
       )
       setAnnouncements(Array.isArray(data) ? data : [])
       setLastUpdated(new Date())
+
+      // Auto-open announcement detail if ?id= query param exists
+      if (typeof window !== "undefined" && Array.isArray(data)) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetId = urlParams.get("id");
+        if (targetId) {
+          const match = data.find((a: any) => a.id === targetId);
+          if (match) {
+            setSelectedAnnouncement(match);
+          }
+        }
+      }
     } catch {
       setAnnouncements([])
     } finally {

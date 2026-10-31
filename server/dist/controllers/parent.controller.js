@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkParentsBatch = exports.setActiveSchool = exports.getMySchools = exports.getMyStudents = exports.updateProfile = exports.updateAnnouncement = exports.getAnnouncements = exports.postAnnouncement = exports.updatePreferences = exports.getPreferences = exports.markAllAsRead = exports.deleteNotification = exports.markAsRead = exports.getNotifications = exports.updatePassword = exports.searchParent = exports.loginParent = exports.listParentSchools = void 0;
+exports.checkParentsBatch = exports.setActiveSchool = exports.getMySchools = exports.getMyStudents = exports.updateProfile = exports.updateAnnouncement = exports.getAnnouncementById = exports.getAnnouncements = exports.postAnnouncement = exports.updatePreferences = exports.getPreferences = exports.markAllAsRead = exports.deleteNotification = exports.markAsRead = exports.getNotifications = exports.updatePassword = exports.searchParent = exports.loginParent = exports.listParentSchools = void 0;
 const parentService = __importStar(require("../services/parent.service"));
 const db_1 = __importDefault(require("../config/db"));
 const verifyPhoneOwnership = async (req, requestedPhone) => {
@@ -255,6 +255,43 @@ const getAnnouncements = async (req, res, next) => {
     }
 };
 exports.getAnnouncements = getAnnouncements;
+const getAnnouncementById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const announcement = await db_1.default.parentNotification.findUnique({
+            where: { id },
+            include: {
+                student: {
+                    select: {
+                        id: true,
+                        student_id: true,
+                        fullName: true,
+                        gradeId: true,
+                    },
+                },
+            },
+        });
+        if (!announcement) {
+            return res.status(404).json({ success: false, message: 'Announcement not found' });
+        }
+        const role = (req.user?.role || '').toLowerCase();
+        const isAdmin = ['admin', 'school_admin', 'super_admin'].includes(role);
+        const audience = (announcement.targetAudience || 'GENERAL').toUpperCase();
+        if (!isAdmin) {
+            if (audience === 'STAFF' && role === 'parent') {
+                return res.status(403).json({ success: false, message: 'Access denied: Staff only' });
+            }
+            if (audience === 'PARENTS' && role !== 'parent') {
+                return res.status(403).json({ success: false, message: 'Access denied: Parents only' });
+            }
+        }
+        res.status(200).json({ success: true, data: announcement });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getAnnouncementById = getAnnouncementById;
 const updateAnnouncement = async (req, res, next) => {
     try {
         const { id } = req.params;
