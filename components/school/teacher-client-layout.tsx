@@ -91,7 +91,6 @@ function TeacherClientLayoutContent({ children }: { children: React.ReactNode })
     ...(isHomeroomTeacher
       ? [{ href: "/school/teacher/reports", icon: <BarChart2 className="w-5 h-5" />, label: "Attendance Reports" }]
       : []),
-    { href: "/school/teacher/notifications", icon: <Bell className="w-5 h-5" />, label: "Notifications" },
     { href: "/school/teacher/profile", icon: <User className="w-5 h-5" />, label: "Profile" },
   ]
 
