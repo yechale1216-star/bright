@@ -404,6 +404,16 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
 
 function AcademicYearsWithTermsSection({ years, onTermsChanged }: { years: AcademicYear[]; onTermsChanged?: () => void }) {
   const [expandedYearId, setExpandedYearId] = useState<string | null>(null)
+  const { formatDate } = useCalendar()
+
+  const displayDate = (isoString: string | null | undefined): string => {
+    if (!isoString) return '-'
+    try {
+      return formatDate(isoString, { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return isoString.split('T')[0]
+    }
+  }
 
   useEffect(() => {
     const current = years.find((y) => y.isCurrent)
