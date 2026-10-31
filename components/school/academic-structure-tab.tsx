@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import {
   Plus, Pencil, Trash2, BookMarked, Layers, 
   LayoutGrid, GraduationCap, ChevronDown, ChevronRight, 
-  Calendar, CheckSquare, Square, BookOpen, AlertCircle, 
+  Calendar, CalendarDays, ExternalLink, CheckSquare, Square, BookOpen, AlertCircle, 
   X, Check, Search, Filter
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -1607,303 +1607,8 @@ function GradeSubjectsSection() {
 }
 
 
-// ─── Academic Terms Section ───────────────────────────────────────────────────
-
-function AcademicTermsSection({ year }: { year: AcademicYear }) {
-  const [terms, setTerms] = useState<AcademicTerm[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isOpen, setIsOpen] = useState(false)
-  const [editingTerm, setEditingTerm] = useState<AcademicTerm | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [formName, setFormName] = useState("")
-  const [formStartDate, setFormStartDate] = useState("")
-  const [formEndDate, setFormEndDate] = useState("")
-  const [formIsCurrent, setFormIsCurrent] = useState(false)
-
-  const load = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const data = await db.getTerms(year.id)
-      setTerms(data || [])
-    } catch (e: any) {
-      console.error("Failed to load terms:", e)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [year.id])
-
-  useEffect(() => { load() }, [load])
-
-  const openCreate = () => {
-    setEditingTerm(null)
-    setFormName(""); setFormStartDate(""); setFormEndDate(""); setFormIsCurrent(false)
-    setIsOpen(true)
-  }
-
-  const openEdit = (t: AcademicTerm) => {
-    setEditingTerm(t)
-    setFormName(t.name)
-    setFormStartDate(t.startDate?.split("T")[0] || "")
-    setFormEndDate(t.endDate?.split("T")[0] || "")
-    setFormIsCurrent(t.isCurrent)
-    setIsOpen(true)
-  }
-
-  const handleSave = async () => {
-    if (!formName.trim() || !formStartDate || !formEndDate) {
-      notifications.error("Validation", "Name, Start Date, and End Date are required.")
-      return
-    }
-    try {
-      setIsSaving(true)
-      if (editingTerm) {
-        await db.updateTerm(editingTerm.id, {
-          name: formName.trim(), startDate: formStartDate, endDate: formEndDate, isCurrent: formIsCurrent,
-        })
-        notifications.success("Updated", `Term "${formName.trim()}" updated.`)
-      } else {
-        await db.createTerm(year.id, {
-          name: formName.trim(), startDate: formStartDate, endDate: formEndDate, isCurrent: formIsCurrent,
-        })
-        notifications.success("Created", `Term "${formName.trim()}" added.`)
-      }
-      setIsOpen(false)
-      await load()
-    } catch (e: any) {
-      notifications.error("Error", e.message)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete term "${name}"?`)) return
-    try {
-      setDeletingId(id)
-      await db.deleteTerm(id)
-      notifications.success("Deleted", `Term "${name}" removed.`)
-      await load()
-    } catch (e: any) {
-      notifications.error("Cannot Delete", e.message)
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  return (
-    <div className="pl-4 border-l-2 border-border/50 mt-4 space-y-2">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Terms / Semesters ({terms.length}) {year.status === 'CLOSED' && <span className="text-amber-600 font-bold">(Read-only)</span>}
-        </span>
-        {year.status !== 'CLOSED' && (
-          <Button onClick={openCreate} size="sm" variant="outline" className="rounded-xl h-7 gap-1 text-[11px]">
-            <Plus className="w-3 h-3" /> Add Term
-          </Button>
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="py-4 flex justify-center"><Spinner className="w-4 h-4 text-indigo-500" /></div>
-      ) : terms.length === 0 ? (
-        <div className="py-4 text-center text-xs text-muted-foreground border border-dashed rounded-xl">
-          No terms yet. Add semesters or quarters for this academic year.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {terms.map((t) => (
-            <div
-              key={t.id}
-              className={cn(
-                "flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors group",
-                t.isCurrent
-                  ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/30 dark:border-indigo-800"
-                  : "bg-muted/30 border-border/40 hover:bg-muted/60",
-                deletingId === t.id ? "opacity-40 pointer-events-none" : ""
-              )}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm text-foreground">{t.name}</span>
-                  {t.isCurrent && (
-                    <Badge className="text-[10px] font-semibold rounded-full bg-indigo-600 text-white px-2 py-0 h-4">
-                      Active
-                    </Badge>
-                  )}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  {new Date(t.startDate).toLocaleDateString()} – {new Date(t.endDate).toLocaleDateString()}
-                </div>
-              </div>
-              {year.status !== 'CLOSED' && (
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(t)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground">
-                    <Pencil className="w-3 h-3" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id, t.name)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10">
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[440px] rounded-3xl p-6">
-          <DialogHeader>
-            <DialogTitle className="font-bold">{editingTerm ? "Edit Term" : "Add Term"}</DialogTitle>
-            <DialogDescription className="text-xs">Add a semester, quarter, or term to "{year.name}"</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Term Name *</Label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Semester 1, Term 1, Q1" className="rounded-xl" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Start Date *</Label>
-                <Input type="date" value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} className="rounded-xl" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">End Date *</Label>
-                <Input type="date" value={formEndDate} onChange={(e) => setFormEndDate(e.target.value)} className="rounded-xl" />
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 border border-border/40">
-              <div>
-                <div className="text-sm font-semibold">Set as Active Term</div>
-                <div className="text-[11px] text-muted-foreground">Marks this as the currently active term</div>
-              </div>
-              <Switch checked={formIsCurrent} onCheckedChange={setFormIsCurrent} />
-            </div>
-          </div>
-          <DialogFooter className="pt-4">
-            <Button variant="outline" onClick={() => setIsOpen(false)} className="rounded-xl">Cancel</Button>
-            <Button disabled={isSaving} onClick={handleSave} className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white">
-              {isSaving ? <Spinner className="w-3.5 h-3.5 mr-1.5" /> : null}
-              {editingTerm ? "Save Changes" : "Add Term"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
-
-// ─── Academic Years + Terms Section ──────────────────────────────────────────
-
-function AcademicYearsWithTermsSection() {
-  const [years, setYears] = useState<AcademicYear[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [expandedYearId, setExpandedYearId] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const API_URL = getApiUrl()
-      const headers = getAuthHeaders()
-      const res = await fetch(`${API_URL}/api/academic-years`, { headers: headers as any })
-      if (res.ok) {
-        const data = await res.json()
-        const yearsList: AcademicYear[] = data.data || []
-        setYears(yearsList)
-        const current = yearsList.find((y) => y.isCurrent)
-        if (current) setExpandedYearId(current.id)
-      }
-    } catch (e: any) {
-      console.error("Failed to load academic years:", e)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
-            <Calendar className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="font-bold text-sm text-foreground">Academic Years & Terms</div>
-            <div className="text-[11px] text-muted-foreground">Expand a year to manage its terms / semesters</div>
-          </div>
-        </div>
-        <Button asChild size="sm" variant="outline" className="rounded-xl h-8 gap-1.5 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400">
-          <a href="/school/admin/academic-years">Lifecycle Setup</a>
-        </Button>
-      </div>
-
-      {isLoading ? (
-        <div className="py-8 flex justify-center"><Spinner className="w-5 h-5 text-indigo-500" /></div>
-      ) : years.length === 0 ? (
-        <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-2xl">
-          No academic years found. Configure academic years in the "Academic Year" settings tab first.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {years.map((y) => {
-            const isExpanded = expandedYearId === y.id
-            return (
-              <div
-                key={y.id}
-                className={cn(
-                  "rounded-2xl border overflow-hidden transition-all",
-                  y.isCurrent
-                    ? "border-indigo-300 dark:border-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/20"
-                    : "border-border/60 bg-card/60"
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => setExpandedYearId(isExpanded ? null : y.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    <span className="font-bold text-sm text-foreground">{y.name}</span>
-                    {y.status === 'ACTIVE' || y.isCurrent ? (
-                      <Badge className="text-[10px] font-extrabold rounded-full bg-emerald-600 text-white px-2 py-0 h-4">
-                        Active
-                      </Badge>
-                    ) : y.status === 'CLOSED' ? (
-                      <Badge variant="outline" className="text-[10px] font-bold rounded-full text-slate-500 border-slate-300 dark:border-slate-700 px-2 py-0 h-4">
-                        Closed
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] font-bold rounded-full text-blue-600 border-blue-200 dark:border-blue-800 px-2 py-0 h-4">
-                        Future
-                      </Badge>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    {new Date(y.startDate).toLocaleDateString()} – {new Date(y.endDate).toLocaleDateString()}
-                  </span>
-                </button>
-                {isExpanded && (
-                  <div className="px-4 pb-4">
-                    <AcademicTermsSection year={y} />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Main Export ──────────────────────────────────────────────────────────────
+
 
 export function AcademicStructureTab() {
   return (
@@ -1995,12 +1700,25 @@ export function AcademicStructureTab() {
 
         {/* Academic Terms */}
         <TabsContent value="terms">
-          <Card className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-6">
-            <AcademicYearsWithTermsSection />
+          <Card className="rounded-3xl border border-border/70 bg-card/80 backdrop-blur-sm p-8 text-center space-y-4 max-w-2xl mx-auto">
+            <div className="w-14 h-14 rounded-3xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center mx-auto text-indigo-600 dark:text-indigo-400 shadow-xs">
+              <CalendarDays className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black text-foreground tracking-tight">Academic Terms & Semesters</h3>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                Academic terms belong directly to the school calendar lifecycle. All semesters, quarters, date windows, and active term selections for marks and grading are managed in <strong>Academic Year</strong> settings.
+              </p>
+            </div>
+            <div className="pt-2 flex justify-center gap-3">
+              <Button asChild className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white gap-2 shadow-xs">
+                <a href="/school/admin/academic-years">
+                  <CalendarDays className="w-4 h-4" /> Go to Academic Year & Terms Management
+                  <ExternalLink className="w-3.5 h-3.5 ml-0.5 opacity-80" />
+                </a>
+              </Button>
+            </div>
           </Card>
-          <div className="mt-4 p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900 text-xs text-indigo-800 dark:text-indigo-300">
-            <strong>Tip:</strong> Terms belong to a specific academic year. Expand a year to add its semesters/quarters. Mark one term as "Active" to use it in gradebook reports and attendance tracking.
-          </div>
         </TabsContent>
 
       </Tabs>

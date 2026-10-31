@@ -130,11 +130,14 @@ export function AcademicYearManagementTab() {
 
   // Term Modal state
   const [isCreateTermOpen, setIsCreateTermOpen] = useState(false)
+  const [editingTerm, setEditingTerm] = useState<AcademicTerm | null>(null)
   const [termFormYearId, setTermFormYearId] = useState('')
+  const [termFormYearName, setTermFormYearName] = useState('')
   const [termFormName, setTermFormName] = useState('')
   const [termFormStartDate, setTermFormStartDate] = useState('')
   const [termFormEndDate, setTermFormEndDate] = useState('')
   const [termFormIsCurrent, setTermFormIsCurrent] = useState(false)
+  const [deletingTermId, setDeletingTermId] = useState<string | null>(null)
 
   // Form State
   const [formName, setFormName] = useState('')
@@ -380,7 +383,29 @@ export function AcademicYearManagementTab() {
     }
   }
 
-  const handleCreateTermSubmit = async (e: React.FormEvent) => {
+  const openCreateTerm = (year: AcademicYear) => {
+    setEditingTerm(null)
+    setTermFormYearId(year.id)
+    setTermFormYearName(year.name)
+    setTermFormName('')
+    setTermFormStartDate(year.startDate ? year.startDate.split('T')[0] : '')
+    setTermFormEndDate(year.endDate ? year.endDate.split('T')[0] : '')
+    setTermFormIsCurrent(false)
+    setIsCreateTermOpen(true)
+  }
+
+  const openEditTerm = (year: AcademicYear, term: AcademicTerm) => {
+    setEditingTerm(term)
+    setTermFormYearId(year.id)
+    setTermFormYearName(year.name)
+    setTermFormName(term.name)
+    setTermFormStartDate(term.startDate ? term.startDate.split('T')[0] : '')
+    setTermFormEndDate(term.endDate ? term.endDate.split('T')[0] : '')
+    setTermFormIsCurrent(term.isCurrent)
+    setIsCreateTermOpen(true)
+  }
+
+  const handleTermSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!termFormYearId || !termFormName.trim() || !termFormStartDate || !termFormEndDate) {
       notifications.warning('Missing Fields', 'Please complete all term details.')
@@ -388,8 +413,14 @@ export function AcademicYearManagementTab() {
     }
     setIsSubmitLoading(true)
     try {
-      const res = await fetch(`${getApiUrl()}/api/academic-years/${termFormYearId}/terms`, {
-        method: 'POST',
+      const isEditing = Boolean(editingTerm)
+      const url = isEditing
+        ? `${getApiUrl()}/api/academic-years/terms/${editingTerm!.id}`
+        : `${getApiUrl()}/api/academic-years/${termFormYearId}/terms`
+      const method = isEditing ? 'PUT' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: headers as any,
         body: JSON.stringify({
           name: termFormName.trim(),
@@ -398,21 +429,67 @@ export function AcademicYearManagementTab() {
           isCurrent: termFormIsCurrent,
         }),
       })
+
       if (res.ok) {
-        notifications.success('Term Created', 'New academic term added.')
+        notifications.success(
+          isEditing ? 'Term Updated' : 'Term Created',
+          isEditing ? `Term "${termFormName.trim()}" updated.` : `New term "${termFormName.trim()}" added.`
+        )
         setIsCreateTermOpen(false)
+        setEditingTerm(null)
         setTermFormName('')
         setTermFormStartDate('')
         setTermFormEndDate('')
         loadAcademicYears()
       } else {
         const err = await res.json()
-        throw new Error(err.message || 'Failed to create term')
+        throw new Error(err.message || 'Failed to save term')
       }
     } catch (error: any) {
       notifications.error('Error', error.message)
     } finally {
       setIsSubmitLoading(false)
+    }
+  }
+
+  const handleDeleteTerm = async (term: AcademicTerm) => {
+    if (!confirm(`Are you sure you want to delete term "${term.name}"?`)) return
+    setDeletingTermId(term.id)
+    try {
+      const res = await fetch(`${getApiUrl()}/api/academic-years/terms/${term.id}`, {
+        method: 'DELETE',
+        headers: headers as any,
+      })
+      if (res.ok) {
+        notifications.success('Deleted', `Term "${term.name}" removed.`)
+        loadAcademicYears()
+      } else {
+        const err = await res.json()
+        throw new Error(err.message || 'Failed to delete term')
+      }
+    } catch (error: any) {
+      notifications.error('Cannot Delete', error.message)
+    } finally {
+      setDeletingTermId(null)
+    }
+  }
+
+  const handleSetCurrentTerm = async (term: AcademicTerm) => {
+    try {
+      const res = await fetch(`${getApiUrl()}/api/academic-years/terms/${term.id}`, {
+        method: 'PUT',
+        headers: headers as any,
+        body: JSON.stringify({ isCurrent: true }),
+      })
+      if (res.ok) {
+        notifications.success('Active Term Set', `"${term.name}" is now the active term for mark entry.`)
+        loadAcademicYears()
+      } else {
+        const err = await res.json()
+        throw new Error(err.message || 'Failed to set active term')
+      }
+    } catch (error: any) {
+      notifications.error('Error', error.message)
     }
   }
 
@@ -524,14 +601,7 @@ export function AcademicYearManagementTab() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    setTermFormYearId(year.id)
-                    setTermFormName('')
-                    setTermFormStartDate(year.startDate ? year.startDate.split('T')[0] : '')
-                    setTermFormEndDate(year.endDate ? year.endDate.split('T')[0] : '')
-                    setTermFormIsCurrent(false)
-                    setIsCreateTermOpen(true)
-                  }}
+                  onClick={() => openCreateTerm(year)}
                   className="h-8 w-8 rounded-xl text-primary hover:bg-primary/10"
                   title="Add term to this year"
                 >
@@ -578,65 +648,94 @@ export function AcademicYearManagementTab() {
         {/* Expanded Terms list */}
         {isExpanded && (
           <TableRow className="bg-slate-50/70 dark:bg-slate-900/50 border-b border-slate-200/60 dark:border-slate-800">
-            <TableCell colSpan={4} className="px-8 py-3.5">
-              <div className="space-y-2.5">
+            <TableCell colSpan={4} className="px-6 sm:px-8 py-4">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-primary" />
-                    Academic Terms for {year.name}
+                  <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    Terms & Semesters ({year.terms?.length ?? 0})
+                    {isClosed && <span className="text-amber-600 dark:text-amber-400 font-bold normal-case text-xs">(Read-only: Year Closed)</span>}
                   </span>
                   {!isClosed && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setTermFormYearId(year.id)
-                        setTermFormName('')
-                        setTermFormStartDate(year.startDate ? year.startDate.split('T')[0] : '')
-                        setTermFormEndDate(year.endDate ? year.endDate.split('T')[0] : '')
-                        setTermFormIsCurrent(false)
-                        setIsCreateTermOpen(true)
-                      }}
-                      className="h-6 text-[11px] font-bold text-primary hover:bg-primary/10 rounded-lg px-2 gap-1"
+                      onClick={() => openCreateTerm(year)}
+                      className="h-7 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl px-2.5 gap-1.5 border-primary/30"
                     >
-                      <Plus className="w-3 h-3" /> Add Term
+                      <Plus className="w-3.5 h-3.5" /> Add Term
                     </Button>
                   )}
                 </div>
 
                 {year.terms && year.terms.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {year.terms.map(term => (
                       <div
                         key={term.id}
                         className={cn(
-                          "flex items-center justify-between p-2.5 rounded-xl border text-xs",
+                          "group relative flex items-center justify-between p-3 rounded-2xl border transition-all duration-200",
                           term.isCurrent
-                            ? "bg-primary/10 border-primary/30 text-primary font-bold shadow-2xs"
-                            : "bg-card border-border/80 text-foreground"
+                            ? "bg-primary/10 border-primary/40 text-primary shadow-xs ring-1 ring-primary/20"
+                            : "bg-card border-border/80 text-foreground hover:border-border hover:shadow-2xs",
+                          deletingTermId === term.id && "opacity-40 pointer-events-none"
                         )}
                       >
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate">{term.name}</span>
+                        <div className="space-y-1 min-w-0 flex-1 pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-xs truncate">{term.name}</span>
                             {term.isCurrent && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" title="Active Term" />
+                              <Badge className="text-[9px] font-black uppercase tracking-wider bg-primary text-white border-none px-2 py-0 h-4 rounded-full flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                Active
+                              </Badge>
                             )}
                           </div>
-                          <p className="text-[10px] text-muted-foreground font-normal">
+                          <p className="text-[11px] text-muted-foreground font-medium">
                             {displayDate(term.startDate)} – {displayDate(term.endDate)}
                           </p>
                         </div>
-                        {term.isCurrent && (
-                          <Badge variant="outline" className="text-[9px] font-extrabold uppercase bg-primary/15 text-primary border-primary/20 shrink-0">
-                            Current
-                          </Badge>
+
+                        {!isClosed && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {!term.isCurrent && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSetCurrentTerm(term)}
+                                title="Set as currently active term for mark entry"
+                                className="h-7 px-2 text-[10px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg hidden group-hover:inline-flex"
+                              >
+                                Set Active
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditTerm(year, term)}
+                              title="Edit term"
+                              className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteTerm(term)}
+                              title="Delete term"
+                              className="w-7 h-7 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground italic">No terms configured yet. Click "Add Term" to set up semesters or quarters.</p>
+                  <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/20">
+                    No terms configured yet. Click <strong>"Add Term"</strong> to set up semesters or quarters for this academic year.
+                  </div>
                 )}
               </div>
             </TableCell>
@@ -1063,19 +1162,29 @@ export function AcademicYearManagementTab() {
         </DialogContent>
       </Dialog>
 
-      {/* ── CREATE TERM MODAL ── */}
+      {/* ── CREATE / EDIT TERM MODAL ── */}
       <Dialog open={isCreateTermOpen} onOpenChange={setIsCreateTermOpen}>
         <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-black">
-              <Layers className="w-5 h-5 text-primary" /> Add Academic Term
+              {editingTerm ? (
+                <>
+                  <Pencil className="w-5 h-5 text-primary" /> Edit Academic Term
+                </>
+              ) : (
+                <>
+                  <Layers className="w-5 h-5 text-primary" /> Add Academic Term
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
-              Add a semester, trimester, or term window to this academic year.
+              {editingTerm
+                ? `Modify details and dates for "${editingTerm.name}" in ${termFormYearName || 'this academic year'}.`
+                : `Add a semester, trimester, or term window to ${termFormYearName || 'this academic year'}.`}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateTermSubmit} className="space-y-4 mt-2">
+          <form onSubmit={handleTermSubmit} className="space-y-4 mt-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">Term Name</Label>
               <Input
@@ -1125,7 +1234,7 @@ export function AcademicYearManagementTab() {
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
-                {isSubmitLoading ? 'Saving...' : 'Add Term'}
+                {isSubmitLoading ? 'Saving...' : editingTerm ? 'Save Changes' : 'Add Term'}
               </Button>
             </DialogFooter>
           </form>
