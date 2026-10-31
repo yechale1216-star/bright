@@ -197,8 +197,10 @@ export class AcademicYearService {
 
     return await prisma.$transaction(async (tx) => {
       if (isCurrent) {
+        // Deactivate all existing active years (both isCurrent and orphaned status='ACTIVE')
         await tx.academicYear.updateMany({
-          data: { isCurrent: false },
+          where: { NOT: { status: 'CLOSED' as any } },
+          data: { isCurrent: false, status: 'FUTURE' as any },
         });
       }
 
@@ -279,10 +281,13 @@ export class AcademicYearService {
 
     return await prisma.$transaction(async (tx) => {
       if (data.isCurrent === true) {
+        // Deactivate all other years (both isCurrent and orphaned status='ACTIVE')
         await tx.academicYear.updateMany({
-          data: { isCurrent: false },
+          where: { NOT: [{ id }, { status: 'CLOSED' as any }] },
+          data: { isCurrent: false, status: 'FUTURE' as any },
         });
         updatePayload.isCurrent = true;
+        updatePayload.status = 'ACTIVE';
       } else if (data.isCurrent === false && yearRecord.isCurrent) {
         updatePayload.isCurrent = false;
       }
@@ -325,9 +330,9 @@ export class AcademicYearService {
     }
 
     return await prisma.$transaction(async (tx) => {
-      // Revert currently active year(s) to FUTURE (preserving CLOSED years)
+      // Revert ALL currently active years to FUTURE (both isCurrent=true AND orphaned status='ACTIVE'), preserving CLOSED years
       await tx.academicYear.updateMany({
-        where: { isCurrent: true },
+        where: { OR: [{ isCurrent: true }, { status: 'ACTIVE' as any }], NOT: { status: 'CLOSED' as any } },
         data: { isCurrent: false, status: 'FUTURE' as any },
       });
 
