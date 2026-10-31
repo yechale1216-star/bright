@@ -303,7 +303,7 @@ export const markAttendance = async (data: any, _schoolId?: string) => {
   // ── School-portal notification: alert homeroom teacher + admins when a student is absent/late ──
   const statusLow = status.toLowerCase();
   if (statusLow === 'absent' || statusLow === 'late') {
-    await sendAttendanceStaffNotification(student, status, dateStr, schoolId).catch(
+    await sendAttendanceStaffNotification(student, status, dateStr, _schoolId).catch(
       (err: any) => console.error('[AttendanceService] Staff notification error:', err)
     );
   }
