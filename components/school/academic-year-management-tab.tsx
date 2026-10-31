@@ -115,12 +115,17 @@ function StatusBadge({ status, isCurrent }: { status?: AcademicYearStatus; isCur
 // ─── Academic Terms Management (Dedicated Tab) ────────────────────────────────
 
 function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; onTermsChanged?: () => void }) {
+  const isClosed = year.status === 'CLOSED'
+  const isFuture = year.status === 'FUTURE'
+  const isActive = year.status === 'ACTIVE' || year.isCurrent
+
   const [terms, setTerms] = useState<AcademicTerm[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
   const [editingTerm, setEditingTerm] = useState<AcademicTerm | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [settingActiveId, setSettingActiveId] = useState<string | null>(null)
   const [formName, setFormName] = useState("")
   const [formStartDate, setFormStartDate] = useState("")
   const [formEndDate, setFormEndDate] = useState("")
@@ -142,6 +147,10 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
   useEffect(() => { load() }, [load])
 
   const openCreate = () => {
+    if (isClosed) {
+      notifications.warning("Read-Only", "Cannot add terms to a closed academic year. Historical records are locked.")
+      return
+    }
     setEditingTerm(null)
     setFormName("")
     setFormStartDate(year.startDate ? year.startDate.split("T")[0] : "")
@@ -151,6 +160,10 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
   }
 
   const openEdit = (t: AcademicTerm) => {
+    if (isClosed) {
+      notifications.warning("Read-Only", "Cannot edit terms of a closed academic year. Historical records are locked.")
+      return
+    }
     setEditingTerm(t)
     setFormName(t.name)
     setFormStartDate(t.startDate ? t.startDate.split("T")[0] : "")
@@ -160,6 +173,10 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
   }
 
   const handleSave = async () => {
+    if (isClosed) {
+      notifications.warning("Read-Only", "Closed academic years cannot be modified.")
+      return
+    }
     if (!formName.trim() || !formStartDate || !formEndDate) {
       notifications.error("Validation", "Name, Start Date, and End Date are required.")
       return
@@ -188,6 +205,10 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
   }
 
   const handleDelete = async (id: string, name: string) => {
+    if (isClosed) {
+      notifications.warning("Read-Only", "Closed academic year terms cannot be deleted.")
+      return
+    }
     if (!confirm(`Are you sure you want to delete term "${name}"?`)) return
     try {
       setDeletingId(id)
@@ -199,6 +220,24 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
       notifications.error("Cannot Delete", e.message)
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleSetCurrentTerm = async (t: AcademicTerm) => {
+    if (isClosed) {
+      notifications.warning("Read-Only", "Cannot change active term in a closed academic year.")
+      return
+    }
+    try {
+      setSettingActiveId(t.id)
+      await db.updateTerm(t.id, { isCurrent: true })
+      notifications.success("Active Term Set", `"${t.name}" is now the active term for mark entry.`)
+      await load()
+      onTermsChanged?.()
+    } catch (e: any) {
+      notifications.error("Error", e.message)
+    } finally {
+      setSettingActiveId(null)
     }
   }
 
@@ -216,9 +255,24 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
           <Layers className="w-3.5 h-3.5 text-primary" />
-          Terms / Semesters ({terms.length}) {year.status === 'CLOSED' && <span className="text-slate-500 font-bold normal-case text-xs">(Read-only)</span>}
+          Terms / Semesters ({terms.length})
+          {isClosed && (
+            <Badge variant="outline" className="text-[10px] font-bold text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 normal-case px-2 py-0">
+              <Lock className="w-2.5 h-2.5 mr-1" /> Read-only archive
+            </Badge>
+          )}
+          {isActive && !isClosed && (
+            <Badge variant="outline" className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 normal-case px-2 py-0">
+              Live Operating Year
+            </Badge>
+          )}
+          {isFuture && !isClosed && (
+            <Badge variant="outline" className="text-[10px] font-bold text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 normal-case px-2 py-0">
+              Future Preparation
+            </Badge>
+          )}
         </span>
-        {year.status !== 'CLOSED' && (
+        {!isClosed && (
           <Button onClick={openCreate} size="sm" variant="outline" className="rounded-xl h-7 gap-1 text-[11px] font-bold border-primary/30 text-primary hover:bg-primary/10">
             <Plus className="w-3 h-3" /> Add Term
           </Button>
@@ -229,7 +283,9 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
         <div className="py-4 flex justify-center"><Spinner className="w-4 h-4 text-primary" /></div>
       ) : terms.length === 0 ? (
         <div className="py-4 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/20">
-          No terms configured yet. Click "Add Term" to set up semesters or quarters for this academic year.
+          {isClosed
+            ? "No terms were recorded for this closed academic year."
+            : 'No terms configured yet. Click "Add Term" to set up semesters or quarters for this academic year.'}
         </div>
       ) : (
         <div className="space-y-2">
@@ -241,7 +297,7 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
                 t.isCurrent
                   ? "bg-primary/10 border-primary/30 text-primary font-bold shadow-2xs"
                   : "bg-card border-border/60 hover:bg-muted/40 text-foreground",
-                deletingId === t.id && "opacity-40 pointer-events-none"
+                (deletingId === t.id || settingActiveId === t.id) && "opacity-40 pointer-events-none"
               )}
             >
               <div className="min-w-0 flex-1">
@@ -258,14 +314,30 @@ function AcademicTermsSection({ year, onTermsChanged }: { year: AcademicYear; on
                   {displayDate(t.startDate)} – {displayDate(t.endDate)}
                 </div>
               </div>
-              {year.status !== 'CLOSED' && (
+
+              {!isClosed ? (
                 <div className="flex items-center gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                  {!t.isCurrent && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleSetCurrentTerm(t)}
+                      className="h-7 px-2 text-[10px] font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg"
+                      title="Set as currently active term for mark entry"
+                    >
+                      Set Active
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => openEdit(t)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted" title="Edit term">
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id, t.name)} className="w-7 h-7 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10" title="Delete term">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                  <Lock className="w-3 h-3" /> Locked
                 </div>
               )}
             </div>
@@ -362,13 +434,20 @@ function AcademicYearsWithTermsSection({ years, onTermsChanged }: { years: Acade
         <div className="space-y-3">
           {years.map((y) => {
             const isExpanded = expandedYearId === y.id
+            const effectiveStatus = y.status || (y.isCurrent ? 'ACTIVE' : 'FUTURE')
+            const isClosed = effectiveStatus === 'CLOSED'
+            const isActive = effectiveStatus === 'ACTIVE'
+            const isFuture = effectiveStatus === 'FUTURE'
+
             return (
               <div
                 key={y.id}
                 className={cn(
                   "rounded-2xl border transition-all duration-200 overflow-hidden",
-                  y.isCurrent
-                    ? "border-primary/40 bg-card shadow-xs ring-1 ring-primary/20"
+                  isActive
+                    ? "border-emerald-500/40 bg-card shadow-xs ring-1 ring-emerald-500/20"
+                    : isClosed
+                    ? "border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30 opacity-90"
                     : "border-border/60 bg-card/60 hover:border-border"
                 )}
               >
@@ -378,34 +457,48 @@ function AcademicYearsWithTermsSection({ years, onTermsChanged }: { years: Acade
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <div className={cn(
+                      "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                      isActive
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        : isClosed
+                        ? "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                        : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    )}>
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm text-foreground">{y.name}</span>
-                        {y.isCurrent && (
-                          <Badge className="text-[10px] font-black uppercase tracking-wider rounded-full bg-emerald-600 text-white px-2 py-0 h-4">
+                        {isActive && (
+                          <Badge className="text-[10px] font-black uppercase tracking-wider rounded-full bg-emerald-600 text-white px-2 py-0 h-4 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                             Active
                           </Badge>
                         )}
-                        {y.status === 'CLOSED' ? (
-                          <Badge variant="outline" className="text-[10px] font-bold rounded-full text-slate-500 border-slate-300 dark:border-slate-700 px-2 py-0 h-4">
-                            Closed
+                        {isClosed && (
+                          <Badge variant="outline" className="text-[10px] font-bold rounded-full text-slate-500 border-slate-300 dark:border-slate-700 px-2 py-0 h-4 flex items-center gap-1">
+                            <Lock className="w-2.5 h-2.5" />
+                            Closed (Read-Only)
                           </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] font-bold rounded-full text-blue-600 border-blue-200 dark:border-blue-800 px-2 py-0 h-4">
-                            Future
+                        )}
+                        {isFuture && (
+                          <Badge variant="outline" className="text-[10px] font-bold rounded-full text-blue-600 border-blue-200 dark:border-blue-800 px-2 py-0 h-4 flex items-center gap-1">
+                            <Clock3 className="w-2.5 h-2.5" />
+                            Future Preparation
                           </Badge>
                         )}
                       </div>
                       <div className="text-[11px] text-muted-foreground mt-0.5">
-                        {new Date(y.startDate).toLocaleDateString()} – {new Date(y.endDate).toLocaleDateString()}
+                        {displayDate(y.startDate)} – {displayDate(y.endDate)}
+                        {isClosed && <span className="ml-1 text-slate-400 dark:text-slate-500">• Historical archive locked</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
-                    <span>{isExpanded ? 'Hide Terms' : 'Manage Terms'}</span>
+                  <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {isClosed ? 'View Terms' : isExpanded ? 'Hide Terms' : 'Manage Terms'}
+                    </span>
                     <Badge variant="secondary" className="text-[10px] font-extrabold px-1.5 py-0 h-4 rounded-md">
                       {y.terms?.length ?? 0}
                     </Badge>
@@ -413,7 +506,7 @@ function AcademicYearsWithTermsSection({ years, onTermsChanged }: { years: Acade
                 </button>
                 {isExpanded && (
                   <div className="px-5 pb-5 pt-1 border-t border-border/40 bg-muted/10">
-                    <AcademicTermsSection year={y} onTermsChanged={onTermsChanged} />
+                    <AcademicTermsSection year={{ ...y, status: effectiveStatus }} onTermsChanged={onTermsChanged} />
                   </div>
                 )}
               </div>
@@ -1230,353 +1323,353 @@ export function AcademicYearManagementTab() {
         </TabsContent>
       </Tabs>
 
-          {/* ── CREATE YEAR MODAL ── */}
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-black">
-                  <CalendarIcon className="w-5 h-5 text-primary" /> Create Academic Year
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-1">
-                  New academic years are initialized in <strong>FUTURE</strong> status so you can safely prepare terms, grades, and teacher assignments.
-                </DialogDescription>
-              </DialogHeader>
+      {/* ── CREATE YEAR MODAL ── */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
+              <CalendarIcon className="w-5 h-5 text-primary" /> Create Academic Year
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              New academic years are initialized in <strong>FUTURE</strong> status so you can safely prepare terms, grades, and teacher assignments.
+            </DialogDescription>
+          </DialogHeader>
 
-              <form onSubmit={handleCreateSubmit} className="space-y-4 mt-2">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold">Academic Year Label / Name</Label>
-                    {autoSuggestName && formName !== autoSuggestName && (
-                      <button type="button" onClick={() => setFormName(autoSuggestName)} className="text-[10px] font-bold text-primary hover:underline">
-                        Suggest: {autoSuggestName}
-                      </button>
-                    )}
-                  </div>
-                  <Input
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    placeholder={namePlaceholder}
-                    className="h-10 rounded-xl font-bold text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">{startDateLabel}</Label>
-                    <DualDatePicker
-                      id="create-start"
-                      value={formStartDate}
-                      onChange={val => {
-                        setFormStartDate(val)
-                        const suggestion = isEthiopian
-                          ? (() => { const y = gcToECYear(val); return y ? `${y} E.C.` : '' })()
-                          : (() => { const y = parseInt(val.split('-')[0], 10); return y ? `${y}/${y + 1}` : '' })()
-                        if (!formName || formName === autoSuggestName) setFormName(suggestion)
-                      }}
-                      placeholder={isEthiopian ? 'የጀምሮ ቀን' : 'Start date'}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">{endDateLabel}</Label>
-                    <DualDatePicker
-                      id="create-end"
-                      value={formEndDate}
-                      onChange={setFormEndDate}
-                      placeholder={isEthiopian ? 'የሚጠናቀቅ ቀን' : 'End date'}
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 p-3.5 text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2.5">
-                  <Clock3 className="w-4 h-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
-                  <div className="space-y-0.5">
-                    <p className="font-bold">Initial Status: Future</p>
-                    <p className="text-[11px] opacity-90">Terms (Semester 1 & 2) will be scaffolded automatically. Teaching staff will not have access until you activate this year.</p>
-                  </div>
-                </div>
-
-                <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
-                    {isSubmitLoading ? 'Saving...' : 'Create Academic Year'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* ── EDIT YEAR MODAL ── */}
-          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-            <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-black">
-                  <Pencil className="w-5 h-5 text-primary" /> Edit Academic Year
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-1">
-                  Update year label or date boundaries.
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleEditSubmit} className="space-y-4 mt-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">Academic Year Label / Name</Label>
-                  <Input
-                    value={formName}
-                    onChange={e => setFormName(e.target.value)}
-                    placeholder={namePlaceholder}
-                    className="h-10 rounded-xl font-bold text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">{startDateLabel}</Label>
-                    <DualDatePicker
-                      id="edit-start"
-                      value={formStartDate}
-                      onChange={setFormStartDate}
-                      placeholder={isEthiopian ? 'የጀምሮ ቀን' : 'Start date'}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">{endDateLabel}</Label>
-                    <DualDatePicker
-                      id="edit-end"
-                      value={formEndDate}
-                      onChange={setFormEndDate}
-                      placeholder={isEthiopian ? 'የሚጠናቀቅ ቀን' : 'End date'}
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
-                    {isSubmitLoading ? 'Updating...' : 'Save Changes'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* ── ACTIVATE CONFIRMATION MODAL ── */}
-          <Dialog open={isActivateOpen} onOpenChange={setIsActivateOpen}>
-            <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-black">
-                  <ShieldCheck className="w-5 h-5 text-emerald-600" /> Activate Academic Year
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4 py-2">
-                <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/60 p-4 text-emerald-900 dark:text-emerald-200 space-y-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-75">Target Operating Year</span>
-                  <p className="text-lg font-black">{selectedYear?.name}</p>
-                  <p className="text-xs opacity-90">
-                    {displayDate(selectedYear?.startDate)} – {displayDate(selectedYear?.endDate)}
-                  </p>
-                </div>
-
-                {activeYear && activeYear.id !== selectedYear?.id && (
-                  <div className="rounded-2xl bg-muted/60 border border-border p-3.5 text-xs text-muted-foreground flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-foreground/70" />
-                    <div className="space-y-0.5">
-                      <p className="font-bold text-foreground">Transition from "{activeYear.name}"</p>
-                      <p className="text-[11px] leading-relaxed">
-                        The currently active year will revert to <strong>FUTURE</strong> status (not closed). You can close it separately when all marks are finalized.
-                      </p>
-                    </div>
-                  </div>
+          <form onSubmit={handleCreateSubmit} className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold">Academic Year Label / Name</Label>
+                {autoSuggestName && formName !== autoSuggestName && (
+                  <button type="button" onClick={() => setFormName(autoSuggestName)} className="text-[10px] font-bold text-primary hover:underline">
+                    Suggest: {autoSuggestName}
+                  </button>
                 )}
-
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Activating this year enables valid teacher assignments, gradebook mark entry, attendance logging, and assessment workflows for the new school term.
-                </p>
               </div>
+              <Input
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                placeholder={namePlaceholder}
+                className="h-10 rounded-xl font-bold text-sm"
+              />
+            </div>
 
-              <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setIsActivateOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleConfirmActivate}
-                  disabled={isSubmitLoading}
-                  className="rounded-xl text-xs font-bold h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  {isSubmitLoading ? 'Activating...' : 'Yes, Activate Year'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{startDateLabel}</Label>
+                <DualDatePicker
+                  id="create-start"
+                  value={formStartDate}
+                  onChange={val => {
+                    setFormStartDate(val)
+                    const suggestion = isEthiopian
+                      ? (() => { const y = gcToECYear(val); return y ? `${y} E.C.` : '' })()
+                      : (() => { const y = parseInt(val.split('-')[0], 10); return y ? `${y}/${y + 1}` : '' })()
+                    if (!formName || formName === autoSuggestName) setFormName(suggestion)
+                  }}
+                  placeholder={isEthiopian ? 'የጀምሮ ቀን' : 'Start date'}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{endDateLabel}</Label>
+                <DualDatePicker
+                  id="create-end"
+                  value={formEndDate}
+                  onChange={setFormEndDate}
+                  placeholder={isEthiopian ? 'የሚጠናቀቅ ቀን' : 'End date'}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
 
-          {/* ── CLOSE YEAR CONFIRMATION MODAL ── */}
-          <Dialog open={isCloseOpen} onOpenChange={setIsCloseOpen}>
-            <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-black text-rose-600 dark:text-rose-400">
-                  <Lock className="w-5 h-5" /> Close Academic Year
-                </DialogTitle>
-              </DialogHeader>
+            <div className="rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 p-3.5 text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2.5">
+              <Clock3 className="w-4 h-4 mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
+              <div className="space-y-0.5">
+                <p className="font-bold">Initial Status: Future</p>
+                <p className="text-[11px] opacity-90">Terms (Semester 1 & 2) will be scaffolded automatically. Teaching staff will not have access until you activate this year.</p>
+              </div>
+            </div>
 
-              <div className="space-y-4 py-2">
-                <div className="rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/60 p-4 space-y-2">
-                  <p className="text-sm font-black text-rose-900 dark:text-rose-200">
-                    ⚠ All academic records will be locked as read-only.
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
+                {isSubmitLoading ? 'Saving...' : 'Create Academic Year'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT YEAR MODAL ── */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
+              <Pencil className="w-5 h-5 text-primary" /> Edit Academic Year
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              Update year label or date boundaries.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Academic Year Label / Name</Label>
+              <Input
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                placeholder={namePlaceholder}
+                className="h-10 rounded-xl font-bold text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{startDateLabel}</Label>
+                <DualDatePicker
+                  id="edit-start"
+                  value={formStartDate}
+                  onChange={setFormStartDate}
+                  placeholder={isEthiopian ? 'የጀምሮ ቀን' : 'Start date'}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{endDateLabel}</Label>
+                <DualDatePicker
+                  id="edit-end"
+                  value={formEndDate}
+                  onChange={setFormEndDate}
+                  placeholder={isEthiopian ? 'የሚጠናቀቅ ቀን' : 'End date'}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
+                {isSubmitLoading ? 'Updating...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── ACTIVATE CONFIRMATION MODAL ── */}
+      <Dialog open={isActivateOpen} onOpenChange={setIsActivateOpen}>
+        <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" /> Activate Academic Year
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-900/60 p-4 text-emerald-900 dark:text-emerald-200 space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider opacity-75">Target Operating Year</span>
+              <p className="text-lg font-black">{selectedYear?.name}</p>
+              <p className="text-xs opacity-90">
+                {displayDate(selectedYear?.startDate)} – {displayDate(selectedYear?.endDate)}
+              </p>
+            </div>
+
+            {activeYear && activeYear.id !== selectedYear?.id && (
+              <div className="rounded-2xl bg-muted/60 border border-border p-3.5 text-xs text-muted-foreground flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-foreground/70" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-foreground">Transition from "{activeYear.name}"</p>
+                  <p className="text-[11px] leading-relaxed">
+                    The currently active year will revert to <strong>FUTURE</strong> status (not closed). You can close it separately when all marks are finalized.
                   </p>
-                  <p className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed">
-                    Closing <strong>"{selectedYear?.name}"</strong> finalizes all student marks, term grades, attendance logs, and report cards. Future edits and deletions are permanently blocked.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">
-                    Type <span className="text-rose-600 dark:text-rose-400 font-black">{selectedYear?.name}</span> to confirm closure:
-                  </Label>
-                  <Input
-                    value={closeConfirmName}
-                    onChange={e => setCloseConfirmName(e.target.value)}
-                    placeholder="Type the exact academic year name"
-                    className="h-10 rounded-xl text-sm font-bold"
-                  />
                 </div>
               </div>
+            )}
 
-              <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setIsCloseOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleConfirmClose}
-                  disabled={isSubmitLoading || closeConfirmName.trim() !== selectedYear?.name.trim()}
-                  className="rounded-xl text-xs font-bold h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white gap-1.5 disabled:opacity-50"
-                >
-                  <Lock className="w-4 h-4" />
-                  {isSubmitLoading ? 'Closing...' : 'Confirm & Close Year'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Activating this year enables valid teacher assignments, gradebook mark entry, attendance logging, and assessment workflows for the new school term.
+            </p>
+          </div>
 
-          {/* ── DELETE YEAR CONFIRMATION MODAL ── */}
-          <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-            <DialogContent className="max-w-sm rounded-3xl bg-card border border-border p-6 shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-black text-rose-600">
-                  <Trash2 className="w-5 h-5" /> Delete Academic Year
-                </DialogTitle>
-              </DialogHeader>
+          <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsActivateOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmActivate}
+              disabled={isSubmitLoading}
+              className="rounded-xl text-xs font-bold h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              {isSubmitLoading ? 'Activating...' : 'Yes, Activate Year'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-              <div className="py-2 space-y-2">
-                <p className="text-sm text-foreground">
-                  Are you sure you want to delete <strong>"{selectedYear?.name}"</strong>?
-                </p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  This action can only be performed on prepared FUTURE years with no operational data. It cannot be undone.
-                </p>
+      {/* ── CLOSE YEAR CONFIRMATION MODAL ── */}
+      <Dialog open={isCloseOpen} onOpenChange={setIsCloseOpen}>
+        <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black text-rose-600 dark:text-rose-400">
+              <Lock className="w-5 h-5" /> Close Academic Year
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/60 p-4 space-y-2">
+              <p className="text-sm font-black text-rose-900 dark:text-rose-200">
+                ⚠ All academic records will be locked as read-only.
+              </p>
+              <p className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed">
+                Closing <strong>"{selectedYear?.name}"</strong> finalizes all student marks, term grades, attendance logs, and report cards. Future edits and deletions are permanently blocked.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">
+                Type <span className="text-rose-600 dark:text-rose-400 font-black">{selectedYear?.name}</span> to confirm closure:
+              </Label>
+              <Input
+                value={closeConfirmName}
+                onChange={e => setCloseConfirmName(e.target.value)}
+                placeholder="Type the exact academic year name"
+                className="h-10 rounded-xl text-sm font-bold"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsCloseOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmClose}
+              disabled={isSubmitLoading || closeConfirmName.trim() !== selectedYear?.name.trim()}
+              className="rounded-xl text-xs font-bold h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white gap-1.5 disabled:opacity-50"
+            >
+              <Lock className="w-4 h-4" />
+              {isSubmitLoading ? 'Closing...' : 'Confirm & Close Year'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── DELETE YEAR CONFIRMATION MODAL ── */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-sm rounded-3xl bg-card border border-border p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black text-rose-600">
+              <Trash2 className="w-5 h-5" /> Delete Academic Year
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2 space-y-2">
+            <p className="text-sm text-foreground">
+              Are you sure you want to delete <strong>"{selectedYear?.name}"</strong>?
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              This action can only be performed on prepared FUTURE years with no operational data. It cannot be undone.
+            </p>
+          </div>
+
+          <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              disabled={isSubmitLoading}
+              className="rounded-xl text-xs font-bold h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {isSubmitLoading ? 'Deleting...' : 'Yes, Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CREATE / EDIT TERM MODAL ── */}
+      <Dialog open={isCreateTermOpen} onOpenChange={setIsCreateTermOpen}>
+        <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-black">
+              {editingTerm ? (
+                <>
+                  <Pencil className="w-5 h-5 text-primary" /> Edit Academic Term
+                </>
+              ) : (
+                <>
+                  <Layers className="w-5 h-5 text-primary" /> Add Academic Term
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              {editingTerm
+                ? `Modify details and dates for "${editingTerm.name}" in ${termFormYearName || 'this academic year'}.`
+                : `Add a semester, trimester, or term window to ${termFormYearName || 'this academic year'}.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleTermSubmit} className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Term Name</Label>
+              <Input
+                value={termFormName}
+                onChange={e => setTermFormName(e.target.value)}
+                placeholder="e.g. Semester 1, Term 2, Quarter 3"
+                className="h-10 rounded-xl font-bold text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{startDateLabel}</Label>
+                <DualDatePicker
+                  id="create-term-start"
+                  value={termFormStartDate}
+                  onChange={setTermFormStartDate}
+                  placeholder={isEthiopian ? 'የጀምሮ ቀን' : 'Start date'}
+                  className="rounded-xl"
+                />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">{endDateLabel}</Label>
+                <DualDatePicker
+                  id="create-term-end"
+                  value={termFormEndDate}
+                  onChange={setTermFormEndDate}
+                  placeholder={isEthiopian ? 'የሚጠናቀቅ ቀን' : 'End date'}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
 
-              <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleConfirmDelete}
-                  disabled={isSubmitLoading}
-                  className="rounded-xl text-xs font-bold h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white"
-                >
-                  {isSubmitLoading ? 'Deleting...' : 'Yes, Delete'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="createTermIsCurrent"
+                checked={termFormIsCurrent}
+                onCheckedChange={checked => setTermFormIsCurrent(Boolean(checked))}
+              />
+              <label htmlFor="createTermIsCurrent" className="text-xs font-bold text-foreground cursor-pointer">
+                Set as Active Term for mark entry
+              </label>
+            </div>
 
-          {/* ── CREATE / EDIT TERM MODAL ── */}
-          <Dialog open={isCreateTermOpen} onOpenChange={setIsCreateTermOpen}>
-            <DialogContent className="max-w-md rounded-3xl bg-card border border-border p-6 shadow-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base font-black">
-                  {editingTerm ? (
-                    <>
-                      <Pencil className="w-5 h-5 text-primary" /> Edit Academic Term
-                    </>
-                  ) : (
-                    <>
-                      <Layers className="w-5 h-5 text-primary" /> Add Academic Term
-                    </>
-                  )}
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground mt-1">
-                  {editingTerm
-                    ? `Modify details and dates for "${editingTerm.name}" in ${termFormYearName || 'this academic year'}.`
-                    : `Add a semester, trimester, or term window to ${termFormYearName || 'this academic year'}.`}
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleTermSubmit} className="space-y-4 mt-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">Term Name</Label>
-                  <Input
-                    value={termFormName}
-                    onChange={e => setTermFormName(e.target.value)}
-                    placeholder="e.g. Semester 1, Term 2, Quarter 3"
-                    className="h-10 rounded-xl font-bold text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">{startDateLabel}</Label>
-                    <DualDatePicker
-                      id="create-term-start"
-                      value={termFormStartDate}
-                      onChange={setTermFormStartDate}
-                      placeholder={isEthiopian ? 'የጀምሮ ቀን' : 'Start date'}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold">{endDateLabel}</Label>
-                    <DualDatePicker
-                      id="create-term-end"
-                      value={termFormEndDate}
-                      onChange={setTermFormEndDate}
-                      placeholder={isEthiopian ? 'የሚጠናቀቅ ቀን' : 'End date'}
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <Checkbox
-                    id="createTermIsCurrent"
-                    checked={termFormIsCurrent}
-                    onCheckedChange={checked => setTermFormIsCurrent(Boolean(checked))}
-                  />
-                  <label htmlFor="createTermIsCurrent" className="text-xs font-bold text-foreground cursor-pointer">
-                    Set as Active Term for mark entry
-                  </label>
-                </div>
-
-                <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateTermOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
-                    {isSubmitLoading ? 'Saving...' : editingTerm ? 'Save Changes' : 'Add Term'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-        )
+            <DialogFooter className="flex flex-row justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsCreateTermOpen(false)} className="rounded-xl text-xs font-bold h-10 px-4">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitLoading} className="rounded-xl text-xs font-bold h-10 px-5 bg-primary text-white">
+                {isSubmitLoading ? 'Saving...' : editingTerm ? 'Save Changes' : 'Add Term'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
