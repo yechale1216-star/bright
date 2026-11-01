@@ -1279,8 +1279,8 @@ export class GradebookService {
     const subjectStatusList = requiredSubjects.map((subj) => {
       const sub = subMap.get(subj.id);
       let status: 'APPROVED' | 'PENDING_APPROVAL' | 'RETURNED' | 'MISSING' = 'MISSING';
-      let submissionStatus = 'Not Submitted';
-      let approvalStatus = 'Not Submitted';
+      let submissionStatus = 'Not Submitted for Approval';
+      let approvalStatus = 'Pending';
 
       if (sub?.status === 'APPROVED') {
         status = 'APPROVED';
@@ -1289,15 +1289,15 @@ export class GradebookService {
       } else if (sub?.status === 'SUBMITTED' || sub?.status === 'PENDING_APPROVAL') {
         status = 'PENDING_APPROVAL';
         submissionStatus = 'Submitted for Approval';
-        approvalStatus = 'Pending Approval';
+        approvalStatus = 'Pending';
       } else if (sub?.status === 'RETURNED') {
         status = 'RETURNED';
         submissionStatus = 'Returned for Correction';
         approvalStatus = 'Returned';
-      } else if (sub?.status === 'DRAFT') {
+      } else {
         status = 'MISSING';
-        submissionStatus = 'Draft (Not Submitted)';
-        approvalStatus = 'Not Submitted';
+        submissionStatus = 'Not Submitted for Approval';
+        approvalStatus = 'Pending';
       }
 
       const assignedTeacher = sub?.teacher?.name || teacherMap.get(subj.id) || 'Not Assigned';

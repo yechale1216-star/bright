@@ -111,26 +111,18 @@ function ApprovalBadge({ status }: { status: string }) {
       </span>
     );
   }
-  if (norm === 'PENDING_APPROVAL' || norm === 'PENDING' || norm === 'SUBMITTED') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-        <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-        Pending Approval
-      </span>
-    );
-  }
   if (norm === 'RETURNED') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
         <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-        Returned for Revision
+        Returned
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/50">
-      <Clock className="w-3.5 h-3.5 text-slate-500" />
-      Awaiting Submission
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+      <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+      Pending
     </span>
   );
 }
@@ -150,14 +142,6 @@ function SubmissionBadge({ status }: { status: string }) {
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
         <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
         Returned for Correction
-      </span>
-    );
-  }
-  if (s.includes('Draft') || s === 'DRAFT') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-        <Clock className="w-3.5 h-3.5 text-amber-600" />
-        Draft (Unsubmitted)
       </span>
     );
   }
