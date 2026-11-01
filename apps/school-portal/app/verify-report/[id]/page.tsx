@@ -77,10 +77,9 @@ interface VerifiedData {
 export default function VerifyReportPage({
   params,
 }: {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  // Support both Next.js 15+ Promise params and sync params
-  const resolvedParams = params instanceof Promise ? use(params) : params;
+  const resolvedParams = use(params);
   const id = resolvedParams?.id;
 
   const [loading, setLoading] = useState(true);
