@@ -227,16 +227,16 @@ export function StudentReportCardFront({
             {/* Right Side: QR Code Verification Badge */}
             <div className="flex-shrink-0 flex flex-col items-center justify-center pt-0.5">
               <div
-                className="p-1 rounded-sm shadow-2xs bg-white"
+                className="p-1.5 rounded-sm shadow-xs bg-white flex items-center justify-center"
                 style={{
                   backgroundColor: '#ffffff',
-                  border: `1px solid ${theme.border}`,
+                  border: `1.5px solid ${theme.borderStrong}`,
                 }}
               >
                 <QRCodeSVG
                   value={qrVerificationUrl}
-                  size={62}
-                  level="Q"
+                  size={76}
+                  level="M"
                   includeMargin={true}
                   bgColor="#ffffff"
                   fgColor="#000000"

@@ -4,11 +4,11 @@ const isCapacitorBuild = process.env.CAPACITOR_BUILD === '1';
 const nextConfig = {
   typescript: {
     // API routes use force-dynamic which is incompatible with static export,
-    // but those routes run on the remote server — not inside the APK WebView.
+    // but those routes run on the remote server â€” not inside the APK WebView.
     // Safe to ignore during the Capacitor build.
     ignoreBuildErrors: isCapacitorBuild ? true : false,
   },
-  // ESLint key removed — no longer supported in Next.js 16
+  // ESLint key removed â€” no longer supported in Next.js 16
   output: isCapacitorBuild ? 'export' : undefined,
   images: {
     unoptimized: true,
@@ -47,6 +47,10 @@ const nextConfig = {
       // Library aliases
       { source: '/school/library', destination: '/school/admin/library', permanent: false },
       { source: '/library', destination: '/school/admin/library', permanent: false },
+
+      // Verification routes
+      { source: '/verify-report/:id', destination: '/verify/report-card?id=:id', permanent: false },
+      { source: '/verify-report', destination: '/verify/report-card', permanent: false },
 
       // Report Cards aliases
       { source: '/school/admin/report-card', destination: '/school/admin/report-cards', permanent: false },
