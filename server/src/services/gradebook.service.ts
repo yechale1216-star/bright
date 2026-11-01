@@ -1162,6 +1162,14 @@ export class GradebookService {
     // Refresh calculations
     await this.generateReportCards({ gradeId, sectionId, academicYearId, academicTermId });
 
+    // Enforce that all required subjects must be approved before publication
+    const readiness = await this.getClassReadinessOverview({ gradeId, sectionId, academicYearId, academicTermId });
+    if (!readiness.isFullyReady) {
+      throw new Error(
+        `Cannot publish report cards: All ${readiness.totalRequiredSubjects} required subjects must complete approval before publishing (${readiness.approvedSubjectsCount} approved, ${readiness.remainingSubjectsCount} remaining).`
+      );
+    }
+
     const where: any = {
       gradeId,
       sectionId,
@@ -1237,27 +1245,62 @@ export class GradebookService {
       academicTermId
     );
 
-    const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
-      where: {
-        academicYearId,
-        ...(academicTermId ? { academicTermId } : {}),
-        gradeId,
-        sectionId,
-      },
-      include: {
-        subject: true,
-        teacher: true,
-      },
-    });
+    const [submissionRecords, teacherAssignments] = await Promise.all([
+      prisma.assessmentSubmissionRecord.findMany({
+        where: {
+          academicYearId,
+          ...(academicTermId ? { academicTermId } : {}),
+          gradeId,
+          sectionId,
+        },
+        include: {
+          subject: true,
+          teacher: true,
+        },
+      }),
+      prisma.teacherAssignment.findMany({
+        where: {
+          gradeId,
+          sectionId,
+          ...(academicYearId ? { academicYearId } : {}),
+        },
+        include: { teacher: true },
+      }),
+    ]);
 
     const subMap = new Map<string, any>(submissionRecords.map((s) => [s.subjectId, s]));
+    const teacherMap = new Map<string, string>();
+    for (const ta of teacherAssignments) {
+      if (ta.subjectId && ta.teacher?.name) {
+        teacherMap.set(ta.subjectId, ta.teacher.name);
+      }
+    }
 
     const subjectStatusList = requiredSubjects.map((subj) => {
       const sub = subMap.get(subj.id);
       let status: 'APPROVED' | 'PENDING_APPROVAL' | 'RETURNED' | 'MISSING' = 'MISSING';
-      if (sub?.status === 'APPROVED') status = 'APPROVED';
-      else if (sub?.status === 'SUBMITTED' || sub?.status === 'PENDING_APPROVAL') status = 'PENDING_APPROVAL';
-      else if (sub?.status === 'RETURNED') status = 'RETURNED';
+      let submissionStatus = 'Not Submitted';
+      let approvalStatus = 'Not Submitted';
+
+      if (sub?.status === 'APPROVED') {
+        status = 'APPROVED';
+        submissionStatus = 'Submitted for Approval';
+        approvalStatus = 'Approved';
+      } else if (sub?.status === 'SUBMITTED' || sub?.status === 'PENDING_APPROVAL') {
+        status = 'PENDING_APPROVAL';
+        submissionStatus = 'Submitted for Approval';
+        approvalStatus = 'Pending Approval';
+      } else if (sub?.status === 'RETURNED') {
+        status = 'RETURNED';
+        submissionStatus = 'Returned for Correction';
+        approvalStatus = 'Returned';
+      } else if (sub?.status === 'DRAFT') {
+        status = 'MISSING';
+        submissionStatus = 'Draft (Not Submitted)';
+        approvalStatus = 'Not Submitted';
+      }
+
+      const assignedTeacher = sub?.teacher?.name || teacherMap.get(subj.id) || 'Not Assigned';
 
       return {
         id: subj.id,
@@ -1265,17 +1308,21 @@ export class GradebookService {
         code: subj.code,
         color: subj.color,
         status,
+        submissionStatus,
+        approvalStatus,
         submissionId: sub?.id,
-        teacherName: sub?.teacher?.name,
-        submittedAt: sub?.submittedAt,
-        reviewedAt: sub?.reviewedAt,
-        rejectionReason: sub?.rejectionReason,
+        teacherName: assignedTeacher,
+        submittedAt: sub?.submittedAt || null,
+        reviewedAt: sub?.reviewedAt || null,
+        rejectionReason: sub?.rejectionReason || null,
       };
     });
 
     const approvedCount = subjectStatusList.filter((s) => s.status === 'APPROVED').length;
     const pendingCount = subjectStatusList.filter((s) => s.status === 'PENDING_APPROVAL').length;
     const missingCount = subjectStatusList.filter((s) => s.status === 'MISSING' || s.status === 'RETURNED').length;
+    const remainingCount = Math.max(0, requiredSubjects.length - approvedCount);
+    const completionPercentage = requiredSubjects.length > 0 ? Math.round((approvedCount / requiredSubjects.length) * 100) : 0;
 
     const pendingSubjects = subjectStatusList
       .filter((s) => s.status !== 'APPROVED')
@@ -1283,6 +1330,9 @@ export class GradebookService {
         subjectId: s.id,
         subjectName: s.name,
         status: s.status,
+        submissionStatus: s.submissionStatus,
+        approvalStatus: s.approvalStatus,
+        teacherName: s.teacherName,
       }));
 
     const reportCards = await prisma.reportCard.findMany({
@@ -1317,6 +1367,8 @@ export class GradebookService {
       totalRequiredSubjects: requiredSubjects.length,
       requiredSubjectsCount: requiredSubjects.length,
       approvedSubjectsCount: approvedCount,
+      remainingSubjectsCount: remainingCount,
+      completionPercentage,
       pendingSubjectsCount: pendingCount,
       missingSubjectsCount: missingCount,
       pendingSubjects,
@@ -2861,7 +2913,7 @@ export class GradebookService {
       let remarkBadge = 'PASSED';
       let isPassing = true;
 
-      if (reportCard.status === 'INCOMPLETE' || hasMissingSubject) {
+      if ((reportCard.status as string) === 'INCOMPLETE' || hasMissingSubject) {
         remarkBadge = 'INCOMPLETE';
         isPassing = false;
       } else if (isRetained) {

@@ -381,7 +381,7 @@ export const getReportCardById = async (req: AuthenticatedRequest, res: Response
 
       if (userRole === 'student') {
         const student = await prisma.student.findFirst({
-          where: { userId, id: card.studentId },
+          where: { user_id: userId, id: card.studentId },
         });
         if (!student) {
           return res.status(403).json({
@@ -526,7 +526,7 @@ export const getStudentReportCard = async (req: AuthenticatedRequest, res: Respo
 
     if (userRole === 'student') {
       const student = await prisma.student.findFirst({
-        where: { userId, id: studentId },
+        where: { user_id: userId, id: studentId },
       });
       if (!student) {
         return res.status(403).json({
@@ -567,7 +567,7 @@ export const getComprehensiveReportCard = async (req: AuthenticatedRequest, res:
     if (userRole === 'student' || userRole === 'parent') {
       if (userRole === 'student') {
         const student = await prisma.student.findFirst({
-          where: { userId, id: studentId },
+          where: { user_id: userId, id: studentId },
         });
         if (!student) {
           return res.status(403).json({

@@ -660,7 +660,22 @@ export const gradebookService = {
     isFullyReady: boolean;
     totalRequiredSubjects: number;
     approvedSubjectsCount: number;
+    remainingSubjectsCount?: number;
+    completionPercentage?: number;
     pendingSubjects: Array<{ subjectId: string; subjectName: string; status: string }>;
+    subjectStatusList?: Array<{
+      id: string;
+      name: string;
+      code?: string;
+      color?: string;
+      status: string;
+      submissionStatus: string;
+      approvalStatus: string;
+      teacherName: string;
+      submittedAt?: string | null;
+      reviewedAt?: string | null;
+      rejectionReason?: string | null;
+    }>;
     reportCardsSummary: {
       total: number;
       ready: number;

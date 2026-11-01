@@ -19,10 +19,13 @@ import {
   GraduationCap,
   AlertTriangle,
   ShieldCheck,
+  ShieldAlert,
   Clock,
   BookOpen,
   Info,
   ChevronRight,
+  ArrowUpRight,
+  User,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -49,7 +52,29 @@ type ReadinessOverview = {
   isFullyReady: boolean;
   totalRequiredSubjects: number;
   approvedSubjectsCount: number;
-  pendingSubjects: Array<{ subjectId: string; subjectName: string; status: string }>;
+  remainingSubjectsCount?: number;
+  completionPercentage?: number;
+  pendingSubjects: Array<{
+    subjectId: string;
+    subjectName: string;
+    status: string;
+    submissionStatus?: string;
+    approvalStatus?: string;
+    teacherName?: string;
+  }>;
+  subjectStatusList?: Array<{
+    id: string;
+    name: string;
+    code?: string;
+    color?: string;
+    status: string;
+    submissionStatus?: string;
+    approvalStatus?: string;
+    teacherName?: string;
+    submittedAt?: string | null;
+    reviewedAt?: string | null;
+    rejectionReason?: string | null;
+  }>;
   reportCardsSummary: {
     total: number;
     ready: number;
@@ -72,6 +97,74 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.className}`}>
       {cfg.label}
+    </span>
+  );
+}
+
+function ApprovalBadge({ status }: { status: string }) {
+  const norm = (status || '').toUpperCase();
+  if (norm === 'APPROVED') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+        Approved
+      </span>
+    );
+  }
+  if (norm === 'PENDING_APPROVAL' || norm === 'PENDING' || norm === 'SUBMITTED') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+        <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+        Pending Approval
+      </span>
+    );
+  }
+  if (norm === 'RETURNED') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+        Returned for Revision
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-300/40 dark:border-slate-700/50">
+      <Clock className="w-3.5 h-3.5 text-slate-500" />
+      Awaiting Submission
+    </span>
+  );
+}
+
+function SubmissionBadge({ status }: { status: string }) {
+  const s = status || '';
+  if (s.includes('Submitted') || s === 'APPROVED' || s === 'SUBMITTED') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20">
+        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+        Submitted for Approval
+      </span>
+    );
+  }
+  if (s.includes('Returned') || s === 'RETURNED') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+        Returned for Correction
+      </span>
+    );
+  }
+  if (s.includes('Draft') || s === 'DRAFT') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+        <Clock className="w-3.5 h-3.5 text-amber-600" />
+        Draft (Unsubmitted)
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+      Not Submitted for Approval
     </span>
   );
 }
@@ -776,7 +869,21 @@ export default function AdminReportCardsPage() {
     return { total, avgPct, topScore, published, ready, needsCorrection };
   }, [studentRows]);
 
-  const canBulkPublish = readiness?.isFullyReady && (readiness?.reportCardsSummary?.ready || 0) > 0;
+  const isSectionSelected = Boolean(selectedGradeId && selectedSectionId && selectedYearId);
+  const isAllSubjectsApproved = Boolean(
+    isSectionSelected &&
+    readiness?.isFullyReady &&
+    (readiness.totalRequiredSubjects || 0) > 0 &&
+    (readiness.approvedSubjectsCount || 0) === (readiness.totalRequiredSubjects || 0)
+  );
+
+  const totalRequired = readiness?.totalRequiredSubjects || 0;
+  const approvedCount = readiness?.approvedSubjectsCount || 0;
+  const remainingCount = readiness?.remainingSubjectsCount ?? Math.max(0, totalRequired - approvedCount);
+  const completionPercentage = readiness?.completionPercentage ?? (totalRequired > 0 ? Math.round((approvedCount / totalRequired) * 100) : 0);
+  const subjectList = readiness?.subjectStatusList || [];
+
+  const canBulkPublish = isAllSubjectsApproved && (readiness?.reportCardsSummary?.ready || 0) > 0;
 
   return (
     <div className="w-full min-w-0 overflow-x-hidden p-3 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-7xl mx-auto print:p-0">
@@ -793,51 +900,85 @@ export default function AdminReportCardsPage() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handleGenerate}
-            disabled={generating || loading || !selectedSectionId}
-            className="flex-1 min-w-[130px] gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs justify-center"
-          >
-            {generating ? 'Calculating...' : 'Recalculate'}
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleOpenBatchPrint}
-            disabled={studentRows.length === 0}
-            className="flex-1 min-w-[120px] gap-2 border-border text-foreground hover:bg-muted justify-center"
-          >
-            <Layers className="w-4 h-4" />
-            Batch Print
-          </Button>
-
-          <Button
-            onClick={handleBulkPublish}
-            disabled={bulkPublishing || !canBulkPublish}
-            className={`flex-1 min-w-[120px] gap-2 justify-center ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
-            variant={canBulkPublish ? 'default' : 'outline'}
-          >
-            {bulkPublishing ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-            {bulkPublishing ? 'Publishing...' : 'Publish All Ready'}
-          </Button>
-
-          <Link href="/school/admin/settings?tab=report_card_design">
+        {!isAllSubjectsApproved ? (
+          <div className="flex flex-wrap gap-2">
+            <Link href="/school/admin/assessments/reports">
+              <Button
+                variant="outline"
+                className="gap-2 border-border text-foreground hover:bg-muted justify-center"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Review Subject Submissions
+              </Button>
+            </Link>
             <Button
-              type="button"
               variant="outline"
+              onClick={() => { loadReadiness(); loadData(); }}
+              disabled={loadingReadiness}
               className="gap-2 border-border text-foreground hover:bg-muted justify-center"
-              title="Open Report Card Designer in Settings"
             >
-              <Palette className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-              Customize Design
+              <RefreshCw className={`w-4 h-4 ${loadingReadiness ? 'animate-spin' : ''}`} />
+              Refresh Approval Status
             </Button>
-          </Link>
-        </div>
+            <Link href="/school/admin/settings?tab=report_card_design">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 border-border text-foreground hover:bg-muted justify-center"
+                title="Open Report Card Designer in Settings"
+              >
+                <Palette className="w-4 h-4 text-pink-600 dark:text-pink-400" />
+                Customize Design
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleGenerate}
+              disabled={generating || loading || !selectedSectionId}
+              className="flex-1 min-w-[130px] gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs justify-center"
+            >
+              {generating ? 'Calculating...' : 'Recalculate'}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleOpenBatchPrint}
+              disabled={studentRows.length === 0}
+              className="flex-1 min-w-[120px] gap-2 border-border text-foreground hover:bg-muted justify-center"
+            >
+              <Layers className="w-4 h-4" />
+              Batch Print
+            </Button>
+
+            <Button
+              onClick={handleBulkPublish}
+              disabled={bulkPublishing || !canBulkPublish}
+              className={`flex-1 min-w-[120px] gap-2 justify-center ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
+              variant={canBulkPublish ? 'default' : 'outline'}
+            >
+              {bulkPublishing ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              {bulkPublishing ? 'Publishing...' : 'Publish All Ready'}
+            </Button>
+
+            <Link href="/school/admin/settings?tab=report_card_design">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 border-border text-foreground hover:bg-muted justify-center"
+                title="Open Report Card Designer in Settings"
+              >
+                <Palette className="w-4 h-4 text-pink-600 dark:text-pink-400" />
+                Customize Design
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Filter Toolbar — Hierarchical: Year → Term → Grade → Stream (if 11/12) → Section */}
@@ -951,431 +1092,573 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-      {/* Readiness Banner */}
-      {selectedSectionId && (
-        <div
-          className={`rounded-xl border px-4 py-3 flex items-start gap-3 print:hidden transition-all ${
-            loadingReadiness
-              ? 'border-border/50 bg-muted/20'
-              : readiness?.isFullyReady
-              ? 'border-emerald-500/30 bg-emerald-500/5 cursor-pointer'
-              : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
-              ? 'border-amber-500/30 bg-amber-500/5 cursor-pointer'
-              : 'border-blue-500/20 bg-blue-500/5 cursor-pointer'
-          }`}
-          onClick={() => !loadingReadiness && setReadinessPanelOpen((o) => !o)}
-        >
-          {loadingReadiness ? (
-            <Skeleton className="w-5 h-5 rounded-full mt-0.5 shrink-0" />
-          ) : readiness?.isFullyReady ? (
-            <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
-          ) : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0 ? (
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-          ) : (
-            <Info className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-          )}
-
-          <div className="flex-1 min-w-0">
-            {loadingReadiness ? (
-              <div className="space-y-1.5 py-0.5">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-3 w-72" />
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    {readiness?.isFullyReady
-                      ? 'All subjects approved — class is ready to publish!'
-                      : (readiness?.reportCardsSummary?.needsCorrection || 0) > 0
-                      ? `⚠ ${readiness?.reportCardsSummary?.needsCorrection} report card(s) need correction`
-                      : `${readiness?.approvedSubjectsCount || 0} / ${readiness?.totalRequiredSubjects || '?'} subjects approved`}
-                  </p>
-                  <ChevronRight
-                    className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${readinessPanelOpen ? 'rotate-90' : ''}`}
-                  />
-                </div>
-                {readiness && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Report cards: {readiness.reportCardsSummary.published} published •{' '}
-                    {readiness.reportCardsSummary.ready} ready •{' '}
-                    {readiness.reportCardsSummary.draft} draft
-                    {readiness.reportCardsSummary.needsCorrection > 0
-                      ? ` • ${readiness.reportCardsSummary.needsCorrection} need correction`
-                      : ''}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Readiness Detail Panel */}
-      {readinessPanelOpen && readiness && !readiness.isFullyReady && readiness.pendingSubjects?.length > 0 && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 print:hidden">
-          <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2">
-            Pending Subject Approvals
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {readiness.pendingSubjects.map((s) => (
-              <div
-                key={s.subjectId}
-                className="flex items-center gap-2 p-2 rounded-lg bg-background border border-border"
-              >
-                <BookOpen className="w-4 h-4 text-amber-500 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-foreground truncate">{s.subjectName}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.status}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Enrollment</span>
-            <GraduationCap className="w-4 h-4 text-blue-600" />
-          </div>
-          <p className="text-2xl font-black text-foreground mt-2">{stats.total}</p>
-          <span className="text-[11px] text-muted-foreground">Students in Section</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Class Average</span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
-          </div>
-          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2">
-            {stats.avgPct > 0 ? `${stats.avgPct}%` : '—'}
-          </p>
-          <span className="text-[11px] text-muted-foreground">Across all subjects</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Top Score</span>
-            <Award className="w-4 h-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2">
-            {stats.topScore > 0 ? `${stats.topScore}%` : '—'}
-          </p>
-          <span className="text-[11px] text-muted-foreground">Highest standing</span>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Published</span>
-            <CheckCircle2 className="w-4 h-4 text-indigo-500" />
-          </div>
-          <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
-            {stats.published} / {stats.total}
-          </p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[11px] text-muted-foreground">Visible to parents</span>
-            {stats.ready > 0 && (
-              <span className="text-[10px] font-bold text-blue-500">({stats.ready} ready)</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Search Toolbar */}
-      <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 print:hidden">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by name or ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10 rounded-xl w-full"
-          />
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => { loadData(); loadReadiness(); }}
-          disabled={isTableLoading || generating}
-          className="gap-2 h-10 px-4 shrink-0"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </Button>
-      </div>
-
+            {/* ============================================================ */}
+      {/* SECTION VIEW ROUTER: SELECTION / STATE A / STATE B           */}
       {/* ============================================================ */}
-      {/* MOBILE: Card list (visible below md)                         */}
-      {/* ============================================================ */}
-      <div className="md:hidden space-y-3 print:hidden">
-        {isTableLoading ? (
-          // Skeleton mobile cards
-          Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
-              <div className="flex items-start gap-3">
-                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/5" />
-                  <Skeleton className="h-3 w-2/5" />
+      {!selectedSectionId ? (
+        <div className="py-20 text-center text-muted-foreground bg-card rounded-3xl border border-dashed border-border p-8 space-y-3 print:hidden">
+          <BookOpen className="w-10 h-10 mx-auto text-muted-foreground/40" />
+          <h3 className="text-base font-bold text-foreground">Select a Class Section</h3>
+          <p className="text-xs max-w-md mx-auto text-muted-foreground">
+            Choose an Academic Year, Evaluation Period, Grade, and Section above to view subject approvals and report cards.
+          </p>
+        </div>
+      ) : loadingReadiness ? (
+        <div className="rounded-3xl border border-border bg-card p-12 text-center space-y-4 print:hidden">
+          <RefreshCw className="w-8 h-8 text-primary animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-foreground">Evaluating required subject approvals...</p>
+        </div>
+      ) : !isAllSubjectsApproved ? (
+        /* ============================================================ */
+        /* STATE A: INCOMPLETE RESULTS (Subject Approval Overview)      */
+        /* ============================================================ */
+        <div className="space-y-5 print:hidden">
+          {/* Prominent Information Section */}
+          <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-5 sm:p-7 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                  <ShieldAlert className="w-6 h-6" />
                 </div>
-                <Skeleton className="h-5 w-16 rounded-full shrink-0" />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <Skeleton className="h-12 rounded-xl" />
-                <Skeleton className="h-12 rounded-xl" />
-                <Skeleton className="h-12 rounded-xl" />
-              </div>
-              <div className="flex gap-2 pt-1 border-t border-border/40">
-                <Skeleton className="h-9 flex-1 rounded-lg" />
-                <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
-              </div>
-            </div>
-          ))
-        ) : filteredRows.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground text-sm">
-            {!selectedSectionId
-              ? 'Select filters above to load report cards.'
-              : 'No students or report cards found for this selection.'}
-          </div>
-        ) : (
-          filteredRows.map((row, idx) => (
-            <div
-              key={row.id ? `mrc-${row.id}` : `mstudent-${row.studentId}-${idx}`}
-              className={`rounded-2xl border bg-card p-4 shadow-xs space-y-3 ${
-                row.status === 'NEEDS_CORRECTION'
-                  ? 'border-amber-400/40 bg-amber-500/5'
-                  : 'border-border'
-              }`}
-            >
-              {/* Top row: rank + name + status */}
-              <div className="flex items-start gap-3">
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted border border-border text-xs font-black text-foreground shrink-0">
-                  {row.rank}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-foreground text-sm leading-tight truncate">{row.fullName}</div>
-                  <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{row.studentUniqueId} · {row.gender}</div>
-                  {row.termName && (
-                    <div className="text-[11px] font-semibold text-primary mt-0.5">{row.termName}</div>
-                  )}
-                </div>
-                <StatusBadge status={row.status} />
-              </div>
-
-              {/* Scores row */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
-                  <div className="text-[10px] text-muted-foreground font-semibold uppercase">Total</div>
-                  <div className="font-black text-foreground text-base">{row.totalScore > 0 ? row.totalScore : '—'}</div>
-                </div>
-                <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
-                  <div className="text-[10px] text-muted-foreground font-semibold uppercase">Average</div>
-                  <div className={`font-black text-base ${
-                    row.averageScore >= 85 ? 'text-emerald-600 dark:text-emerald-400'
-                    : row.averageScore >= 70 ? 'text-blue-600 dark:text-blue-400'
-                    : row.averageScore >= 50 ? 'text-amber-600 dark:text-amber-400'
-                    : row.averageScore > 0 ? 'text-rose-600 dark:text-rose-400'
-                    : 'text-muted-foreground'
-                  }`}>{row.averageScore > 0 ? `${row.averageScore}%` : '—'}</div>
-                </div>
-                <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
-                  <div className="text-[10px] text-muted-foreground font-semibold uppercase">Conduct</div>
-                  <div className="font-black text-foreground text-base">{row.conduct}</div>
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-black uppercase tracking-wider border border-amber-500/30">
+                    <Clock className="w-3.5 h-3.5" />
+                    Results Incomplete • Awaiting Approvals
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight pt-1">
+                    Student performance reports are not ready yet.
+                  </h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl leading-relaxed">
+                    All required subjects must complete the approval process before consolidated student rankings, class averages, and report cards become available.
+                  </p>
                 </div>
               </div>
 
-              {/* Actions row */}
-              <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+              <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleOpenPreview(row.studentId, row.termId)}
-                  className="flex-1 h-9 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold"
+                  onClick={() => { loadReadiness(); loadData(); }}
+                  disabled={loadingReadiness}
+                  className="gap-2 h-10 px-4 rounded-xl border-amber-500/30 hover:bg-amber-500/10 text-xs font-semibold"
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  View Card
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingReadiness ? 'animate-spin' : ''}`} />
+                  Check Status
                 </Button>
-                {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
+                <Link href="/school/admin/assessments/reports">
                   <Button
                     size="sm"
-                    onClick={() => handlePublishSingle(row.id, row.fullName)}
-                    disabled={publishingId === row.id}
-                    className="flex-1 h-9 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                    className="gap-2 h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs"
                   >
-                    {publishingId === row.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                    Publish
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    Review Submissions
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleOpenEdit(row.rawCard || row)}
-                  className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
-                  title="Edit Remarks & Conduct"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </Button>
+                </Link>
               </div>
             </div>
-          ))
-        )}
-      </div>
 
-      {/* ============================================================ */}
-      {/* DESKTOP: Full table (visible from md up)                     */}
-      {/* ============================================================ */}
-      <div className="hidden md:block rounded-2xl border border-border bg-card overflow-hidden shadow-xs print:hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground uppercase text-[11px] tracking-wider font-semibold border-b border-border">
-              <tr>
-                <th className="py-3 px-4 w-12 text-center">Rank</th>
-                <th className="py-3 px-4">Student Details</th>
-                <th className="py-3 px-4 text-center">Total</th>
-                <th className="py-3 px-4 text-center">Average %</th>
-                <th className="py-3 px-4 text-center">Conduct</th>
-                <th className="py-3 px-4 text-center">Absences</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isTableLoading ? (
-                // Skeleton table rows
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="border-b border-border/50">
-                    <td className="py-3 px-4 text-center">
-                      <Skeleton className="w-7 h-7 rounded-full mx-auto" />
-                    </td>
-                    <td className="py-3 px-4">
-                      <Skeleton className="h-4 w-36 mb-1.5" />
-                      <Skeleton className="h-3 w-24" />
-                    </td>
-                    <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-10 mx-auto" /></td>
-                    <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-12 mx-auto" /></td>
-                    <td className="py-3 px-4 text-center"><Skeleton className="h-6 w-10 mx-auto rounded-md" /></td>
-                    <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-10 mx-auto" /></td>
-                    <td className="py-3 px-4 text-center"><Skeleton className="h-5 w-16 mx-auto rounded-full" /></td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Skeleton className="h-8 w-24 rounded-lg" />
-                        <Skeleton className="h-8 w-8 rounded-lg" />
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
-                    No students or report cards found for this selection.
-                  </td>
-                </tr>
-              ) : (
-                filteredRows.map((row, idx) => (
-                  <tr
-                    key={row.id ? `rc-${row.id}` : `student-${row.studentId}-${idx}`}
-                    className={`hover:bg-muted/30 transition-colors ${
-                      row.status === 'NEEDS_CORRECTION' ? 'bg-amber-500/5' : ''
-                    }`}
-                  >
-                    <td className="py-3 px-4 text-center font-bold">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-muted border border-border text-xs font-black text-foreground">
-                        {row.rank}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-foreground">{row.fullName}</div>
-                      <div className="text-xs text-muted-foreground font-mono flex items-center gap-2 mt-0.5">
-                        <span>{row.studentUniqueId}</span>
-                        <span>•</span>
-                        <span>Gender: {row.gender}</span>
-                        {row.termName && (
-                          <>
-                            <span>•</span>
-                            <span className="font-sans font-semibold text-primary">{row.termName}</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold text-foreground">
-                      {row.totalScore > 0 ? row.totalScore : '—'}
-                    </td>
-                    <td className="py-3 px-4 text-center font-black">
-                      <span
-                        className={
-                          row.averageScore >= 85
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : row.averageScore >= 70
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : row.averageScore >= 50
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : row.averageScore > 0
-                            ? 'text-rose-600 dark:text-rose-400'
-                            : 'text-muted-foreground'
-                        }
-                      >
-                        {row.averageScore > 0 ? `${row.averageScore}%` : '—'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center font-semibold text-xs">
-                      <span className="px-2 py-0.5 rounded-md bg-muted border border-border text-foreground">
-                        {row.conduct}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center text-xs font-medium text-muted-foreground">
-                      {row.absence}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <StatusBadge status={row.status} />
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
-                          <Button
-                            size="sm"
-                            onClick={() => handlePublishSingle(row.id, row.fullName)}
-                            disabled={publishingId === row.id}
-                            className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                          >
-                            {publishingId === row.id ? (
-                              <RefreshCw className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <Send className="w-3 h-3" />
-                            )}
-                            Publish
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenPreview(row.studentId, row.termId)}
-                          className="h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold"
-                          title="View Official Report Card"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEdit(row.rawCard || row)}
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                          title="Edit Remarks & Conduct"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+            {/* Progress Bar & Key Metrics */}
+            <div className="mt-6 pt-5 border-t border-amber-500/20 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground">
+                  Approval Progress: <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{approvedCount} of {totalRequired} subjects approved</span>
+                </span>
+                <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-sm">
+                  {completionPercentage}% Complete
+                </span>
+              </div>
+
+              {/* Progress track */}
+              <div className="w-full h-3 rounded-full bg-amber-500/20 overflow-hidden p-0.5">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-500 shadow-xs"
+                  style={{ width: `${Math.max(4, completionPercentage)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Approval Progress Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <span className="text-xs font-semibold text-muted-foreground">Approved Subjects</span>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {approvedCount} <span className="text-xs font-medium text-muted-foreground">/ {totalRequired}</span>
+              </p>
+              <span className="text-[11px] text-muted-foreground">Verified & signed off</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <span className="text-xs font-semibold text-muted-foreground">Remaining Subjects</span>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                {remainingCount}
+              </p>
+              <span className="text-[11px] text-muted-foreground">Pending approval</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <span className="text-xs font-semibold text-muted-foreground">Percentage Completion</span>
+              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+                {completionPercentage}%
+              </p>
+              <span className="text-[11px] text-muted-foreground">Overall subject readiness</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <span className="text-xs font-semibold text-muted-foreground">Current Status</span>
+              <div className="mt-1">
+                <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  Results Incomplete
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-1 block">Publishing blocked</span>
+            </div>
+          </div>
+
+          {/* Subject Approval List Table */}
+          <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
+            <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Required Subject Approvals</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Every required subject below must be submitted and approved by administration before report cards can be generated.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-lg">
+                  {approvedCount}/{totalRequired} Approved
+                </span>
+              </div>
+            </div>
+
+            {subjectList.length === 0 ? (
+              <div className="p-10 text-center text-muted-foreground text-sm">
+                No required subjects found for this class and evaluation period.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-muted/40 text-muted-foreground uppercase text-[11px] tracking-wider font-semibold border-b border-border">
+                    <tr>
+                      <th className="py-3 px-4">Subject Name</th>
+                      <th className="py-3 px-4">Assigned Teacher</th>
+                      <th className="py-3 px-4">Submission Status</th>
+                      <th className="py-3 px-4">Approval Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {subjectList.map((subj) => (
+                      <tr key={subj.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: subj.color || '#3b82f6' }}
+                            />
+                            <div>
+                              <p className="font-bold text-foreground">{subj.name}</p>
+                              {subj.code && (
+                                <p className="text-[11px] font-mono text-muted-foreground">{subj.code}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2 text-foreground">
+                            <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                            <span className="font-medium text-xs sm:text-sm">
+                              {subj.teacherName || 'Not Assigned'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <SubmissionBadge status={subj.submissionStatus || subj.status} />
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <ApprovalBadge status={subj.approvalStatus || subj.status} />
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Link href="/school/admin/assessments/reports">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2.5 text-xs text-primary hover:text-primary hover:bg-primary/10 font-semibold gap-1"
+                            >
+                              Review
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* ============================================================ */
+        /* STATE B: ALL SUBJECTS APPROVED (Full Results Dashboard)      */
+        /* ============================================================ */
+        <div className="space-y-4 sm:space-y-6">
+          {/* Readiness Banner */}
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 flex items-start gap-3 print:hidden">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">
+                  All subjects approved — class is ready to publish!
+                </p>
+                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  {approvedCount}/{totalRequired} Approved
+                </span>
+              </div>
+              {readiness && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Report cards: {readiness.reportCardsSummary.published} published •{' '}
+                  {readiness.reportCardsSummary.ready} ready •{' '}
+                  {readiness.reportCardsSummary.draft} draft
+                  {readiness.reportCardsSummary.needsCorrection > 0
+                    ? ` • ${readiness.reportCardsSummary.needsCorrection} need correction`
+                    : ''}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">Enrollment</span>
+                <GraduationCap className="w-4 h-4 text-blue-600" />
+              </div>
+              <p className="text-2xl font-black text-foreground mt-2">{stats.total}</p>
+              <span className="text-[11px] text-muted-foreground">Students in Section</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">Class Average</span>
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2">
+                {stats.avgPct > 0 ? `${stats.avgPct}%` : '—'}
+              </p>
+              <span className="text-[11px] text-muted-foreground">Across all subjects</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">Top Score</span>
+                <Award className="w-4 h-4 text-amber-500" />
+              </div>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2">
+                {stats.topScore > 0 ? `${stats.topScore}%` : '—'}
+              </p>
+              <span className="text-[11px] text-muted-foreground">Highest standing</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">Published</span>
+                <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+              </div>
+              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-2">
+                {stats.published} / {stats.total}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[11px] text-muted-foreground">Visible to parents</span>
+                {stats.ready > 0 && (
+                  <span className="text-[10px] font-bold text-blue-500">({stats.ready} ready)</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Search Toolbar */}
+          <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 print:hidden">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-10 rounded-xl w-full"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { loadData(); loadReadiness(); }}
+              disabled={isTableLoading || generating}
+              className="gap-2 h-10 px-4 shrink-0"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+          </div>
+
+          {/* ============================================================ */}
+          {/* MOBILE: Card list (visible below md)                         */}
+          {/* ============================================================ */}
+          <div className="md:hidden space-y-3 print:hidden">
+            {isTableLoading ? (
+              // Skeleton mobile cards
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/5" />
+                      <Skeleton className="h-3 w-2/5" />
+                    </div>
+                    <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Skeleton className="h-12 rounded-xl" />
+                    <Skeleton className="h-12 rounded-xl" />
+                    <Skeleton className="h-12 rounded-xl" />
+                  </div>
+                  <div className="flex gap-2 pt-1 border-t border-border/40">
+                    <Skeleton className="h-9 flex-1 rounded-lg" />
+                    <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                  </div>
+                </div>
+              ))
+            ) : filteredRows.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground text-sm">
+                {!selectedSectionId
+                  ? 'Select filters above to load report cards.'
+                  : 'No students or report cards found for this selection.'}
+              </div>
+            ) : (
+              filteredRows.map((row, idx) => (
+                <div
+                  key={row.id ? `mrc-${row.id}` : `mstudent-${row.studentId}-${idx}`}
+                  className={`rounded-2xl border bg-card p-4 shadow-xs space-y-3 ${
+                    row.status === 'NEEDS_CORRECTION'
+                      ? 'border-amber-400/40 bg-amber-500/5'
+                      : 'border-border'
+                  }`}
+                >
+                  {/* Top row: rank + name + status */}
+                  <div className="flex items-start gap-3">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted border border-border text-xs font-black text-foreground shrink-0">
+                      {row.rank}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-foreground text-sm leading-tight truncate">{row.fullName}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{row.studentUniqueId} · {row.gender}</div>
+                      {row.termName && (
+                        <div className="text-[11px] font-semibold text-primary mt-0.5">{row.termName}</div>
+                      )}
+                    </div>
+                    <StatusBadge status={row.status} />
+                  </div>
+
+                  {/* Scores row */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
+                      <div className="text-[10px] text-muted-foreground font-semibold uppercase">Total</div>
+                      <div className="font-black text-foreground text-base">{row.totalScore > 0 ? row.totalScore : '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
+                      <div className="text-[10px] text-muted-foreground font-semibold uppercase">Average</div>
+                      <div className={`font-black text-base ${
+                        row.averageScore >= 85 ? 'text-emerald-600 dark:text-emerald-400'
+                        : row.averageScore >= 70 ? 'text-blue-600 dark:text-blue-400'
+                        : row.averageScore >= 50 ? 'text-amber-600 dark:text-amber-400'
+                        : row.averageScore > 0 ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-muted-foreground'
+                      }`}>{row.averageScore > 0 ? `${row.averageScore}%` : '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
+                      <div className="text-[10px] text-muted-foreground font-semibold uppercase">Conduct</div>
+                      <div className="font-black text-foreground text-base">{row.conduct}</div>
+                    </div>
+                  </div>
+
+                  {/* Actions row */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenPreview(row.studentId, row.termId)}
+                      className="flex-1 h-9 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      View Card
+                    </Button>
+                    {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
+                      <Button
+                        size="sm"
+                        onClick={() => handlePublishSingle(row.id, row.fullName)}
+                        disabled={publishingId === row.id}
+                        className="flex-1 h-9 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                      >
+                        {publishingId === row.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                        Publish
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenEdit(row.rawCard || row)}
+                      className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground shrink-0"
+                      title="Edit Remarks & Conduct"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* ============================================================ */}
+          {/* DESKTOP: Full table (visible from md up)                     */}
+          {/* ============================================================ */}
+          <div className="hidden md:block rounded-2xl border border-border bg-card overflow-hidden shadow-xs print:hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-muted/50 text-muted-foreground uppercase text-[11px] tracking-wider font-semibold border-b border-border">
+                  <tr>
+                    <th className="py-3 px-4 w-12 text-center">Rank</th>
+                    <th className="py-3 px-4">Student Details</th>
+                    <th className="py-3 px-4 text-center">Total</th>
+                    <th className="py-3 px-4 text-center">Average %</th>
+                    <th className="py-3 px-4 text-center">Conduct</th>
+                    <th className="py-3 px-4 text-center">Absences</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {isTableLoading ? (
+                    // Skeleton table rows
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i} className="border-b border-border/50">
+                        <td className="py-3 px-4 text-center">
+                          <Skeleton className="w-7 h-7 rounded-full mx-auto" />
+                        </td>
+                        <td className="py-3 px-4">
+                          <Skeleton className="h-4 w-36 mb-1.5" />
+                          <Skeleton className="h-3 w-24" />
+                        </td>
+                        <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-10 mx-auto" /></td>
+                        <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-12 mx-auto" /></td>
+                        <td className="py-3 px-4 text-center"><Skeleton className="h-6 w-10 mx-auto rounded-md" /></td>
+                        <td className="py-3 px-4 text-center"><Skeleton className="h-4 w-10 mx-auto" /></td>
+                        <td className="py-3 px-4 text-center"><Skeleton className="h-6 w-16 mx-auto rounded-full" /></td>
+                        <td className="py-3 px-4 text-right"><Skeleton className="h-8 w-20 ml-auto rounded-lg" /></td>
+                      </tr>
+                    ))
+                  ) : filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-muted-foreground">
+                        No students or report cards found for this selection.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRows.map((row) => (
+                      <tr
+                        key={row.id ? `rc-${row.id}` : `student-${row.studentId}`}
+                        className={`hover:bg-muted/40 transition-colors ${
+                          row.status === 'NEEDS_CORRECTION' ? 'bg-amber-500/5' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-4 text-center">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-muted border border-border text-xs font-black text-foreground">
+                            {row.rank}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-foreground text-sm">{row.fullName}</div>
+                          <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                            {row.studentUniqueId} · {row.gender}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold text-foreground text-sm">
+                          {row.totalScore > 0 ? row.totalScore : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-center font-black text-sm">
+                          <span
+                            className={
+                              row.averageScore >= 85
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : row.averageScore >= 70
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : row.averageScore >= 50
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : row.averageScore > 0
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-muted-foreground'
+                            }
+                          >
+                            {row.averageScore > 0 ? `${row.averageScore}%` : '—'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-semibold text-xs">
+                          <span className="px-2 py-0.5 rounded-md bg-muted border border-border text-foreground">
+                            {row.conduct}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center text-xs font-medium text-muted-foreground">
+                          {row.absence}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <StatusBadge status={row.status} />
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(row.status === 'READY' || row.status === 'NEEDS_CORRECTION') && row.id && (
+                              <Button
+                                size="sm"
+                                onClick={() => handlePublishSingle(row.id, row.fullName)}
+                                disabled={publishingId === row.id}
+                                className="h-8 gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                              >
+                                {publishingId === row.id ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Send className="w-3 h-3" />
+                                )}
+                                Publish
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenPreview(row.studentId, row.termId)}
+                              className="h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold"
+                              title="View Official Report Card"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenEdit(row.rawCard || row)}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                              title="Edit Remarks & Conduct"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================================================ */}
       {/* 1. SINGLE OFFICIAL REPORT CARD MODAL            */}
