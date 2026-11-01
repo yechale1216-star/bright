@@ -665,11 +665,11 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const fileName = `student-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
 
-    // 0. Primary attempt: Upload via server-side /api/upload/student-photo route (handles Supabase + fallback)
+    // Primary: Upload via server-side /api/upload/student-photo route → Supabase 'avatars' bucket
     try {
       const formDataUpload = new FormData()
       formDataUpload.append('file', file)
-      if (oldPhotoUrl) formDataUpload.append('oldUrl', oldPhotoUrl)
+      if (oldPhotoUrl && oldPhotoUrl.startsWith('http')) formDataUpload.append('oldUrl', oldPhotoUrl)
       const res = await fetch('/api/upload/student-photo', {
         method: 'POST',
         body: formDataUpload,
@@ -678,50 +678,36 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
         const data = await res.json()
         if (data?.url) return data.url
       }
+      console.warn("[student-photo] Server route responded with error:", await res.text().catch(() => ''))
     } catch (routeErr) {
-      console.warn("Upload via /api/upload/student-photo route failed, trying direct Supabase:", routeErr)
+      console.warn("[student-photo] Server route failed, trying direct Supabase client:", routeErr)
     }
 
-    // 1. First attempt: Upload directly to Supabase Storage ('avatars' bucket, where teacher/staff photos are stored)
+    // Fallback: Upload directly to Supabase 'avatars' bucket via browser client
     try {
-      const filePath = `avatars/${fileName}`
+      const filePath = `students/${fileName}`
       const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
         upsert: true,
-        contentType: file.type || 'image/jpeg'
+        contentType: file.type || 'image/jpeg',
+        cacheControl: '3600',
       })
       if (!uploadError) {
         const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
         if (data?.publicUrl) {
-          // If editing and replacing, try to delete old file if it was in avatars
+          // Clean up old photo from avatars if replacing
           if (oldPhotoUrl && oldPhotoUrl.includes('/avatars/')) {
-            const oldPath = oldPhotoUrl.split('/avatars/').pop()
-            if (oldPath) {
-              supabase.storage.from('avatars').remove([oldPath]).catch(() => {})
-            }
+            const oldPath = oldPhotoUrl.split('/object/public/avatars/').pop()
+            if (oldPath) supabase.storage.from('avatars').remove([oldPath]).catch(() => {})
           }
           return data.publicUrl
         }
       }
+      console.warn("[student-photo] Direct Supabase avatars upload failed:", uploadError?.message)
     } catch (supabaseErr) {
-      console.warn("Direct Supabase avatars upload failed, trying backend upload:", supabaseErr)
+      console.warn("[student-photo] Direct Supabase upload failed:", supabaseErr)
     }
 
-    // 2. Second attempt: Upload to student_profile bucket if present
-    try {
-      const filePath = `student-photos/${fileName}`
-      const { error: spError } = await supabase.storage.from('student_profile').upload(filePath, file, {
-        upsert: true,
-        contentType: file.type || 'image/jpeg'
-      })
-      if (!spError) {
-        const { data } = supabase.storage.from('student_profile').getPublicUrl(filePath)
-        if (data?.publicUrl) return data.publicUrl
-      }
-    } catch (spErr) {
-      console.warn("Supabase student_profile upload failed:", spErr)
-    }
-
-    // 3. Third attempt: Upload via Express API /api/upload
+    // Last resort: Express backend upload route
     try {
       const apiUrl = getApiUrl()
       const formDataUpload = new FormData()
@@ -737,22 +723,10 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
         if (data?.url) return data.url
       }
     } catch (backendErr) {
-      console.warn("Backend /api/upload failed, trying fallback:", backendErr)
+      console.warn("[student-photo] Express /api/upload failed:", backendErr)
     }
 
-    // 4. Reliable Fallback (Same as Teacher & Staff): Convert to base64 Data URL so photo is never lost!
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result)
-        } else {
-          reject(new Error("Failed to process photo"))
-        }
-      }
-      reader.onerror = () => reject(new Error("Failed to read image file"))
-      reader.readAsDataURL(file)
-    })
+    throw new Error("All upload attempts failed. Please check your Supabase configuration.")
   }
 
   const handleTakePhoto = async () => {

@@ -144,13 +144,13 @@ export function StudentProfileView() {
     }
   };
 
-  // Photo Upload Handler (base64 fallback)
+  // Photo Upload Handler — uploads to Supabase 'avatars' bucket via server route
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      notifications.error("Invalid File", "Please select an image file (PNG, JPG, JPEG).");
+      notifications.error("Invalid File", "Please select an image file (PNG, JPG, JPEG, WebP).");
       return;
     }
 
@@ -161,23 +161,26 @@ export function StudentProfileView() {
 
     setIsUploadingPhoto(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = event.target?.result as string;
-        try {
-          await studentDb.updateProfile({ photo: base64 });
-          notifications.success("Photo Updated", "Your profile photo has been updated.");
-          await loadProfile();
-        } catch (err: any) {
-          notifications.error("Upload Failed", err?.message || "Could not update profile photo.");
-        } finally {
-          setIsUploadingPhoto(false);
-        }
-      };
-      reader.readAsDataURL(file);
+      // Upload via server-side route — uses Supabase 'avatars' bucket (service role key)
+      const oldUrl = basic.photo || undefined;
+      const formData = new FormData();
+      formData.append("file", file);
+      if (oldUrl && oldUrl.startsWith("http")) formData.append("oldUrl", oldUrl);
+
+      const res = await fetch("/api/upload/student-photo", { method: "POST", body: formData });
+      const json = await res.json();
+
+      if (!res.ok || !json.url) {
+        throw new Error(json.error || "Upload failed");
+      }
+
+      await studentDb.updateProfile({ photo: json.url });
+      notifications.success("Photo Updated", "Your profile photo has been updated.");
+      await loadProfile();
     } catch (err: any) {
+      notifications.error("Upload Failed", err?.message || "Could not update profile photo.");
+    } finally {
       setIsUploadingPhoto(false);
-      notifications.error("Upload Error", err?.message || "Could not read image file.");
     }
   };
 

@@ -1,47 +1,53 @@
+
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = "force-dynamic"
 
-const BUCKET_NAME = "student_profile"
+const BUCKET_NAME = "avatars"
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
 
+/**
+ * Returns a Supabase admin client using the service role key.
+ * This client bypasses RLS and is only used server-side.
+ */
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !serviceRoleKey) {
-    return null
+    throw new Error(
+      "Supabase configuration missing. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set."
+    )
   }
 
-  try {
-    return createClient(url, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-  } catch (e) {
-    console.warn("[student-photo] Failed to initialize Supabase admin client:", e)
-    return null
-  }
+  return createClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
 }
 
+/**
+ * Verifies the 'avatars' bucket is accessible.
+ * The bucket is pre-existing and shared with teacher/staff photos.
+ * We do NOT attempt to create or reconfigure it — it is managed externally.
+ */
 async function ensureBucket(adminClient: any) {
-  const { data: bucket } = await adminClient.storage.getBucket(BUCKET_NAME)
-  if (!bucket) {
-    const { error } = await adminClient.storage.createBucket(BUCKET_NAME, {
-      public: true,
-      fileSizeLimit: MAX_FILE_SIZE,
-      allowedMimeTypes: ALLOWED_TYPES,
-    })
-    if (error && error.message !== "Bucket already exists") {
-      throw new Error(`Failed to create storage bucket: ${error.message}`)
-    }
+  const { data: bucket, error } = await adminClient.storage.getBucket(BUCKET_NAME)
+  if (error || !bucket) {
+    throw new Error(
+      `Storage bucket '${BUCKET_NAME}' is not accessible. Ensure it exists in your Supabase project.`
+    )
   }
 }
 
+/**
+ * Deletes a file from Supabase Storage given its full public URL.
+ * Silently ignores errors (non-critical — old file cleanup).
+ */
 async function deleteOldPhoto(adminClient: any, oldUrl: string) {
   try {
     const marker = `/object/public/${BUCKET_NAME}/`
@@ -54,6 +60,15 @@ async function deleteOldPhoto(adminClient: any, oldUrl: string) {
   }
 }
 
+/**
+ * POST /api/upload/student-photo
+ *
+ * Accepts multipart/form-data with:
+ *   - file: image file (JPG, PNG, WebP, max 5 MB)
+ *   - oldUrl?: existing photo URL to delete after successful upload
+ *
+ * Returns: { url: string } — the public URL of the uploaded photo
+ */
 export async function POST(request: NextRequest) {
   try {
     const adminClient = getAdminClient()
@@ -62,6 +77,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null
     const oldUrl = formData.get("oldUrl") as string | null
 
+    // — Validation —
     if (!file || typeof file === "string") {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
@@ -80,47 +96,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (adminClient) {
-      try {
-        await ensureBucket(adminClient)
+    // — Ensure bucket exists —
+    await ensureBucket(adminClient)
 
-        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
-        const randomId = Math.random().toString(36).substring(2, 11)
-        const filePath = `student-photos/${Date.now()}-${randomId}.${ext}`
+    // — Generate a unique file path —
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
+    const randomId = Math.random().toString(36).substring(2, 11)
+    const filePath = `students/${Date.now()}-${randomId}.${ext}`
 
-        const arrayBuffer = await file.arrayBuffer()
-        const buffer = new Uint8Array(arrayBuffer)
+    // — Convert File to ArrayBuffer for upload —
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = new Uint8Array(arrayBuffer)
 
-        const { error: uploadError } = await adminClient.storage
-          .from(BUCKET_NAME)
-          .upload(filePath, buffer, {
-            contentType: file.type,
-            upsert: false,
-            cacheControl: "3600",
-          })
+    // — Upload to Supabase Storage —
+    const { error: uploadError } = await adminClient.storage
+      .from(BUCKET_NAME)
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+        cacheControl: "3600",
+      })
 
-        if (!uploadError) {
-          const { data: urlData } = adminClient.storage.from(BUCKET_NAME).getPublicUrl(filePath)
-          const publicUrl = urlData.publicUrl
-
-          if (oldUrl && typeof oldUrl === "string" && oldUrl.startsWith("http")) {
-            deleteOldPhoto(adminClient, oldUrl)
-          }
-
-          return NextResponse.json({ url: publicUrl }, { status: 200 })
-        }
-        console.warn("[student-photo] Supabase upload failed, falling back to data URL:", uploadError.message)
-      } catch (storageErr) {
-        console.warn("[student-photo] Supabase bucket operation failed, falling back to data URL:", storageErr)
-      }
+    if (uploadError) {
+      console.error("[student-photo] Upload error:", uploadError)
+      return NextResponse.json(
+        { error: `Upload failed: ${uploadError.message}` },
+        { status: 500 }
+      )
     }
 
-    const arrayBuffer = await file.arrayBuffer()
-    const base64String = Buffer.from(arrayBuffer).toString("base64")
-    const mimeType = file.type || "image/jpeg"
-    const dataUrl = `data:${mimeType};base64,${base64String}`
+    // — Get public URL —
+    const { data: urlData } = adminClient.storage.from(BUCKET_NAME).getPublicUrl(filePath)
+    const publicUrl = urlData.publicUrl
 
-    return NextResponse.json({ url: dataUrl }, { status: 200 })
+    // — Delete old photo if provided (fire-and-forget) —
+    if (oldUrl && typeof oldUrl === "string" && oldUrl.startsWith("http")) {
+      deleteOldPhoto(adminClient, oldUrl)
+    }
+
+    return NextResponse.json({ url: publicUrl }, { status: 200 })
   } catch (error: any) {
     console.error("[student-photo] Unexpected error:", error)
     return NextResponse.json(
@@ -130,6 +144,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * DELETE /api/upload/student-photo
+ *
+ * Accepts JSON body: { url: string }
+ * Deletes the photo from Supabase Storage.
+ */
 export async function DELETE(request: NextRequest) {
   try {
     const adminClient = getAdminClient()
@@ -139,9 +159,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "No URL provided" }, { status: 400 })
     }
 
-    if (adminClient) {
-      await deleteOldPhoto(adminClient, url)
-    }
+    await deleteOldPhoto(adminClient, url)
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     console.error("[student-photo] Delete error:", error)
