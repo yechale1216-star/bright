@@ -35,6 +35,8 @@ import { useCalendar } from "@/lib/context/calendar-context"
 import { PhoneInput } from "@/components/ui/phone-input"
 import { useAcademicYear } from "@/lib/context/academic-year-context"
 import { History } from "lucide-react"
+import { supabase } from "@/lib/utils/supabase"
+import { getApiUrl } from "@/lib/api-config"
 
 export function StudentManagement() {
   const { formatDate } = useCalendar()
@@ -659,19 +661,80 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
   }
 
   const uploadPhotoToServer = async (file: File, oldPhotoUrl?: string | null): Promise<string> => {
-    const formDataUpload = new FormData()
-    formDataUpload.append('file', file)
-    // Pass old URL so the server can clean up the replaced photo
-    if (oldPhotoUrl) {
-      formDataUpload.append('oldUrl', oldPhotoUrl)
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const fileName = `student-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+
+    // 1. First attempt: Upload directly to Supabase Storage ('avatars' bucket, where teacher/staff photos are stored)
+    try {
+      const filePath = `avatars/${fileName}`
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
+        upsert: true,
+        contentType: file.type || 'image/jpeg'
+      })
+      if (!uploadError) {
+        const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
+        if (data?.publicUrl) {
+          // If editing and replacing, try to delete old file if it was in avatars
+          if (oldPhotoUrl && oldPhotoUrl.includes('/avatars/')) {
+            const oldPath = oldPhotoUrl.split('/avatars/').pop()
+            if (oldPath) {
+              supabase.storage.from('avatars').remove([oldPath]).catch(() => {})
+            }
+          }
+          return data.publicUrl
+        }
+      }
+    } catch (supabaseErr) {
+      console.warn("Direct Supabase avatars upload failed, trying backend upload:", supabaseErr)
     }
-    const res = await fetch('/api/upload/student-photo', {
-      method: 'POST',
-      body: formDataUpload,
+
+    // 2. Second attempt: Upload to student_profile bucket if present
+    try {
+      const filePath = `student-photos/${fileName}`
+      const { error: spError } = await supabase.storage.from('student_profile').upload(filePath, file, {
+        upsert: true,
+        contentType: file.type || 'image/jpeg'
+      })
+      if (!spError) {
+        const { data } = supabase.storage.from('student_profile').getPublicUrl(filePath)
+        if (data?.publicUrl) return data.publicUrl
+      }
+    } catch (spErr) {
+      console.warn("Supabase student_profile upload failed:", spErr)
+    }
+
+    // 3. Third attempt: Upload via Express API /api/upload
+    try {
+      const apiUrl = getApiUrl()
+      const formDataUpload = new FormData()
+      formDataUpload.append('file', file)
+      const token = typeof localStorage !== 'undefined' ? (localStorage.getItem('attendance_token') || localStorage.getItem('auth_token') || '') : ''
+      const res = await fetch(`${apiUrl}/api/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formDataUpload,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.url) return data.url
+      }
+    } catch (backendErr) {
+      console.warn("Backend /api/upload failed, trying fallback:", backendErr)
+    }
+
+    // 4. Reliable Fallback (Same as Teacher & Staff): Convert to base64 Data URL so photo is never lost!
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result)
+        } else {
+          reject(new Error("Failed to process photo"))
+        }
+      }
+      reader.onerror = () => reject(new Error("Failed to read image file"))
+      reader.readAsDataURL(file)
     })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Photo upload failed')
-    return data.url
   }
 
   const handleTakePhoto = async () => {
