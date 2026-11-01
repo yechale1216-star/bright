@@ -1696,16 +1696,16 @@ export class GradebookService {
           effectiveStreamName = sName.toLowerCase().includes('natural')
             ? 'Natural Science'
             : sName.toLowerCase().includes('social')
-            ? 'Social Science'
-            : sName;
+              ? 'Social Science'
+              : sName;
         }
       } else if (rawStream) {
         const sName = rawStream.name;
         effectiveStreamName = sName.toLowerCase().includes('natural')
           ? 'Natural Science'
           : sName.toLowerCase().includes('social')
-          ? 'Social Science'
-          : sName;
+            ? 'Social Science'
+            : sName;
       }
     }
 
@@ -2200,8 +2200,8 @@ export class GradebookService {
     const issueDate = latestRc?.publishedAt
       ? new Date(latestRc.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       : latestRc?.createdAt
-      ? new Date(latestRc.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        ? new Date(latestRc.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
     // Verifiable QR Code payload (direct URL for mobile camera scanning)
     // Production frontend domain: "https://brightacedemy.vercel.app/verify-report/UNIQUE_REPORT_ID"
@@ -2438,8 +2438,8 @@ export class GradebookService {
     const assessmentIds = assessments.map((a) => a.id);
     const allMarks = assessmentIds.length > 0
       ? await prisma.studentMark.findMany({
-          where: { assessmentId: { in: assessmentIds } },
-        })
+        where: { assessmentId: { in: assessmentIds } },
+      })
       : [];
 
     const marksMap = new Map<string, any>();
@@ -2813,7 +2813,7 @@ export class GradebookService {
   }
 
   /**
-   * Public verification of an official report card by ReportCard ID or Student ID
+   * Public verification of an official annual report card by QR Token, ReportCard ID, or Student ID
    */
   async verifyReportCard(id: string) {
     if (!id || id.trim() === '') {
@@ -2823,11 +2823,10 @@ export class GradebookService {
     const cleanId = id.trim();
     // Support prefixes like "BP-RC-12345678", "AH-RC-12345678" or "BP-RC-STU-001-2018"
     const strippedId = cleanId.replace(/^(BP|AH)-RC-/i, '').replace(/-\d{4}$/, '');
-
     const candidateIds = Array.from(new Set([cleanId, strippedId])).filter(Boolean);
 
-    // 1. Try finding an official persisted ReportCard record
-    const reportCard = await prisma.reportCard.findFirst({
+    // 1. Locate student and relevant academic context from candidate IDs
+    let matchedRc: any = await prisma.reportCard.findFirst({
       where: {
         OR: candidateIds.flatMap((cid) => [
           { id: cid },
@@ -2840,24 +2839,175 @@ export class GradebookService {
       include: {
         student: {
           include: {
+            grade: true,
+            section: { include: { stream: true } },
             stream: true,
             user: { select: { profile_photo: true } },
+            academicRecords: {
+              include: {
+                grade: true,
+                section: { include: { stream: true } },
+                stream: true,
+              },
+              orderBy: { enrolledAt: 'desc' },
+            },
           },
         },
-        grade: true,
-        section: { include: { stream: true } },
+        academicYear: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let student: any = matchedRc?.student;
+
+    if (!student) {
+      student = await prisma.student.findFirst({
+        where: {
+          OR: candidateIds.flatMap((cid) => [
+            { id: cid },
+            { student_id: cid },
+            { student_id: { equals: cid, mode: 'insensitive' as const } },
+          ]),
+        },
+        include: {
+          grade: true,
+          section: { include: { stream: true } },
+          stream: true,
+          user: { select: { profile_photo: true } },
+          academicRecords: {
+            include: {
+              grade: true,
+              section: { include: { stream: true } },
+              stream: true,
+            },
+            orderBy: { enrolledAt: 'desc' },
+          },
+        },
+      });
+
+      if (student) {
+        matchedRc = await prisma.reportCard.findFirst({
+          where: { studentId: student.id },
+          include: { academicYear: true },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
+
+    // Invalid token / record not found
+    if (!student) {
+      return null;
+    }
+
+    // Resolve target academic year
+    let targetYearId = matchedRc?.academicYearId;
+    if (!targetYearId && student.academicRecords.length > 0) {
+      targetYearId = student.academicRecords[0].academicYearId;
+    }
+    if (!targetYearId) {
+      const currentYear = await prisma.academicYear.findFirst({ where: { isCurrent: true } });
+      targetYearId = currentYear?.id;
+    }
+    if (!targetYearId) {
+      const latestYear = await prisma.academicYear.findFirst({ orderBy: { startDate: 'desc' } });
+      targetYearId = latestYear?.id;
+    }
+
+    // 2. Fetch all report cards across the academic year to verify publication & approval status
+    const studentReportCards = await prisma.reportCard.findMany({
+      where: {
+        studentId: student.id,
+        ...(targetYearId ? { academicYearId: targetYearId } : {}),
+      },
+      include: {
         academicYear: true,
         academicTerm: true,
+        grade: true,
+        section: { include: { stream: true } },
         subjectScores: {
           include: { subject: true },
-          orderBy: { score: 'desc' },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
 
+    const fallbackRcId = matchedRc?.id
+      ? `BP-RC-${matchedRc.id.substring(0, 8).toUpperCase()}`
+      : `BP-RC-${cleanId.substring(0, 8).toUpperCase()}`;
+
+    // Reject unpublished tokens
+    if (studentReportCards.length === 0) {
+      return {
+        verified: false,
+        status: 'UNPUBLISHED',
+        isOfficial: false,
+        reportCardId: fallbackRcId,
+        message: 'This report card is currently in draft/review state and has not been officially published.',
+      };
+    }
+
+    // Reject revoked tokens
+    const revokedCard = studentReportCards.find((rc) => rc.status === 'REVOKED');
+    if (revokedCard) {
+      return {
+        verified: false,
+        status: 'REVOKED',
+        isOfficial: false,
+        reportCardId: `BP-RC-${revokedCard.id.substring(0, 8).toUpperCase()}`,
+        message: 'This academic credential has been officially revoked by the school administration.',
+      };
+    }
+
+    // Reject unreleased / draft cards
+    const unpublishedCard = studentReportCards.find((rc) => rc.status !== 'PUBLISHED');
+    if (unpublishedCard) {
+      return {
+        verified: false,
+        status: unpublishedCard.status,
+        isOfficial: false,
+        reportCardId: `BP-RC-${unpublishedCard.id.substring(0, 8).toUpperCase()}`,
+        message: 'This report card is currently in draft/review state and has not been officially published.',
+      };
+    }
+
+    // Ensure all subject marks are approved
+    const hasUnapprovedMarks = studentReportCards.some((rc) =>
+      rc.subjectScores.some((ss) => ss.status === 'PENDING_APPROVAL' || ss.status === 'MISSING')
+    );
+    if (hasUnapprovedMarks) {
+      return {
+        verified: false,
+        status: 'PENDING_APPROVAL',
+        isOfficial: false,
+        reportCardId: `BP-RC-${studentReportCards[0].id.substring(0, 8).toUpperCase()}`,
+        message: 'This report card contains subject marks that are still pending administrative approval.',
+      };
+    }
+
+    // 3. Retrieve complete annual results across the academic year consistent with official printable report card
+    const comp = await this.getComprehensiveReportCardData({
+      studentId: student.id,
+      academicYearId: targetYearId,
+      academicTermId: 'annual',
+    });
+
+    if (!comp) {
+      return null;
+    }
+
+    if (comp.summary?.isIncomplete) {
+      return {
+        verified: false,
+        status: 'INCOMPLETE',
+        isOfficial: false,
+        reportCardId: comp.reportCardId || `BP-RC-${studentReportCards[0].id.substring(0, 8).toUpperCase()}`,
+        message: 'This report card has incomplete assessment records across the academic year and cannot be verified as an official annual report card.',
+      };
+    }
+
+    // School settings & brand styling
     const settings = await prisma.schoolSettings.findUnique({ where: { id: 'singleton' } });
-    const school = {
+    const school = comp.school || {
       name: settings?.school_name || 'Bright Path School',
       amharicName: 'ብራይት ፓዝ ት/ቤት',
       address: settings?.school_address || 'Dire Dawa',
@@ -2869,157 +3019,33 @@ export class GradebookService {
       borderRadius: (settings as any)?.report_card_border_radius ?? 4,
     };
 
-    if (reportCard) {
-      if (reportCard.status !== 'PUBLISHED') {
-        return {
-          verified: false,
-          status: reportCard.status,
-          isOfficial: false,
-          reportCardId: `BP-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
-          message: 'This report card is currently in draft/review state and has not been officially published.',
-        };
-      }
+    const latestRc = matchedRc || studentReportCards[0];
+    const issueDate = latestRc?.publishedAt
+      ? new Date(latestRc.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : latestRc?.createdAt
+        ? new Date(latestRc.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-      const issueDate = reportCard.publishedAt
-        ? new Date(reportCard.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        : new Date(reportCard.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-      const totalStudentsInClass = await prisma.student.count({
-        where: { gradeId: reportCard.gradeId, sectionId: reportCard.sectionId, status: 'ACTIVE' },
-      });
-
-      const rankDisplay = reportCard.rank ? `${reportCard.rank} of ${totalStudentsInClass}` : '—';
-
-      // School Grading & Promotion Policy Pass/Fail Logic:
-      const gradingScales = await this.getGradingScales();
-      const passingScales = gradingScales.filter((s) => s.isPassing);
-      const policyPassingMinScore = passingScales.length > 0
-        ? Math.min(...passingScales.map((s) => s.minScore))
-        : 50.0;
-
-      const hasMissingSubject = reportCard.subjectScores.some((s) => s.status === 'MISSING' || s.score === null);
-      const failingSubjects = reportCard.subjectScores.filter((s) => {
-        const val = s.score ?? 0;
-        const matched = gradingScales.find((sc) => val >= sc.minScore && (val <= sc.maxScore || sc.maxScore >= 100));
-        return matched ? !matched.isPassing : val < policyPassingMinScore;
-      });
-      const isRetained = reportCard.averageScore < policyPassingMinScore || failingSubjects.length >= 3;
-      const isConditional = !isRetained && failingSubjects.length > 0;
-      let remarkBadge = 'PASSED';
-      let isPassing = true;
-
-      if ((reportCard.status as string) === 'INCOMPLETE' || hasMissingSubject) {
-        remarkBadge = 'INCOMPLETE';
-        isPassing = false;
-      } else if (isRetained) {
-        remarkBadge = 'RETAINED';
-        isPassing = false;
-      } else if (isConditional) {
-        remarkBadge = 'PASSED (CONDITIONAL)';
-        isPassing = true;
-      } else {
-        remarkBadge = 'PASSED';
-        isPassing = true;
-      }
-
-      const isGrade11or12 = /\b(11|12)\b/.test(reportCard.grade?.name || '');
-      let streamName: string | null = null;
-      if (isGrade11or12) {
-        const raw = reportCard.section?.stream?.name || reportCard.student?.stream?.name;
-        if (raw) {
-          streamName = raw.toLowerCase().includes('natural')
-            ? 'Natural Science'
-            : raw.toLowerCase().includes('social')
-            ? 'Social Science'
-            : raw;
-        }
-      }
-
-      return {
-        verified: true,
-        status: reportCard.status,
-        isOfficial: reportCard.status === 'PUBLISHED',
-        reportCardId: `BP-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
-        certificateId: reportCard.id,
-        issueDate,
-        school,
-        student: {
-          id: reportCard.student.id,
-          studentId: reportCard.student.student_id,
-          fullName: reportCard.student.fullName,
-          gender: reportCard.student.gender || 'M',
-          photo: reportCard.student.profile_photo || reportCard.student.user?.profile_photo || null,
-        },
-        academic: {
-          gradeName: reportCard.grade?.name || '10',
-          sectionName: reportCard.section?.name || 'A',
-          streamName,
-          academicYearName: reportCard.academicYear?.name || '2018 E.C.',
-          termName: reportCard.academicTerm?.name || 'Annual',
-        },
-        performance: {
-          totalScore: reportCard.totalScore,
-          maxPossibleScore: reportCard.maxPossibleScore,
-          averageScore: reportCard.averageScore,
-          gpa: reportCard.gpa,
-          rank: rankDisplay,
-          conduct: reportCard.conduct || 'A',
-          remarkBadge,
-          teacherComment: reportCard.homeroomTeacherComment,
-          principalComment: reportCard.principalComment,
-        },
-        subjects: reportCard.subjectScores.map((ss) => {
-          const val = ss.score ?? 0;
-          const matched = gradingScales.find((sc) => val >= sc.minScore && (val <= sc.maxScore || sc.maxScore >= 100));
-          const isPassing = matched ? matched.isPassing : val >= policyPassingMinScore;
-          return {
-            id: ss.subjectId,
-            name: ss.subject?.name || 'Subject',
-            code: ss.subject?.code,
-            score: ss.score,
-            maxScore: ss.maxScore || 100,
-            gradeLetter: ss.gradeLetter || matched?.grade || (isPassing ? 'D' : 'F'),
-            gpaPoint: ss.gpaPoint !== null && ss.gpaPoint !== undefined ? ss.gpaPoint : (matched?.gpaPoint ?? (isPassing ? 1.0 : 0.0)),
-            isPassing,
-          };
-        }),
-      };
-    }
-
-    // 2. If no persisted report_cards row exists yet, check if student exists
-    // and verify dynamically against current official gradebook assessments!
-    const student = await prisma.student.findFirst({
+    const totalStudentsInClass = await prisma.student.count({
       where: {
-        OR: candidateIds.flatMap((cid) => [
-          { id: cid },
-          { student_id: cid },
-          { student_id: { equals: cid, mode: 'insensitive' as const } },
-        ]),
-      },
-      include: {
-        grade: true,
-        section: true,
-        user: { select: { profile_photo: true } },
+        gradeId: comp.academic?.gradeId || student.gradeId,
+        sectionId: comp.academic?.sectionId || student.sectionId,
+        status: 'ACTIVE',
       },
     });
 
-    if (!student) {
-      return null;
-    }
-
-    const comp = await this.getComprehensiveReportCardData({ studentId: student.id });
-    if (!comp || comp.status !== 'PUBLISHED') {
-      return null;
-    }
+    const rankDisplay = comp.summary?.rank && comp.summary.rank !== '—'
+      ? comp.summary.rank
+      : (latestRc?.rank ? `${latestRc.rank} of ${totalStudentsInClass || 1}` : '—');
 
     return {
       verified: true,
-      status: comp.status || 'VERIFIED',
-      isOfficial: comp.status === 'PUBLISHED',
-      reportCardId: comp.reportCardId || `BP-RC-${student.student_id}-2018`,
-      certificateId: `CERT-${student.student_id}-${student.id.substring(0, 8).toUpperCase()}`,
-      issueDate: comp.issueDate || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      school: comp.school || school,
+      status: 'PUBLISHED',
+      isOfficial: true,
+      reportCardId: comp.reportCardId || `BP-RC-${latestRc.id.substring(0, 8).toUpperCase()}`,
+      certificateId: latestRc.id || `CERT-${student.student_id}-${student.id.substring(0, 8).toUpperCase()}`,
+      issueDate,
+      school,
       student: {
         id: student.id,
         studentId: student.student_id,
@@ -3032,27 +3058,28 @@ export class GradebookService {
         sectionName: comp.academic?.sectionName || student.section?.name || 'A',
         streamName: comp.academic?.streamName || null,
         academicYearName: comp.academic?.academicYearName || '2018 E.C.',
-        termName: comp.academic?.academicTermName || 'Annual',
       },
       performance: {
         totalScore: comp.summary?.totalRow?.total || 0,
-        maxPossibleScore: comp.summary?.totalRow?.weight || 0,
-        averageScore: comp.summary?.totalRow?.average || 0,
-        gpa: comp.summary?.averageRow?.overallAverage ? Number((comp.summary.averageRow.overallAverage / 25).toFixed(2)) : 0,
-        rank: comp.summary?.rank || '1',
-        conduct: comp.summary?.conduct || 'A',
-        remarkBadge: comp.summary?.remarkBadge || 'Passed',
-        teacherComment: comp.summary?.teacherComment,
-        principalComment: comp.summary?.principalComment,
+        maxPossibleScore: comp.summary?.totalRow?.weight || (comp.subjectRows.length * 100),
+        averageScore: comp.summary?.averageRow?.overallAverage ?? comp.summary?.totalRow?.average ?? 0,
+        gpa: comp.summary?.averageRow?.overallAverage
+          ? Number((comp.summary.averageRow.overallAverage / 25).toFixed(2))
+          : (latestRc?.gpa ?? 0),
+        rank: rankDisplay,
+        conduct: comp.summary?.conduct || latestRc?.conduct || 'A',
+        remarkBadge: comp.summary?.remarkBadge || 'PASSED',
+        teacherComment: comp.summary?.teacherComment || latestRc?.homeroomTeacherComment,
+        principalComment: comp.summary?.principalComment || latestRc?.principalComment,
       },
-      subjects: (comp.subjectRows || []).map((row: any) => ({
+      subjects: comp.subjectRows.map((row: any) => ({
         id: row.subjectId || row.subjectName,
         name: row.subjectName,
-        code: row.code || row.subjectCode,
-        score: row.average ?? (row.periodScores?.sem2 ?? row.periodScores?.sem1 ?? 0),
+        code: row.code,
+        score: row.average ?? (row.scores ? Object.values(row.scores).reduce((a: any, b: any) => (a || 0) + (b || 0), 0) : 0),
         maxScore: 100,
         gradeLetter: row.gradeLetter || (row.isPassing ? 'D' : 'F'),
-        gpaPoint: row.gpaPoint || (row.isPassing ? 1.0 : 0.0),
+        gpaPoint: row.gpaPoint !== undefined ? row.gpaPoint : (row.isPassing ? 1.0 : 0.0),
         isPassing: row.isPassing,
       })),
     };

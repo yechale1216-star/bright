@@ -18,7 +18,7 @@ const mapStudentToFlat = (student: any) => {
     suspensionEndDate: student.suspensionEndDate || null,
     destinationSchool: student.destinationSchool || null,
     statusReason: student.statusReason || null,
-    profile_photo: student.profile_photo || null,
+    profile_photo: student.profile_photo || student.user?.profile_photo || null,
   };
 };
 
@@ -108,7 +108,12 @@ export const getAllStudents = async (
         include: {
           student: {
             include: {
-              parentStudents: true
+              parentStudents: true,
+              user: {
+                select: {
+                  profile_photo: true,
+                },
+              },
             }
           },
           grade: true,
@@ -126,6 +131,7 @@ export const getAllStudents = async (
       return {
         ...enr.student,
         name: enr.student?.fullName,
+        profile_photo: enr.student?.profile_photo || enr.student?.user?.profile_photo || null,
         grade: enr.grade?.name || '',
         section: enr.section?.name || '',
         stream: enr.stream?.name || null,
@@ -172,6 +178,11 @@ export const getAllStudents = async (
         section: true,
         stream: true,
         parentStudents: true,
+        user: {
+          select: {
+            profile_photo: true,
+          },
+        },
         promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
       },
       orderBy: { fullName: 'asc' },
@@ -782,7 +793,13 @@ export const updateStudent = async (id: string, data: any, _schoolId?: string) =
   if (data.address) updateData.address = data.address;
   if (data.profile_photo !== undefined) updateData.profile_photo = data.profile_photo || null;
 
-  const existingStudent = await prisma.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true } });
+  const existingStudent = await prisma.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true, user_id: true } });
+  if (data.profile_photo !== undefined && existingStudent?.user_id) {
+    await prisma.user.update({
+      where: { id: existingStudent.user_id },
+      data: { profile_photo: data.profile_photo || null }
+    }).catch((err) => console.warn('Failed to sync profile photo to user account:', err));
+  }
   if (!existingStudent) throw new Error('Student not found');
 
   let targetGradeId = data.gradeId || existingStudent.gradeId;

@@ -37,6 +37,7 @@ import { useAcademicYear } from "@/lib/context/academic-year-context"
 import { History } from "lucide-react"
 import { supabase } from "@/lib/utils/supabase"
 import { getApiUrl } from "@/lib/api-config"
+import { StudentAvatar } from "./student-avatar"
 
 export function StudentManagement() {
   const { formatDate } = useCalendar()
@@ -663,6 +664,23 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
   const uploadPhotoToServer = async (file: File, oldPhotoUrl?: string | null): Promise<string> => {
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const fileName = `student-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+
+    // 0. Primary attempt: Upload via server-side /api/upload/student-photo route (handles Supabase + fallback)
+    try {
+      const formDataUpload = new FormData()
+      formDataUpload.append('file', file)
+      if (oldPhotoUrl) formDataUpload.append('oldUrl', oldPhotoUrl)
+      const res = await fetch('/api/upload/student-photo', {
+        method: 'POST',
+        body: formDataUpload,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.url) return data.url
+      }
+    } catch (routeErr) {
+      console.warn("Upload via /api/upload/student-photo route failed, trying direct Supabase:", routeErr)
+    }
 
     // 1. First attempt: Upload directly to Supabase Storage ('avatars' bucket, where teacher/staff photos are stored)
     try {
@@ -1331,7 +1349,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                         <div className="flex items-center gap-4">
                           {/* Preview circle */}
                           <div
-                            className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-emerald-200 dark:border-emerald-800 cursor-pointer relative group"
+                            className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-emerald-200 dark:border-emerald-800 cursor-pointer relative group aspect-square shadow-sm"
                             onClick={() => photoInputRef.current?.click()}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => {
@@ -1341,7 +1359,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                             }}
                           >
                             {photoPreview ? (
-                              <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                              <img src={photoPreview} alt="Preview" className="w-full h-full object-cover rounded-full" />
                             ) : (
                               <span className="text-2xl font-black text-white">
                                 {formData.name?.charAt(0)?.toUpperCase() || '?'}
@@ -2035,13 +2053,13 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                     <TableRow key={student.id} className="group hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors border-b border-slate-100 dark:border-slate-800/60">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-primary/20 group-hover:scale-105 transition-transform shrink-0 overflow-hidden">
-                            {student.profile_photo ? (
-                              <img src={student.profile_photo} alt={student.name} className="w-full h-full object-cover" />
-                            ) : (
-                              student.name?.charAt(0).toUpperCase()
-                            )}
-                          </div>
+                          <StudentAvatar
+                            name={student.name}
+                            studentId={student.student_id}
+                            photo={student.profile_photo}
+                            size="md"
+                            className="group-hover:scale-105 transition-transform"
+                          />
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground tracking-tight truncate">{student.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -2220,13 +2238,12 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                       {/* Student Name + ID */}
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary font-black text-sm flex items-center justify-center flex-shrink-0 border border-primary/20 overflow-hidden">
-                            {student.profile_photo ? (
-                              <img src={student.profile_photo} alt={student.name} className="w-full h-full object-cover" />
-                            ) : (
-                              student.name?.charAt(0).toUpperCase()
-                            )}
-                          </div>
+                          <StudentAvatar
+                            name={student.name}
+                            studentId={student.student_id}
+                            photo={student.profile_photo}
+                            size="sm"
+                          />
                           <div className="min-w-0">
                             <p className="text-[12px] font-black text-foreground truncate uppercase tracking-tight leading-tight">
                               {student.name}
@@ -2420,15 +2437,13 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
               <div className="flex items-center gap-4 pr-10">
                 {/* Avatar */}
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-900/40 flex-shrink-0 overflow-hidden">
-                  {selectedStudent.profile_photo ? (
-                    <img src={selectedStudent.profile_photo} alt={selectedStudent.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-2xl font-black text-white">
-                      {selectedStudent.name?.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
+                <StudentAvatar
+                  name={selectedStudent.name}
+                  studentId={selectedStudent.student_id}
+                  photo={selectedStudent.profile_photo}
+                  size="xl"
+                  className="shadow-lg shadow-emerald-900/40 ring-2 ring-white/20"
+                />
 
                 {/* Name + meta */}
                 <div className="min-w-0">

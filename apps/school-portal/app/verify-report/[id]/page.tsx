@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, use } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   ShieldCheck,
   Award,
@@ -14,7 +13,6 @@ import {
   TrendingUp,
   FileText,
   Printer,
-  ArrowLeft,
   AlertCircle,
   XCircle,
   Clock,
@@ -49,7 +47,7 @@ interface VerifiedData {
     sectionName: string;
     streamName?: string | null;
     academicYearName: string;
-    termName: string;
+    termName?: string;
   };
   performance: {
     totalScore: number;
@@ -135,15 +133,9 @@ export default function VerifyReportPage({
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-8 px-4 sm:px-6 lg:px-8 print:p-0 print:bg-white">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Navigation Bar */}
-        <div className="flex items-center justify-between print:hidden">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to Home
-          </Link>
-          {data && data.status === 'PUBLISHED' && (
+        {/* Verification Actions Bar */}
+        {data && data.status === 'PUBLISHED' && (
+          <div className="flex items-center justify-end print:hidden">
             <button
               onClick={handlePrint}
               type="button"
@@ -151,8 +143,8 @@ export default function VerifyReportPage({
             >
               <Printer className="w-3.5 h-3.5" /> Print Verification Certificate
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {loading && (
@@ -185,14 +177,6 @@ export default function VerifyReportPage({
               <p className="text-xs text-slate-600 dark:text-slate-400">{error}</p>
               <p className="text-[11px] font-mono text-slate-400 pt-2">ID Queried: {id}</p>
             </div>
-            <div className="pt-2">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
-              >
-                Return to School Homepage
-              </Link>
-            </div>
           </div>
         )}
 
@@ -215,14 +199,6 @@ export default function VerifyReportPage({
               <p className="text-[11px] font-mono text-slate-400 pt-2">
                 Verification Code: {id}
               </p>
-            </div>
-            <div className="pt-2">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
-              >
-                Return to School Homepage
-              </Link>
             </div>
           </div>
         )}
@@ -291,23 +267,18 @@ export default function VerifyReportPage({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-400 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-400 pt-1">
                     <div>
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Grade &amp; Section</span>
                       <strong className="text-slate-800 dark:text-slate-200 font-bold">
                         Grade {data.academic.gradeName} &ldquo;{data.academic.sectionName}&rdquo;
+                        {data.academic.streamName ? ` • ${data.academic.streamName}` : ''}
                       </strong>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Academic Year</span>
                       <strong className="text-slate-800 dark:text-slate-200 font-bold">
                         {data.academic.academicYearName}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Semester / Term</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-bold">
-                        {data.academic.termName}
                       </strong>
                     </div>
                     <div>

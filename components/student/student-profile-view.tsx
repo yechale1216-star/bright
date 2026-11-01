@@ -95,7 +95,7 @@ export function StudentProfileView() {
     phone: profile?.phone || "",
     address: profile?.address || "",
     status: profile?.status || "ACTIVE",
-    photo: profile?.photo || null,
+    photo: profile?.photo || profile?.profile_photo || null,
     email: profile?.email || "",
   };
 

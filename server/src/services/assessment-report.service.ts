@@ -108,6 +108,15 @@ export class AssessmentReportService {
     const termId = selectedTerm?.id || undefined;
     const termLabel = selectedTerm?.name || (yearTerms.length > 0 ? yearTerms[0].name : 'Term');
 
+    // Closed Term Rule: If the academic year or term is closed/concluded, mark entry and approval
+    // workflows are completed. Recorded marks are treated as finalized historical records without approval gating.
+    const isYearClosed = !targetYear.isCurrent;
+    const isTermClosed = Boolean(
+      isYearClosed ||
+      (selectedTerm && !selectedTerm.isCurrent) ||
+      (selectedTerm && new Date(selectedTerm.endDate).getTime() < Date.now())
+    );
+
     // 3. Load School's Configured Grading Scales
     const dbGradingScales = await prisma.gradingScale.findMany({
       orderBy: { minScore: 'desc' },
@@ -264,12 +273,19 @@ export class AssessmentReportService {
       for (const sc of rc.subjectScores) {
         if (subjectId && subjectId !== 'all' && sc.subjectId !== subjectId) continue;
 
-        // Check if score is valid number (0 is valid!)
-        const isScorePresent = sc.score !== null && sc.score !== undefined && typeof sc.score === 'number' && !isNaN(sc.score);
+        // Enterprise rule: If term is closed, marks are finalized historical records (approval gating not required).
+        // If term is open, strictly APPROVED marks are eligible for academic report calculation.
+        const isApprovedOrFinalized = isTermClosed || sc.status === 'APPROVED';
+        const isScorePresent = isApprovedOrFinalized && sc.score !== null && sc.score !== undefined && typeof sc.score === 'number' && !isNaN(sc.score);
 
-        if (!isScorePresent || sc.status === 'MISSING') {
+        if (!isApprovedOrFinalized || !isScorePresent || sc.status === 'MISSING') {
           hasIncomplete = true;
           missingCount++;
+          const letter = (!isTermClosed && sc.status === 'PENDING_APPROVAL')
+            ? 'PND'
+            : (!isTermClosed && sc.status === 'RETURNED')
+              ? 'RET'
+              : 'INC';
           scoredSubjects.push({
             subjectId: sc.subjectId,
             subjectName: sc.subject?.name || 'Subject',
@@ -277,10 +293,11 @@ export class AssessmentReportService {
             score: null,
             maxScore: sc.maxScore || 100,
             percentage: null,
-            gradeLetter: 'INC',
+            gradeLetter: letter,
             isPassing: false,
           });
         } else {
+          // Valid mark (Approved or Closed-Term Finalized)
           const max = sc.maxScore > 0 ? sc.maxScore : 100;
           const pct = Math.round((sc.score / max) * 1000) / 10;
           validPercentages.push(pct);
@@ -362,9 +379,15 @@ export class AssessmentReportService {
     const incompleteCount = totalActiveCount - completeCount;
 
     const completedAverages = completedRecords.map((r) => r.overallAverage!);
+    const allValidAverages = allRecordsForTerm
+      .map((r) => r.validAverage)
+      .filter((avg): avg is number => avg !== null && !isNaN(avg));
+
     const cohortAverage = completedAverages.length > 0
       ? Math.round((completedAverages.reduce((a, b) => a + b, 0) / completedAverages.length) * 10) / 10
-      : 0;
+      : (allValidAverages.length > 0
+          ? Math.round((allValidAverages.reduce((a, b) => a + b, 0) / allValidAverages.length) * 10) / 10
+          : 0);
 
     const passedCount = completedRecords.filter((r) => r.status === 'Passed').length;
     const failedCount = completedRecords.filter((r) => r.status === 'Failed').length;
@@ -454,10 +477,13 @@ export class AssessmentReportService {
       })
       .sort((a, b) => b.averageScore - a.averageScore);
 
-    // Distribution of student averages across grading scale bands
+    const scorePoolForDist = completedAverages.length > 0 ? completedAverages : allValidAverages;
+    const scorePoolForDistCount = scorePoolForDist.length;
+
+    // Distribution of student averages across grading scale bands (Approved marks only)
     const distributionBands = distributionBandsConfig.map((band) => {
-      const count = completedAverages.filter((avg) => avg >= band.minScore && avg <= band.maxScore).length;
-      const percentage = completeCount > 0 ? Math.round((count / completeCount) * 100) : 0;
+      const count = scorePoolForDist.filter((avg) => avg >= band.minScore && avg <= band.maxScore).length;
+      const percentage = scorePoolForDistCount > 0 ? Math.round((count / scorePoolForDistCount) * 100) : 0;
       return {
         ...band,
         count,
@@ -529,10 +555,13 @@ export class AssessmentReportService {
           { code: 'Below 50', name: 'Below 50', min: 0, max: 49.999, color: '#ef4444' },
         ];
 
+        const scorePool = completedAverages.length > 0 ? completedAverages : allValidAverages;
+        const scorePoolCount = scorePool.length;
+
         const scoreRangePerformance = rangesConfig.map((rg) => {
-          const matchingScores = completedAverages.filter((avg) => avg >= rg.min && avg <= rg.max);
+          const matchingScores = scorePool.filter((avg) => avg >= rg.min && avg <= rg.max);
           const count = matchingScores.length;
-          const percentage = completeCount > 0 ? Math.round((count / completeCount) * 1000) / 10 : 0;
+          const percentage = scorePoolCount > 0 ? Math.round((count / scorePoolCount) * 1000) / 10 : 0;
           return {
             subjectId: rg.code,
             subjectName: rg.name,
@@ -550,18 +579,28 @@ export class AssessmentReportService {
         summary = {
           card1Title: 'Active Enrolled',
           card1Val: totalActiveCount,
-          card1Sub: `${completeCount} completed results (${completionRate}%)`,
+          card1Sub: isTermClosed
+            ? `${completeCount} completed results (Term Closed / Finalized)`
+            : (completeCount === totalActiveCount
+                ? `${completeCount} completed results (100% approved)`
+                : `${completeCount} completed (${incompleteCount} pending / incomplete)`),
           card2Title: 'Class Average',
           card2Val: `${cohortAverage}%`,
-          card2Sub: `Pass threshold: ${policyPassingMinScore}%`,
+          card2Sub: isTermClosed
+            ? `Pass threshold: ${policyPassingMinScore}% (Finalized)`
+            : `Pass threshold: ${policyPassingMinScore}% (Approved Marks)`,
           card3Title: 'Passed Students',
           card3Val: `${passedCount} (${passRate}%)`,
           card3Sub: `${failedCount} Failed (${failRate}%)`,
           card4Title: 'Support Required',
           card4Val: `${failedCount + incompleteCount}`,
-          card4Sub: `${failedCount} academic fail, ${incompleteCount} missing marks`,
+          card4Sub: isTermClosed
+            ? `${failedCount} academic fail, ${incompleteCount} incomplete`
+            : `${failedCount} academic fail, ${incompleteCount} missing / pending marks`,
           chartTitle: 'Student Performance by Score Range',
-          chartSub: 'Number of students across performance score ranges',
+          chartSub: isTermClosed
+            ? 'Number of students across performance score ranges (Finalized Records)'
+            : 'Number of students across performance score ranges (Approved Marks Only)',
         };
 
         chartPerformance = scoreRangePerformance;
@@ -664,19 +703,21 @@ export class AssessmentReportService {
           ? `(${gradingScales[0].grade}–${gradingScales[gradingScales.length - 1].grade})`
           : '(A–F)';
 
+        const isSubjectPending = !isTermClosed && subTotalValidStudents === 0 && totalActiveCount > 0;
+
         summary = {
           card1Title: 'Total Students',
           card1Val: subTotalValidStudents,
-          card1Sub: 'with valid results',
+          card1Sub: isSubjectPending ? 'Awaiting marks approval' : (isTermClosed ? 'evaluated candidates' : 'with approved results'),
           card2Title: 'Subject Average',
-          card2Val: `${subAvgScore}`,
-          card2Sub: 'out of 100',
+          card2Val: isSubjectPending ? '0%' : `${subAvgScore}%`,
+          card2Sub: isSubjectPending ? 'Awaiting review' : (isTermClosed ? 'out of 100 (Finalized Records)' : 'out of 100 (Approved Marks)'),
           card3Title: 'Highest Grade',
           card3Val: subHighestGrade || (subTotalValidStudents > 0 ? gradingScales[0]?.grade || 'N/A' : 'N/A'),
-          card3Sub: subHighestGrade ? `(${gradeDist.find(g => g.subjectName === subHighestGrade)?.scoreRange || ''})` : 'No results',
+          card3Sub: isSubjectPending ? 'No approved marks' : (subHighestGrade ? `(${gradeDist.find(g => g.subjectName === subHighestGrade)?.scoreRange || ''})` : 'No results'),
           card4Title: 'Pass Rate',
-          card4Val: `${subPassRatePct}%`,
-          card4Sub: `(${subPassedCount} of ${subTotalValidStudents})`,
+          card4Val: isSubjectPending ? '0%' : `${subPassRatePct}%`,
+          card4Sub: isSubjectPending ? 'Awaiting approved marks' : `(${subPassedCount} of ${subTotalValidStudents})`,
           // Extra fields for 6-card UI
           card5Title: 'Passed',
           card5Val: subPassedCount,
@@ -685,16 +726,25 @@ export class AssessmentReportService {
           card6Val: subFailedCount,
           card6Sub: 'students',
           chartTitle: `Student Grade Distribution — ${subjectName}`,
-          chartSub: `Based on school grading policy ${scaleRangeLabel}.`,
+          chartSub: isSubjectPending
+            ? 'No approved marks available yet. Teacher submissions are awaiting approval.'
+            : (isTermClosed
+                ? `Based on school grading policy ${scaleRangeLabel} (Finalized).`
+                : `Based on school grading policy ${scaleRangeLabel} (Approved marks only).`),
         };
 
         chartPerformance = gradeDist;
-        recommendations = [
-          `Subject pass rate: ${subPassRatePct}% (${subPassedCount} of ${subTotalValidStudents} students passed).`,
-          subPassRatePct < 70
-            ? 'Curriculum review and remedial sessions are recommended for underperforming students.'
-            : 'Students demonstrate satisfactory mastery of evaluated learning objectives.',
-        ];
+        recommendations = isSubjectPending
+          ? [
+              `Assessment marks for ${subjectName} are currently pending review and approval by the Academic Head.`,
+              'Subject performance analytics will be computed automatically once submissions are approved.',
+            ]
+          : [
+              `Subject pass rate: ${subPassRatePct}% (${subPassedCount} of ${subTotalValidStudents} students passed).`,
+              subPassRatePct < 70
+                ? 'Curriculum review and remedial sessions are recommended for underperforming students.'
+                : 'Students demonstrate satisfactory mastery of evaluated learning objectives.',
+            ];
         break;
       }
 
@@ -1004,6 +1054,7 @@ export class AssessmentReportService {
         name: schoolName,
         academicYear: targetYear.name,
         term: termLabel,
+        isTermClosed,
       },
       summary,
       subjectPerformance: chartPerformance,
@@ -1274,6 +1325,8 @@ export class AssessmentReportService {
 
     let studentRows: any[] = [];
 
+    const isDetailTermClosed = Boolean((analytics as any)?.schoolInfo?.isTermClosed);
+
     // ─── Case 1: STUDENT_ACADEMIC ───────────────────────────────────────────
     if (prefix === 'stud') {
       const student = enrolledStudents[0];
@@ -1281,10 +1334,11 @@ export class AssessmentReportService {
 
       if (student && rc) {
         studentRows = rc.subjectScores.map((sc, idx) => {
+          const isApprovedOrFinalized = isDetailTermClosed || sc.status === 'APPROVED';
           const max = sc.maxScore > 0 ? sc.maxScore : 100;
-          const score = sc.score;
-          const pct = Math.round((score / max) * 1000) / 10;
-          const scale = findGradeScale(pct, gradingScales, passThreshold);
+          const score = isApprovedOrFinalized && sc.score !== null ? sc.score : null;
+          const pct = score !== null ? Math.round((score / max) * 1000) / 10 : null;
+          const scale = pct !== null ? findGradeScale(pct, gradingScales, passThreshold) : null;
 
           return {
             id: sc.id || `${student.id}_${sc.subjectId}`,
@@ -1296,12 +1350,12 @@ export class AssessmentReportService {
             stream: student.stream?.name || 'N/A',
             subjectName: sc.subject?.name || 'Subject',
             subjectCode: sc.subject?.code || '',
-            score,
+            score: isApprovedOrFinalized ? score : null,
             maxScore: max,
             percentage: pct,
-            gradeLetter: scale.grade,
-            status: scale.isPassing ? 'Passed' : 'Failed',
-            teacherRemarks: sc.teacherRemarks || 'Satisfactory work',
+            gradeLetter: isApprovedOrFinalized && scale ? scale.grade : (sc.status === 'PENDING_APPROVAL' && !isDetailTermClosed ? 'PND' : 'INC'),
+            status: isApprovedOrFinalized && scale ? (scale.isPassing ? 'Passed' : 'Failed') : 'Incomplete',
+            teacherRemarks: isApprovedOrFinalized ? (sc.teacherRemarks || 'Satisfactory work') : 'Pending submission approval',
             rank: idx + 1,
           };
         });
@@ -1312,11 +1366,12 @@ export class AssessmentReportService {
     else if (prefix === 'subj' && targetSubjectId) {
       studentRows = reportCards.map((rc) => {
         const sc = rc.subjectScores.find((s) => s.subjectId === targetSubjectId);
+        const isApprovedOrFinalized = isDetailTermClosed || sc?.status === 'APPROVED';
         const max = sc?.maxScore && sc.maxScore > 0 ? sc.maxScore : 100;
-        const isPresent = sc && sc.score !== null && sc.score !== undefined && sc.status !== 'MISSING';
-        const score = isPresent ? sc!.score : 0;
-        const pct = isPresent ? Math.round((score / max) * 1000) / 10 : 0;
-        const scale = findGradeScale(pct, gradingScales, passThreshold);
+        const isPresent = isApprovedOrFinalized && sc && sc.score !== null && sc.score !== undefined;
+        const score = isPresent ? sc!.score : null;
+        const pct = isPresent ? Math.round((sc!.score / max) * 1000) / 10 : null;
+        const scale = pct !== null ? findGradeScale(pct, gradingScales, passThreshold) : null;
 
         return {
           id: rc.student.id,
@@ -1328,10 +1383,10 @@ export class AssessmentReportService {
           stream: rc.student.stream?.name || 'General',
           score: isPresent ? score : null,
           maxScore: max,
-          percentage: isPresent ? pct : null,
-          gradeLetter: isPresent ? scale.grade : 'INC',
-          status: !isPresent ? 'Incomplete' : (scale.isPassing ? 'Passed' : 'Failed'),
-          supportNeeded: !isPresent || !scale.isPassing,
+          percentage: pct,
+          gradeLetter: isPresent && scale ? scale.grade : (sc?.status === 'PENDING_APPROVAL' && !isDetailTermClosed ? 'PND' : 'INC'),
+          status: !isApprovedOrFinalized ? 'Incomplete' : (!isPresent ? 'Incomplete' : (scale?.isPassing ? 'Passed' : 'Failed')),
+          supportNeeded: isApprovedOrFinalized && isPresent && scale ? !scale.isPassing : false,
         };
       }).sort((a, b) => (b.percentage || 0) - (a.percentage || 0)).map((r, i) => ({ ...r, rank: i + 1 }));
     }
@@ -1344,7 +1399,9 @@ export class AssessmentReportService {
       studentRows = reportCards.map((rc, idx) => {
         const avg = Number(rc.averageScore || 0);
         const scale = findGradeScale(avg, gradingScales, passThreshold);
-        const hasMissing = rc.subjectScores.some((s) => s.score === null || s.status === 'MISSING') || rc.subjectScores.length === 0;
+        const hasUnapprovedOrMissing = isDetailTermClosed
+          ? (rc.subjectScores.some((s) => s.score === null || s.status === 'MISSING') || rc.subjectScores.length === 0)
+          : (rc.subjectScores.some((s) => s.status !== 'APPROVED' || s.score === null) || rc.subjectScores.length === 0);
 
         return {
           id: rc.student.id,
@@ -1357,12 +1414,12 @@ export class AssessmentReportService {
           score: avg,
           maxScore: 100,
           percentage: avg,
-          gradeLetter: hasMissing ? 'INC' : scale.grade,
-          status: hasMissing ? 'Incomplete' : (scale.isPassing ? 'Passed' : 'Failed'),
+          gradeLetter: hasUnapprovedOrMissing ? 'INC' : scale.grade,
+          status: hasUnapprovedOrMissing ? 'Incomplete' : (scale.isPassing ? 'Passed' : 'Failed'),
           conduct: rc.conduct || 'Good',
           rank: rc.rank || idx + 1,
-          recommendation: hasMissing
-            ? 'Complete missing assessment papers'
+          recommendation: hasUnapprovedOrMissing
+            ? (isDetailTermClosed ? 'Incomplete assessment records' : 'Awaiting subject mark approvals / assessments')
             : scale.isPassing
               ? 'Maintain commendable standard'
               : 'Targeted tutorial support needed',

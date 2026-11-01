@@ -57,6 +57,7 @@ const mapStudentToFlat = (student) => {
         suspensionEndDate: student.suspensionEndDate || null,
         destinationSchool: student.destinationSchool || null,
         statusReason: student.statusReason || null,
+        profile_photo: student.profile_photo || student.user?.profile_photo || null,
     };
 };
 const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, streamId, academicYear, pagination) => {
@@ -128,7 +129,12 @@ const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, str
                 include: {
                     student: {
                         include: {
-                            parentStudents: true
+                            parentStudents: true,
+                            user: {
+                                select: {
+                                    profile_photo: true,
+                                },
+                            },
                         }
                     },
                     grade: true,
@@ -145,6 +151,7 @@ const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, str
             return {
                 ...enr.student,
                 name: enr.student?.fullName,
+                profile_photo: enr.student?.profile_photo || enr.student?.user?.profile_photo || null,
                 grade: enr.grade?.name || '',
                 section: enr.section?.name || '',
                 stream: enr.stream?.name || null,
@@ -189,6 +196,11 @@ const getAllStudents = async (_schoolId, search, status, gradeId, sectionId, str
                 section: true,
                 stream: true,
                 parentStudents: true,
+                user: {
+                    select: {
+                        profile_photo: true,
+                    },
+                },
                 promotions: { orderBy: { promotedAt: 'desc' }, take: 1 }
             },
             orderBy: { fullName: 'asc' },
@@ -428,6 +440,7 @@ const createStudent = async (data, _schoolId) => {
             gender: data.gender,
             date_of_birth: data.date_of_birth,
             address: data.address || null,
+            profile_photo: data.profile_photo || null,
             gradeId: grade.id,
             sectionId: section.id,
             streamId: streamId,
@@ -773,7 +786,15 @@ const updateStudent = async (id, data, _schoolId) => {
         updateData.date_of_birth = data.date_of_birth;
     if (data.address)
         updateData.address = data.address;
-    const existingStudent = await db_1.default.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true } });
+    if (data.profile_photo !== undefined)
+        updateData.profile_photo = data.profile_photo || null;
+    const existingStudent = await db_1.default.student.findUnique({ where: { id }, select: { gradeId: true, streamId: true, sectionId: true, user_id: true } });
+    if (data.profile_photo !== undefined && existingStudent?.user_id) {
+        await db_1.default.user.update({
+            where: { id: existingStudent.user_id },
+            data: { profile_photo: data.profile_photo || null }
+        }).catch((err) => console.warn('Failed to sync profile photo to user account:', err));
+    }
     if (!existingStudent)
         throw new Error('Student not found');
     let targetGradeId = data.gradeId || existingStudent.gradeId;

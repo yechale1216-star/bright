@@ -311,7 +311,7 @@ export function StudentShell({ children }: StudentShellProps) {
 
             <Link href="/student/profile">
               <Avatar className="w-9 h-9 ring-2 ring-purple-500/30 hover:ring-purple-500/60 transition-all shadow-2xs">
-                <AvatarImage src={student?.photo || ""} />
+                <AvatarImage src={student?.photo || student?.profile_photo || ""} className="object-cover" />
                 <AvatarFallback className="bg-gradient-to-tr from-purple-700 to-indigo-600 text-white text-xs font-bold">
                   {displayName.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
@@ -348,7 +348,7 @@ export function StudentShell({ children }: StudentShellProps) {
               {/* Student info card */}
               <div className="my-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center gap-3">
                 <Avatar className="w-10 h-10 ring-2 ring-purple-400/40">
-                  <AvatarImage src={student?.photo || ""} />
+                  <AvatarImage src={student?.photo || student?.profile_photo || ""} className="object-cover" />
                   <AvatarFallback className="bg-gradient-to-tr from-purple-700 to-indigo-600 text-white text-xs font-bold">
                     {displayName.slice(0, 2).toUpperCase()}
                   </AvatarFallback>

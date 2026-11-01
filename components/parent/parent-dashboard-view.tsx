@@ -449,8 +449,8 @@ export function ParentDashboardView() {
           {/* Welcome greeting & child identity */}
           <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
             <Avatar className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl ring-4 ring-purple-100 dark:ring-purple-900/40 shadow-sm shrink-0">
-              {selectedStudent?.photo && (
-                <AvatarImage src={selectedStudent.photo} alt={selectedStudent.fullName} />
+              {(selectedStudent?.photo || selectedStudent?.profile_photo) && (
+                <AvatarImage src={selectedStudent.photo || selectedStudent.profile_photo} alt={selectedStudent.fullName} className="object-cover" />
               )}
               <AvatarFallback className="rounded-2xl bg-purple-600 text-white font-black text-xl">
                 {selectedStudent?.fullName

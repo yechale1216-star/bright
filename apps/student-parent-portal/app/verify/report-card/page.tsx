@@ -3,7 +3,6 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
   ShieldCheck,
   Award,
@@ -15,7 +14,6 @@ import {
   TrendingUp,
   FileText,
   Printer,
-  ArrowLeft,
   AlertCircle,
   Clock,
   ExternalLink,
@@ -47,8 +45,9 @@ interface VerifiedData {
   academic: {
     gradeName: string;
     sectionName: string;
+    streamName?: string | null;
     academicYearName: string;
-    termName: string;
+    termName?: string;
   };
   performance: {
     totalScore: number;
@@ -128,15 +127,9 @@ function VerificationContent() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-8 px-4 sm:px-6 lg:px-8 print:p-0 print:bg-white">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Navigation Bar */}
-        <div className="flex items-center justify-between print:hidden">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to Portal
-          </Link>
-          {data && (
+        {/* Verification Actions Bar */}
+        {data && (
+          <div className="flex items-center justify-end print:hidden">
             <button
               onClick={handlePrint}
               type="button"
@@ -144,8 +137,8 @@ function VerificationContent() {
             >
               <Printer className="w-3.5 h-3.5" /> Print Verification Certificate
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {loading && (
@@ -174,14 +167,6 @@ function VerificationContent() {
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400">{error}</p>
             </div>
-            <div className="pt-2">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
-              >
-                Return to School Homepage
-              </Link>
-            </div>
           </div>
         )}
 
@@ -205,14 +190,6 @@ function VerificationContent() {
                 Verification Code: {id}
               </p>
             </div>
-            <div className="pt-2">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
-              >
-                Return to School Homepage
-              </Link>
-            </div>
           </div>
         )}
 
@@ -225,7 +202,7 @@ function VerificationContent() {
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2 flex items-center justify-center shrink-0">
                     <Image
-                      src={data.school.logo || '/addis-hiwot-logo.png'}
+                      src={data.school.logo || '/bright-path-logo.png'}
                       alt={data.school.name}
                       width={64}
                       height={64}
@@ -235,7 +212,7 @@ function VerificationContent() {
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-400/20 backdrop-blur-md text-emerald-100 text-[11px] font-black uppercase tracking-wider mb-1 border border-emerald-400/30">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
-                      Officially Verified Credential
+                      Officially Verified &amp; Published
                     </div>
                     <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
                       {data.school.name}
@@ -249,7 +226,7 @@ function VerificationContent() {
                 <div className="text-left sm:text-right text-xs text-white/90 shrink-0 space-y-0.5 border-t sm:border-t-0 pt-2 sm:pt-0 border-white/10">
                   <p className="font-mono font-bold text-white tracking-wider">{data.reportCardId}</p>
                   <p className="text-[11px]">Issued: {data.issueDate}</p>
-                  <p className="text-[10px] text-white/70">Verified: Today</p>
+                  <p className="text-[10px] text-white/70">Authenticity: CONFIRMED</p>
                 </div>
               </div>
             </div>
@@ -280,17 +257,12 @@ function VerificationContent() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 dark:text-slate-400 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-400 pt-1">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Grade</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Grade &amp; Section</span>
                       <strong className="text-slate-800 dark:text-slate-200 font-bold">
-                        Grade {data.academic.gradeName}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Section</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-bold">
-                        Section {data.academic.sectionName}
+                        Grade {data.academic.gradeName} &ldquo;{data.academic.sectionName}&rdquo;
+                        {data.academic.streamName ? ` • ${data.academic.streamName}` : ''}
                       </strong>
                     </div>
                     <div>
@@ -300,10 +272,10 @@ function VerificationContent() {
                       </strong>
                     </div>
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Period</span>
-                      <strong className="text-slate-800 dark:text-slate-200 font-bold">
-                        {data.academic.termName}
-                      </strong>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Status</span>
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {data.status || 'Verified'}
+                      </span>
                     </div>
                   </div>
                 </div>

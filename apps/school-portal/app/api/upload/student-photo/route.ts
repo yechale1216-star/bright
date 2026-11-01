@@ -16,17 +16,20 @@ function getAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !serviceRoleKey) {
-    throw new Error(
-      "Supabase configuration missing. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set."
-    )
+    return null
   }
 
-  return createClient(url, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
+  try {
+    return createClient(url, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  } catch (e) {
+    console.warn("[student-photo] Failed to initialize Supabase admin client:", e)
+    return null
+  }
 }
 
 /**
@@ -100,45 +103,49 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // — Ensure bucket exists —
-    await ensureBucket(adminClient)
+    // — If Supabase admin client is available, attempt Supabase Storage upload —
+    if (adminClient) {
+      try {
+        await ensureBucket(adminClient)
 
-    // — Generate a unique file path —
-    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
-    const randomId = Math.random().toString(36).substring(2, 11)
-    const filePath = `student-photos/${Date.now()}-${randomId}.${ext}`
+        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg"
+        const randomId = Math.random().toString(36).substring(2, 11)
+        const filePath = `student-photos/${Date.now()}-${randomId}.${ext}`
 
-    // — Convert File to ArrayBuffer for upload —
+        const arrayBuffer = await file.arrayBuffer()
+        const buffer = new Uint8Array(arrayBuffer)
+
+        const { error: uploadError } = await adminClient.storage
+          .from(BUCKET_NAME)
+          .upload(filePath, buffer, {
+            contentType: file.type,
+            upsert: false,
+            cacheControl: "3600",
+          })
+
+        if (!uploadError) {
+          const { data: urlData } = adminClient.storage.from(BUCKET_NAME).getPublicUrl(filePath)
+          const publicUrl = urlData.publicUrl
+
+          if (oldUrl && typeof oldUrl === "string" && oldUrl.startsWith("http")) {
+            deleteOldPhoto(adminClient, oldUrl)
+          }
+
+          return NextResponse.json({ url: publicUrl }, { status: 200 })
+        }
+        console.warn("[student-photo] Supabase upload failed, falling back to data URL:", uploadError.message)
+      } catch (storageErr) {
+        console.warn("[student-photo] Supabase bucket operation failed, falling back to data URL:", storageErr)
+      }
+    }
+
+    // — Reliable Fallback: Convert to Base64 Data URL so the photo is safely preserved —
     const arrayBuffer = await file.arrayBuffer()
-    const buffer = new Uint8Array(arrayBuffer)
+    const base64String = Buffer.from(arrayBuffer).toString("base64")
+    const mimeType = file.type || "image/jpeg"
+    const dataUrl = `data:${mimeType};base64,${base64String}`
 
-    // — Upload to Supabase Storage —
-    const { error: uploadError } = await adminClient.storage
-      .from(BUCKET_NAME)
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: false,
-        cacheControl: "3600",
-      })
-
-    if (uploadError) {
-      console.error("[student-photo] Upload error:", uploadError)
-      return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
-        { status: 500 }
-      )
-    }
-
-    // — Get public URL —
-    const { data: urlData } = adminClient.storage.from(BUCKET_NAME).getPublicUrl(filePath)
-    const publicUrl = urlData.publicUrl
-
-    // — Delete old photo if provided (fire-and-forget) —
-    if (oldUrl && typeof oldUrl === "string" && oldUrl.startsWith("http")) {
-      deleteOldPhoto(adminClient, oldUrl)
-    }
-
-    return NextResponse.json({ url: publicUrl }, { status: 200 })
+    return NextResponse.json({ url: dataUrl }, { status: 200 })
   } catch (error: any) {
     console.error("[student-photo] Unexpected error:", error)
     return NextResponse.json(
@@ -163,7 +170,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "No URL provided" }, { status: 400 })
     }
 
-    await deleteOldPhoto(adminClient, url)
+    if (adminClient) {
+      await deleteOldPhoto(adminClient, url)
+    }
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {
     console.error("[student-photo] Delete error:", error)

@@ -641,6 +641,19 @@ function AssessmentReportsContent() {
                 View how students are distributed across grade categories for a specific subject
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              {analytics?.schoolInfo && (analytics.schoolInfo as any).isTermClosed ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-xs">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Finalized Term (Closed)</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>Approved Marks Only</span>
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Bright Path Standard Filter Toolbar */}
@@ -1026,6 +1039,12 @@ function AssessmentReportsContent() {
             <p className="text-xs text-muted-foreground mt-0.5">
               {activeCategoryMeta.description}
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Approved Marks Only</span>
+            </span>
           </div>
         </div>
       )}
@@ -1962,9 +1981,11 @@ function AssessmentReportsContent() {
                           "px-2 py-0.5 rounded-lg",
                           (report.averageScore || 0) >= 50
                             ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                            : (report.studentCount === 0 || report.averageScore === 0 || report.averageScore === undefined)
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
                         )}>
-                          {report.averageScore !== undefined ? `${report.averageScore}%` : 'N/A'}
+                          {report.averageScore !== undefined && report.averageScore !== null ? `${report.averageScore}%` : 'N/A'}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center font-mono text-muted-foreground">
@@ -2191,7 +2212,7 @@ function AssessmentReportsContent() {
                                   "px-2 py-0.5 rounded-full text-[10px] font-bold border",
                                   s.status === 'Passed'
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                    : s.status === 'Incomplete'
+                                    : s.status === 'Incomplete' || s.status === 'Pending Approval' || s.status?.includes('Pending')
                                       ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                                       : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                 )}>
@@ -2214,7 +2235,7 @@ function AssessmentReportsContent() {
                                   "px-2 py-0.5 rounded-full text-[10px] font-bold border",
                                   s.status === 'Passed'
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                    : s.status === 'Incomplete'
+                                    : s.status === 'Incomplete' || s.status === 'Pending Approval' || s.status?.includes('Pending')
                                       ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                                       : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                                 )}>

@@ -501,7 +501,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response, next:
       phone: user?.phone || student.parent_phone || '',
       address: student.address || '',
       status: student.status,
-      photo: user?.profile_photo || null,
+      photo: user?.profile_photo || student.profile_photo || null,
       email: user?.email || null,
     };
 
@@ -547,7 +547,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response, next:
         parent_name: student.parent_name,
         parent_phone: student.parent_phone,
         parent_email: student.parent_email,
-        photo: user?.profile_photo || null,
+        photo: user?.profile_photo || student.profile_photo || null,
         email: user?.email || null,
         phone: user?.phone || null,
         status: student.status,
@@ -577,7 +577,13 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response, ne
     }
 
     const userUpdates: any = {};
-    if (photo !== undefined) userUpdates.profile_photo = photo;
+    if (photo !== undefined) {
+      userUpdates.profile_photo = photo;
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { profile_photo: photo || null }
+      }).catch((err) => console.warn('Failed to sync student profile photo:', err));
+    }
     if (phone !== undefined) userUpdates.phone = phone ? String(phone).trim() : null;
 
     if (Object.keys(userUpdates).length > 0) {
