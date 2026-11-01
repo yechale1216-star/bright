@@ -68,6 +68,7 @@ type ReadinessOverview = {
     code?: string;
     color?: string;
     status: string;
+    actualStatus?: string;
     submissionStatus?: string;
     approvalStatus?: string;
     teacherName?: string;
@@ -101,9 +102,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ApprovalBadge({ status }: { status: string }) {
+function SubjectStatusBadge({ status }: { status: string }) {
   const norm = (status || '').toUpperCase();
-  if (norm === 'APPROVED') {
+  if (norm === 'APPROVED' || norm.includes('APPROVED')) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -111,36 +112,18 @@ function ApprovalBadge({ status }: { status: string }) {
       </span>
     );
   }
-  if (norm === 'RETURNED') {
+  if (norm.includes('PENDING') || norm === 'SUBMITTED' || norm.includes('SUBMITTED')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+        <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+        Pending Approval
+      </span>
+    );
+  }
+  if (norm.includes('RETURNED') || norm.includes('CORRECTION')) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
         <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-        Returned
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-      <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-      Pending
-    </span>
-  );
-}
-
-function SubmissionBadge({ status }: { status: string }) {
-  const s = status || '';
-  if (s.includes('Submitted') || s === 'APPROVED' || s === 'SUBMITTED') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20">
-        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-        Submitted for Approval
-      </span>
-    );
-  }
-  if (s.includes('Returned') || s === 'RETURNED') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
-        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
         Returned for Correction
       </span>
     );
@@ -148,7 +131,7 @@ function SubmissionBadge({ status }: { status: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
       <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-      Not Submitted for Approval
+      Awaiting Submission
     </span>
   );
 }
@@ -1226,8 +1209,7 @@ export default function AdminReportCardsPage() {
                     <tr>
                       <th className="py-3 px-4">Subject Name</th>
                       <th className="py-3 px-4">Assigned Teacher</th>
-                      <th className="py-3 px-4">Submission Status</th>
-                      <th className="py-3 px-4">Approval Status</th>
+                      <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4 text-right">Action</th>
                     </tr>
                   </thead>
@@ -1257,10 +1239,7 @@ export default function AdminReportCardsPage() {
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
-                          <SubmissionBadge status={subj.submissionStatus || subj.status} />
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <ApprovalBadge status={subj.approvalStatus || subj.status} />
+                          <SubjectStatusBadge status={subj.actualStatus || subj.status} />
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <Link href="/school/admin/assessments/reports">

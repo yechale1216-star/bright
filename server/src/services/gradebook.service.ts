@@ -1279,25 +1279,20 @@ export class GradebookService {
     const subjectStatusList = requiredSubjects.map((subj) => {
       const sub = subMap.get(subj.id);
       let status: 'APPROVED' | 'PENDING_APPROVAL' | 'RETURNED' | 'MISSING' = 'MISSING';
-      let submissionStatus = 'Not Submitted for Approval';
-      let approvalStatus = 'Pending';
+      let actualStatus = 'Awaiting Submission';
 
       if (sub?.status === 'APPROVED') {
         status = 'APPROVED';
-        submissionStatus = 'Submitted for Approval';
-        approvalStatus = 'Approved';
+        actualStatus = 'Approved';
       } else if (sub?.status === 'SUBMITTED' || sub?.status === 'PENDING_APPROVAL') {
         status = 'PENDING_APPROVAL';
-        submissionStatus = 'Submitted for Approval';
-        approvalStatus = 'Pending';
+        actualStatus = 'Pending Approval';
       } else if (sub?.status === 'RETURNED') {
         status = 'RETURNED';
-        submissionStatus = 'Returned for Correction';
-        approvalStatus = 'Returned';
+        actualStatus = 'Returned for Correction';
       } else {
         status = 'MISSING';
-        submissionStatus = 'Not Submitted for Approval';
-        approvalStatus = 'Pending';
+        actualStatus = 'Awaiting Submission';
       }
 
       const assignedTeacher = sub?.teacher?.name || teacherMap.get(subj.id) || 'Not Assigned';
@@ -1308,8 +1303,9 @@ export class GradebookService {
         code: subj.code,
         color: subj.color,
         status,
-        submissionStatus,
-        approvalStatus,
+        actualStatus,
+        submissionStatus: actualStatus,
+        approvalStatus: actualStatus,
         submissionId: sub?.id,
         teacherName: assignedTeacher,
         submittedAt: sub?.submittedAt || null,
@@ -1330,8 +1326,7 @@ export class GradebookService {
         subjectId: s.id,
         subjectName: s.name,
         status: s.status,
-        submissionStatus: s.submissionStatus,
-        approvalStatus: s.approvalStatus,
+        actualStatus: s.actualStatus,
         teacherName: s.teacherName,
       }));
 
