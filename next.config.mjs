@@ -113,6 +113,8 @@ const nextConfig = {
       { source: '/student/grade', destination: '/student/marks', permanent: false },
       { source: '/student/exam', destination: '/student/marks', permanent: false },
       { source: '/student/exams', destination: '/student/marks', permanent: false },
+      { source: '/verify-report', destination: '/verify/report-card', permanent: false },
+      { source: '/verify-report/:id', destination: '/verify/report-card?id=:id', permanent: false },
     ];
   },
   async rewrites() {

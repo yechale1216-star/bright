@@ -106,14 +106,14 @@ export default function VerifyReportPage({
         });
         const json = await res.json();
 
-        if (json.success && json.data) {
-          // If report card is found but NOT published yet, inform the user clearly
-          if (json.data.status !== 'PUBLISHED') {
-            setIsNotPublished(true);
-            setData(json.data);
-          } else {
-            setData(json.data);
-          }
+        if (res.status === 403 || json.status === 'DRAFT' || json.status === 'READY' || json.status === 'NEEDS_CORRECTION' || json.status === 'UNPUBLISHED') {
+          setIsNotPublished(true);
+          setData(null);
+          return;
+        }
+
+        if (json.success && json.data && json.data.isOfficial && json.data.status === 'PUBLISHED') {
+          setData(json.data);
         } else {
           setError(json.message || 'Report card record not found. This credential may be invalid or forged.');
         }
@@ -197,27 +197,33 @@ export default function VerifyReportPage({
           </div>
         )}
 
-        {/* Unpublished Report Card Warning */}
-        {!loading && data && isNotPublished && (
+        {/* Unpublished Report Card Notice (No Sensitive Data Exposed) */}
+        {!loading && isNotPublished && (
           <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-8 text-center shadow-sm space-y-4">
             <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div className="space-y-1.5 max-w-md mx-auto">
               <div className="inline-block px-3 py-1 rounded-full text-xs font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 uppercase tracking-wider">
-                UNPUBLISHED REPORT CARD (STATUS: {data.status})
+                REPORT NOT YET PUBLISHED
               </div>
               <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 pt-1">
                 Report Card Not Yet Officially Released
               </h2>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                This academic report is currently in <strong>{data.status}</strong> state and has not been officially published or signed off by the administration.
+                This academic report card has not been approved and officially published by the school administration. In accordance with student privacy and verification policies, unreleased draft report cards cannot be verified or viewed publicly.
               </p>
-              <div className="p-3 mt-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-left text-xs space-y-1">
-                <p><strong>Student:</strong> {data.student.fullName} ({data.student.studentId})</p>
-                <p><strong>Class:</strong> Grade {data.academic.gradeName} &ldquo;{data.academic.sectionName}&rdquo;</p>
-                <p><strong>Academic Term:</strong> {data.academic.academicYearName} • {data.academic.termName}</p>
-              </div>
+              <p className="text-[11px] font-mono text-slate-400 pt-2">
+                Verification Code: {id}
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
+              >
+                Return to School Homepage
+              </Link>
             </div>
           </div>
         )}

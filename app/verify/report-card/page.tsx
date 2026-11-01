@@ -18,7 +18,8 @@ import {
   ArrowLeft,
   AlertCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import { API_URL } from '@/lib/api-config';
 
@@ -78,6 +79,7 @@ function VerificationContent() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<VerifiedData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isNotPublished, setIsNotPublished] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -90,12 +92,19 @@ function VerificationContent() {
       try {
         setLoading(true);
         setError(null);
+        setIsNotPublished(false);
         const res = await fetch(`${API_URL}/api/gradebook/verify/${encodeURIComponent(id)}`, {
           cache: 'no-store',
         });
         const json = await res.json();
 
-        if (json.success && json.data) {
+        if (res.status === 403 || json.status === 'DRAFT' || json.status === 'READY' || json.status === 'NEEDS_CORRECTION' || json.status === 'UNPUBLISHED') {
+          setIsNotPublished(true);
+          setData(null);
+          return;
+        }
+
+        if (json.success && json.data && json.data.isOfficial && json.data.status === 'PUBLISHED') {
           setData(json.data);
         } else {
           setError(json.message || 'Report card record not found or could not be verified.');
@@ -176,8 +185,39 @@ function VerificationContent() {
           </div>
         )}
 
+        {/* Unpublished Report Card Notice (No Sensitive Data Exposed) */}
+        {!loading && isNotPublished && (
+          <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-8 text-center shadow-sm space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <div className="inline-block px-3 py-1 rounded-full text-xs font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 uppercase tracking-wider">
+                REPORT NOT YET PUBLISHED
+              </div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 pt-1">
+                Report Card Not Yet Officially Released
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                This academic report card has not been approved and officially published by the school administration. In accordance with student privacy and verification policies, unreleased draft report cards cannot be verified or viewed publicly.
+              </p>
+              <p className="text-[11px] font-mono text-slate-400 pt-2">
+                Verification Code: {id}
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:opacity-90 transition-opacity"
+              >
+                Return to School Homepage
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Verified Certificate Card */}
-        {!loading && data && (
+        {!loading && data && !isNotPublished && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl print:shadow-none print:border-none">
             {/* Header Banner */}
             <div className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 text-white p-6 sm:p-8">

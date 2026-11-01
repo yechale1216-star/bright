@@ -337,6 +337,14 @@ export const generateReportCards = async (req: AuthenticatedRequest, res: Respon
 
 export const getReportCards = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const userRole = req.user?.role;
+    if (userRole === 'student' || userRole === 'parent') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Class-level report cards are not accessible to students or parents.',
+      });
+    }
+
     const { gradeId, sectionId, streamId, academicYearId, academicTermId, status } = req.query as any;
     const cards = await gradebookService.getReportCards({
       gradeId,
@@ -359,6 +367,41 @@ export const getReportCardById = async (req: AuthenticatedRequest, res: Response
     if (!card) {
       return res.status(404).json({ success: false, message: 'Report card not found' });
     }
+
+    const userRole = req.user?.role;
+    const userId = req.user?.id;
+
+    if (userRole === 'student' || userRole === 'parent') {
+      if (card.status !== 'PUBLISHED') {
+        return res.status(403).json({
+          success: false,
+          message: 'Report card has not been published yet. Please check back after official publication.',
+        });
+      }
+
+      if (userRole === 'student') {
+        const student = await prisma.student.findFirst({
+          where: { userId, id: card.studentId },
+        });
+        if (!student) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only view your own report card.',
+          });
+        }
+      } else if (userRole === 'parent') {
+        const link = await prisma.parentStudentLink.findFirst({
+          where: { parentId: userId, studentId: card.studentId },
+        });
+        if (!link) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only view your linked children\'s report cards.',
+          });
+        }
+      }
+    }
+
     res.status(200).json({ success: true, data: card });
   } catch (error) {
     next(error);
@@ -477,6 +520,32 @@ export const getStudentReportCard = async (req: AuthenticatedRequest, res: Respo
   try {
     const { studentId } = req.params;
     const { academicTermId, academicYearId } = req.query as any;
+
+    const userRole = req.user?.role;
+    const userId = req.user?.id;
+
+    if (userRole === 'student') {
+      const student = await prisma.student.findFirst({
+        where: { userId, id: studentId },
+      });
+      if (!student) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only view your own report cards.',
+        });
+      }
+    } else if (userRole === 'parent') {
+      const link = await prisma.parentStudentLink.findFirst({
+        where: { parentId: userId, studentId },
+      });
+      if (!link) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only view your linked children\'s report cards.',
+        });
+      }
+    }
+
     const reportCards = await gradebookService.getStudentReportCard(studentId, academicTermId, academicYearId);
     res.status(200).json({ success: true, data: reportCards });
   } catch (error) {
@@ -493,7 +562,31 @@ export const getComprehensiveReportCard = async (req: AuthenticatedRequest, res:
 
     // Role check: Students and Parents must NOT see draft or unpublished report cards
     const userRole = req.user?.role;
+    const userId = req.user?.id;
+
     if (userRole === 'student' || userRole === 'parent') {
+      if (userRole === 'student') {
+        const student = await prisma.student.findFirst({
+          where: { userId, id: studentId },
+        });
+        if (!student) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only view your own report card.',
+          });
+        }
+      } else if (userRole === 'parent') {
+        const link = await prisma.parentStudentLink.findFirst({
+          where: { parentId: userId, studentId },
+        });
+        if (!link) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only view your linked children\'s report cards.',
+          });
+        }
+      }
+
       const isPublished = await gradebookService.isReportCardPublished(studentId, academicYearId, academicTermId);
       if (!isPublished) {
         return res.status(403).json({
@@ -508,6 +601,14 @@ export const getComprehensiveReportCard = async (req: AuthenticatedRequest, res:
       academicYearId,
       academicTermId,
     });
+
+    if ((userRole === 'student' || userRole === 'parent') && reportCard.status !== 'PUBLISHED') {
+      return res.status(403).json({
+        success: false,
+        message: 'Report card has not been published yet. Please check back after official publication.',
+      });
+    }
+
     res.status(200).json({ success: true, data: reportCard });
   } catch (error) {
     next(error);
@@ -516,6 +617,14 @@ export const getComprehensiveReportCard = async (req: AuthenticatedRequest, res:
 
 export const getBatchComprehensiveReportCards = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const userRole = req.user?.role;
+    if (userRole === 'student' || userRole === 'parent') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Batch report card data is not accessible to students or parents.',
+      });
+    }
+
     const { gradeId, sectionId, academicYearId, academicTermId } = req.query as any;
     if (!gradeId || !sectionId) {
       return res.status(400).json({ success: false, message: 'gradeId and sectionId query parameters are required' });
@@ -540,9 +649,21 @@ export const verifyReportCard = async (req: Request, res: Response, next: NextFu
       return res.status(404).json({
         success: false,
         verified: false,
+        status: 'NOT_FOUND',
         message: 'No official report card found for this verification code.',
       });
     }
+
+    if (!result.verified || !result.isOfficial || result.status !== 'PUBLISHED') {
+      return res.status(403).json({
+        success: false,
+        verified: false,
+        status: result.status || 'UNPUBLISHED',
+        isOfficial: false,
+        message: 'This report card has not been officially published yet and cannot be verified.',
+      });
+    }
+
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

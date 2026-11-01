@@ -1336,15 +1336,30 @@ export class GradebookService {
   }
 
   async isReportCardPublished(studentId: string, academicYearId?: string, academicTermId?: string): Promise<boolean> {
-    const card = await prisma.reportCard.findFirst({
+    const isSingleTerm = !!(academicTermId && academicTermId !== 'annual' && academicTermId !== 'all');
+    if (isSingleTerm) {
+      const card = await prisma.reportCard.findFirst({
+        where: {
+          studentId,
+          ...(academicYearId ? { academicYearId } : {}),
+          academicTermId,
+        },
+      });
+      return !!card && card.status === 'PUBLISHED';
+    }
+
+    // For annual or overall report cards:
+    // Check if any report cards exist for this year
+    const cards = await prisma.reportCard.findMany({
       where: {
         studentId,
         ...(academicYearId ? { academicYearId } : {}),
-        ...(academicTermId ? { academicTermId } : {}),
-        status: 'PUBLISHED',
       },
     });
-    return !!card;
+
+    if (cards.length === 0) return false;
+    // All cards must be PUBLISHED for student/parent to access annual
+    return cards.every((c) => c.status === 'PUBLISHED');
   }
 
   async getReportCards(filters: {
@@ -2808,6 +2823,16 @@ export class GradebookService {
     };
 
     if (reportCard) {
+      if (reportCard.status !== 'PUBLISHED') {
+        return {
+          verified: false,
+          status: reportCard.status,
+          isOfficial: false,
+          reportCardId: `BP-RC-${reportCard.id.substring(0, 8).toUpperCase()}`,
+          message: 'This report card is currently in draft/review state and has not been officially published.',
+        };
+      }
+
       const issueDate = reportCard.publishedAt
         ? new Date(reportCard.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
         : new Date(reportCard.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -2936,7 +2961,7 @@ export class GradebookService {
     }
 
     const comp = await this.getComprehensiveReportCardData({ studentId: student.id });
-    if (!comp) {
+    if (!comp || comp.status !== 'PUBLISHED') {
       return null;
     }
 
