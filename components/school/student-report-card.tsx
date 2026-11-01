@@ -92,21 +92,31 @@ export function StudentReportCardFront({
   const borderRadius = typeof school?.borderRadius === 'number' ? school.borderRadius : 4;
 
   // Compute a live, scan-ready mobile verification URL
+  // Target: "https://brightacedemy.vercel.app/verify-report/UNIQUE_REPORT_ID"
   const qrVerificationUrl = useMemo(() => {
-    const fallbackId = student?.studentId || student?.id || reportCardId || 'verified';
-    if (typeof window !== 'undefined') {
-      const origin = window.location.origin;
-      if (qrCodeData && (qrCodeData.startsWith('http://') || qrCodeData.startsWith('https://'))) {
-        try {
-          const urlObj = new URL(qrCodeData);
-          return `${origin}${urlObj.pathname}${urlObj.search}`;
-        } catch {
-          return qrCodeData;
+    // 1. If backend already encoded a full URL:
+    if (qrCodeData && (qrCodeData.startsWith('http://') || qrCodeData.startsWith('https://'))) {
+      try {
+        const urlObj = new URL(qrCodeData);
+        // Replace legacy localhost or old routes with the standard verification domain and route
+        const path = urlObj.pathname.includes('/verify/report-card') || urlObj.pathname.includes('/verify-report')
+          ? urlObj.pathname
+          : `/verify-report/${urlObj.searchParams.get('id') || reportCardId || student?.studentId || 'verified'}`;
+
+        // If it's a query param format, convert to cleaner REST /verify-report/:id format
+        const idParam = urlObj.searchParams.get('id');
+        if (idParam) {
+          return `https://brightacedemy.vercel.app/verify-report/${encodeURIComponent(idParam)}`;
         }
+        return `https://brightacedemy.vercel.app${path}`;
+      } catch {
+        // Fallback
       }
-      return `${origin}/verify/report-card?id=${fallbackId}`;
     }
-    return qrCodeData || `https://zetime.pro.et/verify/report-card?id=${fallbackId}`;
+
+    // 2. Identify unique report identifier
+    const targetId = reportCardId || student?.studentId || student?.id || 'verified';
+    return `https://brightacedemy.vercel.app/verify-report/${encodeURIComponent(targetId)}`;
   }, [qrCodeData, reportCardId, student]);
 
   return (
@@ -217,7 +227,7 @@ export function StudentReportCardFront({
             {/* Right Side: QR Code Verification Badge */}
             <div className="flex-shrink-0 flex flex-col items-center justify-center pt-0.5">
               <div
-                className="p-1 rounded-sm shadow-2xs"
+                className="p-1 rounded-sm shadow-2xs bg-white"
                 style={{
                   backgroundColor: '#ffffff',
                   border: `1px solid ${theme.border}`,
@@ -225,9 +235,11 @@ export function StudentReportCardFront({
               >
                 <QRCodeSVG
                   value={qrVerificationUrl}
-                  size={58}
-                  level="M"
-                  includeMargin={false}
+                  size={62}
+                  level="Q"
+                  includeMargin={true}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
                 />
               </div>
               <span

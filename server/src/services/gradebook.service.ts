@@ -2142,9 +2142,9 @@ export class GradebookService {
       : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
     // Verifiable QR Code payload (direct URL for mobile camera scanning)
-    const appBaseUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
-    const targetRcId = latestRc?.id || student.id;
-    const qrVerificationPayload = `${appBaseUrl.replace(/\/$/, '')}/verify/report-card?id=${targetRcId}`;
+    // Production frontend domain: "https://brightacedemy.vercel.app/verify-report/UNIQUE_REPORT_ID"
+    const targetRcId = latestRc?.id || student.student_id || student.id;
+    const qrVerificationPayload = `https://brightacedemy.vercel.app/verify-report/${targetRcId}`;
 
     return {
       reportCardId,

@@ -72,6 +72,16 @@ const nextConfig = {
           destination: 'http://localhost:3001/parent/:path*',
           permanent: false,
         },
+        {
+          source: '/verify-report',
+          destination: '/verify/report-card',
+          permanent: false,
+        },
+        {
+          source: '/verify/report-card/:id',
+          destination: '/verify-report/:id',
+          permanent: false,
+        },
       ],
 };
 
