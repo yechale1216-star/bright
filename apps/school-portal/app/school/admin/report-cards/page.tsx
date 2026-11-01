@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   FileText,
   Printer,
@@ -137,6 +138,9 @@ function SubjectStatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminReportCardsPage() {
+  const pathname = usePathname();
+  const isAcademicHead = pathname?.includes('/academic-head');
+
   const [academicYears, setAcademicYears] = useState<any[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string>('');
   const [selectedTermId, setSelectedTermId] = useState<string>('annual');
@@ -146,6 +150,20 @@ export default function AdminReportCardsPage() {
   const [selectedGradeId, setSelectedGradeId] = useState<string>('');
   const [selectedStreamId, setSelectedStreamId] = useState<string>('all');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
+
+  const getSubmissionsUrl = useCallback((subjectId?: string) => {
+    const base = isAcademicHead
+      ? '/school/academic-head/assessments/submissions'
+      : '/school/admin/assessments/submissions';
+    const params = new URLSearchParams();
+    if (selectedYearId) params.set('academicYearId', selectedYearId);
+    if (selectedTermId && selectedTermId !== 'annual') params.set('termId', selectedTermId);
+    if (selectedGradeId) params.set('gradeId', selectedGradeId);
+    if (selectedSectionId) params.set('sectionId', selectedSectionId);
+    if (subjectId) params.set('subjectId', subjectId);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  }, [isAcademicHead, selectedYearId, selectedTermId, selectedGradeId, selectedSectionId]);
 
   const [reportCards, setReportCards] = useState<ReportCard[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -869,7 +887,7 @@ export default function AdminReportCardsPage() {
         {/* Action buttons */}
         {!isAllSubjectsApproved ? (
           <div className="flex flex-wrap gap-2">
-            <Link href="/school/admin/assessments/reports">
+            <Link href={getSubmissionsUrl()}>
               <Button
                 variant="outline"
                 className="gap-2 border-border text-foreground hover:bg-muted justify-center"
@@ -1112,7 +1130,7 @@ export default function AdminReportCardsPage() {
                   <RefreshCw className={`w-3.5 h-3.5 ${loadingReadiness ? 'animate-spin' : ''}`} />
                   Check Status
                 </Button>
-                <Link href="/school/admin/assessments/reports">
+                <Link href={getSubmissionsUrl()}>
                   <Button
                     size="sm"
                     className="gap-2 h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs"
@@ -1242,7 +1260,7 @@ export default function AdminReportCardsPage() {
                           <SubjectStatusBadge status={subj.actualStatus || subj.status} />
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <Link href="/school/admin/assessments/reports">
+                          <Link href={getSubmissionsUrl(subj.id)}>
                             <Button
                               variant="ghost"
                               size="sm"

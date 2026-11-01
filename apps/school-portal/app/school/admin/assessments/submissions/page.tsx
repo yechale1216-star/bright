@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   CheckCircle,
@@ -62,6 +62,7 @@ import { Progress } from '@/components/ui/progress';
 
 export default function MarkSubmissionApprovalPage() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isAcademicHead = pathname?.startsWith('/school/academic-head');
   const assessmentsBackHref = isAcademicHead ? '/school/academic-head/assessments' : '/school/admin/assessments';
 
@@ -154,11 +155,27 @@ export default function MarkSubmissionApprovalPage() {
 
       if (ayRes?.success && Array.isArray(ayRes.data) && ayRes.data.length > 0) {
         setAcademicYears(ayRes.data);
-        const currentYear = ayRes.data.find((y: any) => y.isCurrent) || ayRes.data[0];
+        const paramYearId = searchParams?.get('academicYearId') || searchParams?.get('yearId');
+        const paramTermId = searchParams?.get('termId') || searchParams?.get('academicTermId');
+        const currentYear = (paramYearId && ayRes.data.find((y: any) => y.id === paramYearId)) ||
+          ayRes.data.find((y: any) => y.isCurrent) ||
+          ayRes.data[0];
         setSelectedYearId(currentYear.id);
-        const currentTerm = currentYear.terms?.find((t: any) => t.isCurrent) || currentYear.terms?.[0];
+        const currentTerm = (paramTermId && currentYear.terms?.find((t: any) => t.id === paramTermId)) ||
+          currentYear.terms?.find((t: any) => t.isCurrent) ||
+          currentYear.terms?.[0];
         if (currentTerm) setSelectedTermId(currentTerm.id);
       }
+
+      const paramGradeId = searchParams?.get('gradeId');
+      const paramSectionId = searchParams?.get('sectionId');
+      const paramSubjectId = searchParams?.get('subjectId');
+      const paramStatus = searchParams?.get('status');
+
+      if (paramGradeId) setSelectedGradeId(paramGradeId);
+      if (paramSectionId) setSelectedSectionId(paramSectionId);
+      if (paramSubjectId) setSelectedSubjectId(paramSubjectId);
+      if (paramStatus) setSelectedStatus(paramStatus);
 
       if (gradesRes?.success && Array.isArray(gradesRes.data)) {
         setGrades(gradesRes.data);
