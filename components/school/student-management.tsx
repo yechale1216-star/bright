@@ -658,18 +658,19 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     if (file) handlePhotoSelect(file)
   }
 
-  const uploadPhotoToServer = async (file: File): Promise<string> => {
+  const uploadPhotoToServer = async (file: File, oldPhotoUrl?: string | null): Promise<string> => {
     const formDataUpload = new FormData()
     formDataUpload.append('file', file)
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') || '' : ''
-    const res = await fetch(`${API_URL}/api/upload`, {
+    // Pass old URL so the server can clean up the replaced photo
+    if (oldPhotoUrl) {
+      formDataUpload.append('oldUrl', oldPhotoUrl)
+    }
+    const res = await fetch('/api/upload/student-photo', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       body: formDataUpload,
     })
-    if (!res.ok) throw new Error('Photo upload failed')
     const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Photo upload failed')
     return data.url
   }
 
@@ -710,7 +711,9 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     if (photoFile) {
       setIsUploadingPhoto(true)
       try {
-        uploadedPhotoUrl = await uploadPhotoToServer(photoFile)
+        // Pass old photo URL when editing so the server can delete the replaced file
+        const oldUrl = editingStudent?.profile_photo || null
+        uploadedPhotoUrl = await uploadPhotoToServer(photoFile, oldUrl)
       } catch (err: any) {
         notifications.error("Photo Upload Failed", "Could not upload photo. Please try again.")
         setIsUploadingPhoto(false)
@@ -718,6 +721,17 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       } finally {
         setIsUploadingPhoto(false)
       }
+    } else if (
+      editingStudent &&
+      editingStudent.profile_photo &&
+      !formData.profile_photo
+    ) {
+      // Photo was removed (not replaced) — delete from storage in the background
+      fetch('/api/upload/student-photo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: editingStudent.profile_photo }),
+      }).catch(() => {/* non-critical — ignore errors */})
     }
 
     setIsSaving(true)
@@ -1944,11 +1958,12 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-slate-200/80 dark:border-slate-800/80">
-                    <TableHead className="w-[30%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Student Details</TableHead>
-                    <TableHead className="w-[15%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">ID Number</TableHead>
-                    <TableHead className="w-[18%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Grade / Section</TableHead>
-                    <TableHead className="w-[15%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Stream</TableHead>
-                    <TableHead className="w-[12%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Status</TableHead>
+                    <TableHead className="w-[26%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Student Details</TableHead>
+                    <TableHead className="w-[13%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">ID Number</TableHead>
+                    <TableHead className="w-[15%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Grade / Section</TableHead>
+                    <TableHead className="w-[12%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Stream</TableHead>
+                    <TableHead className="w-[11%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Status</TableHead>
+                    <TableHead className="w-[13%] font-semibold uppercase text-xs tracking-wider text-muted-foreground">Account Status</TableHead>
                     <TableHead className="w-[10%] text-right font-semibold uppercase text-xs tracking-wider text-muted-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1996,59 +2011,61 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                           <span className="text-xs text-slate-400 font-medium">—</span>
                         )}
                       </TableCell>
+                      {/* Student Status */}
                       <TableCell>
-                        <div className="flex flex-col gap-1 items-start">
-                          {(() => {
-                            const status = (student.status || 'ACTIVE').toUpperCase()
-                            if (status === 'ACTIVE') return (
-                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
-                                <CheckCircle2 className="w-3 h-3" /> Active
-                              </Badge>
-                            )
-                            if (status === 'SUSPENDED' || status === 'INACTIVE') return (
-                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800/60">
-                                <ShieldAlert className="w-3 h-3" /> {status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}
-                              </Badge>
-                            )
-                            if (status === 'WITHDRAWN') return (
-                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-slate-600 dark:text-slate-400 bg-slate-50/70 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700">
-                                <XCircle className="w-3 h-3" /> Withdrawn
-                              </Badge>
-                            )
-                            if (status === 'TRANSFERRED') return (
-                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60">
-                                <RefreshCw className="w-3 h-3" /> Transferred
-                              </Badge>
-                            )
-                            if (status === 'GRADUATED') return (
-                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-teal-700 dark:text-teal-400 bg-teal-50/60 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/60">
-                                <GraduationCap className="w-3 h-3" /> Graduated
-                              </Badge>
-                            )
-                            if (status === 'ARCHIVED') return (
-                              <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800">
-                                Archived
-                              </Badge>
-                            )
-                            return (
-                              <Badge variant="outline" className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
-                                {status}
-                              </Badge>
-                            )
-                          })()}
+                        {(() => {
+                          const status = (student.status || 'ACTIVE').toUpperCase();
+                          if (status === 'ACTIVE') return (
+                            <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
+                              <CheckCircle2 className="w-3 h-3" /> Active
+                            </Badge>
+                          );
+                          if (status === 'SUSPENDED' || status === 'INACTIVE') return (
+                            <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-amber-700 dark:text-amber-400 bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800/60">
+                              <ShieldAlert className="w-3 h-3" /> {status === 'SUSPENDED' ? 'Suspended' : 'Inactive'}
+                            </Badge>
+                          );
+                          if (status === 'WITHDRAWN') return (
+                            <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-slate-600 dark:text-slate-400 bg-slate-50/70 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700">
+                              <XCircle className="w-3 h-3" /> Withdrawn
+                            </Badge>
+                          );
+                          if (status === 'TRANSFERRED') return (
+                            <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60">
+                              <RefreshCw className="w-3 h-3" /> Transferred
+                            </Badge>
+                          );
+                          if (status === 'GRADUATED') return (
+                            <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-teal-700 dark:text-teal-400 bg-teal-50/60 dark:bg-teal-950/30 border-teal-300 dark:border-teal-800/60">
+                              <GraduationCap className="w-3 h-3" /> Graduated
+                            </Badge>
+                          );
+                          if (status === 'ARCHIVED') return (
+                            <Badge variant="outline" className="text-xs font-bold flex items-center gap-1 text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800">
+                              Archived
+                            </Badge>
+                          );
+                          return (
+                            <Badge variant="outline" className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
+                              {status}
+                            </Badge>
+                          );
+                        })()}
+                      </TableCell>
 
-                          {student.accountStatus === 'PENDING_ACTIVATION' ? (
-                            <Badge variant="outline" className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50/60 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/60">
-                              <KeyRound className="w-2.5 h-2.5 mr-1 text-purple-500" />
-                              Pending Activation
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800">
-                              <CheckCircle2 className="w-2.5 h-2.5 mr-1 text-emerald-500" />
-                              Portal Active
-                            </Badge>
-                          )}
-                        </div>
+                      {/* Account Activation Status */}
+                      <TableCell>
+                        {student.accountStatus === 'PENDING_ACTIVATION' ? (
+                          <Badge variant="outline" className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50/70 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800/60">
+                            <KeyRound className="w-3 h-3 mr-1 text-purple-500" />
+                            Pending Activation
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60">
+                            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-500" />
+                            Active
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
@@ -2123,9 +2140,10 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
               <table className="w-full min-w-[340px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800">
-                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[35%]">Student</th>
-                    <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[22%]">Class / Stream</th>
-                    <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[23%]">Status</th>
+                    <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[30%]">Student</th>
+                    <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[18%]">Class</th>
+                    <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[18%]">Status</th>
+                    <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 w-[20%]">Account</th>
                     <th className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -2165,36 +2183,38 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
                         </p>
                       </td>
 
-                      {/* Status */}
+                      {/* Student Status */}
                       <td className="px-2 py-2.5">
-                        <div className="flex flex-col gap-1 items-start">
-                          {(() => {
-                            const st = (student.status || 'ACTIVE').toUpperCase()
-                            const cls: Record<string, string> = {
-                              ACTIVE: 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300',
-                              SUSPENDED: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300',
-                              INACTIVE: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300',
-                              WITHDRAWN: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 border-slate-300',
-                              TRANSFERRED: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200',
-                              GRADUATED: 'text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30 border-teal-300',
-                              ARCHIVED: 'text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/30 border-slate-200',
-                            }
-                            return (
-                              <Badge variant="outline" className={`text-[9px] font-bold px-1.5 py-0 ${cls[st] || cls.ACTIVE}`}>
-                                {st}
-                              </Badge>
-                            )
-                          })()}
-                          {student.accountStatus === 'PENDING_ACTIVATION' ? (
-                            <span className="text-[8px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-0.5">
-                              <KeyRound className="w-2.5 h-2.5" /> Pending
-                            </span>
-                          ) : (
-                            <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Active
-                            </span>
-                          )}
-                        </div>
+                        {(() => {
+                          const st = (student.status || 'ACTIVE').toUpperCase();
+                          const cls: Record<string, string> = {
+                            ACTIVE: 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300',
+                            SUSPENDED: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300',
+                            INACTIVE: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-300',
+                            WITHDRAWN: 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 border-slate-300',
+                            TRANSFERRED: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border-blue-200',
+                            GRADUATED: 'text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30 border-teal-300',
+                            ARCHIVED: 'text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/30 border-slate-200',
+                          };
+                          return (
+                            <Badge variant="outline" className={`text-[9px] font-bold px-1.5 py-0 ${cls[st] || cls.ACTIVE}`}>
+                              {st}
+                            </Badge>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Account Status */}
+                      <td className="px-2 py-2.5">
+                        {student.accountStatus === 'PENDING_ACTIVATION' ? (
+                          <span className="text-[8px] font-bold text-purple-600 dark:text-purple-400 flex items-center gap-0.5 whitespace-nowrap">
+                            <KeyRound className="w-2.5 h-2.5 shrink-0" /> Pending
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 whitespace-nowrap">
+                            <CheckCircle2 className="w-2.5 h-2.5 shrink-0" /> Active
+                          </span>
+                        )}
                       </td>
 
                       {/* Actions */}
