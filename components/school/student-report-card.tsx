@@ -1076,16 +1076,6 @@ export function StudentReportCardBack({
     },
   ];
 
-  // Standard Extracurricular / Co-Curricular Clubs
-  const coCurricularClubs = [
-    { nameEn: 'Mini-Media Club', nameAm: 'ሚኒ ሚዲያ ክበብ', role: 'Active Member / ተሳታፊ' },
-    { nameEn: 'Science & STEM Innovation', nameAm: 'ሳይንስ እና ፈጠራ ክበብ', role: 'Participant / ተሳታፊ' },
-    { nameEn: 'Red Cross & First Aid', nameAm: 'ቀይ መስቀል እና የመጀመሪያ እርዳታ', role: 'Trained Member / ተሳታፊ' },
-    { nameEn: 'Environmental & Green Club', nameAm: 'የአካባቢ ጥበቃ ክበብ', role: 'Active / ተሳታፊ' },
-    { nameEn: 'Sports & Athletics', nameAm: 'ስፖርት እና አትሌቲክስ', role: 'Team Member / ተሳታፊ' },
-    { nameEn: 'Literature, Art & Culture', nameAm: 'ስነ-ጽሁፍ እና ስነ-ጥበብ', role: 'Participant / ተሳታፊ' },
-  ];
-
   return (
     <div
       className={`report-card-back relative font-sans p-6 sm:p-8 max-w-[210mm] mx-auto shadow-sm print:shadow-none print:p-4 print:max-w-none print:w-full select-text ${className}`}
@@ -1434,7 +1424,7 @@ export function StudentReportCardBack({
         </div>
 
         {/* ==================================================== */}
-        {/* 4. SECTION 3: CO-CURRICULAR & CLUB INVOLVEMENT */}
+        {/* 4. SECTION 3: HOMEROOM TEACHER'S GUIDANCE & REMARKS */}
         {/* ==================================================== */}
         <div>
           <h3
@@ -1445,70 +1435,38 @@ export function StudentReportCardBack({
               className="w-2 h-2 rounded-full inline-block"
               style={{ backgroundColor: theme.borderStrong }}
             />
-            3. Co-Curricular & Club Participation (የተሳትፎ እና የክበባት እንቅስቃሴዎች)
+            3. Homeroom Teacher&apos;s Guidance & Remarks (የክፍል ኃላፊ መምህር አጠቃላይ አስተያየት)
           </h3>
 
           <div
-            className="rounded-xs p-2.5 text-[10px] sm:text-[11px] space-y-2"
+            className="rounded-xs p-2.5 text-[10px] sm:text-[11px]"
             style={{
               border: `1px solid ${theme.borderStrong}`,
               backgroundColor: theme.surfaceAlt,
             }}
           >
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {coCurricularClubs.map((club, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-1.5 pb-1"
-                  style={{ borderBottom: `1px solid ${theme.borderLight}` }}
-                >
-                  <span
-                    className="inline-block w-3.5 h-3.5 rounded-xs flex items-center justify-center text-[9px] font-bold"
-                    style={{
-                      border: `1px solid ${theme.border}`,
-                      backgroundColor: theme.surface,
-                      color: theme.text,
-                    }}
-                  >
-                    ✓
-                  </span>
-                  <div className="truncate">
-                    <span className="font-semibold block truncate" style={{ color: theme.text }}>
-                      {club.nameEn}
-                    </span>
-                    <span className="text-[9px] block truncate" style={{ color: theme.textSubtle }}>
-                      {club.nameAm}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-bold text-[10px] sm:text-[11px]" style={{ color: theme.text }}>
+                Teacher&apos;s Holistic Evaluation (አጠቃላይ ምዘና):
+              </span>
+              <span className="font-serif italic text-[11px]" style={{ color: theme.textMuted }}>
+                {academic.homeroomTeacherName}
+              </span>
             </div>
-
-            {/* Homeroom Teacher's Holistic Evaluation Note */}
-            <div className="pt-2" style={{ borderTop: `1px solid ${theme.borderLight}` }}>
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-bold" style={{ color: theme.text }}>
-                  Homeroom Teacher&apos;s Guidance & Remarks (የክፍል ኃላፊ መምህር አጠቃላይ አስተያየት):
-                </span>
-                <span className="font-serif italic text-[11px]" style={{ color: theme.textMuted }}>
-                  {academic.homeroomTeacherName}
-                </span>
-              </div>
-              <div
-                className="mt-1 p-2 rounded-xs min-h-[42px] flex items-center"
-                style={{
-                  backgroundColor: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                }}
-              >
-                <p className="italic text-[11px]" style={{ color: theme.text }}>
-                  {summary.teacherComment ? (
-                    `“${summary.teacherComment}”`
-                  ) : (
-                    `Student ${student.fullName} has successfully concluded the academic session with satisfactory discipline and commitment. Continual dedication to rigorous academic review is strongly advised for next term.`
-                  )}
-                </p>
-              </div>
+            <div
+              className="mt-1.5 p-2 rounded-xs min-h-[46px] flex items-center"
+              style={{
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+              }}
+            >
+              <p className="italic text-[11px] leading-relaxed" style={{ color: theme.text }}>
+                {summary.teacherComment ? (
+                  `“${summary.teacherComment}”`
+                ) : (
+                  `Student ${student.fullName} has successfully concluded the academic session with satisfactory discipline and commitment. Continual dedication to rigorous academic review is strongly advised for next term.`
+                )}
+              </p>
             </div>
           </div>
         </div>
