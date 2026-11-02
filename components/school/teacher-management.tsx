@@ -675,7 +675,6 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
         </div>
       </div>
 
-      <>
           {/* Action Bar for Teachers List */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
             <div>
