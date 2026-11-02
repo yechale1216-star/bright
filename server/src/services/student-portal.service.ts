@@ -135,7 +135,7 @@ export class StudentPortalService {
         grade: student.grade?.name,
         section: student.section?.name,
         stream: student.stream?.name || null,
-        photo: user.profile_photo || null,
+        photo: user.profile_photo || student.profile_photo || null,
       },
       school: {
         id: schoolId,
@@ -507,7 +507,7 @@ export class StudentPortalService {
         grade: currentGrade.name,
         section: currentSection.name,
         stream: currentStream?.name || null,
-        photo: student.user?.profile_photo || null,
+        photo: student.profile_photo || student.user?.profile_photo || null,
       },
       academicYear: currentAcademicYearName,
       stats: {
@@ -560,7 +560,7 @@ export class StudentPortalService {
         gender: student.gender || 'Male',
         phone: student.user?.phone || student.parent_phone || '+251 91 234 5678',
         address: student.address || 'Addis Ababa, Ethiopia',
-        photo: student.user?.profile_photo || null,
+        photo: student.profile_photo || student.user?.profile_photo || null,
         status: student.status,
       },
       academicHistory,

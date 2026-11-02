@@ -173,7 +173,7 @@ class StudentDatabase {
           schoolId: res.school?.id || "single-school",
           schoolName: res.school?.name || "Bright Path",
           schoolLogo: res.school?.logo || "",
-          profile_photo: null,
+          profile_photo: res.student?.photo || res.student?.profile_photo || null,
         })
       );
       window.dispatchEvent(new Event("userSessionChanged"));

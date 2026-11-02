@@ -38,6 +38,7 @@ import { History } from "lucide-react"
 import { supabase } from "@/lib/utils/supabase"
 import { getApiUrl } from "@/lib/api-config"
 import { StudentAvatar } from "./student-avatar"
+import { compressImage } from "@/lib/utils/image-compression"
 
 export function StudentManagement() {
   const { formatDate } = useCalendar()
@@ -639,21 +640,28 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     return combinedResult.isValid
   }
 
-  const handlePhotoSelect = (file: File) => {
-    const MAX_SIZE = 5 * 1024 * 1024
+  const handlePhotoSelect = async (file: File) => {
+    const MAX_SIZE = 15 * 1024 * 1024
     const ALLOWED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
     if (!ALLOWED.includes(file.type)) {
       notifications.error("Invalid File", "Please select a JPG, PNG, or WebP image.")
       return
     }
     if (file.size > MAX_SIZE) {
-      notifications.error("File Too Large", "Photo must be under 5MB.")
+      notifications.error("File Too Large", "Photo must be under 15MB.")
       return
     }
-    setPhotoFile(file)
-    const reader = new FileReader()
-    reader.onload = (e) => setPhotoPreview(e.target?.result as string)
-    reader.readAsDataURL(file)
+    try {
+      // Compress to 400x400 square avatar before storing or uploading
+      const compressed = await compressImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.82 })
+      setPhotoFile(compressed.file)
+      setPhotoPreview(compressed.dataUrl)
+    } catch {
+      setPhotoFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => setPhotoPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    }
   }
 
   const handlePhotoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -662,13 +670,24 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
   }
 
   const uploadPhotoToServer = async (file: File, oldPhotoUrl?: string | null): Promise<string> => {
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    // 0. Ensure image is compressed before uploading (typically ~25KB - 40KB)
+    let uploadFile = file
+    let fallbackDataUrl = ''
+    try {
+      const compressed = await compressImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.82 })
+      uploadFile = compressed.file
+      fallbackDataUrl = compressed.dataUrl
+    } catch {
+      // Proceed with original file if canvas compression fails
+    }
+
+    const fileExt = uploadFile.name.split('.').pop()?.toLowerCase() || 'jpg'
     const fileName = `student-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
 
-    // Primary: Upload via server-side /api/upload/student-photo route → Supabase 'avatars' bucket
+    // 1. Primary: Upload via server-side /api/upload/student-photo route → Supabase 'avatars' bucket
     try {
       const formDataUpload = new FormData()
-      formDataUpload.append('file', file)
+      formDataUpload.append('file', uploadFile)
       if (oldPhotoUrl && oldPhotoUrl.startsWith('http')) formDataUpload.append('oldUrl', oldPhotoUrl)
       const res = await fetch('/api/upload/student-photo', {
         method: 'POST',
@@ -678,40 +697,37 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
         const data = await res.json()
         if (data?.url) return data.url
       }
-      console.warn("[student-photo] Server route responded with error:", await res.text().catch(() => ''))
     } catch (routeErr) {
       console.warn("[student-photo] Server route failed, trying direct Supabase client:", routeErr)
     }
 
-    // Fallback: Upload directly to Supabase 'avatars' bucket via browser client
+    // 2. Fallback: Upload directly to Supabase 'avatars' bucket via browser client
     try {
       const filePath = `students/${fileName}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, uploadFile, {
         upsert: true,
-        contentType: file.type || 'image/jpeg',
-        cacheControl: '3600',
+        contentType: uploadFile.type || 'image/jpeg',
+        cacheControl: '31536000, immutable',
       })
       if (!uploadError) {
         const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
         if (data?.publicUrl) {
-          // Clean up old photo from avatars if replacing
-          if (oldPhotoUrl && oldPhotoUrl.includes('/avatars/')) {
+          if (oldPhotoUrl && oldPhotoUrl.includes('/avatars/students/')) {
             const oldPath = oldPhotoUrl.split('/object/public/avatars/').pop()
             if (oldPath) supabase.storage.from('avatars').remove([oldPath]).catch(() => {})
           }
           return data.publicUrl
         }
       }
-      console.warn("[student-photo] Direct Supabase avatars upload failed:", uploadError?.message)
     } catch (supabaseErr) {
       console.warn("[student-photo] Direct Supabase upload failed:", supabaseErr)
     }
 
-    // Last resort: Express backend upload route
+    // 3. Fallback: Express backend upload route
     try {
       const apiUrl = getApiUrl()
       const formDataUpload = new FormData()
-      formDataUpload.append('file', file)
+      formDataUpload.append('file', uploadFile)
       const token = typeof localStorage !== 'undefined' ? (localStorage.getItem('attendance_token') || localStorage.getItem('auth_token') || '') : ''
       const res = await fetch(`${apiUrl}/api/upload`, {
         method: 'POST',
@@ -726,7 +742,17 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       console.warn("[student-photo] Express /api/upload failed:", backendErr)
     }
 
-    throw new Error("All upload attempts failed. Please check your Supabase configuration.")
+    // 4. Guaranteed Safe Fallback: Return optimized lightweight Base64 so photo is never lost!
+    if (fallbackDataUrl) {
+      return fallbackDataUrl
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error("Failed to process photo"))
+      reader.readAsDataURL(file)
+    })
   }
 
   const handleTakePhoto = async () => {

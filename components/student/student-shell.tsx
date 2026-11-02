@@ -79,7 +79,10 @@ export function StudentShell({ children }: StudentShellProps) {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed.role === "student") {
-            setStudent(parsed);
+            setStudent({
+              ...parsed,
+              photo: parsed.profile_photo || parsed.photo || null,
+            });
           }
         }
       } catch {}
@@ -98,7 +101,7 @@ export function StudentShell({ children }: StudentShellProps) {
           grade: res.student.grade || prev?.grade,
           section: res.student.section || prev?.section,
           stream: res.student.stream || prev?.stream,
-          photo: res.student.photo || prev?.photo,
+          photo: res.student.photo || prev?.photo || prev?.profile_photo || null,
         }));
       }
     }).catch(() => {});
@@ -474,7 +477,7 @@ export function StudentShell({ children }: StudentShellProps) {
               className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800 group hover:opacity-90 transition-opacity"
             >
               <Avatar className="w-9 h-9 ring-2 ring-purple-600/20 group-hover:ring-purple-600/40 transition-all">
-                <AvatarImage src={student?.photo || ""} />
+                <AvatarImage src={student?.photo || student?.profile_photo || ""} className="object-cover" />
                 <AvatarFallback className="bg-gradient-to-tr from-purple-700 to-indigo-600 text-white text-xs font-bold">
                   {displayName.slice(0, 2).toUpperCase()}
                 </AvatarFallback>

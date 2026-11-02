@@ -13,7 +13,7 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 const getStudentByUserId = async (userId: string) => {
   return prisma.student.findFirst({
     where: { user_id: userId },
-    include: { grade: true, section: true, stream: true },
+    include: { grade: true, section: true, stream: true, user: true },
   });
 };
 
@@ -109,7 +109,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         grade: student.grade?.name || '',
         section: student.section?.name || '',
         stream: student.stream?.name || null,
-        photo: user.profile_photo || null,
+        photo: user.profile_photo || student.profile_photo || null,
       },
       school: { id: 'single-school', name: school?.school_name || 'Bright Path', logo: school?.school_logo || '' },
     });
@@ -301,7 +301,7 @@ export const activateAccount = async (req: Request, res: Response, next: NextFun
         grade: activationResult.student.grade?.name || '',
         section: activationResult.student.section?.name || '',
         stream: activationResult.student.stream?.name || null,
-        photo: activationResult.user.profile_photo || null,
+        photo: activationResult.user?.profile_photo || activationResult.student?.profile_photo || null,
       },
       school: { id: 'single-school', name: school?.school_name || 'Bright Path', logo: school?.school_logo || '' },
     });
@@ -450,7 +450,7 @@ export const getDashboard = async (req: AuthenticatedRequest, res: Response, nex
     return res.status(200).json({
       success: true,
       data: {
-        student: { id: student.id, student_id: student.student_id, name: student.fullName, grade: student.grade?.name || '', section: student.section?.name || '', stream: student.stream?.name || null, photo: null },
+        student: { id: student.id, student_id: student.student_id, name: student.fullName, grade: student.grade?.name || '', section: student.section?.name || '', stream: student.stream?.name || null, photo: student.profile_photo || student.user?.profile_photo || null },
         academicYear: academicYear?.name || '',
         stats: { overallAverage, averageTrend: '', attendancePercentage, attendanceStatus: attendancePercentage >= 90 ? 'Excellent' : attendancePercentage >= 75 ? 'Good' : 'Needs Improvement', presentDays, absentDays, lateDays },
         todayTimetable, recentMarks, announcements,

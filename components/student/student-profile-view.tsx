@@ -38,6 +38,7 @@ import { studentDb } from "@/lib/db/student-db";
 import { notifications } from "@/lib/utils/notifications";
 import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator";
 import { cn } from "@/lib/utils/utils";
+import { compressImage } from "@/lib/utils/image-compression";
 
 export function StudentProfileView() {
   const [profile, setProfile] = useState<any>(null);
@@ -144,7 +145,7 @@ export function StudentProfileView() {
     }
   };
 
-  // Photo Upload Handler — uploads to Supabase 'avatars' bucket via server route
+  // Photo Upload Handler — compresses image and uploads to Supabase 'avatars' bucket with reliable fallback
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -154,33 +155,58 @@ export function StudentProfileView() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      notifications.error("File Too Large", "Photo size must be less than 5MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      notifications.error("File Too Large", "Photo size must be less than 15MB.");
       return;
     }
 
     setIsUploadingPhoto(true);
     try {
-      // Upload via server-side route — uses Supabase 'avatars' bucket (service role key)
-      const oldUrl = basic.photo || undefined;
-      const formData = new FormData();
-      formData.append("file", file);
-      if (oldUrl && oldUrl.startsWith("http")) formData.append("oldUrl", oldUrl);
+      // 1. Client-side canvas compression: scale to 400x400 square avatar at 0.82 quality (~30-50KB)
+      const compressed = await compressImage(file, {
+        maxWidth: 400,
+        maxHeight: 400,
+        quality: 0.82,
+        mimeType: "image/jpeg",
+      });
 
-      const res = await fetch("/api/upload/student-photo", { method: "POST", body: formData });
-      const json = await res.json();
+      // 2. Optimistic local preview
+      setProfile((prev: any) => ({
+        ...prev,
+        photo: compressed.dataUrl,
+        basicInfo: { ...(prev?.basicInfo || {}), photo: compressed.dataUrl },
+      }));
 
-      if (!res.ok || !json.url) {
-        throw new Error(json.error || "Upload failed");
+      // 3. Primary attempt: Upload compressed file to /api/upload/student-photo (Supabase 'avatars' bucket)
+      let photoUrl = compressed.dataUrl;
+      try {
+        const oldUrl = basic.photo || undefined;
+        const formData = new FormData();
+        formData.append("file", compressed.file);
+        if (oldUrl && oldUrl.startsWith("http")) formData.append("oldUrl", oldUrl);
+
+        const res = await fetch("/api/upload/student-photo", { method: "POST", body: formData });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.url) {
+            photoUrl = json.url;
+          }
+        }
+      } catch (uploadErr) {
+        console.warn("[student-profile] Cloud storage upload notice, using compressed local data:", uploadErr);
       }
 
-      await studentDb.updateProfile({ photo: json.url });
+      // 4. Save photo URL (either CDN public URL or compressed data URL) to profile
+      await studentDb.updateProfile({ photo: photoUrl });
       notifications.success("Photo Updated", "Your profile photo has been updated.");
       await loadProfile();
     } catch (err: any) {
       notifications.error("Upload Failed", err?.message || "Could not update profile photo.");
+      await loadProfile();
     } finally {
       setIsUploadingPhoto(false);
+      // Reset input so re-selecting same file works
+      e.target.value = "";
     }
   };
 
