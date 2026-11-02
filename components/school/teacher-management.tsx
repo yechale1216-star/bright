@@ -1606,6 +1606,7 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
 
           </div>
         </div>
+      )}
 
       {/* ── Status Change Confirmation Dialog ─────────────────────────────────── */}
       <Dialog open={statusActionType !== null} onOpenChange={(open) => { if (!open) { setStatusActionType(null); setStatusActionTeacher(null); } }}>
