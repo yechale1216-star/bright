@@ -119,7 +119,7 @@ export const getStatusBadge = (status: string) => {
 };
 
 interface TeacherManagementProps {
-  defaultTab?: "teachers" | "assignments"
+  defaultTab?: "teachers"
 }
 
 export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagementProps) {
@@ -268,15 +268,11 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
     }
   }, [])
 
-  const handleTabChange = (newTab: "teachers" | "assignments") => {
-    setActiveTab(newTab)
+  const handleTabChange = (_newTab: "teachers") => {
+    setActiveTab("teachers")
     try {
       const url = new URL(window.location.href)
-      if (newTab === "assignments") {
-        url.searchParams.set("tab", "assignments")
-      } else {
-        url.searchParams.delete("tab")
-      }
+      url.searchParams.delete("tab")
       window.history.replaceState({}, "", url.toString())
     } catch {
       // ignore

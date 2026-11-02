@@ -1014,7 +1014,21 @@ export const gradebookService = {
     academicYearId?: string;
     academicTermId?: string;
     category?: '1-4' | '5-8' | '9-12' | 'all';
+    forceRefresh?: boolean;
   } = {}): Promise<TopPerformingResponse> {
+    // Client-side in-memory cache to prevent repetitive network & DB roundtrips
+    if (!this._topPerformersClientCache) {
+      this._topPerformersClientCache = new Map<string, { data: TopPerformingResponse; expiry: number }>();
+    }
+
+    const cacheKey = `${filters.academicYearId || 'current'}:${filters.academicTermId || 'all'}:${filters.category || 'all'}`;
+    const now = Date.now();
+    const cached = this._topPerformersClientCache.get(cacheKey);
+
+    if (!filters.forceRefresh && cached && cached.expiry > now) {
+      return cached.data;
+    }
+
     const query = new URLSearchParams();
     if (filters.academicYearId && filters.academicYearId !== 'all') query.set('academicYearId', filters.academicYearId);
     if (filters.academicTermId && filters.academicTermId !== 'all') query.set('academicTermId', filters.academicTermId);
@@ -1024,8 +1038,15 @@ export const gradebookService = {
       `${API_URL}/api/gradebook/top-performing-students?${query.toString()}`,
       { headers: getAuthHeaders() }
     );
+    if (res?.data && this._topPerformersClientCache) {
+      this._topPerformersClientCache.set(cacheKey, {
+        data: res.data,
+        expiry: Date.now() + 5 * 60 * 1000, // 5 minutes client-side cache
+      });
+    }
     return res.data;
   },
+  _topPerformersClientCache: null as Map<string, { data: TopPerformingResponse; expiry: number }> | null,
 };
 
 export interface RankedStudent {

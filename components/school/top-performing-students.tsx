@@ -30,7 +30,7 @@ export function TopPerformingStudents({
   const [error, setError] = useState<string | null>(null)
 
   // Fetch top performing students
-  const loadData = useCallback(async (isBackground = false) => {
+  const loadData = useCallback(async (isBackground = false, forceRefresh = false) => {
     try {
       if (!isBackground) setIsLoading(true)
       setError(null)
@@ -38,6 +38,7 @@ export function TopPerformingStudents({
       const result = await gradebookService.getTopPerformingStudents({
         academicYearId: selectedYearId && selectedYearId !== "all" ? selectedYearId : undefined,
         academicTermId: selectedTermId && selectedTermId !== "all" ? selectedTermId : undefined,
+        forceRefresh,
       })
 
       setData(result)
@@ -160,7 +161,7 @@ export function TopPerformingStudents({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => loadData()}
+            onClick={() => loadData(false, true)}
             title="Refresh Top Performers"
             className="h-7 w-7 p-0 rounded-xl bg-background border-input text-muted-foreground hover:text-foreground shadow-2xs"
           >
@@ -215,7 +216,7 @@ export function TopPerformingStudents({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => loadData()}
+            onClick={() => loadData(false, true)}
             className="rounded-xl text-xs font-bold"
           >
             Retry

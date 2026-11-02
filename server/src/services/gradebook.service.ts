@@ -3093,11 +3093,26 @@ export class GradebookService {
    * 
    * Calculated dynamically from approved and eligible subject results.
    */
+  // In-memory cache for top performing students to eliminate unnecessary DB load
+  private topPerformersCache = new Map<string, { data: any; expiry: number }>();
+  private readonly TOP_PERFORMERS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes TTL
+
+  public invalidateTopPerformersCache() {
+    this.topPerformersCache.clear();
+  }
+
   async getTopPerformingStudents(params: {
     academicYearId?: string;
     academicTermId?: string;
     category?: '1-4' | '5-8' | '9-12' | 'all';
   }) {
+    const cacheKey = `${params.academicYearId || 'current'}:${params.academicTermId || 'all'}:${params.category || 'all'}`;
+    const now = Date.now();
+    const cached = this.topPerformersCache.get(cacheKey);
+    if (cached && cached.expiry > now) {
+      return cached.data;
+    }
+
     // 1. Resolve Academic Year
     let targetYear = null;
     if (params.academicYearId && params.academicYearId !== 'all') {
@@ -3287,7 +3302,7 @@ export class GradebookService {
       rankings[catKey] = topThree;
     }
 
-    return {
+    const result = {
       selectedYear: { id: targetYear.id, name: targetYear.name },
       selectedTerm: selectedTerm ? { id: selectedTerm.id, name: selectedTerm.name } : null,
       availableYears: allYears.map((y) => ({
@@ -3298,6 +3313,14 @@ export class GradebookService {
       })),
       rankings,
     };
+
+    // Store in memory cache
+    this.topPerformersCache.set(cacheKey, {
+      data: result,
+      expiry: Date.now() + this.TOP_PERFORMERS_CACHE_TTL,
+    });
+
+    return result;
   }
 }
 
