@@ -933,4 +933,27 @@ export const getDetailedAssessmentReport = async (req: AuthenticatedRequest, res
   }
 };
 
+/**
+ * Top 3 Performing Students grouped by:
+ * - Grades 1–4
+ * - Grades 5–8
+ * - Grades 9–12
+ */
+export const getTopPerformingStudents = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const { academicYearId, academicTermId, category } = req.query as any;
+
+    const data = await gradebookService.getTopPerformingStudents({
+      academicYearId: academicYearId as string | undefined,
+      academicTermId: academicTermId as string | undefined,
+      category: category as '1-4' | '5-8' | '9-12' | 'all' | undefined,
+    });
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 

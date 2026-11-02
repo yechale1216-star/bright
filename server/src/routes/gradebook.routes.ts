@@ -59,5 +59,8 @@ router.post('/submissions/submit', authorize(['admin', 'school_admin', 'academic
 router.get('/reports/analytics', gradebookController.getAssessmentReportAnalytics);
 router.get('/reports/:reportId/detail', gradebookController.getDetailedAssessmentReport);
 
+// Top Performing Students (Grades 1-4, 5-8, 9-12)
+router.get('/top-performing-students', gradebookController.getTopPerformingStudents);
+
 export default router;
 

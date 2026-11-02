@@ -1009,7 +1009,55 @@ export const gradebookService = {
     );
     return res.data;
   },
+
+  async getTopPerformingStudents(filters: {
+    academicYearId?: string;
+    academicTermId?: string;
+    category?: '1-4' | '5-8' | '9-12' | 'all';
+  } = {}): Promise<TopPerformingResponse> {
+    const query = new URLSearchParams();
+    if (filters.academicYearId && filters.academicYearId !== 'all') query.set('academicYearId', filters.academicYearId);
+    if (filters.academicTermId && filters.academicTermId !== 'all') query.set('academicTermId', filters.academicTermId);
+    if (filters.category && filters.category !== 'all') query.set('category', filters.category);
+
+    const res = await apiFetch<{ success: boolean; data: TopPerformingResponse }>(
+      `${API_URL}/api/gradebook/top-performing-students?${query.toString()}`,
+      { headers: getAuthHeaders() }
+    );
+    return res.data;
+  },
 };
+
+export interface RankedStudent {
+  rank: number;
+  studentId: string;
+  fullName: string;
+  studentCode?: string;
+  profilePhoto?: string | null;
+  gradeName: string;
+  sectionName: string;
+  classInfo: string;
+  averageScore: number;
+  formattedScore: string;
+  approvedSubjectCount: number;
+  achievement: string;
+}
+
+export interface TopPerformingResponse {
+  selectedYear: { id: string; name: string } | null;
+  selectedTerm: { id: string; name: string } | null;
+  availableYears: Array<{
+    id: string;
+    name: string;
+    isCurrent: boolean;
+    terms: Array<{ id: string; name: string; isCurrent: boolean }>;
+  }>;
+  rankings: {
+    '1-4': RankedStudent[];
+    '5-8': RankedStudent[];
+    '9-12': RankedStudent[];
+  };
+}
 
 export interface AssessmentReportsAnalyticsData {
   schoolInfo?: {

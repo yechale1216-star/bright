@@ -31,6 +31,7 @@ import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { useCalendar } from "@/lib/context/calendar-context"
 import { useGreeting } from "@/lib/utils/greeting-utils"
 import { cn } from "@/lib/utils/utils"
+import { TopPerformingStudents } from "./top-performing-students"
 
 interface AdminDashboardProps {
   onNavigate?: (tab: string) => void
@@ -1198,126 +1199,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 6. RECENT ADMINISTRATIVE ACTIVITY FEED (Matching the clean Feed in Student Attendance Dashboard) */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-black text-foreground uppercase tracking-wider">
-              School Operations Stream
-            </h3>
-          </div>
-          <Badge variant="outline" className="text-[10px] font-black uppercase tracking-tight opacity-70 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-            Realtime
-          </Badge>
-        </div>
-
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 animate-pulse shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-9 w-9 rounded-xl bg-slate-200 dark:bg-slate-700 shrink-0" />
-                    <div className="space-y-1.5">
-                      <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-24" />
-                      <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded w-16" />
-                    </div>
-                  </div>
-                  <div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded-full" />
-                </div>
-                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-full mt-2" />
-                <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-4/5" />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Academic Cycle Card */}
-            <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
-                      <Calendar className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-foreground uppercase tracking-tight">Academic Cycle</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">{activeAcademicYearName}</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/15 border-purple-500/30">
-                    {activeTerm}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Active term in session with {totalGradesCount} registered grade levels and live attendance monitoring.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Card 2: Student Registration Stream */}
-            <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-foreground uppercase tracking-tight">Student Body</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">{totalStudents} Enrolled</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-500/15 border-blue-500/30">
-                    Active
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {dashboardSummary?.recentStudent?.name
-                    ? `Latest enrolled student: ${dashboardSummary.recentStudent.name} (${dashboardSummary.recentStudent.grade || "Grade N/A"}).`
-                    : recentStudents.length > 0
-                    ? `Latest enrolled student: ${recentStudents[0]?.first_name ? `${recentStudents[0].first_name} ${recentStudents[0].last_name || ""}`.trim() : (recentStudents[0]?.name || "Student")} (${recentStudents[0]?.grade || "Grade N/A"}).`
-                    : "All student enrollment records verified and in good standing."}
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Card 3: Conduct & Safety Stream */}
-            <Card className="border border-border bg-card rounded-2xl overflow-hidden shadow-sm">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-9 w-9 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-600 dark:text-rose-400 font-bold border border-rose-500/20">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-foreground uppercase tracking-tight">School Climate</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground">{openDisciplineCasesCount} Open Cases</p>
-                    </div>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[10px] font-bold",
-                      casesRequiringAttention.length > 0
-                        ? "text-destructive bg-destructive/15 border-destructive/30"
-                        : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border-emerald-500/30"
-                    )}
-                  >
-                    {casesRequiringAttentionCount > 0 ? "Review Required" : "Stable"}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {casesRequiringAttentionCount > 0
-                    ? `${casesRequiringAttentionCount} cases flagged for administrative follow-up.`
-                    : "Campus conduct guidelines and student discipline tracking up to date."}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+      {/* Top 3 Performing Students (Academic Performance Stream) */}
+      <TopPerformingStudents />
     </div>
   )
 }

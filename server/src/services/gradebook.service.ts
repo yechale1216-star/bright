@@ -3084,6 +3084,221 @@ export class GradebookService {
       })),
     };
   }
+
+  /**
+   * Get Top 3 Performing Students grouped by 3 grade-level categories:
+   * - Grades 1–4
+   * - Grades 5–8
+   * - Grades 9–12
+   * 
+   * Calculated dynamically from approved and eligible subject results.
+   */
+  async getTopPerformingStudents(params: {
+    academicYearId?: string;
+    academicTermId?: string;
+    category?: '1-4' | '5-8' | '9-12' | 'all';
+  }) {
+    // 1. Resolve Academic Year
+    let targetYear = null;
+    if (params.academicYearId && params.academicYearId !== 'all') {
+      targetYear = await prisma.academicYear.findUnique({
+        where: { id: params.academicYearId },
+        include: { terms: { orderBy: { startDate: 'asc' } } },
+      });
+    }
+    if (!targetYear) {
+      targetYear =
+        (await prisma.academicYear.findFirst({
+          where: { isCurrent: true },
+          include: { terms: { orderBy: { startDate: 'asc' } } },
+        })) ||
+        (await prisma.academicYear.findFirst({
+          orderBy: { startDate: 'desc' },
+          include: { terms: { orderBy: { startDate: 'asc' } } },
+        }));
+    }
+
+    if (!targetYear) {
+      return {
+        selectedYear: null,
+        selectedTerm: null,
+        availableYears: [],
+        rankings: { '1-4': [], '5-8': [], '9-12': [] },
+      };
+    }
+
+    const allYears = await prisma.academicYear.findMany({
+      include: { terms: { orderBy: { startDate: 'asc' } } },
+      orderBy: { startDate: 'desc' },
+    });
+
+    let selectedTerm = null;
+    if (params.academicTermId && params.academicTermId !== 'all') {
+      selectedTerm = targetYear.terms.find((t) => t.id === params.academicTermId) || null;
+    }
+
+    // Closed Term Rule: If the academic year or term is closed/concluded, marks are finalized historical records
+    const isYearClosed = !targetYear.isCurrent;
+    const isTermClosed = Boolean(
+      isYearClosed ||
+      (selectedTerm && !selectedTerm.isCurrent) ||
+      (selectedTerm && new Date(selectedTerm.endDate).getTime() < Date.now())
+    );
+
+    // 2. Query ReportCards with Approved/Finalized Subject Scores
+    const reportCards = await prisma.reportCard.findMany({
+      where: {
+        academicYearId: targetYear.id,
+        ...(selectedTerm ? { academicTermId: selectedTerm.id } : {}),
+        OR: [
+          { status: { in: ['PUBLISHED', 'READY', 'FINAL'] } },
+          { subjectScores: { some: { status: 'APPROVED' } } },
+        ],
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            student_id: true,
+            fullName: true,
+            profile_photo: true,
+            status: true,
+          },
+        },
+        grade: { select: { id: true, name: true } },
+        section: { select: { id: true, name: true } },
+        academicTerm: { select: { id: true, name: true } },
+        subjectScores: {
+          where: isTermClosed ? undefined : { status: 'APPROVED' },
+          include: { subject: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    const parseGradeNum = (name: string): number | null => {
+      const match = (name || '').match(/\b(1[0-2]|[1-9])\b/);
+      if (match) return parseInt(match[1], 10);
+      const num = parseInt((name || '').replace(/\D/g, ''), 10);
+      return !isNaN(num) ? num : null;
+    };
+
+    const studentPerformanceMap = new Map<string, {
+      studentId: string;
+      fullName: string;
+      studentCode?: string;
+      profilePhoto?: string | null;
+      gradeId: string;
+      gradeName: string;
+      sectionId: string;
+      sectionName: string;
+      gradeNumber: number;
+      totalScore: number;
+      averageScore: number;
+      approvedSubjectCount: number;
+      termsCount: number;
+    }>();
+
+    for (const rc of reportCards) {
+      if (!rc.student || rc.student.status === 'DELETED' || rc.student.status === 'EXPELLED') continue;
+      const gNum = parseGradeNum(rc.grade?.name);
+      if (!gNum) continue;
+
+      const approvedScores = rc.subjectScores
+        .filter((s) => s.score !== null && s.score !== undefined && !isNaN(s.score) && s.maxScore > 0)
+        .map((s) => (s.score / s.maxScore) * 100);
+
+      const avg = approvedScores.length > 0
+        ? approvedScores.reduce((a, b) => a + b, 0) / approvedScores.length
+        : rc.averageScore > 0 ? rc.averageScore : null;
+
+      if (avg === null || avg <= 0) continue;
+
+      const studentId = rc.student.id;
+      if (!studentPerformanceMap.has(studentId)) {
+        studentPerformanceMap.set(studentId, {
+          studentId: rc.student.id,
+          fullName: rc.student.fullName,
+          studentCode: rc.student.student_id,
+          profilePhoto: rc.student.profile_photo || null,
+          gradeId: rc.grade?.id || '',
+          gradeName: rc.grade?.name || 'Grade',
+          sectionId: rc.section?.id || '',
+          sectionName: rc.section?.name || 'Section',
+          gradeNumber: gNum,
+          totalScore: rc.totalScore || 0,
+          averageScore: Math.round(avg * 10) / 10,
+          approvedSubjectCount: approvedScores.length,
+          termsCount: 1,
+        });
+      } else {
+        const existing = studentPerformanceMap.get(studentId)!;
+        existing.averageScore = Math.round(((existing.averageScore * existing.termsCount + avg) / (existing.termsCount + 1)) * 10) / 10;
+        existing.totalScore += rc.totalScore || 0;
+        existing.approvedSubjectCount += approvedScores.length;
+        existing.termsCount += 1;
+      }
+    }
+
+    const allPerformers = Array.from(studentPerformanceMap.values());
+
+    const categories = {
+      '1-4': allPerformers.filter((s) => s.gradeNumber >= 1 && s.gradeNumber <= 4),
+      '5-8': allPerformers.filter((s) => s.gradeNumber >= 5 && s.gradeNumber <= 8),
+      '9-12': allPerformers.filter((s) => s.gradeNumber >= 9 && s.gradeNumber <= 12),
+    };
+
+    const rankings: Record<string, any[]> = {
+      '1-4': [],
+      '5-8': [],
+      '9-12': [],
+    };
+
+    for (const [catKey, list] of Object.entries(categories)) {
+      list.sort((a, b) => {
+        if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        if (b.approvedSubjectCount !== a.approvedSubjectCount) return b.approvedSubjectCount - a.approvedSubjectCount;
+        return a.fullName.localeCompare(b.fullName);
+      });
+
+      const topThree = list.slice(0, 3).map((item, index) => {
+        const position = index + 1;
+        let achievement = 'Honor Roll';
+        if (position === 1) achievement = item.averageScore >= 95 ? 'Highest Distinction' : 'Top Scholar';
+        else if (position === 2) achievement = item.averageScore >= 90 ? 'High Distinction' : "Dean's List";
+        else if (position === 3) achievement = 'Academic Distinction';
+
+        return {
+          rank: position,
+          studentId: item.studentId,
+          fullName: item.fullName,
+          studentCode: item.studentCode,
+          profilePhoto: item.profilePhoto,
+          gradeName: item.gradeName,
+          sectionName: item.sectionName,
+          classInfo: `${item.gradeName} • Section ${item.sectionName}`.replace(/^Grade\s+Grade/i, 'Grade'),
+          averageScore: item.averageScore,
+          formattedScore: `${item.averageScore.toFixed(1)}%`,
+          approvedSubjectCount: item.approvedSubjectCount,
+          achievement,
+        };
+      });
+
+      rankings[catKey] = topThree;
+    }
+
+    return {
+      selectedYear: { id: targetYear.id, name: targetYear.name },
+      selectedTerm: selectedTerm ? { id: selectedTerm.id, name: selectedTerm.name } : null,
+      availableYears: allYears.map((y) => ({
+        id: y.id,
+        name: y.name,
+        isCurrent: y.isCurrent,
+        terms: y.terms.map((t) => ({ id: t.id, name: t.name, isCurrent: t.isCurrent })),
+      })),
+      rankings,
+    };
+  }
 }
 
 export const gradebookService = new GradebookService();
