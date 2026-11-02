@@ -5,8 +5,9 @@ import {
   Plus, Pencil, Trash2, BookMarked, Layers, 
   LayoutGrid, GraduationCap, ChevronDown, ChevronRight, 
   Calendar, CalendarDays, ExternalLink, CheckSquare, Square, BookOpen, AlertCircle, 
-  X, Check, Search, Filter
+  X, Check, Search, Filter, UserCheck
 } from "lucide-react"
+import { TeacherAssignmentManagement } from "@/components/school/teacher-assignment-management"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -1610,7 +1611,46 @@ function GradeSubjectsSection() {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 
-export function AcademicStructureTab() {
+export function AcademicStructureTab({ defaultTab }: { defaultTab?: string }) {
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (defaultTab) return defaultTab
+    if (typeof window !== "undefined") {
+      const param = new URLSearchParams(window.location.search).get("tab")
+      if (
+        param === "teacher_assignments" ||
+        param === "teacher-assignment" ||
+        param === "teacher-assignments" ||
+        param === "teacher_assignment" ||
+        param === "assignments"
+      ) {
+        return "teacher_assignments"
+      }
+      if (param) return param
+    }
+    return "grades_sections"
+  })
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handlePopState = () => {
+        const param = new URLSearchParams(window.location.search).get("tab")
+        if (
+          param === "teacher_assignments" ||
+          param === "teacher-assignment" ||
+          param === "teacher-assignments" ||
+          param === "teacher_assignment" ||
+          param === "assignments"
+        ) {
+          setActiveTab("teacher_assignments")
+        } else if (param) {
+          setActiveTab(param)
+        }
+      }
+      window.addEventListener("popstate", handlePopState)
+      return () => window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -1623,13 +1663,13 @@ export function AcademicStructureTab() {
           </div>
           <h2 className="text-2xl font-extrabold tracking-tight">School Structure Management</h2>
           <p className="text-indigo-100 text-sm mt-1 max-w-xl">
-            Configure grades, sections, streams, subjects, and academic terms — the building blocks of your school.
+            Configure grades, sections, streams, subjects, curriculum allocation, and faculty assignments.
           </p>
         </div>
       </div>
 
       {/* Sub-Tabs */}
-      <Tabs defaultValue="grades_sections" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-muted/70 p-1.5 rounded-2xl h-auto flex flex-wrap gap-1 border border-border/50">
           <TabsTrigger value="grades_sections" className="rounded-xl text-xs font-semibold gap-1.5 py-2">
             <GraduationCap className="w-3.5 h-3.5" />
@@ -1646,6 +1686,10 @@ export function AcademicStructureTab() {
           <TabsTrigger value="subject_assignments" className="rounded-xl text-xs font-semibold gap-1.5 py-2">
             <BookOpen className="w-3.5 h-3.5" />
             Subject Assignment
+          </TabsTrigger>
+          <TabsTrigger value="teacher_assignments" className="rounded-xl text-xs font-semibold gap-1.5 py-2">
+            <UserCheck className="w-3.5 h-3.5" />
+            Teacher Assignment
           </TabsTrigger>
         </TabsList>
 
@@ -1692,6 +1736,11 @@ export function AcademicStructureTab() {
           <div className="mt-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 text-xs text-blue-800 dark:text-blue-300">
             <strong>Curriculum Allocation:</strong> Assign subjects to classes based on Grade and Stream. For Grades 11 and 12, selecting the stream (Natural Science or Social Science) is mandatory. Teacher assignments and mark submissions are automatically constrained to these assigned subjects.
           </div>
+        </TabsContent>
+
+        {/* Teacher Assignment */}
+        <TabsContent value="teacher_assignments" className="space-y-6">
+          <TeacherAssignmentManagement />
         </TabsContent>
 
       </Tabs>

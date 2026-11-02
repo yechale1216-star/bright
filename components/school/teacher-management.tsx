@@ -45,8 +45,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 import { db } from "@/lib/db/database"
-import { TeacherAssignmentManagement } from "@/components/school/teacher-assignment-management"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useSchoolSettings } from "@/hooks/use-school-settings"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -124,12 +123,11 @@ interface TeacherManagementProps {
 }
 
 export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagementProps) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const tabParam = searchParams.get("tab")
 
-  const [activeTab, setActiveTab] = useState<"teachers" | "assignments">(
-    tabParam === "assignments" ? "assignments" : defaultTab
-  )
+  const [activeTab, setActiveTab] = useState<"teachers">("teachers")
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [formData, setFormData] = useState({
     full_name: "",
@@ -269,14 +267,6 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
       clearInterval(pollInterval)
     }
   }, [])
-
-  useEffect(() => {
-    if (tabParam === "assignments" && activeTab !== "assignments") {
-      setActiveTab("assignments")
-    } else if (tabParam === "teachers" && activeTab !== "teachers") {
-      setActiveTab("teachers")
-    }
-  }, [tabParam])
 
   const handleTabChange = (newTab: "teachers" | "assignments") => {
     setActiveTab(newTab)
@@ -682,27 +672,10 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
               {teachers.length}
             </span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange("assignments")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all duration-200",
-              activeTab === "assignments"
-                ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            )}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>Class Assignments</span>
-          </button>
         </div>
       </div>
 
-      {activeTab === "assignments" ? (
-        <TeacherAssignmentManagement />
-      ) : (
-        <>
+      <>
           {/* Action Bar for Teachers List */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
             <div>

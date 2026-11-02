@@ -1,31 +1,20 @@
 'use client'
 
-import { Suspense } from 'react'
-import dynamic from 'next/dynamic'
-import { Spinner } from '@/components/ui/spinner'
-
-const TeacherManagement = dynamic(
-  () => import('@/components/school/teacher-management').then(mod => mod.TeacherManagement),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner size="md" className="text-primary" />
-      </div>
-    )
-  }
-)
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { TeacherAssignmentManagement } from '@/components/school/teacher-assignment-management'
 
 export default function TeacherAssignmentsPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    // Preserve route while steering user to Academic Structure -> Teacher Assignment
+    router.replace('/school/admin/academic-structure?tab=teacher_assignments')
+  }, [router])
+
   return (
-    <div className="p-4 md:p-8">
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Spinner size="md" className="text-primary" />
-        </div>
-      }>
-        <TeacherManagement defaultTab="assignments" />
-      </Suspense>
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <TeacherAssignmentManagement />
     </div>
   )
 }

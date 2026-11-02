@@ -19,7 +19,6 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
     { id: "reports", label: "Reports", icon: "📈" },
     ...(isAdmin
       ? [
-          { id: "teacher-assignments", label: "Teacher Assignments", icon: "📝" },
           { id: "settings", label: "Settings", icon: "⚙️" },
         ]
       : []),
@@ -50,5 +49,3 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
     </nav>
   )
 }
-
-

@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import {
-  Trash2, Plus, GraduationCap, Users, CheckCircle2, RefreshCw, Pencil,
-  Search, ChevronDown, Check, X, BookOpen, Home
+  Trash2, Plus, GraduationCap, Users, RefreshCw, Pencil,
+  Search, ChevronRight, Check, X, BookOpen, Home,
+  UserCheck, ArrowLeft, ArrowRight
 } from "lucide-react"
 
 import { authService } from "@/lib/auth/auth"
@@ -18,11 +19,13 @@ import { PageSkeleton } from "@/components/ui/page-skeleton"
 import { cn } from "@/lib/utils/utils"
 
 type AssignmentRole = "SUBJECT_TEACHER" | "HOMEROOM_TEACHER"
+type MainTab = "HOMEROOM" | "SUBJECT"
 
 interface Teacher {
   id: string
   full_name: string
   email: string
+  profile_photo?: string
 }
 
 interface TeacherAssignment {
@@ -36,18 +39,95 @@ interface TeacherAssignment {
   sectionId?: string
   streamId?: string
   academicYearId?: string
-  grade?: { id: string; name: string }
-  section?: { id: string; name: string }
-  stream?: { id: string; name: string }
-  subjectRef?: { id: string; name: string }
+  grade?: { id: string; name: string } | string
+  section?: { id: string; name: string } | string
+  stream?: { id: string; name: string } | string
+  subjectRef?: { id: string; name: string; code?: string }
   academicYear?: { id: string; name: string }
   teacher?: {
     id: string
-    name: string
+    name?: string
     full_name?: string
-    email: string
+    email?: string
     profile_photo?: string
   }
+}
+
+interface SelectedSectionView {
+  gradeId: string
+  gradeName: string
+  streamId?: string
+  streamName?: string
+  sectionId: string
+  sectionName: string
+}
+
+interface DirectModalState {
+  isOpen: boolean
+  mode: "ASSIGN_SUBJECT" | "UPDATE_SUBJECT" | "ASSIGN_HOMEROOM" | "UPDATE_HOMEROOM"
+  gradeId: string
+  gradeName: string
+  streamId?: string
+  streamName?: string
+  sectionId: string
+  sectionName: string
+  subjectId?: string
+  subjectName?: string
+  subjectCode?: string
+  assignmentId?: string
+  currentTeacherId?: string
+  currentTeacherName?: string
+  currentTeacherPhoto?: string
+  currentTeacherEmail?: string
+}
+
+// Helper: Determine if grade is 11 or 12
+function isGrade11or12Name(name?: string): boolean {
+  if (!name) return false
+  const lower = name.toLowerCase().trim()
+  return /\b(11|12)\b/.test(lower) || lower.includes("11") || lower.includes("12")
+}
+
+// Helper: Format grade display name
+function formatGradeLabel(name?: string): string {
+  if (!name) return "Unknown Grade"
+  const cleaned = name.trim()
+  if (/^grade\s+/i.test(cleaned)) return cleaned
+  return `Grade ${cleaned}`
+}
+
+// Helper: Format section display name
+function formatSectionLabel(name?: string): string {
+  if (!name) return "Unknown Section"
+  const cleaned = name.trim()
+  if (/^section\s+/i.test(cleaned)) return cleaned
+  return `Section ${cleaned}`
+}
+
+// Helper: Sort grades naturally (1, 2, ... 9, 10, 11, 12)
+function sortGradesNaturally(a: { name?: string }, b: { name?: string }): number {
+  const parsePriority = (name: string) => {
+    const n = name.trim().toLowerCase()
+    // KG grades always come first (KG, KG1, KG2, Kindergarten, etc.)
+    if (n.startsWith("kg") || n.startsWith("kindergarten")) {
+      const kgNum = parseInt(n.replace(/\D/g, "") || "0", 10)
+      return { order: 0, num: isNaN(kgNum) ? 0 : kgNum }
+    }
+    // Strip "grade " prefix, then parse the numeric part
+    const stripped = n.replace(/^grade\s*/i, "")
+    const num = parseInt(stripped.replace(/\D/g, "") || "0", 10)
+    return { order: 1, num: isNaN(num) ? 999 : num }
+  }
+  const pa = parsePriority(a.name || "")
+  const pb = parsePriority(b.name || "")
+  if (pa.order !== pb.order) return pa.order - pb.order
+  if (pa.num !== pb.num) return pa.num - pb.num
+  return (a.name || "").localeCompare(b.name || "", undefined, { numeric: true })
+}
+
+// Helper: Sort sections naturally (A, B, C or 1, 2, 3)
+function sortSectionsNaturally(a: { name?: string }, b: { name?: string }): number {
+  return (a.name || "").localeCompare(b.name || "", undefined, { numeric: true })
 }
 
 export function TeacherAssignmentManagement() {
@@ -59,66 +139,44 @@ export function TeacherAssignmentManagement() {
   const [availableSubjects, setAvailableSubjects] = useState<any[]>([])
   const [gradeSubjects, setGradeSubjects] = useState<any[]>([])
 
-  // Form state
-  const [selectedTeacher, setSelectedTeacher] = useState("")
-  const [selectedGrade, setSelectedGrade] = useState("")
-  const [selectedSection, setSelectedSection] = useState("")
-  const [selectedStream, setSelectedStream] = useState("")
-  const [selectedSubject, setSelectedSubject] = useState("")
-  const [selectedRole, setSelectedRole] = useState<AssignmentRole>("SUBJECT_TEACHER")
+  // Main Tab: "HOMEROOM" or "SUBJECT"
+  const [activeTab, setActiveTab] = useState<MainTab>("HOMEROOM")
+
+  // Dedicated section subject view state (null = show grade/section list)
+  const [selectedSectionView, setSelectedSectionView] = useState<SelectedSectionView | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
-  const [isAssigning, setIsAssigning] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
   const [schoolId, setSchoolId] = useState<string>("")
-  const [isEditing, setIsEditing] = useState(false)
-  const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const [teacherSearchQuery, setTeacherSearchQuery] = useState("")
-  const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false)
-  const [assignmentSearch, setAssignmentSearch] = useState("")
-  const [filterRole, setFilterRole] = useState<"ALL" | AssignmentRole>("ALL")
+  // Search & Filter state on main screen
+  const [filterTeacherOrSection, setFilterTeacherOrSection] = useState("")
+  const [filterGrade, setFilterGrade] = useState("ALL")
+  const [filterStream, setFilterStream] = useState("ALL")
 
-  const teacherDropdownRef = useRef<HTMLDivElement>(null)
+  // Search filter inside dedicated section screen
+  const [sectionSubjectSearch, setSectionSubjectSearch] = useState("")
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (teacherDropdownRef.current && !teacherDropdownRef.current.contains(e.target as Node)) {
-        setIsTeacherDropdownOpen(false)
-      }
-    }
-    if (isTeacherDropdownOpen) document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [isTeacherDropdownOpen])
+  // Direct Teacher Modal State
+  const [directModal, setDirectModal] = useState<DirectModalState>({
+    isOpen: false,
+    mode: "ASSIGN_SUBJECT",
+    gradeId: "",
+    gradeName: "",
+    sectionId: "",
+    sectionName: "",
+  })
+  const [modalSelectedTeacher, setModalSelectedTeacher] = useState("")
+  const [modalTeacherSearch, setModalTeacherSearch] = useState("")
+  const [isSavingDirect, setIsSavingDirect] = useState(false)
 
-  const currentTeacher = useMemo(() => teachers.find((t) => t.id === selectedTeacher), [teachers, selectedTeacher])
+  // Reset section view when switching main tabs
+  const handleTabChange = (tab: MainTab) => {
+    setActiveTab(tab)
+    setSelectedSectionView(null)
+  }
 
-  const filteredTeachers = useMemo(() => {
-    if (!teacherSearchQuery.trim()) return teachers
-    const q = teacherSearchQuery.toLowerCase()
-    return teachers.filter((t) => {
-      const name = (t.full_name || (t as any).name || "").toLowerCase()
-      const email = (t.email || "").toLowerCase()
-      return name.includes(q) || email.includes(q)
-    })
-  }, [teachers, teacherSearchQuery])
-
-  const filteredAssignments = useMemo(() => {
-    let result = assignments
-    if (filterRole !== "ALL") result = result.filter((a) => a.role === filterRole)
-    if (!assignmentSearch.trim()) return result
-    const q = assignmentSearch.toLowerCase()
-    return result.filter((a) => {
-      const tName = ((a.teacher?.full_name || a.teacher?.name) ?? "").toLowerCase()
-      const grade = (a.grade?.name ?? "").toLowerCase()
-      const section = (a.section?.name ?? "").toLowerCase()
-      const subject = (a.subjectRef?.name ?? a.subject ?? "").toLowerCase()
-      return tName.includes(q) || grade.includes(q) || section.includes(q) || subject.includes(q)
-    })
-  }, [assignments, assignmentSearch, filterRole])
-
+  // Initial avatar gradient helper
   const getInitials = (name: string) => {
     if (!name) return "T"
     return name.trim().split(/\s+/).map((p) => p[0]).join("").toUpperCase().slice(0, 2)
@@ -126,15 +184,45 @@ export function TeacherAssignmentManagement() {
 
   const getAvatarGradient = (id: string) => {
     const gradients = [
-      "from-blue-500 to-indigo-600", "from-emerald-400 to-teal-600",
-      "from-violet-500 to-purple-600", "from-pink-500 to-rose-600",
-      "from-amber-400 to-orange-600", "from-cyan-400 to-blue-600",
+      "from-blue-500 to-indigo-600",
+      "from-emerald-400 to-teal-600",
+      "from-violet-500 to-purple-600",
+      "from-pink-500 to-rose-600",
+      "from-amber-400 to-orange-600",
+      "from-cyan-400 to-blue-600",
     ]
     if (!id) return gradients[0]
     let hash = 0
     for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
     return gradients[Math.abs(hash) % gradients.length]
   }
+
+  // Data fetching
+  const loadAllData = useCallback(async (school: string, isBackground = false, forceRefetch = false) => {
+    try {
+      if (!isBackground && assignments.length === 0) setIsLoading(true)
+      const [teachersData, assignmentsData, gradesData, sectionsData, streamsData, subjectsData, gradeSubjectsData] = await Promise.all([
+        db.getTeachers(forceRefetch),
+        db.getTeacherAssignments(undefined, undefined, forceRefetch),
+        db.getGrades(),
+        db.getSections(),
+        db.getStreams(),
+        db.getSubjects(),
+        db.getGradeSubjects(),
+      ])
+      setTeachers(teachersData || [])
+      setAssignments((assignmentsData as any) || [])
+      setAvailableGrades(gradesData || [])
+      setAvailableSections(sectionsData || [])
+      setAvailableStreams(streamsData || [])
+      setAvailableSubjects(subjectsData || [])
+      setGradeSubjects(gradeSubjectsData || [])
+    } catch (error) {
+      console.error("Error loading teacher assignments data:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [assignments.length])
 
   useEffect(() => {
     const init = async () => {
@@ -160,156 +248,332 @@ export function TeacherAssignmentManagement() {
       window.removeEventListener("gradeSubjectsChanged", handleDataChanged)
       clearInterval(poll)
     }
-  }, [])
+  }, [loadAllData])
 
-  const loadAllData = async (school: string, isBackground = false, forceRefetch = false) => {
-    try {
-      if (!isBackground && assignments.length === 0) setIsLoading(true)
-      const [teachersData, assignmentsData, gradesData, sectionsData, streamsData, subjectsData, gradeSubjectsData] = await Promise.all([
-        db.getTeachers(forceRefetch),
-        db.getTeacherAssignments(),
-        db.getGrades(),
-        db.getSections(),
-        db.getStreams(),
-        db.getSubjects(),
-        db.getGradeSubjects(),
-      ])
-      setTeachers(teachersData)
-      setAssignments(assignmentsData as any)
-      setAvailableGrades(gradesData)
-      setAvailableSections(sectionsData)
-      setAvailableStreams(streamsData)
-      setAvailableSubjects(subjectsData)
-      setGradeSubjects(gradeSubjectsData || [])
-    } catch (error) {
-      console.error("Error loading data:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const selectedGradeObj = useMemo(() => {
-    return availableGrades.find((g) => g.id === selectedGrade)
-  }, [availableGrades, selectedGrade])
-
-  const isGrade11or12 = useMemo(() => {
-    if (!selectedGradeObj) return false
-    const name = (selectedGradeObj.name || "").toLowerCase()
-    return /\b(11|12)\b/.test(name) || name.includes("11") || name.includes("12")
-  }, [selectedGradeObj])
-
-  const filteredSectionsForAssignment = useMemo(() => {
-    if (!selectedGrade) return []
-    return availableSections.filter((s: any) => {
-      if (s.gradeId && s.gradeId !== selectedGrade) return false
-      if (isGrade11or12) {
-        if (!selectedStream) return false
-        return s.streamId === selectedStream
+  // Helper resolution functions for an assignment
+  const resolveAssignmentDetails = useCallback((a: TeacherAssignment) => {
+    let gradeId = a.gradeId || (typeof a.grade === "object" ? a.grade?.id : undefined) || ""
+    let gradeObj = availableGrades.find((g) => g.id === gradeId)
+    let gradeName = gradeObj?.name || (typeof a.grade === "string" ? a.grade : a.grade?.name) || ""
+    if (!gradeId && gradeName) {
+      const match = availableGrades.find((g) => g.name.toLowerCase() === gradeName.toLowerCase())
+      if (match) {
+        gradeId = match.id
+        gradeObj = match
       }
-      return !s.streamId || s.gradeId === selectedGrade
-    })
-  }, [availableSections, selectedGrade, selectedStream, isGrade11or12])
+    }
 
-  const subjectsForSelectedClass = useMemo(() => {
-    if (!selectedGrade) return []
-    if (isGrade11or12 && !selectedStream) return []
+    let sectionId = a.sectionId || (typeof a.section === "object" ? a.section?.id : undefined) || ""
+    let sectionObj = availableSections.find((s) => s.id === sectionId)
+    let sectionName = sectionObj?.name || (typeof a.section === "string" ? a.section : a.section?.name) || ""
+    if (!sectionId && sectionName) {
+      const match = availableSections.find((s) => s.name.toLowerCase() === sectionName.toLowerCase() && (!gradeId || s.gradeId === gradeId))
+      if (match) {
+        sectionId = match.id
+        sectionObj = match
+      }
+    }
 
-    const filtered = gradeSubjects.filter((gs) => {
-      if (gs.gradeId !== selectedGrade) return false
-      if (isGrade11or12) {
-        return gs.streamId === selectedStream
+    let streamId = a.streamId || (typeof a.stream === "object" ? a.stream?.id : undefined) || ""
+    let streamObj = availableStreams.find((s) => s.id === streamId)
+    let streamName = streamObj?.name || (typeof a.stream === "string" ? a.stream : a.stream?.name) || ""
+
+    const teacherId = a.teacher_id || a.teacher?.id || ""
+    const teacherFromList = teachers.find((t) => t.id === teacherId)
+    // sanitizeName: reject null / undefined / "NaN" / "null" / "undefined" string values from DB
+    const sanitizeName = (v: unknown): string | undefined => {
+      if (v == null) return undefined
+      const s = String(v).trim()
+      if (!s || s === "NaN" || s === "null" || s === "undefined") return undefined
+      return s
+    }
+    const teacherName =
+      sanitizeName(a.teacher?.full_name) ??
+      sanitizeName(a.teacher?.name) ??
+      sanitizeName(teacherFromList?.full_name) ??
+      sanitizeName((teacherFromList as any)?.name) ??
+      "Not Assigned"
+    const teacherEmail = a.teacher?.email || teacherFromList?.email || ""
+    const teacherPhoto = a.teacher?.profile_photo || teacherFromList?.profile_photo || undefined
+
+    let subjectName = a.subjectRef?.name || (typeof a.subject === "string" ? a.subject : "") || ""
+    let subjectId = a.subjectId || a.subjectRef?.id || ""
+    if (!subjectName && subjectId) {
+      const subj = availableSubjects.find((s) => s.id === subjectId)
+      if (subj) subjectName = subj.name
+    }
+    const subjectCode = a.subjectRef?.code || availableSubjects.find((s) => s.id === subjectId)?.code || ""
+
+    return {
+      assignmentId: a.id,
+      gradeId,
+      gradeName,
+      gradeObj,
+      sectionId,
+      sectionName,
+      sectionObj,
+      streamId,
+      streamName,
+      streamObj,
+      teacherId,
+      teacherName,
+      teacherEmail,
+      teacherPhoto,
+      subjectId,
+      subjectName,
+      subjectCode,
+      role: (a.role as AssignmentRole) || "SUBJECT_TEACHER",
+      raw: a,
+    }
+  }, [availableGrades, availableSections, availableStreams, availableSubjects, teachers])
+
+  // Count totals for tabs
+  const homeroomTotalCount = useMemo(() => {
+    return assignments.filter((a) => a.role === "HOMEROOM_TEACHER").length
+  }, [assignments])
+
+  const subjectTotalCount = useMemo(() => {
+    return assignments.filter((a) => a.role === "SUBJECT_TEACHER").length
+  }, [assignments])
+
+  // Helper: Get subjects for a class/section
+  const getSubjectsForSection = useCallback((gradeId: string, streamId: string | null | undefined, sectionId: string) => {
+    const map = new Map<string, any>()
+
+    // 1. From curriculum gradeSubjects
+    const curriculum = gradeSubjects.filter((gs) => {
+      if (gs.gradeId !== gradeId) return false
+      if (streamId) {
+        return !gs.streamId || gs.streamId === streamId
       }
       return true
     })
 
-    const map = new Map<string, any>()
-    for (const gs of filtered) {
-      if (gs.subject && !map.has(gs.subject.id)) {
+    for (const gs of curriculum) {
+      if (gs.subject && gs.subject.id) {
         map.set(gs.subject.id, gs.subject)
+      } else if (gs.subjectId) {
+        const full = availableSubjects.find((s) => s.id === gs.subjectId)
+        if (full) {
+          map.set(full.id, full)
+        } else {
+          map.set(gs.subjectId, { id: gs.subjectId, name: gs.subjectName || "Subject", code: "" })
+        }
       }
     }
 
-    return Array.from(map.values())
-  }, [selectedGrade, selectedStream, isGrade11or12, gradeSubjects])
+    // 2. From existing assignments in this section
+    for (const a of assignments) {
+      if (a.role === "SUBJECT_TEACHER") {
+        const res = resolveAssignmentDetails(a)
+        if (res.gradeId === gradeId && res.sectionId === sectionId && (!streamId || !res.streamId || res.streamId === streamId)) {
+          if (res.subjectId && !map.has(res.subjectId)) {
+            const full = availableSubjects.find((s) => s.id === res.subjectId)
+            if (full) {
+              map.set(full.id, full)
+            } else {
+              map.set(res.subjectId, { id: res.subjectId, name: res.subjectName || "Subject", code: res.subjectCode })
+            }
+          }
+        }
+      }
+    }
 
+    // 3. Fallback: If no curriculum records defined yet, offer available active school subjects so cards are NEVER empty
+    if (map.size === 0 && availableSubjects.length > 0) {
+      for (const s of availableSubjects) {
+        if (s.isActive !== false) {
+          map.set(s.id, s)
+        }
+      }
+    }
 
-  const resetForm = () => {
-    setSelectedTeacher("")
-    setSelectedGrade("")
-    setSelectedSection("")
-    setSelectedStream("")
-    setSelectedSubject("")
-    setSelectedRole("SUBJECT_TEACHER")
-    setTeacherSearchQuery("")
-    setIsTeacherDropdownOpen(false)
-    setIsEditing(false)
-    setEditingAssignmentId(null)
-    setShowSuccess(false)
+    return Array.from(map.values()).sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+  }, [gradeSubjects, availableSubjects, assignments, resolveAssignmentDetails])
+
+  // ─── Direct Assignment Actions ─────────────────────────────────────────────
+
+  // 1. Direct Assign Subject Teacher
+  const handleOpenDirectAssignSubject = (
+    gradeId: string,
+    gradeName: string,
+    streamId: string | undefined,
+    streamName: string | undefined,
+    sectionId: string,
+    sectionName: string,
+    subject: { id: string; name: string; code?: string }
+  ) => {
+    setDirectModal({
+      isOpen: true,
+      mode: "ASSIGN_SUBJECT",
+      gradeId,
+      gradeName,
+      streamId,
+      streamName,
+      sectionId,
+      sectionName,
+      subjectId: subject.id,
+      subjectName: subject.name,
+      subjectCode: subject.code,
+    })
+    setModalSelectedTeacher("")
+    setModalTeacherSearch("")
   }
 
-  const handleAssignTeacher = async () => {
-    if (!selectedTeacher || !selectedGrade || !selectedSection) {
-      notifications.error("Error", "Please select teacher, grade, and section")
+  // 2. Direct Update Subject Teacher
+  const handleOpenDirectUpdateSubject = (
+    gradeId: string,
+    gradeName: string,
+    streamId: string | undefined,
+    streamName: string | undefined,
+    sectionId: string,
+    sectionName: string,
+    subject: { id: string; name: string; code?: string },
+    assignment: TeacherAssignment
+  ) => {
+    const res = resolveAssignmentDetails(assignment)
+    setDirectModal({
+      isOpen: true,
+      mode: "UPDATE_SUBJECT",
+      gradeId,
+      gradeName,
+      streamId,
+      streamName,
+      sectionId,
+      sectionName,
+      subjectId: subject.id,
+      subjectName: subject.name,
+      subjectCode: subject.code,
+      assignmentId: assignment.id,
+      currentTeacherId: res.teacherId,
+      currentTeacherName: res.teacherName,
+      currentTeacherPhoto: res.teacherPhoto,
+      currentTeacherEmail: res.teacherEmail,
+    })
+    setModalSelectedTeacher(res.teacherId)
+    setModalTeacherSearch("")
+  }
+
+  // 3. Direct Assign Homeroom Teacher
+  const handleOpenDirectAssignHomeroom = (
+    gradeId: string,
+    gradeName: string,
+    streamId: string | undefined,
+    streamName: string | undefined,
+    sectionId: string,
+    sectionName: string
+  ) => {
+    setDirectModal({
+      isOpen: true,
+      mode: "ASSIGN_HOMEROOM",
+      gradeId,
+      gradeName,
+      streamId,
+      streamName,
+      sectionId,
+      sectionName,
+    })
+    setModalSelectedTeacher("")
+    setModalTeacherSearch("")
+  }
+
+  // 4. Direct Update Homeroom Teacher
+  const handleOpenDirectUpdateHomeroom = (
+    gradeId: string,
+    gradeName: string,
+    streamId: string | undefined,
+    streamName: string | undefined,
+    sectionId: string,
+    sectionName: string,
+    assignment: TeacherAssignment
+  ) => {
+    const res = resolveAssignmentDetails(assignment)
+    setDirectModal({
+      isOpen: true,
+      mode: "UPDATE_HOMEROOM",
+      gradeId,
+      gradeName,
+      streamId,
+      streamName,
+      sectionId,
+      sectionName,
+      assignmentId: assignment.id,
+      currentTeacherId: res.teacherId,
+      currentTeacherName: res.teacherName,
+      currentTeacherPhoto: res.teacherPhoto,
+      currentTeacherEmail: res.teacherEmail,
+    })
+    setModalSelectedTeacher(res.teacherId)
+    setModalTeacherSearch("")
+  }
+
+  // Submit direct assignment or update
+  const handleSaveDirectTeacher = async () => {
+    if (!modalSelectedTeacher) {
+      notifications.error("Selection Required", "Please select a teacher")
       return
     }
-    if (isGrade11or12 && !selectedStream) {
-      notifications.error("Error", "Stream selection (Natural Science or Social Science) is required for Grades 11 and 12")
-      return
-    }
-    if (selectedRole === "SUBJECT_TEACHER" && !selectedSubject) {
-      notifications.error("Error", "A subject is required for Subject Teacher role")
-      return
-    }
+
     try {
-      setIsAssigning(true)
-      const data = {
-        teacher_id: selectedTeacher,
-        gradeId: selectedGrade,
-        sectionId: selectedSection,
-        streamId: selectedStream || undefined,
-        subjectId: selectedSubject || undefined,
-        role: selectedRole,
-      }
-      if (isEditing && editingAssignmentId) {
-        await db.updateTeacherAssignment(editingAssignmentId, data)
-      } else {
+      setIsSavingDirect(true)
+      const { mode, gradeId, sectionId, streamId, subjectId, assignmentId, subjectName } = directModal
+
+      if (mode === "ASSIGN_SUBJECT") {
         await db.assignTeacherToClass(
-          selectedTeacher, "", undefined,
-          selectedGrade, selectedSection, selectedStream || undefined,
-          selectedRole, selectedSubject || undefined
+          modalSelectedTeacher,
+          "",
+          undefined,
+          gradeId,
+          sectionId,
+          streamId || undefined,
+          "SUBJECT_TEACHER",
+          subjectId || undefined
         )
+        notifications.success("Teacher Assigned", `Assigned teacher to ${subjectName || "subject"}`)
+      } else if (mode === "UPDATE_SUBJECT" && assignmentId) {
+        await db.updateTeacherAssignment(assignmentId, {
+          teacher_id: modalSelectedTeacher,
+          gradeId,
+          sectionId,
+          streamId: streamId || null,
+          subjectId: subjectId || null,
+          role: "SUBJECT_TEACHER",
+        })
+        notifications.success("Teacher Updated", `Updated teacher assignment for ${subjectName || "subject"}`)
+      } else if (mode === "ASSIGN_HOMEROOM") {
+        await db.assignTeacherToClass(
+          modalSelectedTeacher,
+          "",
+          undefined,
+          gradeId,
+          sectionId,
+          streamId || undefined,
+          "HOMEROOM_TEACHER"
+        )
+        notifications.success("Homeroom Assigned", "Assigned homeroom teacher successfully")
+      } else if (mode === "UPDATE_HOMEROOM" && assignmentId) {
+        await db.updateTeacherAssignment(assignmentId, {
+          teacher_id: modalSelectedTeacher,
+          gradeId,
+          sectionId,
+          streamId: streamId || null,
+          role: "HOMEROOM_TEACHER",
+        })
+        notifications.success("Homeroom Updated", "Updated homeroom teacher successfully")
       }
-      setShowSuccess(true)
+
+      setDirectModal((prev) => ({ ...prev, isOpen: false }))
       loadAllData(schoolId, true, true)
-      setTimeout(() => {
-        setShowSuccess(false)
-        setIsDialogOpen(false)
-        resetForm()
-      }, 2000)
     } catch (error: any) {
-      notifications.error("Error", error.message)
-      loadAllData(schoolId, true, true)
+      notifications.error("Action Failed", error.message || "Failed to save teacher assignment")
     } finally {
-      setIsAssigning(false)
+      setIsSavingDirect(false)
     }
   }
 
-  const handleEditAssignment = (a: TeacherAssignment) => {
-    setEditingAssignmentId(a.id)
-    setSelectedTeacher(a.teacher_id)
-    setSelectedGrade(a.gradeId || a.grade?.id || "")
-    setSelectedSection(a.sectionId || a.section?.id || "")
-    setSelectedStream(a.streamId || a.stream?.id || "")
-    setSelectedSubject(a.subjectId || a.subjectRef?.id || "")
-    setSelectedRole((a.role as AssignmentRole) || "SUBJECT_TEACHER")
-    setTeacherSearchQuery("")
-    setIsTeacherDropdownOpen(false)
-    setIsEditing(true)
-    setIsDialogOpen(true)
-  }
-
+  // Remove assignment
   const handleRemoveAssignment = async (assignmentId: string) => {
-    if (!window.confirm("Are you sure you want to remove this assignment?")) return
+    if (!window.confirm("Are you sure you want to remove this teacher assignment?")) return
     try {
       setDeletingId(assignmentId)
       setAssignments((prev) => prev.filter((a) => a.id !== assignmentId))
@@ -317,532 +581,1149 @@ export function TeacherAssignmentManagement() {
       notifications.success("Removed", "Teacher assignment removed.")
       loadAllData(schoolId, true, true)
     } catch (error: any) {
-      notifications.error("Error", error.message || "Failed to remove assignment")
+      notifications.error("Removal Failed", error.message || "Failed to remove assignment")
       loadAllData(schoolId, true, true)
     } finally {
       setDeletingId(null)
     }
   }
 
+  // Filter teachers for modal
+  const filteredModalTeachers = useMemo(() => {
+    if (!modalTeacherSearch.trim()) return teachers
+    const q = modalTeacherSearch.toLowerCase().trim()
+    return teachers.filter((t) => {
+      const name = (t.full_name || (t as any).name || "").toLowerCase()
+      const email = (t.email || "").toLowerCase()
+      return name.includes(q) || email.includes(q)
+    })
+  }, [teachers, modalTeacherSearch])
+
+  // ─── Build the Display Hierarchy ──────────────────────────────────────────
+  // Grade Heading (simple) → Sections as separate, independent clickable cards beneath
+  interface AcademicGroup {
+    heading: string
+    grade: any
+    stream: any | null
+    isGrade11or12: boolean
+    sections: any[]
+  }
+
+  const academicGroups = useMemo<AcademicGroup[]>(() => {
+    const allGradeMap = new Map<string, any>()
+    availableGrades.forEach((g) => allGradeMap.set(g.id, g))
+    assignments.forEach((a) => {
+      const res = resolveAssignmentDetails(a)
+      if (res.gradeId && !allGradeMap.has(res.gradeId)) {
+        allGradeMap.set(res.gradeId, { id: res.gradeId, name: res.gradeName || "Unknown Grade" })
+      }
+    })
+
+    let gradeList = Array.from(allGradeMap.values()).sort(sortGradesNaturally)
+    if (filterGrade !== "ALL") {
+      gradeList = gradeList.filter((g) => g.id === filterGrade)
+    }
+
+    const groups: AcademicGroup[] = []
+
+    gradeList.forEach((grade) => {
+      const is11or12 = isGrade11or12Name(grade.name)
+
+      if (is11or12) {
+        // Grades 11–12: Headings with streams, e.g. "Grade 11 Natural Science"
+        let streamList = [...availableStreams]
+        if (filterStream !== "ALL") {
+          streamList = streamList.filter((s) => s.id === filterStream)
+        }
+
+        streamList.forEach((stream) => {
+          let sections = availableSections.filter((s: any) => s.gradeId === grade.id && s.streamId === stream.id)
+          assignments.forEach((a) => {
+            const res = resolveAssignmentDetails(a)
+            if (res.gradeId === grade.id && res.streamId === stream.id && res.sectionId) {
+              if (!sections.some((s: any) => s.id === res.sectionId)) {
+                sections.push({
+                  id: res.sectionId,
+                  name: res.sectionName || "Section",
+                  gradeId: grade.id,
+                  streamId: stream.id,
+                })
+              }
+            }
+          })
+
+          sections.sort(sortSectionsNaturally)
+
+          groups.push({
+            heading: `${formatGradeLabel(grade.name)} ${stream.name}`,
+            grade,
+            stream,
+            isGrade11or12: true,
+            sections,
+          })
+        })
+
+        // Also check if there are sections without streamId in Grade 11/12
+        if (filterStream === "ALL") {
+          let nonStreamSections = availableSections.filter((s: any) => s.gradeId === grade.id && !s.streamId)
+          if (nonStreamSections.length > 0) {
+            groups.push({
+              heading: formatGradeLabel(grade.name),
+              grade,
+              stream: null,
+              isGrade11or12: true,
+              sections: nonStreamSections.sort(sortSectionsNaturally),
+            })
+          }
+        }
+      } else {
+        // Grades 1–10: Simple heading, e.g. "Grade 10"
+        let sections = availableSections.filter((s: any) => s.gradeId === grade.id)
+        assignments.forEach((a) => {
+          const res = resolveAssignmentDetails(a)
+          if (res.gradeId === grade.id && res.sectionId) {
+            if (!sections.some((s: any) => s.id === res.sectionId)) {
+              sections.push({
+                id: res.sectionId,
+                name: res.sectionName || "Section",
+                gradeId: grade.id,
+                streamId: null,
+              })
+            }
+          }
+        })
+
+        sections.sort(sortSectionsNaturally)
+
+        groups.push({
+          heading: formatGradeLabel(grade.name),
+          grade,
+          stream: null,
+          isGrade11or12: false,
+          sections,
+        })
+      }
+    })
+
+    return groups
+  }, [
+    availableGrades,
+    assignments,
+    filterGrade,
+    availableStreams,
+    filterStream,
+    availableSections,
+    resolveAssignmentDetails,
+  ])
+
+  // Filter groups by text search
+  const filteredGroups = useMemo(() => {
+    if (!filterTeacherOrSection.trim()) return academicGroups
+    const q = filterTeacherOrSection.toLowerCase().trim()
+
+    return academicGroups
+      .map((group) => {
+        const matchesHeading = group.heading.toLowerCase().includes(q)
+        const matchingSections = group.sections.filter((section) => {
+          if (matchesHeading) return true
+          if (section.name.toLowerCase().includes(q)) return true
+
+          if (activeTab === "HOMEROOM") {
+            const hmAssignment = assignments.find((a) => {
+              if (a.role !== "HOMEROOM_TEACHER") return false
+              const res = resolveAssignmentDetails(a)
+              return res.gradeId === group.grade.id && res.sectionId === section.id
+            })
+            if (hmAssignment) {
+              const res = resolveAssignmentDetails(hmAssignment)
+              return res.teacherName.toLowerCase().includes(q) || res.teacherEmail.toLowerCase().includes(q)
+            }
+            return false
+          } else {
+            const subjects = getSubjectsForSection(group.grade.id, group.stream?.id, section.id)
+            return subjects.some((subj) => {
+              if (subj.name.toLowerCase().includes(q) || (subj.code && subj.code.toLowerCase().includes(q))) return true
+              const assign = assignments.find((a) => {
+                if (a.role !== "SUBJECT_TEACHER") return false
+                const res = resolveAssignmentDetails(a)
+                return (
+                  res.gradeId === group.grade.id &&
+                  res.sectionId === section.id &&
+                  (!group.stream?.id || !res.streamId || res.streamId === group.stream.id) &&
+                  (res.subjectId === subj.id || res.subjectName.toLowerCase() === subj.name.toLowerCase())
+                )
+              })
+              if (assign) {
+                const res = resolveAssignmentDetails(assign)
+                return res.teacherName.toLowerCase().includes(q) || res.teacherEmail.toLowerCase().includes(q)
+              }
+              return false
+            })
+          }
+        })
+
+        return { ...group, sections: matchingSections }
+      })
+      .filter((group) => group.sections.length > 0)
+  }, [academicGroups, filterTeacherOrSection, activeTab, assignments, resolveAssignmentDetails, getSubjectsForSection])
+
+  const isFilterActive = filterTeacherOrSection.trim() !== "" || filterGrade !== "ALL" || filterStream !== "ALL"
+
+  const clearAllFilters = () => {
+    setFilterTeacherOrSection("")
+    setFilterGrade("ALL")
+    setFilterStream("ALL")
+  }
+
+  const selectedFilterGradeObj = useMemo(() => {
+    if (filterGrade === "ALL") return null
+    return availableGrades.find((g) => g.id === filterGrade)
+  }, [availableGrades, filterGrade])
+
+  const showFilterStream = !selectedFilterGradeObj || isGrade11or12Name(selectedFilterGradeObj.name)
+
   if (isLoading) return <PageSkeleton variant="cards" />
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW B: DEDICATED FULL-SCREEN SUBJECT LIST SCREEN FOR SELECTED SECTION
+  // ══════════════════════════════════════════════════════════════════════════
+  if (selectedSectionView) {
+    const { gradeId, gradeName, streamId, streamName, sectionId, sectionName } = selectedSectionView
+    const allSubjects = getSubjectsForSection(gradeId, streamId, sectionId)
+
+    // Filter subjects by section search
+    const displayedSubjects = sectionSubjectSearch.trim()
+      ? allSubjects.filter((subj) => {
+          const q = sectionSubjectSearch.toLowerCase().trim()
+          if (subj.name.toLowerCase().includes(q) || (subj.code && subj.code.toLowerCase().includes(q))) return true
+          const assignment = assignments.find((a) => {
+            if (a.role !== "SUBJECT_TEACHER") return false
+            const res = resolveAssignmentDetails(a)
+            return (
+              res.gradeId === gradeId &&
+              res.sectionId === sectionId &&
+              (!streamId || !res.streamId || res.streamId === streamId) &&
+              (res.subjectId === subj.id || res.subjectName.toLowerCase() === subj.name.toLowerCase())
+            )
+          })
+          if (assignment) {
+            const res = resolveAssignmentDetails(assignment)
+            return res.teacherName.toLowerCase().includes(q) || res.teacherEmail.toLowerCase().includes(q)
+          }
+          return false
+        })
+      : allSubjects
+
+    const assignedCount = allSubjects.filter((subj) => {
+      return assignments.some((a) => {
+        if (a.role !== "SUBJECT_TEACHER") return false
+        const res = resolveAssignmentDetails(a)
+        return (
+          res.gradeId === gradeId &&
+          res.sectionId === sectionId &&
+          (!streamId || !res.streamId || res.streamId === streamId) &&
+          (res.subjectId === subj.id || res.subjectName.toLowerCase() === subj.name.toLowerCase())
+        )
+      })
+    }).length
+
+    return (
+      <div className="space-y-6 pb-12 max-w-7xl mx-auto w-full animate-in fade-in-50 duration-200">
+        {/* Navigation & Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div className="space-y-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedSectionView(null)}
+              className="px-2.5 h-8 -ml-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white gap-1.5"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Grades &amp; Sections</span>
+            </Button>
+
+            <div className="flex items-center gap-2.5 flex-wrap pt-1">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                {formatGradeLabel(gradeName)} {streamName ? `– ${streamName}` : ""} – {formatSectionLabel(sectionName)}
+              </h1>
+              <Badge
+                className={cn(
+                  "text-xs font-bold py-0.5 px-2.5 rounded-lg border-0",
+                  assignedCount === allSubjects.length && allSubjects.length > 0
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                    : "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                )}
+              >
+                {assignedCount} / {allSubjects.length} Subjects Assigned
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Manage teacher allocations directly for each subject in this section.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => loadAllData(schoolId, false, true)}
+              variant="outline"
+              size="sm"
+              className="h-9 rounded-xl border-slate-200 dark:border-slate-800 font-bold text-xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Sync
+            </Button>
+          </div>
+        </div>
+
+        {/* Search Bar for this Section's Subjects */}
+        <div className="relative max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={sectionSubjectSearch}
+            onChange={(e) => setSectionSubjectSearch(e.target.value)}
+            placeholder="Search subject or assigned teacher in this section..."
+            className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+          />
+          {sectionSubjectSearch && (
+            <button
+              type="button"
+              onClick={() => setSectionSubjectSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Dedicated Subject Cards Grid */}
+        {displayedSubjects.length === 0 ? (
+          <div className="py-16 text-center bg-slate-50 dark:bg-slate-900/30 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+            <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              {sectionSubjectSearch ? "No subjects match your search" : "No subjects configured for this class"}
+            </p>
+            {sectionSubjectSearch && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSectionSubjectSearch("")}
+                className="mt-3 rounded-xl text-xs font-bold"
+              >
+                Clear Search
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {displayedSubjects.map((subj) => {
+              // Find assignment for this specific subject in this section
+              const assignment = assignments.find((a) => {
+                if (a.role !== "SUBJECT_TEACHER") return false
+                const res = resolveAssignmentDetails(a)
+                return (
+                  res.gradeId === gradeId &&
+                  res.sectionId === sectionId &&
+                  (!streamId || !res.streamId || res.streamId === streamId) &&
+                  (res.subjectId === subj.id || res.subjectName.toLowerCase() === subj.name.toLowerCase())
+                )
+              })
+
+              const res = assignment ? resolveAssignmentDetails(assignment) : null
+              const isAssigned = Boolean(assignment && res?.teacherId && res.teacherName !== "Not Assigned")
+
+              return (
+                <div
+                  key={subj.id}
+                  className={cn(
+                    "p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 shadow-xs",
+                    isAssigned
+                      ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-900"
+                      : "bg-white/70 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
+                  )}
+                >
+                  {/* Top: Subject Name & Status Badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                        <h5 className="text-sm font-black text-slate-900 dark:text-slate-100 truncate">
+                          {subj.name}
+                        </h5>
+                      </div>
+                      {subj.code && (
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
+                          {subj.code}
+                        </span>
+                      )}
+                    </div>
+
+                    {isAssigned ? (
+                      <Badge className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold py-0.5 px-2 rounded-lg shrink-0">
+                        Assigned
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 text-[10px] font-bold py-0.5 px-2 rounded-lg shrink-0"
+                      >
+                        Not Assigned
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Middle: Assigned Teacher Info & Profile Photo */}
+                  <div className="flex items-center gap-3 py-1 min-h-[48px]">
+                    {isAssigned && res ? (
+                      <>
+                        {res.teacherPhoto ? (
+                          <img
+                            src={res.teacherPhoto}
+                            alt={res.teacherName}
+                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0 shadow-sm"
+                          />
+                        ) : (
+                          <div
+                            className={cn(
+                              "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-xs font-black shadow-inner shrink-0",
+                              getAvatarGradient(res.teacherId)
+                            )}
+                          >
+                            {getInitials(res.teacherName)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                            Assigned Teacher
+                          </p>
+                          <p className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 truncate">
+                            {res.teacherName}
+                          </p>
+                          {res.teacherEmail && (
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                              {res.teacherEmail}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
+                          <Users className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                            Assigned Teacher
+                          </p>
+                          <p className="text-xs font-semibold text-slate-400 italic">
+                            Not Assigned
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Bottom: Direct Actions */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-2">
+                    {isAssigned && assignment ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleOpenDirectUpdateSubject(
+                              gradeId,
+                              gradeName,
+                              streamId,
+                              streamName,
+                              sectionId,
+                              sectionName,
+                              subj,
+                              assignment
+                            )
+                          }
+                          className="flex-1 h-8 rounded-xl text-xs font-bold border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                        >
+                          <Pencil className="w-3 h-3 mr-1.5" />
+                          Update Teacher
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveAssignment(assignment.id)}
+                          disabled={deletingId === assignment.id}
+                          className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                          title="Remove assignment"
+                        >
+                          {deletingId === assignment.id ? <Spinner size="sm" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          handleOpenDirectAssignSubject(
+                            gradeId,
+                            gradeName,
+                            streamId,
+                            streamName,
+                            sectionId,
+                            sectionName,
+                            subj
+                          )
+                        }
+                        className="w-full h-8 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1.5" />
+                        Assign Teacher
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Direct Modal */}
+        {renderDirectModal()}
+      </div>
+    )
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW A: MAIN GRADE HEADINGS + SECTIONS AS SEPARATE INDEPENDENT CARDS
+  // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto w-full">
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1 pt-safe">
+      {/* ─── Top Header ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
         <div>
-          <h1 className="text-lg md:text-xl font-black text-slate-900 dark:text-white uppercase tracking-normal">
-            Assignments
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900/60 text-xs font-semibold uppercase tracking-wider mb-1.5">
+            <GraduationCap className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Academic Structure</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            Teacher Assignment
           </h1>
-          <p className="text-[10px] font-bold text-slate-500/60 dark:text-slate-400/60 uppercase tracking-widest mt-1">
-            Teacher Class & Subject Allocation
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Select a class section below to view and manage its teacher assignments.
           </p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <Button
-            onClick={() => loadAllData(schoolId)}
+            onClick={() => loadAllData(schoolId, false, true)}
             variant="outline"
-            className="flex-1 md:flex-none h-11 rounded-2xl border-slate-200 dark:border-slate-800 font-black text-[10px] uppercase tracking-widest"
+            size="sm"
+            className="h-9 rounded-xl border-slate-200 dark:border-slate-800 font-bold text-xs"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />Sync
-          </Button>
-          <Button
-            onClick={() => { resetForm(); setIsDialogOpen(true) }}
-            className="hidden md:flex h-11 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase tracking-widest px-6 shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4 mr-2" />New Assignment
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Sync
           </Button>
         </div>
       </div>
 
-      {/* Mobile FAB */}
-      <Button
-        onClick={() => { resetForm(); setIsDialogOpen(true) }}
-        className="md:hidden fixed bottom-24 right-6 h-14 w-14 rounded-2xl bg-primary text-white shadow-2xl shadow-primary/40 z-40 flex items-center justify-center active:scale-95 transition-all"
-      >
-        <Plus className="w-7 h-7" />
-      </Button>
+      {/* ─── Main Tabs: Home Room & Subject ──────────────────────────────────── */}
+      <div className="bg-slate-100/90 dark:bg-slate-900/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex gap-2">
+        <button
+          type="button"
+          onClick={() => handleTabChange("HOMEROOM")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all",
+            activeTab === "HOMEROOM"
+              ? "bg-white dark:bg-slate-800 text-violet-700 dark:text-violet-300 shadow-md border border-violet-200/60 dark:border-violet-900/60"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/40"
+          )}
+        >
+          <Home className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+          <span>Home Room</span>
+          <span
+            className={cn(
+              "text-[11px] font-black px-2 py-0.5 rounded-full ml-1",
+              activeTab === "HOMEROOM"
+                ? "bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-300"
+                : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+            )}
+          >
+            {homeroomTotalCount}
+          </span>
+        </button>
 
-      {/* Assignment Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); setShowSuccess(false) } }}>
-        <DialogContent className="sm:max-w-lg bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-2xl p-0 overflow-hidden">
-          {showSuccess ? (
-            <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-500">
-              <DialogTitle className="sr-only">Assignment Successful</DialogTitle>
-              <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-bounce mb-5">
-                <CheckCircle2 className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-lg font-black text-emerald-700 dark:text-emerald-400">Assignment Successful!</h2>
-              <p className="text-sm text-slate-500 mt-1">Teacher has been assigned.</p>
+        <button
+          type="button"
+          onClick={() => handleTabChange("SUBJECT")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all",
+            activeTab === "SUBJECT"
+              ? "bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 shadow-md border border-blue-200/60 dark:border-blue-900/60"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/40"
+          )}
+        >
+          <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <span>Subject</span>
+          <span
+            className={cn(
+              "text-[11px] font-black px-2 py-0.5 rounded-full ml-1",
+              activeTab === "SUBJECT"
+                ? "bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300"
+                : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+            )}
+          >
+            {subjectTotalCount}
+          </span>
+        </button>
+      </div>
+
+      {/* ─── Search & Filters Bar (No expand/collapse!) ───────────────────────── */}
+      <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md shadow-sm overflow-hidden">
+        <CardContent className="p-3.5 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Search by teacher or section */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={filterTeacherOrSection}
+                onChange={(e) => setFilterTeacherOrSection(e.target.value)}
+                placeholder="Search teacher, section, or subject..."
+                className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+              />
+              {filterTeacherOrSection && (
+                <button
+                  type="button"
+                  onClick={() => setFilterTeacherOrSection("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          ) : (
-            <>
-              <DialogHeader className="bg-gradient-to-r from-blue-50/60 to-indigo-50/20 dark:from-slate-800/60 dark:to-slate-900/20 border-b border-slate-100 dark:border-slate-800/50 px-6 py-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600/10 dark:bg-blue-400/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                    <Plus className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <DialogTitle className="text-sm font-black text-slate-900 dark:text-white">
-                      {isEditing ? "Edit Assignment" : "New Assignment"}
-                    </DialogTitle>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {isEditing ? "Modify assignment details" : "Assign a teacher to a class/subject"}
-                    </p>
-                  </div>
-                </div>
-              </DialogHeader>
 
-              <div className="px-6 py-6 space-y-5 max-h-[70vh] overflow-y-auto">
-                {/* Role Selector */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Assignment Role <span className="text-red-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["SUBJECT_TEACHER", "HOMEROOM_TEACHER"] as AssignmentRole[]).map((role) => (
-                      <button
-                        key={role}
-                        type="button"
-                        onClick={() => setSelectedRole(role)}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all",
-                          selectedRole === role
-                            ? role === "HOMEROOM_TEACHER"
-                              ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 text-violet-700 dark:text-violet-300"
-                              : "bg-blue-50 dark:bg-blue-950/30 border-blue-400 text-blue-700 dark:text-blue-300"
-                            : "border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-300 bg-white/50 dark:bg-slate-900/50"
-                        )}
+            {/* Filter by Grade */}
+            <div>
+              <select
+                value={filterGrade}
+                onChange={(e) => {
+                  setFilterGrade(e.target.value)
+                  if (e.target.value !== "ALL") {
+                    const grp = availableGrades.find((g) => g.id === e.target.value)
+                    if (grp && !isGrade11or12Name(grp.name)) {
+                      setFilterStream("ALL")
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="ALL">All Grades</option>
+                {availableGrades.slice().sort(sortGradesNaturally).map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {formatGradeLabel(g.name)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter by Stream */}
+            {showFilterStream ? (
+              <div>
+                <select
+                  value={filterStream}
+                  onChange={(e) => setFilterStream(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="ALL">All Streams (Grades 11 &amp; 12)</option>
+                  {availableStreams.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} Stream
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-slate-400 flex items-center font-medium">
+                Standard Track (Grades 1–10)
+              </div>
+            )}
+          </div>
+
+          {isFilterActive && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-semibold">
+                Filters active ({filteredGroups.reduce((acc, g) => acc + g.sections.length, 0)} sections found)
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="h-6 px-2 text-[11px] font-bold text-slate-500 hover:text-slate-900 rounded-lg"
+              >
+                <X className="w-3 h-3 mr-1" />
+                Reset Filters
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── Grades as Headings + Sections as Independent Clickable Cards ─────── */}
+      {filteredGroups.length === 0 ? (
+        <div className="py-20 text-center bg-slate-50 dark:bg-slate-900/30 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+          <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+            {isFilterActive ? "No classes match your search/filters" : "No classes or sections configured yet"}
+          </p>
+          {isFilterActive && (
+            <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-4 rounded-xl text-xs font-bold">
+              Clear All Filters
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {filteredGroups.map((group, groupIdx) => (
+            <div key={`${group.grade.id}-${group.stream?.id || "none"}-${groupIdx}`} className="space-y-3.5">
+              {/* 2. Grades as Headings (e.g. Grade 10, Grade 11 Natural Science) - NOT A CARD! */}
+              <div className="flex items-center gap-2.5 pb-1">
+                <div className="w-2 h-5 rounded-full bg-blue-600 dark:bg-blue-400" />
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                  {group.heading}
+                </h3>
+                <Badge
+                  variant="outline"
+                  className="text-[11px] font-bold rounded-lg border-slate-200 dark:border-slate-800 text-slate-500"
+                >
+                  {group.sections.length} {group.sections.length === 1 ? "Section" : "Sections"}
+                </Badge>
+              </div>
+
+              {/* 3. Sections as separate, independent clickable cards beneath */}
+              {group.sections.length === 0 ? (
+                <div className="py-4 px-5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+                  No sections configured under {group.heading}.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {group.sections.map((section) => {
+                    // IF HOMEROOM TAB:
+                    if (activeTab === "HOMEROOM") {
+                      const hmAssignment = assignments.find((a) => {
+                        if (a.role !== "HOMEROOM_TEACHER") return false
+                        const res = resolveAssignmentDetails(a)
+                        const isGradeMatch = res.gradeId === group.grade.id ||
+                          (Boolean(res.gradeName && group.grade.name) && res.gradeName.toLowerCase() === group.grade.name.toLowerCase())
+                        const isSectionMatch = res.sectionId === section.id ||
+                          (Boolean(res.sectionName && section.name) && res.sectionName.toLowerCase() === section.name.toLowerCase())
+                        const isStreamMatch = !group.stream?.id || !res.streamId || res.streamId === group.stream.id ||
+                          (Boolean(res.streamName && group.stream.name) && res.streamName.toLowerCase() === group.stream.name.toLowerCase())
+                        return isGradeMatch && isSectionMatch && isStreamMatch
+                      })
+
+                      const res = hmAssignment ? resolveAssignmentDetails(hmAssignment) : null
+                      const isAssigned = Boolean(hmAssignment && res?.teacherId && res.teacherName !== "Not Assigned")
+
+                      return (
+                        <div
+                          key={section.id}
+                          className="p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col justify-between gap-3"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-xl bg-violet-500/10 text-violet-700 dark:text-violet-300 flex items-center justify-center font-black text-xs shrink-0">
+                                {section.name ? section.name.replace(/^section\s+/i, '').trim().slice(0, 2).toUpperCase() : <Home className="w-4 h-4" />}
+                              </div>
+                              <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                                {formatSectionLabel(section.name)}
+                              </h4>
+                            </div>
+
+                            {isAssigned ? (
+                              <Badge className="bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300 text-[9px] font-bold py-0.5 px-2 rounded-md border-0 shrink-0">
+                                Assigned
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-800 text-[9px] font-semibold py-0.5 px-1.5 rounded-md shrink-0"
+                              >
+                                Vacant
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Homeroom Teacher Details */}
+                          <div className="py-1 min-h-[44px] flex items-center gap-2.5">
+                            {isAssigned && res ? (
+                              <>
+                                {res.teacherPhoto ? (
+                                  <img
+                                    src={res.teacherPhoto}
+                                    alt={res.teacherName}
+                                    className="w-9 h-9 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                                  />
+                                ) : (
+                                  <div
+                                    className={cn(
+                                      "w-9 h-9 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-xs font-black shrink-0",
+                                      getAvatarGradient(res.teacherId)
+                                    )}
+                                  >
+                                    {getInitials(res.teacherName)}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">
+                                    {res.teacherName}
+                                  </p>
+                                  {res.teacherEmail && (
+                                    <p className="text-[10px] text-slate-400 truncate">{res.teacherEmail}</p>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <p className="text-xs text-slate-400 italic">No homeroom teacher assigned</p>
+                            )}
+                          </div>
+
+                          {/* Homeroom Action */}
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-2">
+                            {isAssigned && hmAssignment ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleOpenDirectUpdateHomeroom(
+                                      group.grade.id,
+                                      group.grade.name,
+                                      group.stream?.id,
+                                      group.stream?.name,
+                                      section.id,
+                                      section.name,
+                                      hmAssignment
+                                    )
+                                  }
+                                  className="flex-1 h-8 rounded-xl text-xs font-bold border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40"
+                                >
+                                  <Pencil className="w-3 h-3 mr-1" />
+                                  Update
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveAssignment(hmAssignment.id)}
+                                  disabled={deletingId === hmAssignment.id}
+                                  className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                  title="Remove homeroom teacher"
+                                >
+                                  {deletingId === hmAssignment.id ? <Spinner size="sm" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  handleOpenDirectAssignHomeroom(
+                                    group.grade.id,
+                                    group.grade.name,
+                                    group.stream?.id,
+                                    group.stream?.name,
+                                    section.id,
+                                    section.name
+                                  )
+                                }
+                                className="w-full h-8 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white shadow-sm"
+                              >
+                                <Plus className="w-3.5 h-3.5 mr-1" />
+                                Assign Homeroom
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // IF SUBJECT TAB:
+                    // Separate, independent clickable card!
+                    // Clicking this section card opens the dedicated full-screen subject list screen!
+                    const subjects = getSubjectsForSection(group.grade.id, group.stream?.id, section.id)
+                    const assignedCount = subjects.filter((subj) => {
+                      return assignments.some((a) => {
+                        if (a.role !== "SUBJECT_TEACHER") return false
+                        const res = resolveAssignmentDetails(a)
+                        return (
+                          res.gradeId === group.grade.id &&
+                          res.sectionId === section.id &&
+                          (!group.stream?.id || !res.streamId || res.streamId === group.stream.id) &&
+                          (res.subjectId === subj.id || res.subjectName.toLowerCase() === subj.name.toLowerCase())
+                        )
+                      })
+                    }).length
+
+                    const isFullyAssigned = assignedCount === subjects.length && subjects.length > 0
+
+                    return (
+                      <div
+                        key={section.id}
+                        role="button"
+                        onClick={() =>
+                          setSelectedSectionView({
+                            gradeId: group.grade.id,
+                            gradeName: group.grade.name,
+                            streamId: group.stream?.id,
+                            streamName: group.stream?.name,
+                            sectionId: section.id,
+                            sectionName: section.name,
+                          })
+                        }
+                        className="group p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-500/50 hover:shadow-md cursor-pointer transition-all flex flex-col justify-between gap-3 text-left"
                       >
-                        {role === "HOMEROOM_TEACHER" ? <Home className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
-                        {role === "HOMEROOM_TEACHER" ? "Homeroom Teacher" : "Subject Teacher"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-xs shrink-0 group-hover:scale-105 transition-transform">
+                              {section.name.trim().slice(0, 2).toUpperCase()}
+                            </div>
+                            <h4 className="text-sm font-black text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors whitespace-nowrap">
+                              {formatSectionLabel(section.name)}
+                            </h4>
+                          </div>
 
-                {/* Teacher Selector */}
-                <div className="space-y-2 relative" ref={teacherDropdownRef}>
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Teacher <span className="text-red-500">*</span>
-                    </label>
-                    {currentTeacher && (
-                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold truncate max-w-[200px]">
-                        {currentTeacher.email}
+                          <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-950/50 group-hover:text-blue-600 transition-colors shrink-0">
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-500 font-medium">Subjects Allocation</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                              {assignedCount} / {subjects.length}
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                isFullyAssigned ? "bg-emerald-500" : "bg-blue-600"
+                              )}
+                              style={{
+                                width: `${subjects.length > 0 ? (assignedCount / subjects.length) * 100 : 0}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px] font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-0.5 transition-transform">
+                          <span>View Subjects</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Direct Modal */}
+      {renderDirectModal()}
+    </div>
+  )
+
+  // ─── Direct Teacher Selection Dialog Helper ────────────────────────────────
+  function renderDirectModal() {
+    return (
+      <Dialog
+        open={directModal.isOpen}
+        onOpenChange={(open) => {
+          if (!open) setDirectModal((prev) => ({ ...prev, isOpen: false }))
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-0 overflow-hidden">
+          <DialogHeader className="p-5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black text-slate-900 dark:text-white">
+                  {directModal.mode === "ASSIGN_SUBJECT" && "Assign Subject Teacher"}
+                  {directModal.mode === "UPDATE_SUBJECT" && "Update Subject Teacher"}
+                  {directModal.mode === "ASSIGN_HOMEROOM" && "Assign Homeroom Teacher"}
+                  {directModal.mode === "UPDATE_HOMEROOM" && "Update Homeroom Teacher"}
+                </DialogTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Select teacher to assign directly to this class.
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-5 space-y-4">
+            {/* Academic Context Badges (Pre-locked context) */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Academic Context
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="outline" className="font-bold text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                  {formatGradeLabel(directModal.gradeName)}
+                </Badge>
+                {directModal.streamName && (
+                  <Badge variant="outline" className="font-bold text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800">
+                    {directModal.streamName} Stream
+                  </Badge>
+                )}
+                <Badge variant="outline" className="font-bold text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                  {formatSectionLabel(directModal.sectionName)}
+                </Badge>
+                {directModal.subjectName && (
+                  <Badge className="font-bold text-xs bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-0">
+                    {directModal.subjectName}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* If Updating: Show Current Teacher */}
+            {(directModal.mode === "UPDATE_SUBJECT" || directModal.mode === "UPDATE_HOMEROOM") &&
+              directModal.currentTeacherName && (
+                <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 flex items-center justify-between gap-3 text-xs">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
+                      Currently Assigned
+                    </span>
+                    <span className="font-black text-slate-800 dark:text-slate-100 truncate block">
+                      {directModal.currentTeacherName}
+                    </span>
+                    {directModal.currentTeacherEmail && (
+                      <span className="text-[11px] text-slate-400 truncate block">
+                        {directModal.currentTeacherEmail}
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+
+            {/* Teacher Search Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {directModal.mode.startsWith("UPDATE") ? "Select Replacement Teacher" : "Select Teacher"}
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={modalTeacherSearch}
+                  onChange={(e) => setModalTeacherSearch(e.target.value)}
+                  placeholder="Filter teachers by name or email..."
+                  autoFocus
+                  className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-medium"
+                />
+                {modalTeacherSearch && (
                   <button
                     type="button"
-                    onClick={() => setIsTeacherDropdownOpen((p) => !p)}
-                    className={cn(
-                      "w-full px-3 py-2.5 rounded-xl border text-left flex items-center justify-between transition-all bg-white/70 dark:bg-slate-900/70 text-xs",
-                      isTeacherDropdownOpen
-                        ? "border-blue-500 ring-2 ring-blue-500/20"
-                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
-                      !currentTeacher && "text-slate-400 dark:text-slate-500"
-                    )}
+                    onClick={() => setModalTeacherSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {currentTeacher ? (
-                        <>
-                          <div className={cn("w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-[11px] font-black shrink-0", getAvatarGradient(currentTeacher.id))}>
-                            {getInitials(currentTeacher.full_name)}
-                          </div>
-                          <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{currentTeacher.full_name}</p>
-                        </>
-                      ) : (
-                        <>
-                          <Search className="w-4 h-4 text-slate-400 shrink-0" />
-                          <span>-- Choose a Teacher --</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      {currentTeacher && (
-                        <span role="button" onClick={(e) => { e.stopPropagation(); setSelectedTeacher("") }}
-                          className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
-                          <X className="w-3.5 h-3.5" />
-                        </span>
-                      )}
-                      <ChevronDown className={cn("w-4 h-4 text-slate-400 transition-transform", isTeacherDropdownOpen && "rotate-180")} />
-                    </div>
+                    <X className="w-3.5 h-3.5" />
                   </button>
-                  {isTeacherDropdownOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
-                      <div className="p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
-                        <div className="relative">
-                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input type="text" value={teacherSearchQuery} onChange={(e) => setTeacherSearchQuery(e.target.value)}
-                            placeholder="Search teachers..." autoFocus
-                            className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
-                          {teacherSearchQuery && (
-                            <button type="button" onClick={() => setTeacherSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                )}
+              </div>
+            </div>
+
+            {/* Teachers List */}
+            <div className="max-h-56 overflow-y-auto space-y-1 pr-1 border border-slate-100 dark:border-slate-800 rounded-2xl p-1.5">
+              {filteredModalTeachers.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  No teachers found matching "{modalTeacherSearch}"
+                </div>
+              ) : (
+                filteredModalTeachers.map((t) => {
+                  const isSelected = modalSelectedTeacher === t.id
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setModalSelectedTeacher(t.id)}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-xl text-left flex items-center justify-between gap-2.5 text-xs transition-colors",
+                        isSelected
+                          ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-900"
+                          : "hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium border border-transparent"
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {t.profile_photo ? (
+                          <img
+                            src={t.profile_photo}
+                            alt={t.full_name}
+                            className="w-8 h-8 rounded-lg object-cover shrink-0"
+                          />
+                        ) : (
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-xs font-black shrink-0",
+                              getAvatarGradient(t.id)
+                            )}
+                          >
+                            {getInitials(t.full_name)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{t.full_name}</p>
+                          {t.email && (
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                              {t.email}
+                            </p>
                           )}
                         </div>
                       </div>
-                      <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
-                        {filteredTeachers.length > 0 ? filteredTeachers.map((t) => {
-                          const isSelected = selectedTeacher === t.id
-                          return (
-                            <button key={t.id} type="button"
-                              onClick={() => { setSelectedTeacher(t.id); setIsTeacherDropdownOpen(false); setTeacherSearchQuery("") }}
-                              className={cn("w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between gap-2.5 text-xs transition-colors",
-                                isSelected ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold" : "hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium"
-                              )}>
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={cn("w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-[11px] font-black shrink-0", getAvatarGradient(t.id))}>
-                                  {getInitials(t.full_name)}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="truncate font-semibold">{t.full_name}</p>
-                                  {t.email && <p className="text-[10px] text-muted-foreground truncate">{t.email}</p>}
-                                </div>
-                              </div>
-                              {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
-                            </button>
-                          )
-                        }) : (
-                          <div className="py-6 text-center text-xs text-muted-foreground">
-                            {teachers.length === 0 ? "No teachers available" : `No match for "${teacherSearchQuery}"`}
-                          </div>
-                        )}
-                      </div>
-                      <div className="px-3 py-1.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 text-[10px] text-muted-foreground font-medium">
-                        {filteredTeachers.length} teacher{filteredTeachers.length !== 1 ? "s" : ""} found
-                      </div>
-                    </div>
-                  )}
-                </div>
 
-                {/* 1. Grade Selector */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Grade <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedGrade}
-                    onChange={(e) => {
-                      setSelectedGrade(e.target.value)
-                      setSelectedStream("")
-                      setSelectedSection("")
-                      setSelectedSubject("")
-                    }}
-                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
-                  >
-                    <option value="">-- Select Grade --</option>
-                    {availableGrades.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        Grade {g.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 2. Stream (REQUIRED for Grade 11 & 12, not required for other grades) */}
-                {isGrade11or12 ? (
-                  <div className="space-y-2 animate-in fade-in duration-200">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Stream <span className="text-red-500">*</span>
-                      </label>
-                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">
-                        Required for Grade 11 &amp; 12
-                      </span>
-                    </div>
-                    <select
-                      value={selectedStream}
-                      onChange={(e) => {
-                        setSelectedStream(e.target.value)
-                        setSelectedSection("")
-                        setSelectedSubject("")
-                      }}
-                      className={cn(
-                        "text-xs w-full px-3 py-2.5 rounded-xl border bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 transition-all font-medium",
-                        !selectedStream
-                          ? "border-amber-400 focus:ring-amber-500/20"
-                          : "border-slate-200 dark:border-slate-800 focus:ring-blue-500/20"
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
+                          <Check className="w-3 h-3" />
+                        </div>
                       )}
-                    >
-                      <option value="">-- Choose Stream (Natural / Social Science) --</option>
-                      {availableStreams.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} Stream
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : selectedGrade ? (
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
-                    <span>Standard Curriculum (No stream required for Grade {selectedGradeObj?.name})</span>
-                  </div>
-                ) : null}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
 
-                {/* 3. Class / Section */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Class / Section <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedSection}
-                    onChange={(e) => setSelectedSection(e.target.value)}
-                    disabled={!selectedGrade || (isGrade11or12 && !selectedStream)}
-                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 font-medium"
-                  >
-                    <option value="">-- Select Class / Section --</option>
-                    {filteredSectionsForAssignment.map((s: any) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name.toLowerCase().startsWith("section") ? s.name : `Section ${s.name}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 4. Subject (Display ONLY subjects assigned to that specific grade, stream) */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Subject {selectedRole === "SUBJECT_TEACHER" && <span className="text-red-500">*</span>}
-                      {selectedRole === "HOMEROOM_TEACHER" && (
-                        <span className="text-slate-400 font-medium normal-case"> (optional – if teaching a subject)</span>
-                      )}
-                    </label>
-                    {subjectsForSelectedClass.length > 0 && (
-                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-                        {subjectsForSelectedClass.length} assigned subject{subjectsForSelectedClass.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-
-                  <select
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                    disabled={
-                      !selectedGrade ||
-                      (isGrade11or12 && !selectedStream) ||
-                      !selectedSection ||
-                      subjectsForSelectedClass.length === 0
-                    }
-                    className="text-xs w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 font-medium"
-                  >
-                    {!selectedGrade ? (
-                      <option value="">-- Select Grade First --</option>
-                    ) : isGrade11or12 && !selectedStream ? (
-                      <option value="">-- Select Stream First --</option>
-                    ) : !selectedSection ? (
-                      <option value="">-- Select Section / Class First --</option>
-                    ) : subjectsForSelectedClass.length === 0 ? (
-                      <option value="">-- No Subjects Assigned to this Grade/Stream --</option>
-                    ) : (
-                      <>
-                        <option value="">-- Choose Assigned Subject --</option>
-                        {subjectsForSelectedClass.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.code})
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-
-                  {selectedGrade && (!isGrade11or12 || selectedStream) && selectedSection && subjectsForSelectedClass.length === 0 && (
-                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-300">
-                      ⚠️ No subjects are assigned to this class curriculum yet. Assign subjects to this grade and stream in Academic Structure &gt; Subject Assignment.
-                    </div>
-                  )}
-                </div>
-
-                {/* Preview */}
-                {selectedGrade && selectedSection && (
-                  <div className={cn("p-3 rounded-xl border text-xs font-medium",
-                    selectedRole === "HOMEROOM_TEACHER"
-                      ? "bg-violet-50/60 dark:bg-violet-950/20 border-violet-100 dark:border-violet-900/40 text-violet-700 dark:text-violet-300"
-                      : "bg-blue-50/60 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/40 text-blue-700 dark:text-blue-300"
-                  )}>
-                    <span className="font-black">
-                      {selectedRole === "HOMEROOM_TEACHER" ? "🏠 Homeroom" : "📚 Subject"}:
-                    </span>{" "}
-                    Grade {availableGrades.find((g) => g.id === selectedGrade)?.name}
-                    {selectedStream && ` (${availableStreams.find((s) => s.id === selectedStream)?.name})`}
-                    {" — "}Section {availableSections.find((s) => s.id === selectedSection)?.name}
-                    {selectedSubject && ` — ${subjectsForSelectedClass.find((s) => s.id === selectedSubject)?.name || availableSubjects.find((s) => s.id === selectedSubject)?.name}`}
-                  </div>
-                )}
-
-
-                {/* Actions */}
-                <div className="flex justify-end gap-3 pt-1 border-t border-slate-100 dark:border-slate-800/50">
-                  <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="rounded-xl">Cancel</Button>
-                  <Button
-                    onClick={handleAssignTeacher}
-                    disabled={isAssigning || !selectedTeacher || !selectedGrade || !selectedSection || (selectedRole === "SUBJECT_TEACHER" && !selectedSubject)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md px-6 min-w-[140px] flex items-center justify-center"
-                  >
-                    {isAssigning ? <Spinner size="sm" className="text-white" /> : (
-                      <><Plus className="w-4 h-4 mr-2" />{isEditing ? "Update" : "Assign"}</>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
+          <DialogFooter className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDirectModal((prev) => ({ ...prev, isOpen: false }))}
+              disabled={isSavingDirect}
+              className="rounded-xl text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveDirectTeacher}
+              disabled={!modalSelectedTeacher || isSavingDirect}
+              className="rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            >
+              {isSavingDirect ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Saving...
+                </>
+              ) : directModal.mode.startsWith("UPDATE") ? (
+                "Update Teacher"
+              ) : (
+                "Assign Teacher"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-600" />
-            Assignments ({filteredAssignments.length}{assignmentSearch || filterRole !== "ALL" ? ` of ${assignments.length}` : ""})
-          </h2>
-          {/* Role Filter Pills */}
-          <div className="flex gap-1 ml-2">
-            {(["ALL", "SUBJECT_TEACHER", "HOMEROOM_TEACHER"] as const).map((r) => (
-              <button key={r} onClick={() => setFilterRole(r)}
-                className={cn("text-[9px] font-black uppercase px-2.5 py-1 rounded-full border transition-all",
-                  filterRole === r
-                    ? r === "HOMEROOM_TEACHER"
-                      ? "bg-violet-600 text-white border-violet-600"
-                      : r === "SUBJECT_TEACHER"
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-slate-700 text-white border-slate-700"
-                    : "border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-300"
-                )}>
-                {r === "ALL" ? "All" : r === "SUBJECT_TEACHER" ? "Subject" : "Homeroom"}
-              </button>
-            ))}
-          </div>
-        </div>
-        {assignments.length > 0 && (
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" value={assignmentSearch} onChange={(e) => setAssignmentSearch(e.target.value)}
-              placeholder="Search assignments..."
-              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all" />
-            {assignmentSearch && (
-              <button onClick={() => setAssignmentSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Cards Grid */}
-      {assignments.length === 0 ? (
-        <div className="py-24 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-800 mx-1">
-          <div className="w-20 h-20 bg-background rounded-[28px] shadow-sm flex items-center justify-center mx-auto mb-6">
-            <Users className="w-8 h-8 text-slate-200" />
-          </div>
-          <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No assignments yet</p>
-          <p className="text-xs text-slate-400 mt-1">Use the New Assignment button to get started</p>
-        </div>
-      ) : filteredAssignments.length === 0 ? (
-        <div className="py-16 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[28px] border border-dashed border-slate-200 dark:border-slate-800 mx-1">
-          <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No matches found</p>
-          <Button variant="outline" size="sm" onClick={() => { setAssignmentSearch(""); setFilterRole("ALL") }} className="mt-3 rounded-xl text-xs">
-            Clear Filters
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 px-1 md:px-0">
-          {filteredAssignments.map((assignment) => {
-            const teacherName = assignment.teacher?.full_name || assignment.teacher?.name || "Unknown Teacher"
-            const bgGradient = getAvatarGradient(assignment.teacher?.id || assignment.teacher_id)
-            const resolvedGrade = assignment.grade ?? availableGrades.find((g) => g.id === (assignment.gradeId || assignment.class_id))
-            const resolvedSection = assignment.section ?? availableSections.find((s) => s.id === assignment.sectionId)
-            const gradeName = (resolvedGrade?.name ?? "").replace(/^Grade\s+/i, "").trim()
-            const sectionName = resolvedSection?.name ?? ""
-            const subjectName = assignment.subjectRef?.name ?? assignment.subject ?? ""
-            const isHomeroom = assignment.role === "HOMEROOM_TEACHER"
-            const isDeleting = deletingId === assignment.id
-
-            return (
-              <div key={assignment.id}
-                className={cn("group relative overflow-hidden bg-white dark:bg-slate-900 p-5 rounded-[28px] border shadow-sm hover:shadow-md transition-all min-h-[190px] flex flex-col justify-between",
-                  isHomeroom
-                    ? "border-violet-100 dark:border-violet-900/30"
-                    : "border-slate-100 dark:border-slate-800"
-                )}>
-                {/* Role badge */}
-                <div className="absolute top-4 right-4">
-                  <span className={cn("text-[8px] font-black uppercase px-2 py-0.5 rounded-full border",
-                    isHomeroom
-                      ? "bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-900"
-                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900"
-                  )}>
-                    {isHomeroom ? "Homeroom" : "Subject"}
-                  </span>
-                </div>
-
-                {/* Avatar & Name */}
-                <div className="flex items-center gap-3.5 min-w-0 pr-16">
-                  {assignment.teacher?.profile_photo ? (
-                    <img src={assignment.teacher.profile_photo} alt={teacherName}
-                      className="w-12 h-12 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-sm flex-shrink-0" />
-                  ) : (
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${bgGradient} flex items-center justify-center text-white text-base font-black shadow-inner flex-shrink-0`}>
-                      {getInitials(teacherName)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <h3 title={teacherName} className="text-sm font-black text-slate-900 dark:text-slate-100 leading-snug break-words uppercase tracking-tight line-clamp-2">
-                      {teacherName}
-                    </h3>
-                    <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1.5 truncate">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span className="truncate">
-                        {gradeName ? `Gr. ${gradeName}` : "—"}
-                        {sectionName ? ` — Sec. ${sectionName}` : ""}
-                      </span>
-                    </p>
-                    {subjectName && (
-                      <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1 truncate">
-                        <BookOpen className="w-3 h-3 shrink-0" />
-                        {subjectName}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bottom actions */}
-                <div className="flex items-center justify-between pt-3.5 mt-3.5 border-t border-slate-100 dark:border-slate-800/80">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Stream</span>
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[100px]">
-                      {assignment.stream?.name || "General"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); handleEditAssignment(assignment) }}
-                        className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors"
-                        title="Edit">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); handleRemoveAssignment(assignment.id) }}
-                        disabled={isDeleting}
-                        className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50"
-                        title="Delete">
-                        {isDeleting ? <Spinner size="sm" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900">
-                      Active
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+    )
+  }
 }

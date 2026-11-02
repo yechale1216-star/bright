@@ -19,12 +19,11 @@ import { db } from "@/lib/db/database"
 import { authService } from "@/lib/auth/auth"
 import { notifications } from "@/lib/utils/notifications"
 
-import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock, Sliders, CalendarDays, Network, Clock, UserCheck, ShieldAlert, Cpu, Palette } from "lucide-react"
+import { Check, Calendar, MapPin, ShieldCheck, Navigation, Save, Lock, Sliders, CalendarDays, Clock, UserCheck, ShieldAlert, Cpu, Palette } from "lucide-react"
 import { useCalendar } from "@/lib/context/calendar-context"
 import dynamic from "next/dynamic"
 
 import { AcademicYearManagementTab } from "@/components/school/academic-year-management-tab"
-import { AcademicStructureTab } from "@/components/school/academic-structure-tab"
 import { StaffScheduleSettingsTab } from "@/components/school/staff-schedule-settings-tab"
 import { LifecyclePolicySettings } from "@/components/school/lifecycle-policy-settings"
 import { validateAllScheduleSettings } from "@/lib/utils/schedule-validation"
@@ -288,12 +287,6 @@ export function Settings() {
                 <span>Academic Year</span>
               </span>
             </SelectItem>
-            <SelectItem value="academic_structure" className="text-xs font-bold py-2.5">
-              <span className="flex items-center gap-2">
-                <Network className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Academic Structure</span>
-              </span>
-            </SelectItem>
             <SelectItem value="report_card_design" className="text-xs font-bold py-2.5">
               <span className="flex items-center gap-2">
                 <Palette className="w-4 h-4 text-pink-600 dark:text-pink-400" />
@@ -342,7 +335,6 @@ export function Settings() {
               {[
                 { id: "general", label: "General", desc: "Calendar, Phone & Address", icon: Sliders, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950/40" },
                 { id: "academic_year", label: "Academic Year", desc: "Terms, Semesters & Dates", icon: CalendarDays, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40" },
-                { id: "academic_structure", label: "Academic Structure", desc: "Grades, Sections & Subjects", icon: Network, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
                 { id: "report_card_design", label: "Report Card Design", desc: "Theme, Colors & Radius", icon: Palette, color: "text-pink-600 dark:text-pink-400", bg: "bg-pink-50 dark:bg-pink-950/40" },
                 { id: "staff_schedule", label: "Staff Schedule", desc: "Work Hours, Shifts & Holidays", icon: Clock, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40" },
                 { id: "attendance", label: "Student Rules", desc: "Attendance & Homeroom", icon: UserCheck, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40" },
@@ -387,10 +379,6 @@ export function Settings() {
           <main className="md:col-span-8 lg:col-span-9 space-y-6">
             <TabsContent value="academic_year" className="mt-0 space-y-4">
               <AcademicYearManagementTab />
-            </TabsContent>
-
-            <TabsContent value="academic_structure" className="mt-0 space-y-4">
-              <AcademicStructureTab />
             </TabsContent>
 
             <TabsContent value="report_card_design" className="mt-0 space-y-4">

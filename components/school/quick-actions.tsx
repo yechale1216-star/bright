@@ -76,7 +76,7 @@ export function QuickActions({ onNavigate }: QuickActionsProps) {
     {
       title: "Manage Teachers",
       description: "Assign teachers to classes and subjects",
-      action: () => onNavigate("teacher-assignments"),
+      action: () => onNavigate("academic-structure?tab=teacher_assignments"),
       icon: <UserCog className="w-6 h-6 text-green-600 dark:text-green-500" />,
       color: "bg-green-500/10 hover:bg-green-500/20 border-green-500/30",
     },
