@@ -28,6 +28,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { authService } from "@/lib/auth/auth"
+import { compressImage } from "@/lib/utils/image-compression"
 import { notifications } from "@/lib/utils/notifications"
 import { validatePassword, PASSWORD_REQUIREMENTS } from "@/lib/utils/password-validator"
 import { Input } from "@/components/ui/input"
@@ -41,7 +42,7 @@ import { cn } from "@/lib/utils/utils"
 import { apiUrl } from "@/lib/api-config"
 const API_URL = apiUrl;
 
-const MAX_FILE_SIZE_MB = 2;
+const MAX_FILE_SIZE_MB = 10;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export default function ProfilePage() {
@@ -65,6 +66,7 @@ export default function ProfilePage() {
   const [isDragging, setIsDragging] = useState(false)
   const [isPhotoSaved, setIsPhotoSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const photoFileRef = useRef<File | null>(null)
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("")
@@ -155,7 +157,7 @@ export default function ProfilePage() {
   }
 
   // ─── Photo Processing ─────────────────────────────────────────────────────
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback(async (file: File) => {
     setPhotoError(null)
 
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -168,14 +170,24 @@ export default function ProfilePage() {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string
-      setPhotoPreview(base64)
-      setPhotoBase64(base64)  // mark as changed
+    try {
+      const compressed = await compressImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.85 })
+      setPhotoPreview(compressed.dataUrl)
+      photoFileRef.current = compressed.file
+      setPhotoBase64("pending")  // non-null non-undefined placeholder: signals photo changed
       setIsPhotoSaved(false)
+    } catch {
+      // Fallback to raw FileReader if canvas compression fails
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string
+        setPhotoPreview(base64)
+        photoFileRef.current = file
+        setPhotoBase64("pending")
+        setIsPhotoSaved(false)
+      }
+      reader.readAsDataURL(file)
     }
-    reader.readAsDataURL(file)
   }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,6 +205,7 @@ export default function ProfilePage() {
   }, [processFile])
 
   const handleRemovePhoto = () => {
+    photoFileRef.current = null
     setPhotoPreview(null)
     setPhotoBase64(null)  // null = explicitly remove
     setIsPhotoSaved(false)
@@ -217,7 +230,32 @@ export default function ProfilePage() {
 
       // Only include photo if it changed (photoBase64 !== undefined)
       if (photoBase64 !== undefined) {
-        payload.profile_photo = photoBase64  // base64 string or null
+        if (photoBase64 === null) {
+          // Explicit removal
+          payload.profile_photo = null
+        } else if (photoFileRef.current) {
+          // Upload compressed file to CDN, use returned URL
+          try {
+            const formDataUpload = new FormData()
+            formDataUpload.append("file", photoFileRef.current)
+            const uploadRes = await fetch("/api/upload/student-photo", {
+              method: "POST",
+              body: formDataUpload,
+            })
+            if (uploadRes.ok) {
+              const json = await uploadRes.json()
+              if (json?.url) {
+                payload.profile_photo = json.url
+              } else {
+                payload.profile_photo = photoPreview  // fallback: compressed data URL
+              }
+            } else {
+              payload.profile_photo = photoPreview  // fallback: compressed data URL
+            }
+          } catch {
+            payload.profile_photo = photoPreview  // fallback: compressed data URL
+          }
+        }
       }
 
       const res = await authService.updateParentProfile(user.phone, payload)

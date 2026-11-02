@@ -84,6 +84,7 @@ export default function VerifyReportPage({
   const [data, setData] = useState<VerifiedData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isNotPublished, setIsNotPublished] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -97,6 +98,7 @@ export default function VerifyReportPage({
         setLoading(true);
         setError(null);
         setIsNotPublished(false);
+        setPhotoError(false);
 
         const res = await fetch(`${API_URL}/api/gradebook/verify/${encodeURIComponent(id)}`, {
           cache: 'no-store',
@@ -245,12 +247,13 @@ export default function VerifyReportPage({
             <div className="p-6 sm:p-8 space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-5 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80">
                 <div className="w-16 h-20 rounded-xl bg-slate-200 dark:bg-slate-700 overflow-hidden shrink-0 relative flex items-center justify-center border border-slate-300 dark:border-slate-600">
-                  {data.student.photo ? (
-                    <Image
+                  {data.student.photo && !photoError && !data.student.photo.includes('bright-8uji.onrender.com/uploads/') ? (
+                    <img
                       src={data.student.photo}
                       alt={data.student.fullName}
-                      fill
-                      className="object-cover"
+                      className="w-full h-full object-cover"
+                      onError={() => setPhotoError(true)}
+                      loading="lazy"
                     />
                   ) : (
                     <User className="w-8 h-8 text-slate-400" />

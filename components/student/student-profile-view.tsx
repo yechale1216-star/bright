@@ -164,10 +164,9 @@ export function StudentProfileView() {
     try {
       // 1. Client-side canvas compression: scale to 400x400 square avatar at 0.82 quality (~30-50KB)
       const compressed = await compressImage(file, {
-        maxWidth: 400,
-        maxHeight: 400,
-        quality: 0.82,
-        mimeType: "image/jpeg",
+        maxWidth: 600,
+        maxHeight: 600,
+        quality: 0.85,
       });
 
       // 2. Optimistic local preview
@@ -199,7 +198,13 @@ export function StudentProfileView() {
       // 4. Save photo URL (either CDN public URL or compressed data URL) to profile
       await studentDb.updateProfile({ photo: photoUrl });
       notifications.success("Photo Updated", "Your profile photo has been updated.");
-      await loadProfile();
+      // Optimistic update — avoid flicker from re-fetch race condition
+      setProfile((prev: any) => ({
+        ...prev,
+        photo: photoUrl,
+        basicInfo: { ...(prev?.basicInfo || {}), photo: photoUrl },
+      }));
+      studentDb.getProfile().catch(() => {}); // warm cache in background
     } catch (err: any) {
       notifications.error("Upload Failed", err?.message || "Could not update profile photo.");
       await loadProfile();

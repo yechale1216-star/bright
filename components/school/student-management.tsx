@@ -653,7 +653,7 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
     }
     try {
       // Compress to 400x400 square avatar before storing or uploading
-      const compressed = await compressImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.82 })
+      const compressed = await compressImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.85 })
       setPhotoFile(compressed.file)
       setPhotoPreview(compressed.dataUrl)
     } catch {
@@ -671,14 +671,20 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
 
   const uploadPhotoToServer = async (file: File, oldPhotoUrl?: string | null): Promise<string> => {
     // 0. Ensure image is compressed before uploading (typically ~25KB - 40KB)
+    // Skip re-compression if the file is already a small JPEG (was compressed by handlePhotoSelect)
     let uploadFile = file
     let fallbackDataUrl = ''
-    try {
-      const compressed = await compressImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.82 })
-      uploadFile = compressed.file
-      fallbackDataUrl = compressed.dataUrl
-    } catch {
-      // Proceed with original file if canvas compression fails
+    if (file.type === 'image/jpeg' && file.size < 100 * 1024) {
+      // Already compressed — use as-is to avoid double-compression
+      uploadFile = file
+    } else {
+      try {
+        const compressed = await compressImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.85 })
+        uploadFile = compressed.file
+        fallbackDataUrl = compressed.dataUrl
+      } catch {
+        // Proceed with original file if canvas compression fails
+      }
     }
 
     const fileExt = uploadFile.name.split('.').pop()?.toLowerCase() || 'jpg'
@@ -723,26 +729,8 @@ const isFormGrade11or12 = isGrade11or12Grade(formData.grade);
       console.warn("[student-photo] Direct Supabase upload failed:", supabaseErr)
     }
 
-    // 3. Fallback: Express backend upload route
-    try {
-      const apiUrl = getApiUrl()
-      const formDataUpload = new FormData()
-      formDataUpload.append('file', uploadFile)
-      const token = typeof localStorage !== 'undefined' ? (localStorage.getItem('attendance_token') || localStorage.getItem('auth_token') || '') : ''
-      const res = await fetch(`${apiUrl}/api/upload`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formDataUpload,
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.url) return data.url
-      }
-    } catch (backendErr) {
-      console.warn("[student-photo] Express /api/upload failed:", backendErr)
-    }
-
-    // 4. Guaranteed Safe Fallback: Return optimized lightweight Base64 so photo is never lost!
+    // 3. Guaranteed Safe Fallback: Return optimized lightweight Base64 so photo is never lost!
+    // (Never upload student photos to ephemeral Render local disk /api/upload)
     if (fallbackDataUrl) {
       return fallbackDataUrl
     }

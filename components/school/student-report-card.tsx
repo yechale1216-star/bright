@@ -66,6 +66,63 @@ export function createReportCardTheme(bgColor?: string, textColor?: string) {
 // ============================================================================
 // 1. FRONT PAGE COMPONENT (ገጽ 1: ኦፊሴላዊ የውጤት ካርድ)
 // ============================================================================
+
+// ============================================================================
+// REPORT CARD PHOTO COMPONENT (With Robust Error Recovery)
+// ============================================================================
+function ReportCardPhoto({
+  photo,
+  fullName,
+  theme,
+}: {
+  photo?: string | null;
+  fullName: string;
+  theme: any;
+}) {
+  const [hasError, setHasError] = React.useState(false);
+
+  const isValidUrl =
+    photo &&
+    typeof photo === 'string' &&
+    photo.trim() !== '' &&
+    photo.trim() !== 'null' &&
+    !photo.includes('bright-8uji.onrender.com/uploads/');
+
+  if (!isValidUrl || hasError) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center p-1 text-center select-none w-full h-full"
+        style={{ color: theme.text }}
+      >
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center mb-1 shadow-2xs"
+          style={{ backgroundColor: theme.surfaceAccent }}
+        >
+          <span className="text-xs font-black">
+            {fullName?.trim()?.charAt(0)?.toUpperCase() || 'S'}
+          </span>
+        </div>
+        <span
+          className="text-[9px] font-bold tracking-wider leading-tight"
+          style={{ color: theme.textMuted }}
+        >
+          PHOTO
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={photo}
+      alt={fullName}
+      className="w-full h-full object-cover"
+      onError={() => setHasError(true)}
+      loading="lazy"
+    />
+  );
+}
+
 export function StudentReportCardFront({
   card,
   className = '',
@@ -370,34 +427,11 @@ export function StudentReportCardFront({
                 backgroundColor: theme.surfaceStrong,
               }}
             >
-              {student.photo ? (
-                <Image
-                  src={student.photo}
-                  alt={student.fullName}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div
-                  className="flex flex-col items-center justify-center p-1 text-center"
-                  style={{ color: theme.text }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center mb-1"
-                    style={{ backgroundColor: theme.surfaceAccent }}
-                  >
-                    <span className="text-xs font-bold">
-                      {student.fullName?.charAt(0) || 'S'}
-                    </span>
-                  </div>
-                  <span
-                    className="text-[9px] font-semibold leading-tight"
-                    style={{ color: theme.textMuted }}
-                  >
-                    PHOTO
-                  </span>
-                </div>
-              )}
+              <ReportCardPhoto
+                photo={student.photo}
+                fullName={student.fullName}
+                theme={theme}
+              />
             </div>
           </div>
         </div>

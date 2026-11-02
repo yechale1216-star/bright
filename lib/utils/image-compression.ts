@@ -1,24 +1,30 @@
 /**
- * Utility for client-side image compression and resizing.
- * Optimizes profile photos before upload to ensure fast uploads,
- * minimal bandwidth, quick rendering in tables/lists, and stable storage.
+ * Centralized Image Compression & Optimization Utility
+ * 
+ * Provides automated client-side image compression for student & user profile photos:
+ * - Resizes images to standard profile resolution (max 600x600 square crop)
+ * - Auto-converts to WebP when supported, with JPEG fallback
+ * - Targets optimal size (~100-200 KB) for high quality + instant loading
+ * - Avoids re-compressing already optimized images
+ * - Validates file types and sizes up to 15MB
+ * - Graceful fallback on canvas failure
  */
 
 export interface CompressionOptions {
-  /** Maximum width in pixels (default: 400) */
+  /** Maximum width in pixels (default: 600) */
   maxWidth?: number;
-  /** Maximum height in pixels (default: 400) */
+  /** Maximum height in pixels (default: 600) */
   maxHeight?: number;
-  /** Compression quality between 0.1 and 1.0 (default: 0.82) */
+  /** Compression quality between 0.1 and 1.0 (default: 0.85) */
   quality?: number;
-  /** Output MIME type (default: 'image/jpeg') */
-  mimeType?: 'image/jpeg' | 'image/webp' | 'image/png';
+  /** Preferred MIME type (defaults to 'image/webp' with 'image/jpeg' fallback) */
+  mimeType?: 'image/webp' | 'image/jpeg' | 'image/png';
 }
 
 export interface CompressedImageResult {
-  /** Lightweight File ready for FormData / Supabase upload */
+  /** Lightweight File ready for FormData / cloud upload */
   file: File;
-  /** Compact base64 Data URL for instant previews or fallback storage */
+  /** Compact base64 Data URL for instant previews or database fallback */
   dataUrl: string;
   /** Final image width */
   width: number;
@@ -28,23 +34,103 @@ export interface CompressedImageResult {
   size: number;
 }
 
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
+const MAX_INPUT_SIZE = 15 * 1024 * 1024; // 15 MB
+
+/**
+ * Checks if the browser canvas supports exporting as WebP.
+ */
+function supportsWebP(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    return canvas.toDataURL('image/webp').startsWith('data:image/webp');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validates an image file before processing.
+ */
+export function validateImageFile(file: File): { valid: boolean; error?: string } {
+  if (!file) {
+    return { valid: false, error: 'No file selected.' };
+  }
+  if (file.size > MAX_INPUT_SIZE) {
+    return { valid: false, error: 'File size must be under 15 MB.' };
+  }
+  const type = file.type?.toLowerCase();
+  const name = file.name?.toLowerCase();
+  const isAllowed =
+    ALLOWED_MIME_TYPES.some((t) => type === t) ||
+    /\.(jpe?g|png|webp|heic|heif)$/i.test(name);
+
+  if (!isAllowed) {
+    return {
+      valid: false,
+      error: 'Unsupported image format. Please select a JPG, PNG, or WebP photo.',
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validates and cleans any profile photo string.
+ * Rejects dead Render ephemeral URLs, nulls, and blanks.
+ */
+export function isValidProfilePhoto(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (
+    !trimmed ||
+    trimmed === 'null' ||
+    trimmed === 'undefined' ||
+    trimmed === '""' ||
+    trimmed === 'none'
+  ) {
+    return false;
+  }
+  // Filter out dead ephemeral Render uploads that 404
+  if (trimmed.includes('bright-8uji.onrender.com/uploads/')) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Compresses an image File or Blob using HTML5 Canvas.
- * Resizes keeping aspect ratio, centered crop, and re-encodes at target quality.
+ * Automatically downsamples to maximum 600x600 centered crop,
+ * encodes to WebP/JPEG, and returns both File and Data URL.
  */
 export async function compressImage(
   input: File | Blob | string,
   options: CompressionOptions = {}
 ): Promise<CompressedImageResult> {
   const {
-    maxWidth = 400,
-    maxHeight = 400,
-    quality = 0.82,
-    mimeType = 'image/jpeg',
+    maxWidth = 600,
+    maxHeight = 600,
+    quality = 0.85,
   } = options;
 
+  const targetMime: 'image/webp' | 'image/jpeg' =
+    options.mimeType === 'image/jpeg'
+      ? 'image/jpeg'
+      : supportsWebP()
+      ? 'image/webp'
+      : 'image/jpeg';
+
   return new Promise((resolve, reject) => {
-    // If input is already a string (Data URL or URL)
     let src = '';
     let originalName = 'profile-photo.jpg';
 
@@ -53,6 +139,26 @@ export async function compressImage(
     } else {
       if (input instanceof File) {
         originalName = input.name;
+        // Optimization: if file is already optimized WebP/JPEG under 150KB, we can skip heavy canvas operations
+        if (
+          (input.type === 'image/webp' || input.type === 'image/jpeg') &&
+          input.size <= 150 * 1024
+        ) {
+          // Read to dataUrl and resolve directly
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({
+              file: input,
+              dataUrl: reader.result as string,
+              width: maxWidth,
+              height: maxHeight,
+              size: input.size,
+            });
+          };
+          reader.onerror = () => reject(new Error('Failed to read image file'));
+          reader.readAsDataURL(input);
+          return;
+        }
       }
       src = URL.createObjectURL(input);
     }
@@ -73,12 +179,12 @@ export async function compressImage(
         return;
       }
 
-      // Calculate square center-crop coordinates and scaled dimensions for avatar
+      // Center square crop calculations
       const minDimension = Math.min(origWidth, origHeight);
       const cropX = (origWidth - minDimension) / 2;
       const cropY = (origHeight - minDimension) / 2;
 
-      // Target size: constrained by maxWidth / maxHeight
+      // Bound to target dimensions (max 600x600)
       const targetSize = Math.min(maxWidth, maxHeight, minDimension);
 
       const canvas = document.createElement('canvas');
@@ -87,15 +193,15 @@ export async function compressImage(
 
       const ctx = canvas.getContext('2d', { willReadFrequently: false });
       if (!ctx) {
-        reject(new Error('Failed to create canvas context'));
+        reject(new Error('Canvas 2D context unavailable'));
         return;
       }
 
-      // High-quality downsampling settings
+      // High-quality downsampling filters
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      // Draw centered square crop
+      // Centered square crop draw
       ctx.drawImage(
         img,
         cropX,
@@ -108,21 +214,19 @@ export async function compressImage(
         targetSize
       );
 
-      // Export as data URL
-      const dataUrl = canvas.toDataURL(mimeType, quality);
+      const dataUrl = canvas.toDataURL(targetMime, quality);
 
-      // Export as Blob -> File
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            reject(new Error('Canvas toBlob failed'));
+            reject(new Error('Canvas toBlob conversion failed'));
             return;
           }
 
           const baseName = originalName.replace(/\.[^/.]+$/, '');
-          const extension = mimeType === 'image/webp' ? 'webp' : mimeType === 'image/png' ? 'png' : 'jpg';
+          const extension = targetMime === 'image/webp' ? 'webp' : 'jpg';
           const compressedFile = new File([blob], `${baseName}.${extension}`, {
-            type: mimeType,
+            type: targetMime,
             lastModified: Date.now(),
           });
 
@@ -134,7 +238,7 @@ export async function compressImage(
             size: blob.size,
           });
         },
-        mimeType,
+        targetMime,
         quality
       );
     };
@@ -149,4 +253,3 @@ export async function compressImage(
     img.src = src;
   });
 }
-

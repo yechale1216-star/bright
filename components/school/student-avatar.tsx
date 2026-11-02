@@ -73,8 +73,9 @@ export function StudentAvatar({
   const gradient = getGradient(seed);
   const initials = getInitials(name);
 
-  // Validate photo URL (reject null, empty string, or whitespace)
-  const validPhoto = photo && typeof photo === 'string' && photo.trim() ? photo.trim() : null;
+  // Validate photo URL (reject null, empty string, or dead render.com paths)
+  const isDeadUrl = photo && typeof photo === 'string' && photo.includes('bright-8uji.onrender.com/uploads/');
+  const validPhoto = !isDeadUrl && photo && typeof photo === 'string' && photo.trim() ? photo.trim() : null;
 
   return (
     <Avatar
