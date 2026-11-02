@@ -1574,8 +1574,6 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
                             className="rounded-xl h-8 px-3 border-slate-300 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1 text-xs font-bold">
                             <UserX className="w-3.5 h-3.5" /> Deactivate
                           </Button>
-                        )}
-                      </>
                     );
                   })()}
                 </div>
@@ -1606,9 +1604,6 @@ export function TeacherManagement({ defaultTab = "teachers" }: TeacherManagement
 
           </div>
         </div>
-      )}
-        </>
-      )}
 
       {/* ── Status Change Confirmation Dialog ─────────────────────────────────── */}
       <Dialog open={statusActionType !== null} onOpenChange={(open) => { if (!open) { setStatusActionType(null); setStatusActionTeacher(null); } }}>
