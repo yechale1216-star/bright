@@ -1119,7 +1119,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         </Card>
       </div>
 
-
+      {/* 6. ACADEMIC CHAMPIONS (TOP 3 PERFORMING STUDENTS) */}
+      <div className="pt-2">
+        <TopPerformingStudents />
+      </div>
 
       {/* Action Dialog for Approval/Rejection with Optional Note */}
       <Dialog open={!!selectedRequestForAction} onOpenChange={(open) => !open && setSelectedRequestForAction(null)}>
@@ -1198,9 +1201,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Top 3 Performing Students (Academic Performance Stream) */}
-      <TopPerformingStudents />
     </div>
   )
 }

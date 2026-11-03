@@ -717,8 +717,21 @@ export const gradebookService = {
   async getComprehensiveReportCard(
     studentId: string,
     academicYearId?: string,
-    academicTermId?: string
+    academicTermId?: string,
+    forceRefresh?: boolean
   ): Promise<ComprehensiveReportCardData> {
+    if (!this._comprehensiveRcClientCache) {
+      this._comprehensiveRcClientCache = new Map<string, { data: ComprehensiveReportCardData; expiry: number }>();
+    }
+
+    const cacheKey = `${studentId}:${academicYearId || 'current'}:${academicTermId || 'annual'}`;
+    const now = Date.now();
+    const cached = this._comprehensiveRcClientCache.get(cacheKey);
+
+    if (!forceRefresh && cached && cached.expiry > now) {
+      return cached.data;
+    }
+
     const query = new URLSearchParams();
     query.set('studentId', studentId);
     if (academicYearId) query.set('academicYearId', academicYearId);
@@ -728,6 +741,14 @@ export const gradebookService = {
       `${API_URL}/api/gradebook/report-cards/comprehensive?${query.toString()}`,
       { headers: getAuthHeaders() }
     );
+
+    if (res?.data && this._comprehensiveRcClientCache) {
+      this._comprehensiveRcClientCache.set(cacheKey, {
+        data: res.data,
+        expiry: Date.now() + 2 * 60 * 1000, // 2 minutes client-side cache
+      });
+    }
+
     return res.data;
   },
 
@@ -736,7 +757,20 @@ export const gradebookService = {
     sectionId: string;
     academicYearId?: string;
     academicTermId?: string;
+    forceRefresh?: boolean;
   }): Promise<ComprehensiveReportCardData[]> {
+    if (!this._batchRcClientCache) {
+      this._batchRcClientCache = new Map<string, { data: ComprehensiveReportCardData[]; expiry: number }>();
+    }
+
+    const cacheKey = `${params.gradeId}:${params.sectionId}:${params.academicYearId || 'current'}:${params.academicTermId || 'annual'}`;
+    const now = Date.now();
+    const cached = this._batchRcClientCache.get(cacheKey);
+
+    if (!params.forceRefresh && cached && cached.expiry > now) {
+      return cached.data;
+    }
+
     const query = new URLSearchParams();
     query.set('gradeId', params.gradeId);
     query.set('sectionId', params.sectionId);
@@ -747,7 +781,41 @@ export const gradebookService = {
       `${API_URL}/api/gradebook/report-cards/batch-comprehensive?${query.toString()}`,
       { headers: getAuthHeaders() }
     );
-    return res.data || [];
+
+    const data = res.data || [];
+    if (this._batchRcClientCache) {
+      this._batchRcClientCache.set(cacheKey, {
+        data,
+        expiry: Date.now() + 2 * 60 * 1000, // 2 minutes client-side cache
+      });
+    }
+
+    return data;
+  },
+
+  invalidateReportCardClientCache(studentId?: string, gradeId?: string, sectionId?: string) {
+    if (studentId && this._comprehensiveRcClientCache) {
+      for (const key of this._comprehensiveRcClientCache.keys()) {
+        if (key.startsWith(`${studentId}:`)) {
+          this._comprehensiveRcClientCache.delete(key);
+        }
+      }
+    } else if (!studentId) {
+      this._comprehensiveRcClientCache?.clear();
+    }
+
+    if (gradeId && sectionId && this._batchRcClientCache) {
+      for (const key of this._batchRcClientCache.keys()) {
+        if (key.startsWith(`${gradeId}:${sectionId}:`)) {
+          this._batchRcClientCache.delete(key);
+        }
+      }
+    } else if (!gradeId && !sectionId) {
+      this._batchRcClientCache?.clear();
+    }
+
+    // Invalidate top performers client cache when report cards change
+    this._topPerformersClientCache?.clear();
   },
 
   // Mark Submission & Approval APIs
@@ -1047,6 +1115,8 @@ export const gradebookService = {
     return res.data;
   },
   _topPerformersClientCache: null as Map<string, { data: TopPerformingResponse; expiry: number }> | null,
+  _comprehensiveRcClientCache: null as Map<string, { data: ComprehensiveReportCardData; expiry: number }> | null,
+  _batchRcClientCache: null as Map<string, { data: ComprehensiveReportCardData[]; expiry: number }> | null,
 };
 
 export interface RankedStudent {

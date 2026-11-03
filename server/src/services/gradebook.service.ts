@@ -4,6 +4,7 @@ import prisma from '../config/db';
 import { AssessmentCalculationEngine, StudentAssessmentScore, ConfiguredCategory } from './assessment-calculation.service';
 import { AssessmentPolicyService } from './assessment-policy.service';
 import { evaluateStudentPromotion, findGradeScale } from '../utils/report-card-promotion';
+import { reportCardCache, ReportCardCacheService } from './report-card-cache.service';
 
 export interface GradingScaleInput {
   grade: string;
@@ -56,6 +57,10 @@ export class GradebookService {
    * Ensure default grading scales exist.
    */
   async getGradingScales() {
+    const cacheKey = reportCardCache.getMetadataKey(undefined, 'grading_scales');
+    const cached = reportCardCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
     let scales = await prisma.gradingScale.findMany({
       orderBy: { minScore: 'desc' },
     });
@@ -81,6 +86,7 @@ export class GradebookService {
       });
     }
 
+    reportCardCache.set(cacheKey, scales, ReportCardCacheService.TTL_METADATA, ['meta:grading_scales']);
     return scales;
   }
 
@@ -88,15 +94,21 @@ export class GradebookService {
    * Return all active subjects from the database.
    */
   async ensureSubjects() {
+    const cacheKey = reportCardCache.getMetadataKey(undefined, 'subjects');
+    const cached = reportCardCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
     const subjects = await prisma.subject.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
+
+    reportCardCache.set(cacheKey, subjects, ReportCardCacheService.TTL_METADATA, ['meta:subjects']);
     return subjects;
   }
 
   async createGradingScale(data: GradingScaleInput) {
-    return prisma.gradingScale.create({
+    const res = await prisma.gradingScale.create({
       data: {
         ...data,
         minScore: Number(data.minScore),
@@ -104,10 +116,12 @@ export class GradebookService {
         gpaPoint: data.gpaPoint !== undefined ? Number(data.gpaPoint) : undefined,
       },
     });
+    reportCardCache.invalidateMetadata(undefined, 'grading_scales');
+    return res;
   }
 
   async updateGradingScale(id: string, data: Partial<GradingScaleInput>) {
-    return prisma.gradingScale.update({
+    const res = await prisma.gradingScale.update({
       where: { id },
       data: {
         ...data,
@@ -116,10 +130,14 @@ export class GradebookService {
         gpaPoint: data.gpaPoint !== undefined ? Number(data.gpaPoint) : undefined,
       },
     });
+    reportCardCache.invalidateMetadata(undefined, 'grading_scales');
+    return res;
   }
 
   async deleteGradingScale(id: string) {
-    return prisma.gradingScale.delete({ where: { id } });
+    const res = await prisma.gradingScale.delete({ where: { id } });
+    reportCardCache.invalidateMetadata(undefined, 'grading_scales');
+    return res;
   }
 
   /**
@@ -438,6 +456,18 @@ export class GradebookService {
       const chunkResults = await prisma.$transaction(chunk);
       results.push(...chunkResults);
     }
+
+    if (assessment.sectionId) {
+      reportCardCache.invalidateSection({
+        gradeId: assessment.gradeId,
+        sectionId: assessment.sectionId,
+        academicYearId: assessment.academicYearId,
+        academicTermId: assessment.academicTermId || undefined,
+      });
+    } else {
+      uniqueStudentIds.forEach((sid) => reportCardCache.invalidateStudent(sid));
+    }
+    this.invalidateTopPerformersCache();
 
     return {
       count: results.length,
@@ -958,6 +988,9 @@ export class GradebookService {
       generatedReportCards.push(reportCard);
     }
 
+    reportCardCache.invalidateSection({ gradeId, sectionId, academicYearId, academicTermId });
+    this.invalidateTopPerformersCache();
+
     return {
       count: generatedReportCards.length,
       gradeId,
@@ -1123,7 +1156,7 @@ export class GradebookService {
     const now = new Date();
     const isRepublish = !!existing.publishedAt || existing.status === 'PUBLISHED' || existing.status === 'NEEDS_CORRECTION';
 
-    return prisma.reportCard.update({
+    const updated = await prisma.reportCard.update({
       where: { id },
       data: {
         status: 'PUBLISHED',
@@ -1141,6 +1174,17 @@ export class GradebookService {
         subjectScores: { include: { subject: true } },
       },
     });
+
+    reportCardCache.invalidateStudent(updated.studentId);
+    reportCardCache.invalidateSection({
+      gradeId: updated.gradeId,
+      sectionId: updated.sectionId,
+      academicYearId: updated.academicYearId || undefined,
+      academicTermId: updated.academicTermId || undefined,
+    });
+    this.invalidateTopPerformersCache();
+
+    return updated;
   }
 
   /**
@@ -1218,6 +1262,9 @@ export class GradebookService {
       }
     }
 
+    reportCardCache.invalidateSection({ gradeId, sectionId, academicYearId, academicTermId });
+    this.invalidateTopPerformersCache();
+
     return {
       total: cards.length,
       publishedCount: publishedIds.length,
@@ -1237,6 +1284,15 @@ export class GradebookService {
     academicTermId?: string;
   }) {
     const { gradeId, sectionId, academicYearId, academicTermId } = params;
+
+    const readinessKey = reportCardCache.getReadinessKey({
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId,
+    });
+    const cachedReadiness = reportCardCache.get<any>(readinessKey);
+    if (cachedReadiness) return cachedReadiness;
 
     const requiredSubjects = await this.getRequiredSubjectsForGradeAndSection(
       gradeId,
@@ -1351,7 +1407,7 @@ export class GradebookService {
 
     const isReady = requiredSubjects.length > 0 && approvedCount === requiredSubjects.length;
 
-    return {
+    const overviewResult = {
       gradeId,
       sectionId,
       academicYearId,
@@ -1380,6 +1436,15 @@ export class GradebookService {
         needsCorrectionCount,
       },
     };
+
+    reportCardCache.set(readinessKey, overviewResult, ReportCardCacheService.TTL_READINESS, [
+      `grade:${gradeId}`,
+      `section:${sectionId}`,
+      `year:${academicYearId}`,
+      ...(academicTermId ? [`term:${academicTermId}`] : []),
+    ]);
+
+    return overviewResult;
   }
 
   async isReportCardPublished(studentId: string, academicYearId?: string, academicTermId?: string): Promise<boolean> {
@@ -1509,7 +1574,7 @@ export class GradebookService {
       updateData.publishedAt = new Date();
     }
 
-    return prisma.reportCard.update({
+    const updated = await prisma.reportCard.update({
       where: { id },
       data: updateData,
       include: {
@@ -1521,6 +1586,19 @@ export class GradebookService {
         },
       },
     });
+
+    if (updated?.studentId) {
+      reportCardCache.invalidateStudent(updated.studentId);
+      reportCardCache.invalidateSection({
+        gradeId: updated.gradeId,
+        sectionId: updated.sectionId,
+        academicYearId: updated.academicYearId || undefined,
+        academicTermId: updated.academicTermId || undefined,
+      });
+      this.invalidateTopPerformersCache();
+    }
+
+    return updated;
   }
 
   async bulkUpdateStatus(ids: string[], status: string) {
@@ -1568,6 +1646,14 @@ export class GradebookService {
     academicTermId?: string;
   }) {
     const { studentId, academicYearId, academicTermId } = params;
+
+    const singleCardKey = reportCardCache.getSingleCardKey({
+      studentId,
+      academicYearId,
+      academicTermId,
+    });
+    const cachedCard = reportCardCache.get<any>(singleCardKey);
+    if (cachedCard) return cachedCard;
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
@@ -1733,7 +1819,14 @@ export class GradebookService {
     }
 
     // Resolve School Settings
-    const settings = await prisma.schoolSettings.findUnique({ where: { id: 'singleton' } });
+    const settingsKey = reportCardCache.getMetadataKey(undefined, 'school_settings');
+    let settings = reportCardCache.get<any>(settingsKey);
+    if (!settings) {
+      settings = await prisma.schoolSettings.findUnique({ where: { id: 'singleton' } });
+      if (settings) {
+        reportCardCache.set(settingsKey, settings, ReportCardCacheService.TTL_METADATA, ['meta:school_settings']);
+      }
+    }
     const school = {
       name: settings?.school_name || 'Bright Path School',
       amharicName: 'ብራይት ፓዝ ት/ቤት',
@@ -1780,6 +1873,26 @@ export class GradebookService {
         assessmentType: true,
       },
     });
+
+    // Fetch submission records to enforce that only approved marks are calculated
+    const submissionRecords = await prisma.assessmentSubmissionRecord.findMany({
+      where: {
+        gradeId: effectiveGrade.id,
+        sectionId: effectiveSection.id,
+        ...(targetYear ? { academicYearId: targetYear.id } : {}),
+      },
+      select: {
+        subjectId: true,
+        academicTermId: true,
+        status: true,
+      },
+    });
+
+    const approvedSubmissionSet = new Set(
+      submissionRecords
+        .filter((sr) => sr.status === 'APPROVED' || sr.status === 'PUBLISHED')
+        .map((sr) => `${sr.subjectId}:${sr.academicTermId}`)
+    );
 
     // Attendance record
     const absences = await prisma.attendance.count({
@@ -2006,7 +2119,12 @@ export class GradebookService {
 
     const rawSubjectScoresList = activeSubjects.map((subj) => {
       const scores: Record<string, number | null> = {};
-      const subjAssessments = assessments.filter((a) => a.subjectId === subj.id);
+      const subjAssessments = assessments.filter((a) => {
+        if (a.subjectId !== subj.id) return false;
+        // Strictly only include approved assessment marks in calculations
+        const isApproved = a.status === 'APPROVED' || (a.academicTermId && approvedSubmissionSet.has(`${a.subjectId}:${a.academicTermId}`));
+        return isApproved;
+      });
 
       periods.forEach((period) => {
         // 1. Find matching assessments for this specific period
@@ -2208,7 +2326,7 @@ export class GradebookService {
     const targetRcId = latestRc?.id || student.student_id || student.id;
     const qrVerificationPayload = `https://brightacedemy.vercel.app/verify-report/${targetRcId}`;
 
-    return {
+    const comprehensiveResult = {
       reportCardId,
       issueDate,
       school,
@@ -2276,6 +2394,16 @@ export class GradebookService {
       qrCodeData: qrVerificationPayload,
       status: latestRc?.status || 'GENERATED',
     };
+
+    reportCardCache.set(singleCardKey, comprehensiveResult, ReportCardCacheService.TTL_SINGLE_CARD, [
+      `student:${studentId}`,
+      `grade:${effectiveGrade.id}`,
+      `section:${effectiveSection.id}`,
+      ...(academicYearId ? [`year:${academicYearId}`] : []),
+      ...(academicTermId ? [`term:${academicTermId}`] : []),
+    ]);
+
+    return comprehensiveResult;
   }
 
   /**
@@ -2289,6 +2417,10 @@ export class GradebookService {
   }) {
     const { gradeId, sectionId, academicYearId, academicTermId } = params;
 
+    const batchKey = reportCardCache.getBatchKey({ gradeId, sectionId, academicYearId, academicTermId });
+    const cachedBatch = reportCardCache.get<any[]>(batchKey);
+    if (cachedBatch) return cachedBatch;
+
     const students = await prisma.student.findMany({
       where: {
         gradeId,
@@ -2299,15 +2431,16 @@ export class GradebookService {
       orderBy: { fullName: 'asc' },
     });
 
-    const results = [];
-    for (const s of students) {
-      const card = await this.getComprehensiveReportCardData({
-        studentId: s.id,
-        academicYearId,
-        academicTermId,
-      });
-      results.push(card);
-    }
+    // Run parallel fetches leveraging the single-card cache
+    const results = await Promise.all(
+      students.map((s) =>
+        this.getComprehensiveReportCardData({
+          studentId: s.id,
+          academicYearId,
+          academicTermId,
+        })
+      )
+    );
 
     // Ensure rankings are correctly assigned across the class section
     const totalStudents = results.length;
@@ -2338,6 +2471,13 @@ export class GradebookService {
         });
       }
     }
+
+    reportCardCache.set(batchKey, results, ReportCardCacheService.TTL_BATCH_CARDS, [
+      `grade:${gradeId}`,
+      `section:${sectionId}`,
+      ...(academicYearId ? [`year:${academicYearId}`] : []),
+      ...(academicTermId ? [`term:${academicTermId}`] : []),
+    ]);
 
     return results;
   }
@@ -2805,6 +2945,14 @@ export class GradebookService {
       }
     }
 
+    reportCardCache.invalidateSection({
+      gradeId,
+      sectionId,
+      academicYearId,
+      academicTermId: academicTermId || undefined,
+    });
+    this.invalidateTopPerformersCache();
+
     return {
       count: results.length,
       updatedCount: results.length,
@@ -3095,7 +3243,7 @@ export class GradebookService {
    */
   // In-memory cache for top performing students to eliminate unnecessary DB load
   private topPerformersCache = new Map<string, { data: any; expiry: number }>();
-  private readonly TOP_PERFORMERS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes TTL
+  private readonly TOP_PERFORMERS_CACHE_TTL = 3 * 60 * 1000; // 3 minutes TTL
 
   public invalidateTopPerformersCache() {
     this.topPerformersCache.clear();
@@ -3178,6 +3326,7 @@ export class GradebookService {
             fullName: true,
             profile_photo: true,
             status: true,
+            user: { select: { profile_photo: true } },
           },
         },
         grade: { select: { id: true, name: true } },
@@ -3234,7 +3383,7 @@ export class GradebookService {
           studentId: rc.student.id,
           fullName: rc.student.fullName,
           studentCode: rc.student.student_id,
-          profilePhoto: rc.student.profile_photo || null,
+          profilePhoto: rc.student.profile_photo || (rc.student as any).user?.profile_photo || null,
           gradeId: rc.grade?.id || '',
           gradeName: rc.grade?.name || 'Grade',
           sectionId: rc.section?.id || '',

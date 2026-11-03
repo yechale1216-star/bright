@@ -1340,6 +1340,8 @@ model Assessment {
   @@index([categoryId])
   @@index([teacherId])
   @@index([examId])
+  @@index([academicYearId, academicTermId, gradeId, sectionId])
+  @@index([academicYearId, gradeId, subjectId])
   @@map("assessments")
 }
 
@@ -1363,6 +1365,7 @@ model StudentMark {
   @@unique([assessmentId, studentId])
   @@index([assessmentId])
   @@index([studentId])
+  @@index([studentId, assessmentId])
   @@map("student_marks")
 }
 
@@ -1416,6 +1419,7 @@ model AssessmentSubmissionRecord {
 
   @@unique([academicYearId, academicTermId, gradeId, sectionId, subjectId])
   @@index([gradeId, sectionId, subjectId])
+  @@index([academicYearId, academicTermId, gradeId, sectionId])
   @@map("assessment_submission_records")
 }
 
@@ -1457,6 +1461,8 @@ model ReportCard {
   @@index([academicYearId])
   @@index([academicTermId])
   @@index([gradeId, sectionId])
+  @@index([gradeId, sectionId, academicYearId, academicTermId])
+  @@index([studentId, academicYearId])
   @@map("report_cards")
 }
 

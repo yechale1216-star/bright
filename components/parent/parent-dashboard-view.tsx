@@ -11,7 +11,6 @@ import {
   BookOpen,
   MessageSquare,
   AlertTriangle,
-  Sparkles,
   TrendingUp,
   UserCheck,
   Megaphone,
@@ -209,10 +208,19 @@ export function ParentDashboardView() {
         disciplinePromise,
       ]);
 
-      if (settingsData?.attendanceMode) {
-        setStatsMode(settingsData.attendanceMode === "session_based" ? "session" : "daily");
-      }
-      setAttendance(Array.isArray(attendanceData) ? attendanceData : []);
+      // Determine attendance mode: prefer settings, fall back to auto-detecting from records
+      const normalizedAttendanceData = Array.isArray(attendanceData) ? attendanceData : [];
+      const rawMode = (settingsData?.attendanceMode || "").toLowerCase().replace(/-/g, "_");
+      const isSessionMode =
+        rawMode === "session_based" ||
+        rawMode === "session" ||
+        // Auto-detect: if any record has a named session (morning/afternoon), treat as session-based
+        normalizedAttendanceData.some((r: any) => {
+          const s = (r.session || "").toLowerCase();
+          return s === "morning" || s === "afternoon";
+        });
+      setStatsMode(isSessionMode ? "session" : "daily");
+      setAttendance(normalizedAttendanceData);
       setNotificationsList(Array.isArray(notifsData) ? notifsData : []);
       setReportCard(cardData || null);
       setStudentMarks(Array.isArray(marksData) ? marksData : Array.isArray((marksData as any)?.marks) ? (marksData as any).marks : []);
@@ -264,16 +272,6 @@ export function ParentDashboardView() {
     };
   }, []);
 
-  // Switch student from in-dashboard widget
-  const handleSwitchChild = (student: any) => {
-    setSelectedStudent(student);
-    localStorage.setItem("parent_selected_student_id", student.id);
-    if (student.schoolId || student.school_id) {
-      localStorage.setItem("x-school-id", student.schoolId || student.school_id);
-    }
-    window.dispatchEvent(new Event("studentChanged"));
-  };
-
   const handleRefresh = () => {
     if (selectedStudent?.id) {
       setIsRefreshing(true);
@@ -320,7 +318,7 @@ export function ParentDashboardView() {
     const daily = todayRecords.find((r) => !r.session || r.session === "daily");
 
     return {
-      isSessionBased: statsMode === "session",
+      isSessionBased: statsMode === "session" || !!(morning || afternoon),
       morning: morning?.status,
       afternoon: afternoon?.status,
       daily: daily?.status || morning?.status,
@@ -423,6 +421,7 @@ export function ParentDashboardView() {
   if (isLoading && !selectedStudent) {
     return (
       <div className="w-full space-y-4 sm:space-y-6 animate-pulse">
+        <div className="h-10 w-64 bg-slate-200 dark:bg-slate-800 rounded-xl" />
         <div className="h-28 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
           {[1, 2, 3, 4].map((i) => (
@@ -430,7 +429,7 @@ export function ParentDashboardView() {
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 lg:gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-72 sm:h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
           ))}
         </div>
@@ -440,13 +439,37 @@ export function ParentDashboardView() {
 
   return (
     <div className="w-full space-y-4 sm:space-y-6 animate-in fade-in duration-300">
-      {/* ─── 1. HERO HEADER & CHILD SWITCHER ─────────────────────────────── */}
+      {/* ─── 1. PARENT GREETING HEADER ───────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground tracking-tight">
+            {greeting}, {firstName}
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Welcome to your child&apos;s academic dashboard
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="rounded-2xl h-9 sm:h-10 px-3.5 text-xs font-bold gap-1.5 border-slate-200 dark:border-slate-800 shrink-0"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-purple-600")} />
+            <span>Refresh</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* ─── 2. STUDENT INFORMATION CARD ─────────────────────────────────── */}
       <div className="rounded-3xl p-4 sm:p-6 md:p-8 bg-gradient-to-br from-white via-white to-purple-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-purple-950/20 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
         {/* Decorative backdrop glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-          {/* Welcome greeting & child identity */}
+          {/* Student Profile Info */}
           <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
             <Avatar className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl ring-4 ring-purple-100 dark:ring-purple-900/40 shadow-sm shrink-0">
               {(selectedStudent?.photo || selectedStudent?.profile_photo) && (
@@ -460,19 +483,20 @@ export function ParentDashboardView() {
             </Avatar>
 
             <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {greeting}, {firstName}
-                </span>
-              </div>
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-foreground tracking-tight truncate">
+              <span className="text-[11px] sm:text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
+                Student Profile
+              </span>
+              <h2 className="text-lg sm:text-2xl md:text-3xl font-black text-foreground tracking-tight truncate">
                 {selectedStudent?.fullName || selectedStudent?.name || "Student Dashboard"}
-              </h1>
+              </h2>
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
                 <Badge variant="secondary" className="font-bold text-xs rounded-lg">
-                  Grade {typeof selectedStudent?.grade === "object" ? selectedStudent?.grade?.name : selectedStudent?.grade || "—"}
-                  {selectedStudent?.section ? ` • Sec ${typeof selectedStudent?.section === "object" ? selectedStudent?.section?.name : selectedStudent?.section}` : ""}
+                  {(() => {
+                    const rawGrade = typeof selectedStudent?.grade === "object" ? selectedStudent?.grade?.name : selectedStudent?.grade;
+                    const gradeStr = rawGrade ? (String(rawGrade).trim().toLowerCase().startsWith("grade") ? String(rawGrade).trim() : `Grade ${rawGrade}`) : "—";
+                    const sectionStr = selectedStudent?.section ? ` • Sec ${typeof selectedStudent?.section === "object" ? selectedStudent?.section?.name : selectedStudent?.section}` : "";
+                    return `${gradeStr}${sectionStr}`;
+                  })()}
                 </Badge>
                 {selectedStudent?.student_id && (
                   <Badge variant="outline" className="font-mono text-xs rounded-lg">
@@ -486,20 +510,6 @@ export function ParentDashboardView() {
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Child Switcher Pills & Refresh Action */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="rounded-2xl h-10 px-3.5 text-xs font-bold gap-1.5 border-slate-200 dark:border-slate-800 shrink-0"
-            >
-              <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin text-purple-600")} />
-              <span>Refresh</span>
-            </Button>
           </div>
         </div>
       </div>
@@ -922,181 +932,7 @@ export function ParentDashboardView() {
           </CardContent>
         </Card>
 
-        {/* Card 4: School Announcements */}
-        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
-          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
-            <div className="space-y-1 min-w-0 flex-1">
-              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300 flex items-center justify-center shrink-0">
-                  <Megaphone className="w-4 h-4" />
-                </span>
-                <span className="truncate">School Announcements</span>
-              </CardTitle>
-              <CardDescription className="text-xs line-clamp-1">
-                Recent circulars, event alerts, and official notices
-              </CardDescription>
-            </div>
-
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="text-xs font-bold text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl shrink-0 h-8 px-2.5"
-            >
-              <Link href="/parent/announcements" className="gap-1 flex items-center">
-                <span>All</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-
-          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-3 min-w-0">
-            {notificationsList.length > 0 ? (
-              <div className="space-y-2.5">
-                {notificationsList.slice(0, 3).map((n) => (
-                  <div
-                    key={n.id}
-                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 space-y-1 text-xs min-w-0"
-                  >
-                    <div className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="font-bold text-foreground truncate min-w-0">{n.title}</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {new Date(n.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-                      {n.message}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2 my-auto">
-                <Megaphone className="w-8 h-8 text-slate-400 mx-auto" />
-                <p className="text-xs text-muted-foreground font-medium">
-                  No active school announcements at this time.
-                </p>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground mt-auto">
-              <span>{notificationsList.length} total messages</span>
-              <Link
-                href="/parent/announcements"
-                className="font-bold text-purple-600 hover:underline flex items-center gap-1 ml-auto"
-              >
-                <span>Read Notices</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 5: Recently Shared Learning Materials */}
-        <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
-          <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
-            <div className="space-y-1 min-w-0 flex-1">
-              <CardTitle className="text-sm sm:text-base font-black flex items-center gap-2 min-w-0">
-                <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 flex items-center justify-center shrink-0">
-                  <BookMarked className="w-4 h-4" />
-                </span>
-                <span className="truncate">Shared Learning Materials</span>
-              </CardTitle>
-              <CardDescription className="text-xs line-clamp-1">
-                Lessons, video lectures, and worksheets published by teachers
-              </CardDescription>
-            </div>
-
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl shrink-0 h-8 px-2.5"
-            >
-              <Link href="/parent/materials" className="gap-1 flex items-center">
-                <span>Browse</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-
-          <CardContent className="p-4 sm:p-5 pt-0 sm:pt-0 flex-1 flex flex-col justify-between space-y-3 min-w-0">
-            {materialsList.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                {materialsList.slice(0, 4).map((m) => {
-                  const isVideo = (m.fileType || "").toUpperCase() === "VIDEO";
-                  const { meta } = parseMaterialMeta(m.description);
-                  const thumbUrl = meta.thumbnailUrl || (isVideo ? getYouTubeThumbnailUrl(m.fileUrl) : undefined);
-
-                  return (
-                    <Link
-                      key={m.id}
-                      href="/parent/materials"
-                      className="p-2.5 sm:p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-800 flex items-center justify-between gap-2.5 transition-colors group cursor-pointer min-w-0"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        {thumbUrl ? (
-                          <div className="w-11 h-8 sm:w-12 sm:h-9 rounded-xl overflow-hidden shrink-0 relative bg-slate-200 dark:bg-slate-800 border border-border/50">
-                            <img
-                              src={thumbUrl}
-                              alt={m.title}
-                              className="w-full h-full object-cover"
-                            />
-                            {isVideo && (
-                              <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
-                                <Play className="w-3 h-3 text-white fill-current" />
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div
-                            className={cn(
-                              "w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0",
-                              isVideo
-                                ? "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-300"
-                                : "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300"
-                            )}
-                          >
-                            {isVideo ? <Play className="w-4 h-4 fill-current" /> : <FileText className="w-4 h-4" />}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <h5 className="text-xs font-bold text-foreground truncate group-hover:text-purple-600 transition-colors">
-                            {m.title}
-                          </h5>
-                          <span className="text-[10px] text-muted-foreground uppercase truncate block">
-                            {m.subject?.name || m.fileType || "Resource"}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-purple-600 shrink-0" />
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-4 space-y-2 my-auto">
-                <BookMarked className="w-8 h-8 text-slate-400 mx-auto" />
-                <p className="text-xs text-muted-foreground font-medium">
-                  No learning materials uploaded yet for this class.
-                </p>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground mt-auto">
-              <span>{materialsList.length} total resources</span>
-              <Link
-                href="/parent/materials"
-                className="font-bold text-blue-600 hover:underline flex items-center gap-1 ml-auto"
-              >
-                <span>Explore Library</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 6: Quick Actions Hub */}
+        {/* Card 4: Quick Actions Hub */}
         <Card className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs flex flex-col h-full hover:shadow-md transition-shadow">
           <CardHeader className="p-4 sm:p-5 sm:pb-3 pb-3 flex flex-row items-start justify-between gap-3 min-w-0">
             <div className="space-y-1 min-w-0 flex-1">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   GraduationCap,
   Printer,
@@ -8,7 +8,6 @@ import {
   Calendar,
   Sparkles,
   RefreshCw,
-  User,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -22,41 +21,8 @@ export default function ParentAcademicsPage() {
   const [selectedTerm, setSelectedTerm] = useState<string>('annual');
   const [loading, setLoading] = useState(false);
   const [studentId, setStudentId] = useState<string | null>(null);
-  const [students, setStudents] = useState<any[]>([]);
 
-  useEffect(() => {
-    // 1. Resolve linked students list
-    let list: any[] = [];
-    const storedStudents = localStorage.getItem('parent_students');
-    if (storedStudents) {
-      try {
-        list = JSON.parse(storedStudents);
-        if (Array.isArray(list)) setStudents(list);
-      } catch {}
-    }
-
-    // 2. Resolve selected student
-    let activeId = localStorage.getItem('parent_selected_student_id');
-    if (!activeId && list.length > 0) {
-      activeId = list[0].id;
-      if (activeId) {
-        localStorage.setItem('parent_selected_student_id', activeId);
-      }
-    }
-
-    setStudentId(activeId);
-    if (activeId) {
-      loadCard(activeId, selectedTerm);
-    }
-  }, [selectedTerm]);
-
-  const handleSelectStudent = (id: string) => {
-    setStudentId(id);
-    localStorage.setItem('parent_selected_student_id', id);
-    loadCard(id, selectedTerm);
-  };
-
-  const loadCard = async (sId: string, term: string) => {
+  const loadCard = useCallback(async (sId: string, term: string) => {
     try {
       setLoading(true);
       const card = await gradebookService.getComprehensiveReportCard(
@@ -70,7 +36,43 @@ export default function ParentAcademicsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const refreshActiveStudent = useCallback(() => {
+    const activeId = localStorage.getItem('parent_selected_student_id');
+    if (activeId) {
+      setStudentId(activeId);
+      loadCard(activeId, selectedTerm);
+    } else {
+      const storedStudents = localStorage.getItem('parent_students');
+      if (storedStudents) {
+        try {
+          const list = JSON.parse(storedStudents);
+          if (Array.isArray(list) && list.length > 0 && list[0]?.id) {
+            localStorage.setItem('parent_selected_student_id', list[0].id);
+            setStudentId(list[0].id);
+            loadCard(list[0].id, selectedTerm);
+          }
+        } catch {}
+      }
+    }
+  }, [loadCard, selectedTerm]);
+
+  useEffect(() => {
+    refreshActiveStudent();
+  }, [refreshActiveStudent]);
+
+  // Listen to universal student switcher in parent layout
+  useEffect(() => {
+    const handleStudentChanged = () => {
+      refreshActiveStudent();
+    };
+
+    window.addEventListener('studentChanged', handleStudentChanged);
+    return () => {
+      window.removeEventListener('studentChanged', handleStudentChanged);
+    };
+  }, [refreshActiveStudent]);
 
   const handlePrint = () => {
     window.print();
@@ -99,36 +101,6 @@ export default function ParentAcademicsPage() {
           </Button>
         )}
       </div>
-
-      {/* Child Switcher (Hidden in Print) */}
-      {students.length > 1 && (
-        <div className="flex items-center gap-2 p-2 rounded-2xl bg-muted/40 border border-border print:hidden overflow-x-auto">
-          <span className="text-xs font-bold text-muted-foreground uppercase px-2 flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5" />
-            Child:
-          </span>
-          <div className="flex items-center gap-1.5">
-            {students.map((st) => (
-              <button
-                key={st.id}
-                onClick={() => handleSelectStudent(st.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  studentId === st.id
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'bg-background text-muted-foreground hover:text-foreground border border-border/60'
-                }`}
-              >
-                <span>{st.name || st.fullName}</span>
-                {st.grade && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${studentId === st.id ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                    {st.grade}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Period Switcher (Hidden in Print) */}
       <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-card border border-border print:hidden overflow-x-auto shadow-2xs">

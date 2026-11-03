@@ -62,7 +62,7 @@ export function TopPerformingStudents({
     loadData()
 
     // Real-time synchronization listeners
-    const handleDataChanged = () => loadData(true)
+    const handleDataChanged = () => loadData(true, true)
     window.addEventListener("gradebookDataChanged", handleDataChanged)
     window.addEventListener("studentDataChanged", handleDataChanged)
     window.addEventListener("reportCardsChanged", handleDataChanged)

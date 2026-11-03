@@ -27,6 +27,8 @@ import {
   ChevronRight,
   ArrowUpRight,
   User,
+  Calendar,
+  Lock,
 } from 'lucide-react';
 import {
   gradebookService,
@@ -143,7 +145,7 @@ export default function AdminReportCardsPage() {
 
   const [academicYears, setAcademicYears] = useState<any[]>([]);
   const [selectedYearId, setSelectedYearId] = useState<string>('');
-  const [selectedTermId, setSelectedTermId] = useState<string>('annual');
+  const [selectedTermId, setSelectedTermId] = useState<string>('');
   const [grades, setGrades] = useState<any[]>([]);
   const [streams, setStreams] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
@@ -187,6 +189,7 @@ export default function AdminReportCardsPage() {
 
   // Readiness state
   const [readiness, setReadiness] = useState<ReadinessOverview>(null);
+  const [termsReadinessMap, setTermsReadinessMap] = useState<Record<string, ReadinessOverview>>({});
   const [loadingReadiness, setLoadingReadiness] = useState(false);
   const [readinessPanelOpen, setReadinessPanelOpen] = useState(false);
 
@@ -212,6 +215,27 @@ export default function AdminReportCardsPage() {
   const printSingleRef = useRef<HTMLDivElement>(null);
   const printBatchRef = useRef<HTMLDivElement>(null);
 
+  // Resolve active year object and dynamically configured terms
+  const currentYearObj = useMemo(() => {
+    return academicYears.find((y) => y.id === selectedYearId);
+  }, [academicYears, selectedYearId]);
+
+  const currentTerms = useMemo(() => {
+    return currentYearObj?.terms || [];
+  }, [currentYearObj]);
+
+  // Determine if all required terms have passed readiness checks
+  const isAnnualReady = useMemo(() => {
+    if (!currentTerms || currentTerms.length === 0) return false;
+    return currentTerms.every((term: any) => Boolean(termsReadinessMap[term.id]?.isFullyReady));
+  }, [currentTerms, termsReadinessMap]);
+
+  // List terms that are still incomplete or pending approval
+  const pendingTermsForAnnual = useMemo(() => {
+    if (!currentTerms || currentTerms.length === 0) return [];
+    return currentTerms.filter((term: any) => !termsReadinessMap[term.id]?.isFullyReady);
+  }, [currentTerms, termsReadinessMap]);
+
   useEffect(() => {
     loadMetadata();
   }, []);
@@ -235,7 +259,11 @@ export default function AdminReportCardsPage() {
       if (ayRes?.success && Array.isArray(ayRes.data)) {
         setAcademicYears(ayRes.data);
         const currentYear = ayRes.data.find((y: any) => y.isCurrent) || ayRes.data[0];
-        if (currentYear) setSelectedYearId(currentYear.id);
+        if (currentYear) {
+          setSelectedYearId(currentYear.id);
+          const activeTerm = currentYear.terms?.find((t: any) => t.isCurrent) || currentYear.terms?.[0];
+          if (activeTerm) setSelectedTermId(activeTerm.id);
+        }
       }
 
       if (gradesRes?.success && Array.isArray(gradesRes.data)) {
@@ -285,7 +313,7 @@ export default function AdminReportCardsPage() {
             setSections([]);
             setSelectedSectionId('');
           }
-        } catch {}
+        } catch { }
       };
       fetchSections();
     }
@@ -395,25 +423,137 @@ export default function AdminReportCardsPage() {
     if (!selectedGradeId || !selectedSectionId || !selectedYearId) return;
     try {
       setLoadingReadiness(true);
-      const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
-      const termToUse =
-        selectedTermId !== 'annual'
-          ? selectedTermId
-          : currentYearObj?.terms?.[0]?.id || '';
+      const yearObj = academicYears.find((y) => y.id === selectedYearId);
+      const terms = yearObj?.terms || [];
 
-      const data = await gradebookService.getClassReadinessOverview({
-        gradeId: selectedGradeId,
-        sectionId: selectedSectionId,
-        academicYearId: selectedYearId,
-        academicTermId: termToUse || undefined,
-      });
-      setReadiness(data);
+      if (terms.length > 0) {
+        const results = await Promise.all(
+          terms.map(async (t: any) => {
+            try {
+              const res = await gradebookService.getClassReadinessOverview({
+                gradeId: selectedGradeId,
+                sectionId: selectedSectionId,
+                academicYearId: selectedYearId,
+                academicTermId: t.id,
+              });
+              return { termId: t.id, data: res };
+            } catch {
+              return { termId: t.id, data: null };
+            }
+          })
+        );
+
+        const newMap: Record<string, ReadinessOverview> = {};
+        for (const r of results) {
+          if (r.data) newMap[r.termId] = r.data;
+        }
+        setTermsReadinessMap(newMap);
+
+        const allTermsReady = terms.every((t: any) => Boolean(newMap[t.id]?.isFullyReady));
+
+        if (selectedTermId === 'annual') {
+          if (!allTermsReady) {
+            // Auto switch to active or first term when annual is not ready
+            const fallback = terms.find((t: any) => t.isCurrent) || terms[0];
+            if (fallback) {
+              setSelectedTermId(fallback.id);
+              setReadiness(newMap[fallback.id] || null);
+            }
+          } else {
+            // All terms ready in annual mode - synthesize consolidated annual readiness
+            const totalReady = terms.reduce((acc: number, t: any) => acc + (newMap[t.id]?.reportCardsSummary?.ready || 0), 0);
+            const totalPublished = terms.reduce((acc: number, t: any) => acc + (newMap[t.id]?.reportCardsSummary?.published || 0), 0);
+            const totalDraft = terms.reduce((acc: number, t: any) => acc + (newMap[t.id]?.reportCardsSummary?.draft || 0), 0);
+            const totalCorrection = terms.reduce((acc: number, t: any) => acc + (newMap[t.id]?.reportCardsSummary?.needsCorrection || 0), 0);
+            const totalCards = terms.reduce((acc: number, t: any) => acc + (newMap[t.id]?.reportCardsSummary?.total || 0), 0);
+            const sample = newMap[terms[0].id];
+
+            setReadiness({
+              gradeId: selectedGradeId,
+              sectionId: selectedSectionId,
+              isFullyReady: true,
+              totalRequiredSubjects: sample?.totalRequiredSubjects || 0,
+              approvedSubjectsCount: sample?.approvedSubjectsCount || 0,
+              remainingSubjectsCount: 0,
+              completionPercentage: 100,
+              pendingSubjects: [],
+              subjectStatusList: sample?.subjectStatusList || [],
+              reportCardsSummary: {
+                total: totalCards,
+                ready: totalReady,
+                draft: totalDraft,
+                published: totalPublished,
+                needsCorrection: totalCorrection,
+              },
+            });
+          }
+        } else {
+          setReadiness(newMap[selectedTermId] || null);
+        }
+      } else {
+        const data = await gradebookService.getClassReadinessOverview({
+          gradeId: selectedGradeId,
+          sectionId: selectedSectionId,
+          academicYearId: selectedYearId,
+        });
+        setReadiness(data);
+      }
     } catch {
       setReadiness(null);
     } finally {
       setLoadingReadiness(false);
     }
   }, [selectedGradeId, selectedSectionId, selectedYearId, selectedTermId, academicYears]);
+
+  // Keep term selection in sync with current year's terms and readiness
+  useEffect(() => {
+    if (!currentTerms || currentTerms.length === 0) return;
+    const termExists = currentTerms.some((t: any) => t.id === selectedTermId);
+    if (!termExists && selectedTermId !== 'annual') {
+      const activeTerm = currentTerms.find((t: any) => t.isCurrent) || currentTerms[0];
+      if (activeTerm) {
+        setSelectedTermId(activeTerm.id);
+      }
+    } else if (selectedTermId === 'annual' && !isAnnualReady && Object.keys(termsReadinessMap).length > 0) {
+      const activeTerm = currentTerms.find((t: any) => t.isCurrent) || currentTerms[0];
+      if (activeTerm) {
+        setSelectedTermId(activeTerm.id);
+      }
+    }
+  }, [currentTerms, selectedTermId, isAnnualReady, termsReadinessMap]);
+
+  // Immediately sync readiness when switching terms if already in memory
+  useEffect(() => {
+    if (selectedTermId && selectedTermId !== 'annual' && termsReadinessMap[selectedTermId]) {
+      setReadiness(termsReadinessMap[selectedTermId]);
+    } else if (selectedTermId === 'annual' && isAnnualReady && currentTerms.length > 0) {
+      const totalReady = currentTerms.reduce((acc: number, t: any) => acc + (termsReadinessMap[t.id]?.reportCardsSummary?.ready || 0), 0);
+      const totalPublished = currentTerms.reduce((acc: number, t: any) => acc + (termsReadinessMap[t.id]?.reportCardsSummary?.published || 0), 0);
+      const totalDraft = currentTerms.reduce((acc: number, t: any) => acc + (termsReadinessMap[t.id]?.reportCardsSummary?.draft || 0), 0);
+      const totalCorrection = currentTerms.reduce((acc: number, t: any) => acc + (termsReadinessMap[t.id]?.reportCardsSummary?.needsCorrection || 0), 0);
+      const totalCards = currentTerms.reduce((acc: number, t: any) => acc + (termsReadinessMap[t.id]?.reportCardsSummary?.total || 0), 0);
+      const sample = termsReadinessMap[currentTerms[0].id];
+
+      setReadiness({
+        gradeId: selectedGradeId,
+        sectionId: selectedSectionId,
+        isFullyReady: true,
+        totalRequiredSubjects: sample?.totalRequiredSubjects || 0,
+        approvedSubjectsCount: sample?.approvedSubjectsCount || 0,
+        remainingSubjectsCount: 0,
+        completionPercentage: 100,
+        pendingSubjects: [],
+        subjectStatusList: sample?.subjectStatusList || [],
+        reportCardsSummary: {
+          total: totalCards,
+          ready: totalReady,
+          draft: totalDraft,
+          published: totalPublished,
+          needsCorrection: totalCorrection,
+        },
+      });
+    }
+  }, [selectedTermId, termsReadinessMap, isAnnualReady, currentTerms, selectedGradeId, selectedSectionId]);
 
   const handleGenerate = async () => {
     if (!selectedGradeId || !selectedSectionId || !selectedYearId) {
@@ -484,42 +624,73 @@ export default function AdminReportCardsPage() {
   };
 
   const handleBulkPublish = async () => {
+    const isAnnual = selectedTermId === 'annual';
+    const currentTermObj = currentTerms.find((t: any) => t.id === selectedTermId);
+    const activePeriodLabel = isAnnual ? 'Annual' : currentTermObj?.name || 'Selected Term';
+
     if (!readiness?.isFullyReady) {
       const pending = readiness?.pendingSubjects?.length || 0;
       const msg = pending > 0
-        ? `${pending} subject(s) are not yet approved. All subjects must be approved before publishing.`
-        : 'Not all required subjects are approved yet.';
+        ? `${pending} subject(s) are not yet approved for ${activePeriodLabel}. All subjects must be approved before publishing.`
+        : `Subject approvals are not completed for ${activePeriodLabel}.`;
       notifications.error('Not Ready to Publish', msg);
       return;
     }
 
     const readyCount = readiness?.reportCardsSummary?.ready || 0;
     if (readyCount === 0) {
-      notifications.error('Nothing to Publish', 'No report cards are in READY state. Generate/recalculate first.');
+      notifications.error(
+        'Nothing to Publish',
+        `No report cards are in READY state for ${activePeriodLabel}. Generate/recalculate first.`
+      );
       return;
     }
 
-    if (!confirm(`Publish all ${readyCount} ready report cards to parents? This will make them visible on the parent and student portals.`)) return;
+    const confirmMsg = isAnnual
+      ? `Publish all ${readyCount} ready report cards across all academic terms to parents? This will make the Full Academic Year evaluation visible on the parent and student portals.`
+      : `Publish all ${readyCount} ready report cards for ${activePeriodLabel} to parents? This will make them visible on the parent and student portals.`;
+
+    if (!confirm(confirmMsg)) return;
 
     try {
       setBulkPublishing(true);
-      const currentYearObj = academicYears.find((y) => y.id === selectedYearId);
-      const termToUse =
-        selectedTermId !== 'annual'
-          ? selectedTermId
-          : currentYearObj?.terms?.[0]?.id || '';
+      if (isAnnual && currentTerms.length > 0) {
+        // Bulk publish all terms of the academic year
+        let totalPublished = 0;
+        let totalSkipped = 0;
+        for (const term of currentTerms) {
+          const res = await gradebookService.bulkPublishReportCards({
+            gradeId: selectedGradeId,
+            sectionId: selectedSectionId,
+            academicYearId: selectedYearId,
+            academicTermId: term.id,
+          });
+          totalPublished += res.published || 0;
+          totalSkipped += res.skipped || 0;
+        }
+        notifications.success(
+          'Annual Bulk Publish Complete',
+          `Published ${totalPublished} report cards across all ${currentTerms.length} terms (${totalSkipped} skipped).`
+        );
+      } else {
+        // Bulk publish independently for the selected single term
+        const termToPublish = selectedTermId || currentTerms[0]?.id;
+        if (!termToPublish) {
+          throw new Error('No academic term selected for publishing');
+        }
 
-      const result = await gradebookService.bulkPublishReportCards({
-        gradeId: selectedGradeId,
-        sectionId: selectedSectionId,
-        academicYearId: selectedYearId,
-        academicTermId: termToUse || undefined,
-      });
+        const result = await gradebookService.bulkPublishReportCards({
+          gradeId: selectedGradeId,
+          sectionId: selectedSectionId,
+          academicYearId: selectedYearId,
+          academicTermId: termToPublish,
+        });
 
-      notifications.success(
-        'Bulk Publish Complete',
-        result.message || `Published: ${result.published}, Skipped: ${result.skipped}`
-      );
+        notifications.success(
+          `${activePeriodLabel} Publish Complete`,
+          result.message || `Published: ${result.published}, Skipped: ${result.skipped}`
+        );
+      }
       await loadData();
       await loadReadiness();
     } catch (err: any) {
@@ -603,15 +774,6 @@ export default function AdminReportCardsPage() {
   const handlePrint = () => {
     window.print();
   };
-
-  // Resolve active year object and dynamically configured terms
-  const currentYearObj = useMemo(() => {
-    return academicYears.find((y) => y.id === selectedYearId);
-  }, [academicYears, selectedYearId]);
-
-  const currentTerms = useMemo(() => {
-    return currentYearObj?.terms || [];
-  }, [currentYearObj]);
 
   // Combine report cards and enrolled students into a unified list
   const studentRows = useMemo(() => {
@@ -726,22 +888,22 @@ export default function AdminReportCardsPage() {
       // Latest card for comments / conduct fallback
       const latestCard = dedupedCards.length > 0
         ? dedupedCards.reduce((latest, current) =>
-            new Date(current.createdAt).getTime() > new Date(latest.createdAt).getTime() ? current : latest
-          )
+          new Date(current.createdAt).getTime() > new Date(latest.createdAt).getTime() ? current : latest
+        )
         : null;
 
       // Calculate annual average across all valid term results
       const annualAverage = validTermCards.length > 0
         ? Math.round(
-            (validTermCards.reduce((sum, rc) => sum + rc.averageScore, 0) / validTermCards.length) * 10
-          ) / 10
+          (validTermCards.reduce((sum, rc) => sum + rc.averageScore, 0) / validTermCards.length) * 10
+        ) / 10
         : 0;
 
       // Cumulative total score across valid terms
       const annualTotalScore = validTermCards.length > 0
         ? Math.round(
-            validTermCards.reduce((sum, rc) => sum + (rc.totalScore || 0), 0) * 10
-          ) / 10
+          validTermCards.reduce((sum, rc) => sum + (rc.totalScore || 0), 0) * 10
+        ) / 10
         : 0;
 
       // Total absences across all terms
@@ -782,8 +944,8 @@ export default function AdminReportCardsPage() {
         totalConfiguredTerms > 0
           ? `Annual (${termCount}/${totalConfiguredTerms} Terms)`
           : termCount > 0
-          ? `Annual (${termCount} ${termCount === 1 ? 'Term' : 'Terms'})`
-          : 'Annual / Full Year';
+            ? `Annual (${termCount} ${termCount === 1 ? 'Term' : 'Terms'})`
+            : 'Annual / Full Year';
 
       return {
         id: latestCard?.id || student.id,
@@ -884,40 +1046,8 @@ export default function AdminReportCardsPage() {
           </h1>
         </div>
 
-        {/* Action buttons */}
-        {!isAllSubjectsApproved ? (
-          <div className="flex flex-wrap gap-2">
-            <Link href={getSubmissionsUrl()}>
-              <Button
-                variant="outline"
-                className="gap-2 border-border text-foreground hover:bg-muted justify-center"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                Review Subject Submissions
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              onClick={() => { loadReadiness(); loadData(); }}
-              disabled={loadingReadiness}
-              className="gap-2 border-border text-foreground hover:bg-muted justify-center"
-            >
-              <RefreshCw className={`w-4 h-4 ${loadingReadiness ? 'animate-spin' : ''}`} />
-              Refresh Approval Status
-            </Button>
-            <Link href="/school/admin/settings?tab=report_card_design">
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2 border-border text-foreground hover:bg-muted justify-center"
-                title="Open Report Card Designer in Settings"
-              >
-                <Palette className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-                Customize Design
-              </Button>
-            </Link>
-          </div>
-        ) : (
+        {/* Action buttons (only when approved) */}
+        {isAllSubjectsApproved && (
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={handleGenerate}
@@ -940,15 +1070,24 @@ export default function AdminReportCardsPage() {
             <Button
               onClick={handleBulkPublish}
               disabled={bulkPublishing || !canBulkPublish}
-              className={`flex-1 min-w-[120px] gap-2 justify-center ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
+              className={`flex-1 min-w-[130px] gap-2 justify-center ${canBulkPublish ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-transparent hover:bg-emerald-500/10'}`}
               variant={canBulkPublish ? 'default' : 'outline'}
+              title={
+                selectedTermId === 'annual'
+                  ? 'Publish ready report cards across all academic terms'
+                  : `Publish ready report cards for ${currentTerms.find((t: any) => t.id === selectedTermId)?.name || 'this term'}`
+              }
             >
               {bulkPublishing ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
                 <Send className="w-4 h-4" />
               )}
-              {bulkPublishing ? 'Publishing...' : 'Publish All Ready'}
+              {bulkPublishing
+                ? 'Publishing...'
+                : selectedTermId === 'annual'
+                  ? 'Publish All Ready (Annual)'
+                  : `Publish ${currentTerms.find((t: any) => t.id === selectedTermId)?.name || 'Term'} Ready`}
             </Button>
 
             <Link href="/school/admin/settings?tab=report_card_design">
@@ -966,8 +1105,8 @@ export default function AdminReportCardsPage() {
         )}
       </div>
 
-      {/* Filter Toolbar — Hierarchical: Year → Term → Grade → Stream (if 11/12) → Section */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden min-w-0 ${isSeniorGrade ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
+      {/* Filter Toolbar — Hierarchical: Year → Grade → Stream (if 11/12) → Section */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden min-w-0 ${isSeniorGrade ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-3'}`}>
         <div className="min-w-0">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
             Academic Year
@@ -980,24 +1119,6 @@ export default function AdminReportCardsPage() {
             {academicYears.map((ay) => (
               <option key={ay.id} value={ay.id}>
                 {ay.name} {ay.isCurrent ? '(Active Year)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="min-w-0">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
-            Evaluation Period
-          </label>
-          <select
-            value={selectedTermId}
-            onChange={(e) => setSelectedTermId(e.target.value)}
-            className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring/40"
-          >
-            <option value="annual">★ Full Academic Year (Annual)</option>
-            {currentTerms.map((t: any) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
               </option>
             ))}
           </select>
@@ -1030,11 +1151,10 @@ export default function AdminReportCardsPage() {
             <select
               value={selectedStreamId}
               onChange={(e) => setSelectedStreamId(e.target.value)}
-              className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 bg-background text-foreground transition-colors ${
-                selectedStreamId === 'all'
+              className={`w-full h-10 px-3 rounded-lg border text-sm focus:outline-none focus:ring-2 bg-background text-foreground transition-colors ${selectedStreamId === 'all'
                   ? 'border-amber-400 dark:border-amber-500 focus:ring-amber-500/30'
                   : 'border-input focus:ring-ring/40'
-              }`}
+                }`}
             >
               <option value="all">— Select Stream —</option>
               {availableStreamsForGrade.map((st) => (
@@ -1055,9 +1175,8 @@ export default function AdminReportCardsPage() {
             value={selectedSectionId}
             onChange={(e) => setSelectedSectionId(e.target.value)}
             disabled={isSeniorGrade && selectedStreamId === 'all'}
-            className={`w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 ${
-              isSeniorGrade && selectedStreamId === 'all' ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/40 ${isSeniorGrade && selectedStreamId === 'all' ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
           >
             {isSeniorGrade && selectedStreamId === 'all' ? (
               <option value="">Select a stream first</option>
@@ -1077,7 +1196,126 @@ export default function AdminReportCardsPage() {
         </div>
       </div>
 
-            {/* ============================================================ */}
+      {/* Horizontal Evaluation Period Tabs */}
+      {currentTerms.length > 0 && (
+        <div className="space-y-2.5 p-4 rounded-2xl bg-card border border-border dark:border-white/10 shadow-xs print:hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary shrink-0" />
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Evaluation Period
+              </span>
+              <span className="text-[11px] font-medium text-muted-foreground/70">
+                ({currentTerms.length} Terms configured)
+              </span>
+            </div>
+
+            {/* Quick Status Tag */}
+            <div className="flex items-center gap-1.5">
+              {isAnnualReady ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/25">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Annual Report Cards Ready
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/25">
+                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  Annual Incomplete ({pendingTermsForAnnual.length} {pendingTermsForAnnual.length === 1 ? 'Term' : 'Terms'} Pending)
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Scrollable Horizontal Tab Bar */}
+          <div className="relative">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scroll-smooth no-scrollbar">
+              {currentTerms.map((t: any) => {
+                const isSelected = selectedTermId === t.id;
+                const tReadiness = termsReadinessMap[t.id];
+                const isTermReady = tReadiness?.isFullyReady;
+
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTermId(t.id)}
+                    className={`group shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all border shadow-xs ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
+                        : 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted/70 border-border'
+                    }`}
+                  >
+                    <span>{t.name}</span>
+                    {t.isCurrent && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                          isSelected
+                            ? 'bg-primary-foreground/20 text-primary-foreground'
+                            : 'bg-primary/10 text-primary'
+                        }`}
+                      >
+                        Active
+                      </span>
+                    )}
+                    {tReadiness && (
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          isTermReady ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                        title={isTermReady ? `${t.name}: All Subjects Approved` : `${t.name}: Approvals Pending`}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Annual Tab - Keep visible even when not ready */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isAnnualReady) {
+                    setSelectedTermId('annual');
+                  }
+                }}
+                disabled={!isAnnualReady}
+                title={
+                  isAnnualReady
+                    ? 'View Annual Consolidated Report Cards'
+                    : `Annual evaluation is locked: All terms must be fully approved. Pending: ${pendingTermsForAnnual.map((t: any) => t.name).join(', ')}`
+                }
+                className={`group shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all border shadow-xs ${
+                  selectedTermId === 'annual'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-md ring-2 ring-blue-500/20'
+                    : isAnnualReady
+                      ? 'bg-background text-foreground hover:bg-muted/70 border-border hover:border-blue-500/40'
+                      : 'bg-muted/40 text-muted-foreground/60 border-dashed border-border/80 cursor-not-allowed opacity-75'
+                }`}
+              >
+                {!isAnnualReady ? (
+                  <Lock className="w-3.5 h-3.5 text-muted-foreground/60" />
+                ) : (
+                  <Award className={`w-4 h-4 ${selectedTermId === 'annual' ? 'text-amber-300' : 'text-amber-500'}`} />
+                )}
+                <span>Annual</span>
+                {!isAnnualReady ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-bold uppercase tracking-wider">
+                    Locked
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-bold uppercase tracking-wider">
+                    Ready
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+
+
+        </div>
+      )}
+
+      {/* ============================================================ */}
       {/* SECTION VIEW ROUTER: SELECTION / STATE A / STATE B           */}
       {/* ============================================================ */}
       {!selectedSectionId ? (
@@ -1091,7 +1329,7 @@ export default function AdminReportCardsPage() {
       ) : loadingReadiness ? (
         <div className="rounded-3xl border border-border bg-card p-12 text-center space-y-4 print:hidden">
           <RefreshCw className="w-8 h-8 text-primary animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-foreground">Evaluating required subject approvals...</p>
+          <p className="text-sm font-semibold text-foreground">Evaluating readiness...</p>
         </div>
       ) : !isAllSubjectsApproved ? (
         /* ============================================================ */
@@ -1099,104 +1337,80 @@ export default function AdminReportCardsPage() {
         /* ============================================================ */
         <div className="space-y-5 print:hidden">
           {/* Prominent Information Section */}
-          <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-5 sm:p-7 shadow-xs">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] font-black uppercase tracking-wider border border-amber-500/30">
-                    <Clock className="w-3.5 h-3.5" />
-                    Results Incomplete • Awaiting Approvals
+          <div className="relative overflow-hidden rounded-2xl border border-amber-500/25 bg-card shadow-sm">
+            {/* Decorative top accent line */}
+            <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-500 via-orange-400 to-amber-600 rounded-t-2xl" />
+
+            <div className="p-5 sm:p-6 pt-6 sm:pt-7">
+              <div className="flex flex-col sm:flex-row items-start gap-5">
+                {/* Left: Icon + Content */}
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="shrink-0 mt-0.5 w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                    <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight pt-1">
-                    Student performance reports are not ready yet.
-                  </h2>
-                  <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl leading-relaxed">
-                    All required subjects must complete the approval process before consolidated student rankings, class averages, and report cards become available.
-                  </p>
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[10px] font-bold uppercase tracking-widest border border-amber-500/20">
+                      <Clock className="w-3 h-3" />
+                      Awaiting Approvals
+                    </div>
+                    <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight leading-snug">
+                      Grades not ready for publication
+                    </h2>
+                    <p className="text-xs sm:text-[13px] text-muted-foreground leading-relaxed max-w-xl">
+                      All required subjects must be submitted and approved before student rankings, class averages, and report cards can be generated.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right: Action buttons */}
+                <div className="flex items-center gap-2 shrink-0 self-start sm:self-center w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { loadReadiness(); loadData(); }}
+                    disabled={loadingReadiness}
+                    className="flex-1 sm:flex-none gap-1.5 h-9 px-3.5 rounded-lg border-border text-xs font-semibold"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingReadiness ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                  <Link href={getSubmissionsUrl()} className="flex-1 sm:flex-none">
+                    <Button
+                      size="sm"
+                      className="w-full gap-1.5 h-9 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm"
+                    >
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      Review Submissions
+                    </Button>
+                  </Link>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { loadReadiness(); loadData(); }}
-                  disabled={loadingReadiness}
-                  className="gap-2 h-10 px-4 rounded-xl border-amber-500/30 hover:bg-amber-500/10 text-xs font-semibold"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingReadiness ? 'animate-spin' : ''}`} />
-                  Check Status
-                </Button>
-                <Link href={getSubmissionsUrl()}>
-                  <Button
-                    size="sm"
-                    className="gap-2 h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs"
-                  >
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                    Review Submissions
-                  </Button>
-                </Link>
+              {/* Progress Bar & Metrics */}
+              <div className="mt-5 pt-4 border-t border-border/60 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    Approval Progress
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">
+                      <span className="text-amber-600 dark:text-amber-400 font-bold">{approvedCount}</span>
+                      <span className="text-muted-foreground"> / {totalRequired} subjects</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-mono">
+                      {completionPercentage}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress track */}
+                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-700 ease-out"
+                    style={{ width: `${Math.max(2, completionPercentage)}%` }}
+                  />
+                </div>
               </div>
-            </div>
-
-            {/* Progress Bar & Key Metrics */}
-            <div className="mt-6 pt-5 border-t border-amber-500/20 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-foreground">
-                  Approval Progress: <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{approvedCount} of {totalRequired} subjects approved</span>
-                </span>
-                <span className="font-mono font-black text-amber-600 dark:text-amber-400 text-sm">
-                  {completionPercentage}% Complete
-                </span>
-              </div>
-
-              {/* Progress track */}
-              <div className="w-full h-3 rounded-full bg-amber-500/20 overflow-hidden p-0.5">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-500 shadow-xs"
-                  style={{ width: `${Math.max(4, completionPercentage)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Approval Progress Metric Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-              <span className="text-xs font-semibold text-muted-foreground">Approved Subjects</span>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                {approvedCount} <span className="text-xs font-medium text-muted-foreground">/ {totalRequired}</span>
-              </p>
-              <span className="text-[11px] text-muted-foreground">Verified & signed off</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-              <span className="text-xs font-semibold text-muted-foreground">Remaining Subjects</span>
-              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                {remainingCount}
-              </p>
-              <span className="text-[11px] text-muted-foreground">Pending approval</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-              <span className="text-xs font-semibold text-muted-foreground">Percentage Completion</span>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
-                {completionPercentage}%
-              </p>
-              <span className="text-[11px] text-muted-foreground">Overall subject readiness</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
-              <span className="text-xs font-semibold text-muted-foreground">Current Status</span>
-              <div className="mt-1">
-                <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                  Results Incomplete
-                </span>
-              </div>
-              <span className="text-[11px] text-muted-foreground mt-1 block">Publishing blocked</span>
             </div>
           </div>
 
@@ -1419,11 +1633,10 @@ export default function AdminReportCardsPage() {
               filteredRows.map((row, idx) => (
                 <div
                   key={row.id ? `mrc-${row.id}` : `mstudent-${row.studentId}-${idx}`}
-                  className={`rounded-2xl border bg-card p-4 shadow-xs space-y-3 ${
-                    row.status === 'NEEDS_CORRECTION'
+                  className={`rounded-2xl border bg-card p-4 shadow-xs space-y-3 ${row.status === 'NEEDS_CORRECTION'
                       ? 'border-amber-400/40 bg-amber-500/5'
                       : 'border-border'
-                  }`}
+                    }`}
                 >
                   {/* Top row: rank + name + status */}
                   <div className="flex items-start gap-3">
@@ -1448,13 +1661,12 @@ export default function AdminReportCardsPage() {
                     </div>
                     <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
                       <div className="text-[10px] text-muted-foreground font-semibold uppercase">Average</div>
-                      <div className={`font-black text-base ${
-                        row.averageScore >= 85 ? 'text-emerald-600 dark:text-emerald-400'
-                        : row.averageScore >= 70 ? 'text-blue-600 dark:text-blue-400'
-                        : row.averageScore >= 50 ? 'text-amber-600 dark:text-amber-400'
-                        : row.averageScore > 0 ? 'text-rose-600 dark:text-rose-400'
-                        : 'text-muted-foreground'
-                      }`}>{row.averageScore > 0 ? `${row.averageScore}%` : '—'}</div>
+                      <div className={`font-black text-base ${row.averageScore >= 85 ? 'text-emerald-600 dark:text-emerald-400'
+                          : row.averageScore >= 70 ? 'text-blue-600 dark:text-blue-400'
+                            : row.averageScore >= 50 ? 'text-amber-600 dark:text-amber-400'
+                              : row.averageScore > 0 ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-muted-foreground'
+                        }`}>{row.averageScore > 0 ? `${row.averageScore}%` : '—'}</div>
                     </div>
                     <div className="rounded-xl bg-muted/60 border border-border px-2 py-2">
                       <div className="text-[10px] text-muted-foreground font-semibold uppercase">Conduct</div>
@@ -1547,9 +1759,8 @@ export default function AdminReportCardsPage() {
                     filteredRows.map((row) => (
                       <tr
                         key={row.id ? `rc-${row.id}` : `student-${row.studentId}`}
-                        className={`hover:bg-muted/40 transition-colors ${
-                          row.status === 'NEEDS_CORRECTION' ? 'bg-amber-500/5' : ''
-                        }`}
+                        className={`hover:bg-muted/40 transition-colors ${row.status === 'NEEDS_CORRECTION' ? 'bg-amber-500/5' : ''
+                          }`}
                       >
                         <td className="py-3 px-4 text-center">
                           <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-muted border border-border text-xs font-black text-foreground">
@@ -1571,12 +1782,12 @@ export default function AdminReportCardsPage() {
                               row.averageScore >= 85
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : row.averageScore >= 70
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : row.averageScore >= 50
-                                ? 'text-amber-600 dark:text-amber-400'
-                                : row.averageScore > 0
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : 'text-muted-foreground'
+                                  ? 'text-blue-600 dark:text-blue-400'
+                                  : row.averageScore >= 50
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : row.averageScore > 0
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : 'text-muted-foreground'
                             }
                           >
                             {row.averageScore > 0 ? `${row.averageScore}%` : '—'}

@@ -1,5 +1,6 @@
 import { academicYearService } from './academic-year.service';
 import prisma from '../config/db';
+import { reportCardCache } from './report-card-cache.service';
 
 export interface SubmissionFilterParams {
   academicYearId?: string;
@@ -831,6 +832,18 @@ export class AssessmentSubmissionService {
       return up;
     });
 
+    // Invalidate cached report cards for this section (marks changed)
+    reportCardCache.invalidateSection({
+      gradeId: record.gradeId,
+      sectionId: record.sectionId,
+      academicYearId: record.academicYearId,
+      academicTermId: record.academicTermId,
+    });
+    try {
+      const { gradebookService } = await import('./gradebook.service');
+      gradebookService.invalidateTopPerformersCache();
+    } catch {}
+
     // Auto-create / refresh DRAFT report cards for this class using approved marks
     // Crucial: Report cards remain DRAFT or READY, NEVER auto-published!
     (async () => {
@@ -910,6 +923,18 @@ export class AssessmentSubmissionService {
       return up;
     });
 
+    // Invalidate cached report cards for this section (marks changed)
+    reportCardCache.invalidateSection({
+      gradeId: record.gradeId,
+      sectionId: record.sectionId,
+      academicYearId: record.academicYearId,
+      academicTermId: record.academicTermId,
+    });
+    try {
+      const { gradebookService } = await import('./gradebook.service');
+      gradebookService.invalidateTopPerformersCache();
+    } catch {}
+
     // Re-sync draft report cards to reflect returned status
     (async () => {
       try {
@@ -986,6 +1011,18 @@ export class AssessmentSubmissionService {
       return up;
     });
 
+    // Invalidate cached report cards for this section (marks changed)
+    reportCardCache.invalidateSection({
+      gradeId: record.gradeId,
+      sectionId: record.sectionId,
+      academicYearId: record.academicYearId,
+      academicTermId: record.academicTermId,
+    });
+    try {
+      const { gradebookService } = await import('./gradebook.service');
+      gradebookService.invalidateTopPerformersCache();
+    } catch {}
+
     // Re-sync draft report cards to reflect reopened status
     (async () => {
       try {
@@ -1047,6 +1084,18 @@ export class AssessmentSubmissionService {
 
       return up;
     });
+
+    // Invalidate cached report cards for this section (marks changed)
+    reportCardCache.invalidateSection({
+      gradeId: record.gradeId,
+      sectionId: record.sectionId,
+      academicYearId: record.academicYearId,
+      academicTermId: record.academicTermId,
+    });
+    try {
+      const { gradebookService } = await import('./gradebook.service');
+      gradebookService.invalidateTopPerformersCache();
+    } catch {}
 
     // Refresh draft report cards with approved marks (remains DRAFT or READY, never PUBLISHED)
     (async () => {
