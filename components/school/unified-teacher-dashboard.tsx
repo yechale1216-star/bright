@@ -270,18 +270,16 @@ export function UnifiedTeacherDashboard() {
                       <Button
                         size="sm"
                         onClick={() => router.push(`/school/teacher/gradebook`)}
-                        className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-xs"
+                        className="rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-xs"
                       >
-                        <GraduationCap className="w-3.5 h-3.5" />
                         Gradebook
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => router.push(`/school/teacher/classes`)}
-                        className="rounded-xl text-xs font-bold gap-1.5 border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-foreground backdrop-blur-md shadow-2xs"
+                        className="rounded-xl text-xs font-bold border-slate-300/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-foreground backdrop-blur-md shadow-2xs"
                       >
-                        <Layers className="w-3.5 h-3.5" />
                         Class Hub
                       </Button>
                     </div>

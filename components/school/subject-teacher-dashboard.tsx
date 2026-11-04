@@ -239,7 +239,6 @@ export function SubjectTeacherDashboard() {
                         href={`/school/teacher/gradebook`}
                         className="p-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-center transition-all group flex items-center justify-center gap-1.5 backdrop-blur-md"
                       >
-                        <GraduationCap className="w-4 h-4 group-hover:scale-110 transition-transform" />
                         <span className="text-xs font-bold">Gradebook</span>
                       </Link>
 
@@ -247,7 +246,6 @@ export function SubjectTeacherDashboard() {
                         href={`/school/teacher/classes`}
                         className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-foreground border border-slate-200/80 dark:border-white/10 text-center transition-all group flex items-center justify-center gap-1.5 backdrop-blur-md shadow-2xs"
                       >
-                        <Layers className="w-4 h-4 group-hover:scale-110 transition-transform text-muted-foreground" />
                         <span className="text-xs font-bold">Class Hub</span>
                       </Link>
                     </div>

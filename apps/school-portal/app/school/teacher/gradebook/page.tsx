@@ -1135,24 +1135,12 @@ export default function TeacherGradebookPage() {
       </div>
 
       {/* ── ASSESSMENT CATEGORIES & WEIGHTS DISPLAY (MATCHING MOCKUP) ──────────── */}
-      <div className="space-y-2.5 print:hidden">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-          Assessment Categories & Weights
-        </h2>
+      {categories.length > 0 && (
+        <div className="space-y-2.5 print:hidden">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+            Assessment Categories & Weights
+          </h2>
 
-        {categories.length === 0 ? (
-          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-sm flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-              <span>
-                No administrator weighting scheme configured for this grade and subject. The system is operating in raw marks mode.
-              </span>
-            </div>
-            <span className="text-xs font-semibold underline text-amber-900 dark:text-amber-200">
-              Contact School Administrator
-            </span>
-          </div>
-        ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {categories.map((cat) => (
               <div
@@ -1178,8 +1166,8 @@ export default function TeacherGradebookPage() {
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── ASSESSMENTS HEADER & ACTION BAR ────────────────────────────────────── */}
       <div className="space-y-4 print:hidden">

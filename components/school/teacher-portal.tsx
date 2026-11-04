@@ -477,26 +477,26 @@ export function TeacherPortal() {
     const homeroomCount = assignments.filter((a) => a.role === "HOMEROOM_TEACHER").length
 
     return (
-      <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
+      <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300">
         {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white p-3.5 sm:p-6 md:p-10 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white p-3.5 sm:p-5 md:p-6 shadow-lg">
           <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-6">
             <div className="space-y-1 sm:space-y-2">
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/15 backdrop-blur-md text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-white border border-white/20">
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300" />
-                <span>Subject Teacher Workspace</span>
+                <span>Teacher Workspace</span>
               </div>
-              <h1 className="text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
+              <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight">
                 My Assigned Classes &amp; Subjects
               </h1>
-              <p className="text-blue-100 max-w-xl text-xs sm:text-sm md:text-base leading-relaxed">
+              <p className="text-blue-100 max-w-xl text-xs sm:text-sm leading-normal">
                 Welcome back{currentUser?.name ? `, ${currentUser.name}` : ""}. Select an assigned class to post homework, upload materials, record grades, and track student submissions.
               </p>
             </div>
 
             {currentYear && (
-              <div className="flex items-center gap-2 sm:gap-3 bg-white/10 backdrop-blur-md px-3 py-2 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl border border-white/20 self-start md:self-auto shrink-0">
+              <div className="flex items-center gap-2 sm:gap-2.5 bg-white/10 backdrop-blur-md px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-white/20 self-start md:self-auto shrink-0">
                 <Calendar className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-200" />
                 <div>
                   <div className="text-[9px] sm:text-[11px] uppercase tracking-wider text-blue-200 font-semibold">Active Year</div>
@@ -507,18 +507,18 @@ export function TeacherPortal() {
           </div>
 
           {/* Quick Metrics Bar — Mobile First: compact 3-column metrics */}
-          <div className="mt-3.5 sm:mt-8 pt-3 sm:pt-6 border-t border-white/15 grid grid-cols-3 gap-1.5 sm:gap-4">
+          <div className="mt-3 sm:mt-4 pt-2.5 sm:pt-3.5 border-t border-white/15 grid grid-cols-3 gap-1.5 sm:gap-3">
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 border border-white/10 text-center sm:text-left">
               <div className="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Total Classes</div>
-              <div className="text-base sm:text-2xl font-black mt-0.5">{assignments.length}</div>
+              <div className="text-sm sm:text-xl font-black mt-0.5">{assignments.length}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 border border-white/10 text-center sm:text-left">
               <div className="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Subject Roles</div>
-              <div className="text-base sm:text-2xl font-black mt-0.5">{subjectTeacherCount}</div>
+              <div className="text-sm sm:text-xl font-black mt-0.5">{subjectTeacherCount}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 border border-white/10 text-center sm:text-left">
               <div className="text-[9px] sm:text-xs text-blue-200 font-medium truncate">Homeroom</div>
-              <div className="text-base sm:text-2xl font-black mt-0.5">{homeroomCount}</div>
+              <div className="text-sm sm:text-xl font-black mt-0.5">{homeroomCount}</div>
             </div>
           </div>
         </div>
@@ -606,16 +606,6 @@ export function TeacherPortal() {
                   onClick={() => handleSelectClass(assignment)}
                   className="group relative cursor-pointer overflow-hidden rounded-2xl sm:rounded-3xl border border-white/70 dark:border-white/10 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl active:scale-[0.98] hover:border-indigo-500/50 dark:hover:border-indigo-500/40 hover:bg-white/90 dark:hover:bg-slate-900/70 hover:shadow-xl sm:hover:-translate-y-1 transition-all duration-300 shadow-md shadow-black/5 dark:shadow-black/20"
                 >
-                  {/* Role accent bar */}
-                  <div
-                    className={cn(
-                      "h-1.5 w-full",
-                      isHomeroom
-                        ? "bg-gradient-to-r from-violet-500 to-purple-600"
-                        : "bg-gradient-to-r from-blue-500 to-indigo-600"
-                    )}
-                  />
-
                   <div className="p-4 sm:p-5 pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <Badge
