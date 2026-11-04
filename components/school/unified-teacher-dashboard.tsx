@@ -11,9 +11,7 @@ import {
   UserCheck,
   Users,
   ChevronRight,
-  Sparkles,
   Info,
-  Calendar,
   Layers,
   ArrowRight,
   Clock,
@@ -24,7 +22,6 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/context/auth-context'
 import { useTeacherRole, type TeacherPortalAssignment } from '@/hooks/use-teacher-role'
 import { useCalendar } from '@/lib/context/calendar-context'
@@ -58,19 +55,6 @@ export function UnifiedTeacherDashboard() {
         <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30 font-bold text-xs px-2.5 py-0.5 flex items-center gap-1.5 backdrop-blur-sm">
-                <Sparkles className="w-3.5 h-3.5" />
-                Dual Role Teacher
-              </Badge>
-              {currentYear && (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-semibold text-xs px-2.5 py-0.5 flex items-center gap-1.5 backdrop-blur-sm">
-                  <Calendar className="w-3 h-3" />
-                  {currentYear.name}
-                </Badge>
-              )}
-            </div>
-
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
               Welcome back, {user?.name || 'Teacher'} 👋
             </h1>
@@ -80,20 +64,7 @@ export function UnifiedTeacherDashboard() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <Link href="/school/teacher/attendance">
-              <Button className="rounded-xl h-10 px-4 text-xs font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
-                <CheckSquare className="w-4 h-4" />
-                Take Homeroom Attendance
-              </Button>
-            </Link>
-            <Link href="/school/teacher/gradebook">
-              <Button className="rounded-xl h-10 px-4 text-xs font-bold gap-2 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
-                <GraduationCap className="w-4 h-4" />
-                Open Gradebook
-              </Button>
-            </Link>
-          </div>
+
         </div>
 
         {/* Dual Role Summary Banner */}
