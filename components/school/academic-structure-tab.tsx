@@ -1298,7 +1298,7 @@ function GradeSubjectsSection() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {groupedCurriculum.map((group) => {
             const is11or12 =
               /\b(11|12)\b/.test(group.gradeName) ||
@@ -1308,7 +1308,7 @@ function GradeSubjectsSection() {
             return (
               <div
                 key={group.key}
-                className="rounded-3xl border border-border/70 bg-card/60 backdrop-blur-sm p-5 space-y-4 hover:border-blue-500/40 transition-all shadow-sm"
+                className="rounded-3xl border border-border/70 bg-card/60 backdrop-blur-sm p-5 space-y-4 hover:border-blue-500/40 transition-all shadow-sm flex flex-col justify-between"
               >
                 {/* Group Header */}
                 <div className="flex items-start justify-between gap-3">
@@ -1406,7 +1406,7 @@ function GradeSubjectsSection() {
 
       {/* Assignment Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[560px] rounded-3xl p-6 bg-card border border-border/70 shadow-2xl">
+        <DialogContent className="w-[95vw] sm:max-w-[640px] md:max-w-[720px] max-h-[90vh] overflow-y-auto rounded-3xl p-5 md:p-6 bg-card border border-border/70 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="font-black text-base flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-blue-600" />
@@ -1524,9 +1524,9 @@ function GradeSubjectsSection() {
               </div>
 
               {/* Subject Checkboxes Grid */}
-              <div className="max-h-56 overflow-y-auto p-2 rounded-2xl border border-border/70 bg-muted/20 space-y-1">
+              <div className="max-h-64 overflow-y-auto p-2 rounded-2xl border border-border/70 bg-muted/20 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {filteredModalSubjects.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-muted-foreground">
+                  <div className="py-6 col-span-full text-center text-xs text-muted-foreground">
                     No subjects found.
                   </div>
                 ) : (
