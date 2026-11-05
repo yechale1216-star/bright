@@ -254,7 +254,6 @@ export function StudentShell({ children }: StudentShellProps) {
 
           <div className="px-2 pt-1 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
             <p className="font-semibold text-slate-700 dark:text-slate-300">Student Portal</p>
-            <p>Bright Path • Powered by Ethio Nova</p>
           </div>
         </div>
       </aside>
