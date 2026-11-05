@@ -294,8 +294,8 @@ class StudentDatabase {
 
   // ─── ATTENDANCE ──────────────────────────────────────────────────────────────
 
-  async getAttendance(month?: number, year?: number, mode: "daily" | "session" = "daily"): Promise<any> {
-    const key = `student_attendance_${month || "curr"}_${year || "curr"}_${mode}`;
+  async getAttendance(month?: number, year?: number, mode: "daily" | "session" = "daily", session?: "MORNING" | "AFTERNOON"): Promise<any> {
+    const key = `student_attendance_${month || "curr"}_${year || "curr"}_${mode}_${session || "all"}`;
     return queryCache.fetch(
       key,
       async () => {
@@ -303,6 +303,7 @@ class StudentDatabase {
         if (month) query.set("month", month.toString());
         if (year) query.set("year", year.toString());
         query.set("mode", mode);
+        if (session) query.set("session", session);
 
         const res = await apiFetch<{ success: boolean; data: any }>(
           `${API_URL}/api/student/attendance?${query.toString()}`,

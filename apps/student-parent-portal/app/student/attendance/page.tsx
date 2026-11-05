@@ -51,6 +51,7 @@ export default function StudentAttendancePage() {
   const now = new Date();
 
   const [mode, setMode] = useState<"daily" | "session">("daily");
+  const [sessionFilter, setSessionFilter] = useState<"ALL" | "MORNING" | "AFTERNOON">("ALL");
   // Default to actual current month/year (not hardcoded)
   const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1);
   const [currentYear, setCurrentYear]   = useState(now.getFullYear());
@@ -63,7 +64,7 @@ export default function StudentAttendancePage() {
     setLoading(true);
     setError(null);
     studentDb
-      .getAttendance(currentMonth, currentYear, mode)
+      .getAttendance(currentMonth, currentYear, mode, sessionFilter === "ALL" ? undefined : sessionFilter)
       .then((res: any) => {
         setRawData(res);
       })
@@ -72,7 +73,7 @@ export default function StudentAttendancePage() {
         setError(err?.message || "Failed to load attendance data.");
       })
       .finally(() => setLoading(false));
-  }, [currentMonth, currentYear, mode]);
+  }, [currentMonth, currentYear, mode, sessionFilter]);
 
   // ── Build calendar day→status map from records[] ───────────────────────────
   const calendarStatus = useMemo<Record<number, string>>(() => {
@@ -138,7 +139,7 @@ export default function StudentAttendancePage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
       {/* ── Header + Mode Toggle ───────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             Attendance
@@ -148,29 +149,52 @@ export default function StudentAttendancePage() {
           </p>
         </div>
 
-        <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl inline-flex self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setMode("daily")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              mode === "daily"
-                ? "bg-purple-700 text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            Daily
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("session")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              mode === "session"
-                ? "bg-purple-700 text-white shadow-sm"
-                : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            Session-based
-          </button>
+        <div className="flex flex-col gap-2 items-start sm:items-end">
+          {/* Daily / Session-based toggle */}
+          <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl inline-flex">
+            <button
+              type="button"
+              onClick={() => { setMode("daily"); setSessionFilter("ALL"); }}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                mode === "daily"
+                  ? "bg-purple-700 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Daily
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("session")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                mode === "session"
+                  ? "bg-purple-700 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Session-based
+            </button>
+          </div>
+
+          {/* Morning / Afternoon sub-filter — only in session mode */}
+          {mode === "session" && (
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl inline-flex">
+              {(["ALL", "MORNING", "AFTERNOON"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSessionFilter(s)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    sessionFilter === s
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  {s === "ALL" ? "All Sessions" : s.charAt(0) + s.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -305,7 +329,12 @@ export default function StudentAttendancePage() {
         {/* Recent Records */}
         <div className="lg:col-span-4 space-y-4">
           <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/90 p-5">
-            <CardTitle className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-4">Recent Records</CardTitle>
+            <CardTitle className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">Recent Records</CardTitle>
+            {mode === "session" && sessionFilter !== "ALL" && (
+              <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-semibold mb-3">
+                {sessionFilter.charAt(0) + sessionFilter.slice(1).toLowerCase()} session only
+              </p>
+            )}
 
             {loading ? (
               <div className="space-y-2.5">

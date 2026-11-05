@@ -715,7 +715,7 @@ export const getAttendance = async (req: AuthenticatedRequest, res: Response, ne
     const userId = req.user!.id;
     const student = await getStudentByUserId(userId);
     if (!student) return res.status(404).json({ success: false, message: 'Student profile not found.' });
-    const { month, year } = req.query as any;
+    const { month, year, session } = req.query as any;
     const academicYear = await getActiveAcademicYear();
     const filterMonth = month ? parseInt(month) : null;
     const filterYear = year ? parseInt(year) : null;
@@ -727,8 +727,9 @@ export const getAttendance = async (req: AuthenticatedRequest, res: Response, ne
     } else if (academicYear) {
       dateFilter = { date: { gte: academicYear.startDate, lte: academicYear.endDate } };
     }
+    const sessionFilter: any = session ? { session: session.toString().toUpperCase() } : {};
     const records = await prisma.attendance.findMany({
-      where: { studentId: student.id, ...dateFilter },
+      where: { studentId: student.id, ...dateFilter, ...sessionFilter },
       orderBy: { date: 'desc' },
       select: { id: true, date: true, status: true, session: true, remarks: true },
     });
