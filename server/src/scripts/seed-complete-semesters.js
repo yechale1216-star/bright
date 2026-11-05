@@ -35,14 +35,14 @@ const BOGUS_SCHEME_SUBJECT_IDS = [
 
 // Realistic student performance profiles (% target base)
 const STUDENT_PROFILES = {
-  'ST-2019-10-001': { base: 82, variance: 6 }, // Abebe Bikila
-  'ST-2019-10-002': { base: 91, variance: 5 }, // Almaz Ayana
-  'ST-2019-10-003': { base: 80, variance: 7 }, // Kenenisa Bekele
-  'ST-2019-10-004': { base: 88, variance: 5 }, // Derartu Tulu
-  'ST-2019-10-005': { base: 93, variance: 4 }, // Haile Gebrselassie
-  'ST-2019-10-006': { base: 84, variance: 6 }, // Tirunesh Dibaba
-  'ST-2019-10-007': { base: 76, variance: 8 }, // Yifter Miruts
-  'ST-2019-10-008': { base: 89, variance: 5 }, // Meseret Defar
+  'ST-2019-10-001': { base: 82, variance: 6 }, // Ermias Tesfaye
+  'ST-2019-10-002': { base: 91, variance: 5 }, // Blen Girma
+  'ST-2019-10-003': { base: 80, variance: 7 }, // Samuel Alemayehu
+  'ST-2019-10-004': { base: 88, variance: 5 }, // Tsion Fikru
+  'ST-2019-10-005': { base: 93, variance: 4 }, // Eyob Hailu
+  'ST-2019-10-006': { base: 84, variance: 6 }, // Martha Solomon
+  'ST-2019-10-007': { base: 76, variance: 8 }, // Nebiyu Daniel
+  'ST-2019-10-008': { base: 89, variance: 5 }, // Bethlehem Worku
   'STU000014':      { base: 85, variance: 6 }, // Amanuel Desalegn
   'STU000016':      { base: 90, variance: 5 }, // Sara Tadesse
   'STU000024':      { base: 74, variance: 7 }, // Bereket Desalegn
@@ -310,3 +310,4 @@ main()
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
+

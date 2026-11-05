@@ -51,14 +51,14 @@ async function seedAcademicReportData() {
   // 3. Define target student list with diverse Ethiopian names
   const studentSeeds = [
     // Section A
-    { name: 'Abebe Bikila', gender: 'Male', sectionId: sectionA.id, baseAbility: 85 },
-    { name: 'Almaz Ayana', gender: 'Female', sectionId: sectionA.id, baseAbility: 92 },
-    { name: 'Kenenisa Bekele', gender: 'Male', sectionId: sectionA.id, baseAbility: 78 },
-    { name: 'Derartu Tulu', gender: 'Female', sectionId: sectionA.id, baseAbility: 88 },
-    { name: 'Haile Gebrselassie', gender: 'Male', sectionId: sectionA.id, baseAbility: 95 },
-    { name: 'Tirunesh Dibaba', gender: 'Female', sectionId: sectionA.id, baseAbility: 90 },
-    { name: 'Yifter Miruts', gender: 'Male', sectionId: sectionA.id, baseAbility: 72 },
-    { name: 'Meseret Defar', gender: 'Female', sectionId: sectionA.id, baseAbility: 84 },
+    { name: 'Ermias Tesfaye', gender: 'Male', sectionId: sectionA.id, baseAbility: 85 },
+    { name: 'Blen Girma', gender: 'Female', sectionId: sectionA.id, baseAbility: 92 },
+    { name: 'Samuel Alemayehu', gender: 'Male', sectionId: sectionA.id, baseAbility: 78 },
+    { name: 'Tsion Fikru', gender: 'Female', sectionId: sectionA.id, baseAbility: 88 },
+    { name: 'Eyob Hailu', gender: 'Male', sectionId: sectionA.id, baseAbility: 95 },
+    { name: 'Martha Solomon', gender: 'Female', sectionId: sectionA.id, baseAbility: 90 },
+    { name: 'Nebiyu Daniel', gender: 'Male', sectionId: sectionA.id, baseAbility: 72 },
+    { name: 'Bethlehem Worku', gender: 'Female', sectionId: sectionA.id, baseAbility: 84 },
     // Section B
     { name: 'Solomon Tadesse', gender: 'Male', sectionId: sectionB.id, baseAbility: 81 },
     { name: 'Bethlehem Demisse', gender: 'Female', sectionId: sectionB.id, baseAbility: 89 },
