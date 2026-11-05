@@ -56,7 +56,7 @@ export function UnifiedTeacherDashboard() {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-              Welcome back, {user?.name || 'Teacher'} 👋
+              Welcome back, {user?.name || 'Teacher'}
             </h1>
             <p className="text-xs md:text-sm text-muted-foreground flex items-center gap-2">
               <Clock className="w-4 h-4 text-muted-foreground/70" />

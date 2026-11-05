@@ -943,8 +943,8 @@ export default function TeacherGradebookPage() {
 
     const headers = [
       '#',
-      'Student ID',
       'Student Name',
+      'Student ID',
       ...gradebookData.assessments.map((a) => `${a.title} (Max ${a.maxScore})`),
       'Weighted Total (%)',
       'Status',
@@ -964,8 +964,8 @@ export default function TeacherGradebookPage() {
 
       return [
         idx + 1,
-        `"${row.student.student_id}"`,
         `"${row.student.fullName}"`,
+        `"${row.student.student_id}"`,
         ...studentScores,
         finalMark,
         status,
@@ -1619,16 +1619,27 @@ export default function TeacherGradebookPage() {
 
               {/* Multi-Assessment Grid Table */}
               <div className="overflow-x-auto max-w-full">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead className="bg-muted/40 font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+                <table className="w-full text-xs text-left border-separate border-spacing-0">
+                  <thead className="bg-slate-100 dark:bg-slate-800 font-semibold uppercase tracking-wider text-muted-foreground">
                     <tr>
-                      <th className="py-3 px-3 w-10 text-center">#</th>
-                      <th className="py-3 px-3 w-24">Student ID</th>
-                      <th className="py-3 px-4 min-w-[150px]">Student Name</th>
+                      {/* 1. Order Number (#) - Sticky Left at 0px */}
+                      <th className="sticky left-0 z-30 py-3 px-2 w-[48px] min-w-[48px] max-w-[48px] text-center bg-slate-100 dark:bg-slate-800 border-b border-border select-none">
+                        #
+                      </th>
 
-                      {/* Dynamic Columns for each Assessment */}
+                      {/* 2. Student Name - Sticky Left at 48px */}
+                      <th className="sticky left-[48px] z-30 py-3 px-4 w-[180px] min-w-[180px] max-w-[180px] text-left bg-slate-100 dark:bg-slate-800 border-b border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.4)]">
+                        Student Name
+                      </th>
+
+                      {/* 3. Student ID - Scrollable (Not Sticky) */}
+                      <th className="py-3 px-3 w-28 min-w-[110px] text-left border-b border-border bg-slate-100/90 dark:bg-slate-800/90">
+                        Student ID
+                      </th>
+
+                      {/* 4. Dynamic Columns for each Assessment - Scrollable */}
                       {assessments.length === 0 ? (
-                        <th className="py-3 px-4 text-muted-foreground italic text-center">
+                        <th className="py-3 px-4 text-muted-foreground italic text-center border-b border-border bg-slate-100/90 dark:bg-slate-800/90">
                           No assessments created yet
                         </th>
                       ) : (
@@ -1637,7 +1648,7 @@ export default function TeacherGradebookPage() {
                           return (
                             <th
                               key={ass.id}
-                              className={`py-2 px-2.5 text-center min-w-[110px] max-w-[140px] border-l border-border/50 relative group/th ${theme.headerBg}`}
+                              className={`py-2 px-2.5 text-center min-w-[110px] max-w-[140px] border-l border-b border-border/50 relative group/th ${theme.headerBg}`}
                             >
                               <div className="flex items-center justify-between gap-1">
                                 <div className="flex-1 min-w-0 text-center">
@@ -1685,24 +1696,24 @@ export default function TeacherGradebookPage() {
                       )}
 
                       {/* Total (100) Column */}
-                      <th className="py-3 px-4 w-24 text-center border-l border-border bg-primary/5 font-extrabold text-foreground">
+                      <th className="py-3 px-4 w-24 text-center border-l border-b border-border bg-primary/5 font-extrabold text-foreground">
                         Total (100)
                       </th>
 
                       {/* Status Column */}
-                      <th className="py-3 px-3 w-28 text-center border-l border-border">
+                      <th className="py-3 px-3 w-28 text-center border-l border-b border-border bg-slate-100/90 dark:bg-slate-800/90">
                         Status
                       </th>
 
                       {/* Actions Menu */}
-                      <th className="py-3 px-2 w-10 text-center print:hidden"></th>
+                      <th className="py-3 px-2 w-10 text-center border-b border-border bg-slate-100/90 dark:bg-slate-800/90 print:hidden"></th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-border/60">
+                  <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground">
+                        <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground border-b border-border/60">
                           <div className="inline-flex items-center gap-2">
                             <RefreshCw className="w-4 h-4 animate-spin text-primary" />
                             <span>Loading gradebook and calculating weighted marks...</span>
@@ -1711,7 +1722,7 @@ export default function TeacherGradebookPage() {
                       </tr>
                     ) : filteredStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground">
+                        <td colSpan={6 + assessments.length} className="py-16 text-center text-muted-foreground border-b border-border/60">
                           No students enrolled in this class and section.
                         </td>
                       </tr>
@@ -1727,22 +1738,24 @@ export default function TeacherGradebookPage() {
                             key={student.id}
                             className="hover:bg-muted/30 transition-colors group"
                           >
-                            {/* Row Number */}
-                            <td className="py-2 px-3 text-center text-muted-foreground text-[11px]">
+                            {/* 1. Order Number (#) - Sticky Left at 0px */}
+                            <td className="sticky left-0 z-20 py-2 px-2 w-[48px] min-w-[48px] max-w-[48px] text-center text-muted-foreground text-[11px] bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 transition-colors border-b border-border/60">
                               {globalRowIdx + 1}
                             </td>
 
-                            {/* Student ID */}
-                            <td className="py-2 px-3 font-mono text-[11px] font-semibold text-muted-foreground">
+                            {/* 2. Student Name - Sticky Left at 48px */}
+                            <td className="sticky left-[48px] z-20 py-2 px-4 w-[180px] min-w-[180px] max-w-[180px] font-semibold text-foreground bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/80 transition-colors border-b border-r border-border shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_5px_-2px_rgba(0,0,0,0.4)]">
+                              <div className="truncate font-semibold text-foreground text-xs" title={student.fullName}>
+                                {student.fullName}
+                              </div>
+                            </td>
+
+                            {/* 3. Student ID - Scrollable (Not Sticky) */}
+                            <td className="py-2 px-3 font-mono text-[11px] font-semibold text-muted-foreground w-28 min-w-[110px] border-b border-border/60">
                               {student.student_id}
                             </td>
 
-                            {/* Student Name */}
-                            <td className="py-2 px-4 font-semibold text-foreground truncate max-w-[180px]">
-                              {student.fullName}
-                            </td>
-
-                            {/* Assessment Inputs */}
+                            {/* 4. Assessment Inputs - Scrollable */}
                             {assessments.map((ass, cIdx) => {
                               const cell = localMarks[student.id]?.[ass.id] || {
                                 score: null,
@@ -1762,7 +1775,7 @@ export default function TeacherGradebookPage() {
                               return (
                                 <td
                                   key={ass.id}
-                                  className={`py-1 px-1.5 text-center border-l border-border/40 ${isDirty ? 'bg-amber-500/10' : ''
+                                  className={`py-1 px-1.5 text-center border-l border-b border-border/40 ${isDirty ? 'bg-amber-500/10' : ''
                                     }`}
                                 >
                                   <input
@@ -1793,7 +1806,7 @@ export default function TeacherGradebookPage() {
                             })}
 
                             {/* Total (100) Weighted Score Column */}
-                            <td className="py-2 px-4 text-center border-l border-border font-extrabold bg-primary/5">
+                            <td className="py-2 px-4 text-center border-l border-b border-border font-extrabold bg-primary/5">
                               {finalTotal !== null ? (
                                 <span className="text-foreground text-xs">{finalTotal}</span>
                               ) : (
@@ -1807,7 +1820,7 @@ export default function TeacherGradebookPage() {
                             </td>
 
                             {/* Status Badge */}
-                            <td className="py-2 px-3 text-center border-l border-border">
+                            <td className="py-2 px-3 text-center border-l border-b border-border">
                               {isComplete ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
                                   <Check className="w-3 h-3" />
@@ -1821,7 +1834,7 @@ export default function TeacherGradebookPage() {
                             </td>
 
                             {/* Actions Column (⋮) */}
-                            <td className="py-2 px-2 text-center print:hidden">
+                            <td className="py-2 px-2 text-center border-b border-border/60 print:hidden">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button

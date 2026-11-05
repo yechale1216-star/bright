@@ -144,7 +144,7 @@ export function StudentShell({ children }: StudentShellProps) {
 
   const displayName = student?.name || "Amanuel Tesfaye";
   const displayGrade = student?.grade ? `Grade ${student.grade}` : "Grade 12";
-  const displayStream = student?.stream ? ` • ${student.stream}` : " • Natural";
+  const displayStream = student?.stream ? ` • ${student.stream}` : "";
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-[#070d1a] dark:text-slate-100 flex flex-col md:flex-row antialiased selection:bg-purple-500 selection:text-white transition-colors duration-200">
