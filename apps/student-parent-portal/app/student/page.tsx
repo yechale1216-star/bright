@@ -55,8 +55,14 @@ export default function StudentDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const formatGrade = (gradeStr?: string | null) => {
+    if (!gradeStr) return "Grade 12";
+    const trimmed = String(gradeStr).trim();
+    return /^grade\b/i.test(trimmed) ? trimmed : `Grade ${trimmed}`;
+  };
+
   const studentName = data?.student?.name ? data.student.name.split(" ")[0] : "Student";
-  const gradeDisplay = data?.student?.grade ? `Grade ${data.student.grade}` : "Grade 12";
+  const gradeDisplay = formatGrade(data?.student?.grade);
   const streamDisplay = data?.student?.stream || null;
   const academicYearDisplay = data?.academicYear || "2026/27";
   const greeting = getGreeting();
@@ -155,7 +161,7 @@ export default function StudentDashboardPage() {
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                {data?.student?.grade ? `Grade ${data.student.grade}` : "Grade 12"}
+                {gradeDisplay}
               </span>
               {streamDisplay && (
                 <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md">

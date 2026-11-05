@@ -143,7 +143,11 @@ export function StudentShell({ children }: StudentShellProps) {
   };
 
   const displayName = student?.name || "Amanuel Tesfaye";
-  const displayGrade = student?.grade ? `Grade ${student.grade}` : "Grade 12";
+  const displayGrade = student?.grade
+    ? /^grade\b/i.test(String(student.grade).trim())
+      ? String(student.grade).trim()
+      : `Grade ${String(student.grade).trim()}`
+    : "Grade 12";
   const displayStream = student?.stream ? ` • ${student.stream}` : "";
 
   return (
