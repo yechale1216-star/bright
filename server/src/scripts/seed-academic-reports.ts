@@ -1,12 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL || 'postgresql://postgres.twwmcoqipwqihlhxczvq:%40Muluye5612@aws-1-eu-west-1.pooler.supabase.com:5432/postgres'
-    }
-  }
-});
+const prisma = new PrismaClient();
 
 async function seedAcademicReportData() {
   console.log('🌱 Starting Academic Reports Seeding...');

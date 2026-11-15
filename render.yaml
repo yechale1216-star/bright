@@ -39,8 +39,8 @@ services:
       - key: CHAPA_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_URL
-        value: https://twwmcoqipwqihlhxczvq.supabase.co
+        value: https://wkdquuwyqlekksmiugei.supabase.co
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        value: sb_publishable_3_ygC_Dr3BUXVX6qt3VmDQ_Q1ViHWbl
+        value: sb_publishable_-_ONtFfvE396E2--ifhzpg_Tu7THn8g
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false

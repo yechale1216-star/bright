@@ -47,6 +47,9 @@ server/uploads/*
 
 # Vercel
 
+# Database backups
+backups/
+
 # AI Agent files
 .claude/
 .cursor/
