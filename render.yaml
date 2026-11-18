@@ -6,7 +6,7 @@ services:
   # Express Node.js Backend Service
   # ---------------------------------------------------------------------------
   - type: web
-    name: bright-8uji
+    name: brightserver
     runtime: node
     plan: free
     region: oregon
@@ -25,9 +25,9 @@ services:
       - key: JWT_SECRET
         sync: false  # Set a permanent secret in the Render dashboard — do NOT use generateValue (it rotates on every deploy and invalidates all user tokens)
       - key: APP_URL
-        value: https://bright-8uji.onrender.com
+        value: https://brightserver.onrender.com
       - key: FRONTEND_URL
-        sync: false
+        value: https://brightacadamy.vercel.app
       - key: ALLOWED_ORIGINS
         sync: false
       - key: DATABASE_URL

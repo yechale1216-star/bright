@@ -4,7 +4,7 @@
  * configured specifically for Android Capacitor native builds.
  */
 
-const BACKEND_URL = "https://bright-8uji.onrender.com";
+const BACKEND_URL = "https://brightserver.onrender.com";
 
 export const getApiUrl = () => {
   if (typeof window !== "undefined") {

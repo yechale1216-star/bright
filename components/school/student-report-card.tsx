@@ -86,7 +86,7 @@ function ReportCardPhoto({
     typeof photo === 'string' &&
     photo.trim() !== '' &&
     photo.trim() !== 'null' &&
-    !photo.includes('bright-8uji.onrender.com/uploads/');
+    !photo.includes('brightserver.onrender.com/uploads/');
 
   if (!isValidUrl || hasError) {
     return (

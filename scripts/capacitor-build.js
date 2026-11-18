@@ -88,7 +88,7 @@ if (target === 'school' || target === 'portal') {
         CAPACITOR_BUILD: '1',
         APP_TARGET: target,
         NEXT_PUBLIC_APP_TARGET: target,
-        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://bright-8uji.onrender.com',
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://brightserver.onrender.com',
       },
       cwd: ROOT,
     });
@@ -168,7 +168,7 @@ if (target === 'school' || target === 'portal') {
         ...process.env,
         CAPACITOR_BUILD: '1',
         APP_TARGET: 'root',
-        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://bright-8uji.onrender.com',
+        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://brightserver.onrender.com',
       },
       cwd: ROOT,
     });

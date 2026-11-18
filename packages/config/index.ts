@@ -3,7 +3,7 @@
  * Centralized application and environment configuration
  */
 
-const BACKEND_URL = "https://bright-8uji.onrender.com";
+const BACKEND_URL = "https://brightserver.onrender.com";
 
 export const getApiUrl = () => {
   if (typeof window !== "undefined") {
@@ -50,19 +50,19 @@ export const API_URL = getApiUrl();
 export const SOCKET_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL ||
   (typeof window !== "undefined" &&
-  ((window as any)?.Capacitor?.isNativePlatform?.() ||
-    (window as any)?.Capacitor?.platform === "android" ||
-    (window as any)?.Capacitor?.platform === "ios")
+    ((window as any)?.Capacitor?.isNativePlatform?.() ||
+      (window as any)?.Capacitor?.platform === "android" ||
+      (window as any)?.Capacitor?.platform === "ios")
     ? BACKEND_URL
     : API_URL);
 
 export const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   (typeof window !== "undefined" &&
-  !(window as any)?.Capacitor?.isNativePlatform?.() &&
-  window.location.origin &&
-  window.location.origin !== "http://localhost" &&
-  window.location.origin !== "https://localhost"
+    !(window as any)?.Capacitor?.isNativePlatform?.() &&
+    window.location.origin &&
+    window.location.origin !== "http://localhost" &&
+    window.location.origin !== "https://localhost"
     ? window.location.origin
     : BACKEND_URL);
 

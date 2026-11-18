@@ -122,7 +122,7 @@ const nextConfig = {
     const backendUrl =
       process.env.BACKEND_INTERNAL_URL ||
       process.env.NEXT_PUBLIC_API_URL ||
-      (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:5000' : 'https://bright-8uji.onrender.com');
+      (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:5000' : 'https://brightserver.onrender.com');
     return [
       {
         source: '/api/:path*',

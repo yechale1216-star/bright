@@ -70,7 +70,7 @@ router.post('/', upload.single('file'), (req: Request, res: Response) => {
   // Backend URL where static files are served from /uploads
   const baseUrl = isLocal
     ? `${protocol}://${host}`
-    : (process.env.RENDER_EXTERNAL_URL || (process.env.BACKEND_URL && !process.env.BACKEND_URL.includes('vercel.app') ? process.env.BACKEND_URL : null) || 'https://bright-8uji.onrender.com');
+    : (process.env.RENDER_EXTERNAL_URL || (process.env.BACKEND_URL && !process.env.BACKEND_URL.includes('vercel.app') ? process.env.BACKEND_URL : null) || 'https://brightserver.onrender.com');
 
   const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
 

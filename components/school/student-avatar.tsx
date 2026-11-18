@@ -74,7 +74,7 @@ export function StudentAvatar({
   const initials = getInitials(name);
 
   // Validate photo URL (reject null, empty string, or dead render.com paths)
-  const isDeadUrl = photo && typeof photo === 'string' && photo.includes('bright-8uji.onrender.com/uploads/');
+  const isDeadUrl = photo && typeof photo === 'string' && photo.includes('brightserver.onrender.com/uploads/');
   const validPhoto = !isDeadUrl && photo && typeof photo === 'string' && photo.trim() ? photo.trim() : null;
 
   return (

@@ -102,7 +102,7 @@ export function isValidProfilePhoto(url?: string | null): boolean {
     return false;
   }
   // Filter out dead ephemeral Render uploads that 404
-  if (trimmed.includes('bright-8uji.onrender.com/uploads/')) {
+  if (trimmed.includes('brightserver.onrender.com/uploads/')) {
     return false;
   }
   return true;
@@ -127,8 +127,8 @@ export async function compressImage(
     options.mimeType === 'image/jpeg'
       ? 'image/jpeg'
       : supportsWebP()
-      ? 'image/webp'
-      : 'image/jpeg';
+        ? 'image/webp'
+        : 'image/jpeg';
 
   return new Promise((resolve, reject) => {
     let src = '';
